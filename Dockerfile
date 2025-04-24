@@ -3,11 +3,20 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Copy go mod and sum files
+# Install git for private repos and protoc dependencies
+RUN apk add --no-cache git protoc protobuf-dev
+
+# Copy go mod files
 COPY go.mod go.sum ./
 
 # Download dependencies
-RUN go mod download
+RUN go mod download && go mod verify
+
+# Generate protobuf files
+COPY api/protos/ api/protos/
+RUN protoc --go_out=. --go_opt=paths=source_relative \
+  --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+  api/protos/*/*.proto
 
 # Copy source code
 COPY . .
