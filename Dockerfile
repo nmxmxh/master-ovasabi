@@ -1,7 +1,10 @@
 # Build stage
 FROM golang:1.24-alpine AS builder
 
-WORKDIR /app
+# Set GOPRIVATE to skip GitHub authentication
+ENV GOPRIVATE=github.com/ovasabi/*
+
+WORKDIR /go/src/github.com/ovasabi/master-ovasabi
 
 # Install build dependencies
 RUN apk add --no-cache git protoc protobuf-dev
@@ -28,12 +31,6 @@ RUN find api/protos -name "*.proto" -exec \
   --go-grpc_opt=paths=source_relative \
   {} +
 
-# Update go.mod to include generated files
-RUN go mod edit -replace github.com/ovasabi/master-ovasabi=./
-
-# Verify and tidy modules
-RUN go mod tidy
-
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
 
@@ -43,7 +40,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/server .
+COPY --from=builder /go/src/github.com/ovasabi/master-ovasabi/server .
 
 # Expose ports
 EXPOSE 50051
