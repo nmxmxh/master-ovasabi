@@ -22,17 +22,26 @@ RUN go mod download
 # ----- copy source ---------------------------------------------
 COPY . .
 
-# ----- generate protobuf code BEFORE tidy ----------------------
-# This produces api/protos/*.pb.go so the package exists locally
-RUN find api/protos -name '*.proto' -exec \
+# ----- generate protobuf code ---------------------------------
+RUN echo "Generating protobuf code..." && \
   protoc --go_out=. --go_opt=paths=source_relative \
-  --go-grpc_out=. --go-grpc_opt=paths=source_relative {} +
+  --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+  api/protos/auth/*.proto \
+  api/protos/broadcast/*.proto \
+  api/protos/i18n/*.proto \
+  api/protos/notification/*.proto \
+  api/protos/quotes/*.proto \
+  api/protos/referral/*.proto \
+  api/protos/user/*.proto && \
+  echo "Protobuf code generation complete"
 
-# ----- tidy now that generated code is present -----------------
-RUN go mod tidy
+# ----- verify generated files --------------------------------
+RUN echo "Verifying generated files:" && \
+  find api/protos -name "*.pb.go" -type f
 
-# ----- build binary -------------------------------------------
-RUN go build -o server ./cmd/server
+# ----- tidy and build ----------------------------------------
+RUN go mod tidy && \
+  go build -o server ./cmd/server
 
 # -------------------------------------------------------------
 # Runtime stage
