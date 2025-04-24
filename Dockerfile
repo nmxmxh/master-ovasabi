@@ -10,7 +10,13 @@ RUN apk add --no-cache git protoc protobuf-dev
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0 && \
   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 
-# Copy entire source code first
+# Copy go mod files first
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
 COPY . .
 
 # Generate protobuf files
@@ -22,10 +28,11 @@ RUN find api/protos -name "*.proto" -exec \
   --go-grpc_opt=paths=source_relative \
   {} +
 
-# Initialize and download dependencies
-RUN go mod download && \
-  go get -u ./... && \
-  go mod tidy
+# Update go.mod to include generated files
+RUN go mod edit -replace github.com/ovasabi/master-ovasabi=./
+
+# Verify and tidy modules
+RUN go mod tidy
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
