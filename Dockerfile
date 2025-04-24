@@ -13,8 +13,18 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0 && \
 # Copy go mod files
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download && go mod verify
+# Initialize and download dependencies
+RUN go mod download && \
+  go get google.golang.org/grpc@latest && \
+  go get google.golang.org/protobuf@latest && \
+  go get github.com/golang-jwt/jwt/v5@latest && \
+  go get go.uber.org/zap@latest && \
+  go get golang.org/x/crypto/bcrypt@latest && \
+  go get github.com/google/uuid@latest && \
+  go get google.golang.org/grpc/health@latest && \
+  go get google.golang.org/grpc/health/grpc_health_v1@latest && \
+  go get google.golang.org/grpc/reflection@latest && \
+  go mod tidy
 
 # Generate protobuf files
 COPY api/protos/ api/protos/
