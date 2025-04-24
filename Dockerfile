@@ -31,6 +31,21 @@ RUN find api/protos -name "*.proto" -exec \
   --go-grpc_opt=paths=source_relative \
   {} +
 
+# Update dependencies after protobuf generation
+RUN go mod tidy && \
+  go get google.golang.org/grpc/health && \
+  go get google.golang.org/grpc/health/grpc_health_v1 && \
+  go get google.golang.org/grpc/reflection && \
+  go get google.golang.org/grpc/codes && \
+  go get google.golang.org/grpc/status && \
+  go get google.golang.org/protobuf/reflect/protoreflect && \
+  go get google.golang.org/protobuf/runtime/protoimpl && \
+  go get github.com/golang-jwt/jwt/v5 && \
+  go get go.uber.org/zap && \
+  go get golang.org/x/crypto/bcrypt && \
+  go get github.com/google/uuid && \
+  go mod tidy
+
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
 
