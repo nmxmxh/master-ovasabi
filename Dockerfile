@@ -7,12 +7,20 @@ ENV GO111MODULE=on \
   GOOS=linux \
   GOARCH=amd64
 
-WORKDIR /src
+WORKDIR /build
 
 # install build tools
 RUN apk add --no-cache git protoc protobuf-dev \
   && go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0 \
   && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
+
+# Copy go.mod and go.sum first to leverage Docker cache
+COPY go.mod go.sum ./
+
+# Vendor dependencies
+RUN go mod download && \
+  go mod verify && \
+  go mod vendor
 
 # Copy the entire source code
 COPY . .
@@ -22,16 +30,14 @@ RUN find api/protos -name "*.proto" -exec \
   protoc --go_out=. --go_opt=paths=source_relative \
   --go-grpc_out=. --go-grpc_opt=paths=source_relative {} +
 
-# Download dependencies and build
-RUN go mod download && \
-  go mod tidy && \
-  go build -o server ./cmd/server
+# Build using vendored dependencies
+RUN go build -mod=vendor -o server ./cmd/server
 
 # --- Runtime stage ----------------------------------------------
 FROM alpine:latest
 
 WORKDIR /app
-COPY --from=builder /src/server .
+COPY --from=builder /build/server .
 
 EXPOSE 50051 9090
 CMD ["./server"]
