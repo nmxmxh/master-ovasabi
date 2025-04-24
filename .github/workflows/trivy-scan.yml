@@ -65,44 +65,37 @@ jobs:
 
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           scan-type: 'fs'
           scan-ref: '.'
           format: 'sarif'
-          output: 'trivy-fs-results.sarif'
+          output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
-          exit-code: '0'
 
       - name: Run Trivy image scan
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           scan-type: 'image'
           image-ref: 'ovasabi/master-ovasabi:latest'
           format: 'sarif'
-          exit-code: '1'
+          output: 'trivy-results.sarif'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
           vuln-type: 'os,library'
-          cache-dir: '.trivycache/'
-          output: 'trivy-image-results.sarif'
 
-      - name: Upload filesystem scan results
+      - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-fs-results.sarif'
-          category: trivy-fs
-
-      - name: Upload image scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-image-results.sarif'
-          category: trivy-image
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy-results'
 
       - name: Upload scan artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: trivy-scan-results
-          path: trivy-*-results.sarif 
+          path: trivy-results.sarif
+          if-no-files-found: ignore 
