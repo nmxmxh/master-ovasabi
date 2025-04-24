@@ -1,0 +1,27 @@
+server:
+  host: "localhost"
+  port: 8080
+  debug: true
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "ovasabi_dev"
+  user: "dev_user"
+  password: "${DB_PASSWORD}"  # Use environment variable for sensitive data
+
+logging:
+  level: "debug"
+  format: "json"
+
+auth:
+  jwt_secret: "${JWT_SECRET}"
+  token_expiry: "24h"
+
+api:
+  rate_limit: 1000
+  timeout: "30s"
+
+feature_flags:
+  enable_new_features: true
+  maintenance_mode: false 

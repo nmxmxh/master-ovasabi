@@ -1,0 +1,27 @@
+server:
+  host: "localhost"
+  port: 8081
+  debug: true
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "ovasabi_test"
+  user: "test_user"
+  password: "test_password"
+
+logging:
+  level: "debug"
+  format: "console"
+
+auth:
+  jwt_secret: "test_secret_key"
+  token_expiry: "1h"
+
+api:
+  rate_limit: 0  # Disabled for testing
+  timeout: "5s"
+
+feature_flags:
+  enable_new_features: true
+  maintenance_mode: false 

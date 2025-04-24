@@ -1,0 +1,70 @@
+# Server configuration
+server:
+  port: 8080
+  host: "0.0.0.0"
+  timeout: 30s
+  graceful_shutdown: 10s
+
+# Database configuration
+database:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "postgres"
+  name: "master_ovasabi"
+  ssl_mode: "disable"
+  max_connections: 20
+  max_idle_connections: 5
+  connection_lifetime: 1h
+
+# Redis configuration
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 5
+  max_retries: 3
+
+# Monitoring configuration
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+  tracing:
+    enabled: true
+    service_name: "master-ovasabi"
+    exporter: "jaeger"
+    endpoint: "http://localhost:14268/api/traces"
+  logging:
+    level: "info"
+    format: "json"
+    output: "stdout"
+
+# Concurrency configuration
+concurrency:
+  worker_pool:
+    size: 10
+    queue_size: 100
+  object_pool:
+    buffer_size: 1024
+    max_size: 100
+
+# Service configurations
+services:
+  auth:
+    token_expiry: 24h
+    refresh_token_expiry: 168h
+  email:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    from: "noreply@ovasabi.com"
+  i18n:
+    default_language: "en"
+    supported_languages: ["en", "es", "fr"]
+  notification:
+    channels: ["email", "sms", "push"]
+    batch_size: 100
+    retry_attempts: 3 

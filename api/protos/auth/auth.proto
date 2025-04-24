@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/ovasabi/master-ovasabi/api/protos/auth";
+
+// AuthService provides user authentication and management
+service AuthService {
+  // Register creates a new user account
+  rpc Register(RegisterRequest) returns (RegisterResponse) {}
+  // Login authenticates a user and returns access tokens
+  rpc Login(LoginRequest) returns (LoginResponse) {}
+  // ValidateToken validates a JWT token and returns user information
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse) {}
+  // GetUser retrieves user information
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
+}
+
+// RegisterRequest contains user registration information
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string name = 3;
+}
+
+// RegisterResponse contains the result of registration
+message RegisterResponse {
+  string user_id = 1;
+  string message = 2;
+}
+
+// LoginRequest contains user login credentials
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+// LoginResponse contains authentication tokens
+message LoginResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 expires_in = 3;
+}
+
+// ValidateTokenRequest contains the token to validate
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+// ValidateTokenResponse contains the validation result
+message ValidateTokenResponse {
+  bool valid = 1;
+  string user_id = 2;
+  repeated string roles = 3;
+}
+
+// GetUserRequest contains the user identifier
+message GetUserRequest {
+  string user_id = 1;
+}
+
+// GetUserResponse contains user information
+message GetUserResponse {
+  string user_id = 1;
+  string email = 2;
+  string name = 3;
+  int64 created_at = 4;
+} 

@@ -1,0 +1,113 @@
+# Environment files
+.env
+.env.*
+!.env.example
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/vendor/
+/go.sum
+/go.work
+
+# Project specific
+/data/
+/tmp/
+/logs/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# Build output
+/bin/
+/dist/
+/build/
+/out/
+
+# Coverage
+/coverage/
+*.cover
+*.prof
+
+# Dependencies
+/node_modules/
+/bower_components/
+/jspm_packages/
+
+# Generated files
+/api/protos/*.pb.go
+/api/protos/*.pb.gw.go
+/api/protos/*.swagger.json
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.orig
+*.rej
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.csr
+*.srl
+
+# Documentation
+/docs/_build/
+/docs/_static/
+/docs/_templates/
+
+# Cache directories
+.cache/
+.npm/
+.yarn/
+.pnpm/
+
+# Test artifacts
+/test-results/
+/coverage/
+/junit-reports/
+
+# Local development
+*.local
+*.dev
+*.test
+*.staging
+
+# Backup files
+*~
+*.bak
+*.backup
+*.orig
+*.rej
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific
+/loadtest/results/
+/benchmarks/results/ 

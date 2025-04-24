@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package referral;
+
+option go_package = "github.com/ovasabi/master-ovasabi/api/protos/referral";
+
+// ReferralService manages user referrals and rewards
+service ReferralService {
+  // CreateReferral creates a new referral code for a user
+  rpc CreateReferral(CreateReferralRequest) returns (CreateReferralResponse) {}
+  // ApplyReferral applies a referral code
+  rpc ApplyReferral(ApplyReferralRequest) returns (ApplyReferralResponse) {}
+  // GetReferralStats retrieves referral statistics
+  rpc GetReferralStats(GetReferralStatsRequest) returns (GetReferralStatsResponse) {}
+}
+
+// CreateReferralRequest contains referral creation parameters
+message CreateReferralRequest {
+  string user_id = 1;
+  string campaign_id = 2;
+}
+
+// CreateReferralResponse contains the created referral code
+message CreateReferralResponse {
+  string referral_code = 1;
+  string message = 2;
+}
+
+// ApplyReferralRequest contains the referral code to apply
+message ApplyReferralRequest {
+  string referral_code = 1;
+  string user_id = 2;
+}
+
+// ApplyReferralResponse contains the result of applying the referral
+message ApplyReferralResponse {
+  bool success = 1;
+  string message = 2;
+  int32 reward_points = 3;
+}
+
+// GetReferralStatsRequest contains the user identifier
+message GetReferralStatsRequest {
+  string user_id = 1;
+}
+
+// GetReferralStatsResponse contains referral statistics
+message GetReferralStatsResponse {
+  int32 total_referrals = 1;
+  int32 active_referrals = 2;
+  int32 total_rewards = 3;
+  repeated ReferralDetail referrals = 4;
+}
+
+// ReferralDetail contains information about a specific referral
+message ReferralDetail {
+  string referral_code = 1;
+  string referred_user_id = 2;
+  int64 created_at = 3;
+  bool is_active = 4;
+  int32 reward_points = 5;
+} 
