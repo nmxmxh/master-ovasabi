@@ -1,11 +1,11 @@
-package service
+package referral
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/referral"
+	"github.com/nmxmxh/master-ovasabi/api/protos/referral"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

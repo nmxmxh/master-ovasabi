@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package i18n;
 
-option go_package = "github.com/ovasabi/master-ovasabi/api/protos/i18n";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/i18n";
 
 // I18nService provides internationalization and localization support
 service I18nService {

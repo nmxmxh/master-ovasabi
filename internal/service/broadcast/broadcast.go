@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/broadcast"
+	"github.com/nmxmxh/master-ovasabi/api/protos/broadcast"
 	"go.uber.org/zap"
 )
 

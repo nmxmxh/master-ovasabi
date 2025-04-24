@@ -246,7 +246,7 @@ const file_api_protos_i18n_i18n_proto_rawDesc = "" +
 	"\x0edefault_locale\x18\x02 \x01(\tR\rdefaultLocale2\xba\x01\n" +
 	"\vI18nService\x12M\n" +
 	"\x0eGetTranslation\x12\x1b.i18n.GetTranslationRequest\x1a\x1c.i18n.GetTranslationResponse\"\x00\x12\\\n" +
-	"\x13GetSupportedLocales\x12 .i18n.GetSupportedLocalesRequest\x1a!.i18n.GetSupportedLocalesResponse\"\x00B3Z1github.com/ovasabi/master-ovasabi/api/protos/i18nb\x06proto3"
+	"\x13GetSupportedLocales\x12 .i18n.GetSupportedLocalesRequest\x1a!.i18n.GetSupportedLocalesResponse\"\x00B2Z0github.com/nmxmxh/master-ovasabi/api/protos/i18nb\x06proto3"
 
 var (
 	file_api_protos_i18n_i18n_proto_rawDescOnce sync.Once

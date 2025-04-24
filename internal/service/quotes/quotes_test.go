@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/quotes"
+	"github.com/nmxmxh/master-ovasabi/api/protos/quotes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

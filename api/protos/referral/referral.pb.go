@@ -468,7 +468,7 @@ const file_api_protos_referral_referral_proto_rawDesc = "" +
 	"\x0fReferralService\x12U\n" +
 	"\x0eCreateReferral\x12\x1f.referral.CreateReferralRequest\x1a .referral.CreateReferralResponse\"\x00\x12R\n" +
 	"\rApplyReferral\x12\x1e.referral.ApplyReferralRequest\x1a\x1f.referral.ApplyReferralResponse\"\x00\x12[\n" +
-	"\x10GetReferralStats\x12!.referral.GetReferralStatsRequest\x1a\".referral.GetReferralStatsResponse\"\x00B7Z5github.com/ovasabi/master-ovasabi/api/protos/referralb\x06proto3"
+	"\x10GetReferralStats\x12!.referral.GetReferralStatsRequest\x1a\".referral.GetReferralStatsResponse\"\x00B6Z4github.com/nmxmxh/master-ovasabi/api/protos/referralb\x06proto3"
 
 var (
 	file_api_protos_referral_referral_proto_rawDescOnce sync.Once

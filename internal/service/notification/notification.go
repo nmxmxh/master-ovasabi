@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	notificationpb "github.com/ovasabi/master-ovasabi/api/protos/notification"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

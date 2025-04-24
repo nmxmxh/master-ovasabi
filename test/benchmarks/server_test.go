@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ovasabi/master-ovasabi/internal/server"
+	"github.com/nmxmxh/master-ovasabi/internal/server"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )

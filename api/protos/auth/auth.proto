@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "github.com/ovasabi/master-ovasabi/api/protos/auth";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/auth";
 
 // AuthService provides user authentication and management
 service AuthService {

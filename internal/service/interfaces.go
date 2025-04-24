@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	authpb "github.com/ovasabi/master-ovasabi/api/protos/auth"
-	broadcastpb "github.com/ovasabi/master-ovasabi/api/protos/broadcast"
-	i18npb "github.com/ovasabi/master-ovasabi/api/protos/i18n"
-	quotespb "github.com/ovasabi/master-ovasabi/api/protos/quotes"
-	referralpb "github.com/ovasabi/master-ovasabi/api/protos/referral"
-	"github.com/ovasabi/master-ovasabi/pkg/models"
+	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth"
+	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast"
+	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n"
+	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes"
+	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral"
+	"github.com/nmxmxh/master-ovasabi/pkg/models"
 )
 
 // User is an alias for the models.User type

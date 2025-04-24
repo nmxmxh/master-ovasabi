@@ -1,4 +1,21 @@
-# Development Documentation
+# Development Guide
+
+## Getting Started
+
+### Prerequisites
+
+- Go 1.23 or later
+- Protocol Buffers compiler
+- Docker (optional)
+- Make
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/nmxmxh/master-ovasabi.git
+cd master-ovasabi
+```
 
 ## Overview
 
@@ -20,7 +37,7 @@ This documentation covers the development workflow, coding standards, and best p
 
    ```bash
    # Clone repository
-   git clone https://github.com/ovasabi/master-ovasabi.git
+   git clone https://github.com/nmxmh/master-ovasabi.git
    cd master-ovasabi
    
    # Install dependencies

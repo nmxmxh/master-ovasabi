@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package quotes;
 
-option go_package = "github.com/ovasabi/master-ovasabi/api/protos/quotes";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/quotes";
 
 // QuotesService manages and generates quotes
 service QuotesService {

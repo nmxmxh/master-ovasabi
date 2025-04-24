@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/auth"
-	userpb "github.com/ovasabi/master-ovasabi/api/protos/user"
-	authsvc "github.com/ovasabi/master-ovasabi/internal/service/auth"
-	"github.com/ovasabi/master-ovasabi/pkg/models"
+	"github.com/nmxmxh/master-ovasabi/api/protos/auth"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user"
+	authsvc "github.com/nmxmxh/master-ovasabi/internal/service/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/models"
 	"go.uber.org/zap"
 )
 

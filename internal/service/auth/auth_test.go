@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/auth"
-	userpb "github.com/ovasabi/master-ovasabi/api/protos/user"
-	"github.com/ovasabi/master-ovasabi/pkg/models"
+	"github.com/nmxmxh/master-ovasabi/api/protos/auth"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user"
+	"github.com/nmxmxh/master-ovasabi/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

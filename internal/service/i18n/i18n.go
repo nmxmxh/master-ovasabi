@@ -3,7 +3,7 @@ package i18n
 import (
 	"context"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/i18n"
+	"github.com/nmxmxh/master-ovasabi/api/protos/i18n"
 	"go.uber.org/zap"
 )
 

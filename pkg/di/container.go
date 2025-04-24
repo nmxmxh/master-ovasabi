@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sync"
 
-	errs "github.com/ovasabi/master-ovasabi/pkg/errors"
+	errs "github.com/nmxmxh/master-ovasabi/pkg/errors"
 )
 
 // Factory is a function that creates an instance of a service

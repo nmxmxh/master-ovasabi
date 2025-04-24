@@ -1201,7 +1201,7 @@ const file_api_protos_user_user_proto_rawDesc = "" +
 	"DeleteUser\x12\x17.user.DeleteUserRequest\x1a\x18.user.DeleteUserResponse\"\x00\x12>\n" +
 	"\tListUsers\x12\x16.user.ListUsersRequest\x1a\x17.user.ListUsersResponse\"\x00\x12M\n" +
 	"\x0eUpdatePassword\x12\x1b.user.UpdatePasswordRequest\x1a\x1c.user.UpdatePasswordResponse\"\x00\x12J\n" +
-	"\rUpdateProfile\x12\x1a.user.UpdateProfileRequest\x1a\x1b.user.UpdateProfileResponse\"\x00B3Z1github.com/ovasabi/master-ovasabi/api/protos/userb\x06proto3"
+	"\rUpdateProfile\x12\x1a.user.UpdateProfileRequest\x1a\x1b.user.UpdateProfileResponse\"\x00B2Z0github.com/nmxmxh/master-ovasabi/api/protos/userb\x06proto3"
 
 var (
 	file_api_protos_user_user_proto_rawDescOnce sync.Once

@@ -305,7 +305,7 @@ const file_api_protos_broadcast_broadcast_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xbf\x01\n" +
 	"\x10BroadcastService\x12Z\n" +
 	"\x0fBroadcastAction\x12!.broadcast.BroadcastActionRequest\x1a\".broadcast.BroadcastActionResponse\"\x00\x12O\n" +
-	"\x12SubscribeToActions\x12\x1b.broadcast.SubscribeRequest\x1a\x18.broadcast.ActionSummary\"\x000\x01B8Z6github.com/ovasabi/master-ovasabi/api/protos/broadcastb\x06proto3"
+	"\x12SubscribeToActions\x12\x1b.broadcast.SubscribeRequest\x1a\x18.broadcast.ActionSummary\"\x000\x01B7Z5github.com/nmxmxh/master-ovasabi/api/protos/broadcastb\x06proto3"
 
 var (
 	file_api_protos_broadcast_broadcast_proto_rawDescOnce sync.Once

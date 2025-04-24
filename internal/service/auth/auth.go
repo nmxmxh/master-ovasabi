@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/ovasabi/master-ovasabi/api/protos/auth"
-	userpb "github.com/ovasabi/master-ovasabi/api/protos/user"
+	"github.com/nmxmxh/master-ovasabi/api/protos/auth"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"

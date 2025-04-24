@@ -1,7 +1,7 @@
 package di
 
 import (
-	errs "github.com/ovasabi/master-ovasabi/pkg/errors"
+	errs "github.com/nmxmxh/master-ovasabi/pkg/errors"
 )
 
 // DI-specific error variables re-exported from pkg/errors

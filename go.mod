@@ -1,4 +1,4 @@
-module github.com/ovasabi/master-ovasabi
+module github.com/nmxmxh/master-ovasabi
 
 go 1.23.0
 

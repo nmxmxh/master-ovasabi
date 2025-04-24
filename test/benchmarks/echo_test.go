@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ovasabi/master-ovasabi/api/protos"
-	"github.com/ovasabi/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/api/protos"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 )
 
 func BenchmarkEchoService_Echo(b *testing.B) {

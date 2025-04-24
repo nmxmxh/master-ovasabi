@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package referral;
 
-option go_package = "github.com/ovasabi/master-ovasabi/api/protos/referral";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/referral";
 
 // ReferralService manages user referrals and rewards
 service ReferralService {

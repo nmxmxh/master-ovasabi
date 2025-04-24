@@ -4,7 +4,7 @@ package service
 import (
 	"context"
 
-	"github.com/ovasabi/master-ovasabi/api/protos"
+	"github.com/nmxmxh/master-ovasabi/api/protos"
 )
 
 // EchoService implements the EchoService gRPC service.

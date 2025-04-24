@@ -507,7 +507,7 @@ const file_api_protos_auth_auth_proto_rawDesc = "" +
 	"\bRegister\x12\x15.auth.RegisterRequest\x1a\x16.auth.RegisterResponse\"\x00\x122\n" +
 	"\x05Login\x12\x12.auth.LoginRequest\x1a\x13.auth.LoginResponse\"\x00\x12J\n" +
 	"\rValidateToken\x12\x1a.auth.ValidateTokenRequest\x1a\x1b.auth.ValidateTokenResponse\"\x00\x128\n" +
-	"\aGetUser\x12\x14.auth.GetUserRequest\x1a\x15.auth.GetUserResponse\"\x00B3Z1github.com/ovasabi/master-ovasabi/api/protos/authb\x06proto3"
+	"\aGetUser\x12\x14.auth.GetUserRequest\x1a\x15.auth.GetUserResponse\"\x00B2Z0github.com/nmxmxh/master-ovasabi/api/protos/authb\x06proto3"
 
 var (
 	file_api_protos_auth_auth_proto_rawDescOnce sync.Once

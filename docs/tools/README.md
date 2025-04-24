@@ -4,6 +4,13 @@
 
 This documentation covers the various tools and utilities used in the OVASABI platform for development, testing, and deployment.
 
+## Project Setup
+
+1. Initialize a new Go module:
+```bash
+go mod init github.com/nmxmxh/master-ovasabi
+```
+
 ## Build Tools
 
 1. **Make**
@@ -26,7 +33,7 @@ This documentation covers the various tools and utilities used in the OVASABI pl
 
    ```bash
    # Initialize module
-   go mod init github.com/ovasabi/master-ovasabi
+   go mod init github.com/nmxmh/master-ovasabi
    
    # Add dependency
    go get github.com/example/dependency

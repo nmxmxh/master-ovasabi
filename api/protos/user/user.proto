@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package user;
 
-option go_package = "github.com/ovasabi/master-ovasabi/api/protos/user";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/user";
 
 // UserService handles user management operations
 service UserService {

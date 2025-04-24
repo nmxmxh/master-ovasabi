@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/quotes"
+	"github.com/nmxmxh/master-ovasabi/api/protos/quotes"
 	"go.uber.org/zap"
 )
 

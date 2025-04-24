@@ -943,7 +943,7 @@ const file_api_protos_notification_notification_proto_rawDesc = "" +
 	"\aSendSMS\x12\x1c.notification.SendSMSRequest\x1a\x1d.notification.SendSMSResponse\"\x00\x12o\n" +
 	"\x14SendPushNotification\x12).notification.SendPushNotificationRequest\x1a*.notification.SendPushNotificationResponse\"\x00\x12u\n" +
 	"\x16GetNotificationHistory\x12+.notification.GetNotificationHistoryRequest\x1a,.notification.GetNotificationHistoryResponse\"\x00\x12\x8a\x01\n" +
-	"\x1dUpdateNotificationPreferences\x122.notification.UpdateNotificationPreferencesRequest\x1a3.notification.UpdateNotificationPreferencesResponse\"\x00B;Z9github.com/ovasabi/master-ovasabi/api/protos/notificationb\x06proto3"
+	"\x1dUpdateNotificationPreferences\x122.notification.UpdateNotificationPreferencesRequest\x1a3.notification.UpdateNotificationPreferencesResponse\"\x00B:Z8github.com/nmxmxh/master-ovasabi/api/protos/notificationb\x06proto3"
 
 var (
 	file_api_protos_notification_notification_proto_rawDescOnce sync.Once

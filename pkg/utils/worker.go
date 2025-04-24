@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ovasabi/master-ovasabi/pkg/metrics"
+	"github.com/nmxmxh/master-ovasabi/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

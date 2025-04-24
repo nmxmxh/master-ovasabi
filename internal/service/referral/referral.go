@@ -1,10 +1,10 @@
-package service
+package referral
 
 import (
 	"context"
 	"time"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/referral"
+	"github.com/nmxmxh/master-ovasabi/api/protos/referral"
 	"go.uber.org/zap"
 )
 

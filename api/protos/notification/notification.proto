@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package notification;
 
-option go_package = "github.com/ovasabi/master-ovasabi/api/protos/notification";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/notification";
 
 // NotificationService handles sending various types of notifications
 service NotificationService {

@@ -443,7 +443,7 @@ const file_api_protos_quotes_quotes_proto_rawDesc = "" +
 	"\rQuotesService\x12N\n" +
 	"\rGenerateQuote\x12\x1c.quotes.GenerateQuoteRequest\x1a\x1d.quotes.GenerateQuoteResponse\"\x00\x12B\n" +
 	"\tSaveQuote\x12\x18.quotes.SaveQuoteRequest\x1a\x19.quotes.SaveQuoteResponse\"\x00\x12?\n" +
-	"\bGetQuote\x12\x17.quotes.GetQuoteRequest\x1a\x18.quotes.GetQuoteResponse\"\x00B5Z3github.com/ovasabi/master-ovasabi/api/protos/quotesb\x06proto3"
+	"\bGetQuote\x12\x17.quotes.GetQuoteRequest\x1a\x18.quotes.GetQuoteResponse\"\x00B4Z2github.com/nmxmxh/master-ovasabi/api/protos/quotesb\x06proto3"
 
 var (
 	file_api_protos_quotes_quotes_proto_rawDescOnce sync.Once

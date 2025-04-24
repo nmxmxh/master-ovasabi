@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ovasabi/master-ovasabi/api/protos/i18n"
+	"github.com/nmxmxh/master-ovasabi/api/protos/i18n"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

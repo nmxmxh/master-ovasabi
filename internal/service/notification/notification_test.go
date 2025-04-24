@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	notificationpb "github.com/ovasabi/master-ovasabi/api/protos/notification"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"

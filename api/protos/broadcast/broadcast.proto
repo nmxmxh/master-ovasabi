@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package broadcast;
 
-option go_package = "github.com/ovasabi/master-ovasabi/api/protos/broadcast";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/broadcast";
 
 // BroadcastService provides concurrent broadcasting of user actions
 service BroadcastService {
