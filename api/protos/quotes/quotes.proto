@@ -12,6 +12,27 @@ service QuotesService {
   rpc SaveQuote(SaveQuoteRequest) returns (SaveQuoteResponse) {}
   // GetQuote retrieves a saved quote
   rpc GetQuote(GetQuoteRequest) returns (GetQuoteResponse) {}
+  // CreateQuote creates a new quote with author attribution
+  rpc CreateQuote(CreateQuoteRequest) returns (CreateQuoteResponse) {}
+}
+
+// Quote represents a quote entity
+message Quote {
+  string id = 1;
+  string text = 2;
+  string author = 3;
+  int64 created_at = 4;
+}
+
+// CreateQuoteRequest contains the quote details for creation
+message CreateQuoteRequest {
+  string text = 1;
+  string author = 2;
+}
+
+// CreateQuoteResponse contains the created quote
+message CreateQuoteResponse {
+  Quote quote = 1;
 }
 
 // GenerateQuoteRequest contains quote generation parameters

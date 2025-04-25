@@ -34,10 +34,16 @@ func TestNewFeatureFlag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set environment variable
 			if tt.envValue != "" {
-				os.Setenv("ENVIRONMENT", tt.envValue)
-				defer os.Unsetenv("ENVIRONMENT")
+				if err := os.Setenv("ENVIRONMENT", tt.envValue); err != nil {
+					t.Fatalf("Failed to set ENVIRONMENT: %v", err)
+				}
+				defer func() {
+					_ = os.Unsetenv("ENVIRONMENT")
+				}()
 			} else {
-				os.Unsetenv("ENVIRONMENT")
+				if err := os.Unsetenv("ENVIRONMENT"); err != nil {
+					t.Fatalf("Failed to unset ENVIRONMENT: %v", err)
+				}
 			}
 
 			flag := NewFeatureFlag("test-feature", tt.defaultValue)
@@ -155,8 +161,12 @@ func TestFeatureFlag_Environment(t *testing.T) {
 
 	for _, env := range environments {
 		t.Run(env, func(t *testing.T) {
-			os.Setenv("ENVIRONMENT", env)
-			defer os.Unsetenv("ENVIRONMENT")
+			if err := os.Setenv("ENVIRONMENT", env); err != nil {
+				t.Fatalf("Failed to set ENVIRONMENT: %v", err)
+			}
+			defer func() {
+				_ = os.Unsetenv("ENVIRONMENT")
+			}()
 
 			flag := NewFeatureFlag("test-feature", true)
 			assert.Equal(t, env, flag.Env)

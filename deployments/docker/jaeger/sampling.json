@@ -1,0 +1,27 @@
+{
+  "default_strategy": {
+    "type": "probabilistic",
+    "param": 1.0,
+    "operation_strategies": [
+      {
+        "operation": "health",
+        "type": "probabilistic",
+        "param": 0.1
+      }
+    ]
+  },
+  "service_strategies": [
+    {
+      "service": "master-ovasabi",
+      "type": "probabilistic",
+      "param": 1.0,
+      "operation_strategies": [
+        {
+          "operation": "/health",
+          "type": "probabilistic",
+          "param": 0.1
+        }
+      ]
+    }
+  ]
+} 

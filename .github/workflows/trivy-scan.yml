@@ -1,4 +1,4 @@
-name: Trivy Security Scan
+name: Security Scan
 
 on:
   push:
@@ -15,6 +15,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      packages: write
 
     steps:
       - name: Checkout code
@@ -33,27 +34,28 @@ jobs:
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 
-      - name: Generate Protobuf
-        run: |
-          find api/protos -name "*.proto" -exec \
-          protoc \
-          --go_out=. \
-          --go_opt=paths=source_relative \
-          --go-grpc_out=. \
-          --go-grpc_opt=paths=source_relative \
-          {} +
-
-      - name: Download Go modules
-        run: |
-          go mod download
-          go mod verify
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Set up Docker Compose
         run: |
-          docker build -t ovasabi/master-ovasabi:latest .
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+
+      - name: Build Docker images
+        run: |
+          COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 COMPOSE_BAKE=true \
+          docker-compose -f deployments/docker/docker-compose.yml build
+
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out gosec-results.sarif ./...'
+
+      - name: Run Nancy for Dependency Scanning
+        run: |
+          go install github.com/sonatype-nexus-community/nancy@latest
+          go list -json -deps ./... | nancy sleuth -o nancy-results.json
 
       - name: Cache Trivy vulnerability database
         uses: actions/cache@v4
@@ -65,37 +67,54 @@ jobs:
 
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
-        continue-on-error: true
         with:
           scan-type: 'fs'
           scan-ref: '.'
           format: 'sarif'
-          output: 'trivy-results.sarif'
+          output: 'trivy-fs-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
+          timeout: '10m'
 
-      - name: Run Trivy image scan
-        uses: aquasecurity/trivy-action@master
-        continue-on-error: true
-        with:
-          scan-type: 'image'
-          image-ref: 'ovasabi/master-ovasabi:latest'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          vuln-type: 'os,library'
+      - name: Scan Docker images
+        run: |
+          for image in $(docker-compose -f deployments/docker/docker-compose.yml images -q); do
+            echo "Scanning image: $image"
+            trivy image --format sarif --output trivy-image-results-${image//\//-}.sarif "$image"
+          done
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Merge SARIF files
+        run: |
+          jq -s 'reduce .[] as $item ({}; . * $item)' trivy-*-results.sarif > trivy-results.sarif
+
+      - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'trivy-results'
 
+      - name: Upload Gosec scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'gosec-results.sarif'
+          category: 'gosec-results'
+
       - name: Upload scan artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: trivy-scan-results
-          path: trivy-results.sarif
-          if-no-files-found: ignore 
+          name: security-scan-results
+          path: |
+            trivy-results.sarif
+            gosec-results.sarif
+            nancy-results.json
+          if-no-files-found: ignore
+
+      - name: Check for vulnerabilities
+        if: always()
+        run: |
+          if [ -f trivy-results.sarif ] && grep -q '"level":"error"' trivy-results.sarif; then
+            echo "Critical vulnerabilities found in scan"
+            exit 1
+          fi 

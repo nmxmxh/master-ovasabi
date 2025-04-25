@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/nmxmxh/master-ovasabi/api/protos/i18n"
+	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"go.uber.org/zap"
 )
 
@@ -26,6 +27,11 @@ func NewService(log *zap.Logger) *ServiceImpl {
 
 // GetTranslation implements the GetTranslation RPC method
 func (s *ServiceImpl) GetTranslation(ctx context.Context, req *i18n.GetTranslationRequest) (*i18n.GetTranslationResponse, error) {
+	log := logger.FromContext(ctx, s.log)
+	log.Info("Getting translation",
+		zap.String("key", req.Key),
+		zap.String("locale", req.Locale))
+
 	// TODO: Implement proper translation lookup
 	// For now, just return the key as the translation
 	return &i18n.GetTranslationResponse{
@@ -36,6 +42,9 @@ func (s *ServiceImpl) GetTranslation(ctx context.Context, req *i18n.GetTranslati
 
 // GetSupportedLocales implements the GetSupportedLocales RPC method
 func (s *ServiceImpl) GetSupportedLocales(ctx context.Context, req *i18n.GetSupportedLocalesRequest) (*i18n.GetSupportedLocalesResponse, error) {
+	log := logger.FromContext(ctx, s.log)
+	log.Info("Getting supported locales")
+
 	return &i18n.GetSupportedLocalesResponse{
 		Locales:       s.supportedLocales,
 		DefaultLocale: s.defaultLocale,

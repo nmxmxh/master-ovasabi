@@ -12,7 +12,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	logger := New()
+	logger := New(Config{})
 	assert.NotNil(t, logger)
 }
 

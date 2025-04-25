@@ -60,10 +60,14 @@ The project follows a clean architecture approach with clear separation of conce
 4. **Docker Build & Run**
 
    ```bash
-   # Build Docker image
-   docker build -t ovasabi/master-ovasabi:latest .
+   # Build and run with Docker Compose
+   cd deployments/docker
+   docker-compose up --build -d
 
-   # Run container
+   # Or build Docker image manually
+   docker build -t ovasabi/master-ovasabi:latest -f deployments/docker/Dockerfile .
+
+   # Run container manually
    docker run -p 50051:50051 -p 9090:9090 ovasabi/master-ovasabi:latest
    ```
 

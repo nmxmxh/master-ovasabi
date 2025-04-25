@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/nmxmxh/master-ovasabi/api/protos/auth"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user"
+	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -112,14 +113,23 @@ func (s *ServiceImpl) Register(ctx context.Context, req *auth.RegisterRequest) (
 
 // Login handles user authentication
 func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.LoginResponse, error) {
+	log := logger.FromContext(ctx, s.log)
+	log.Info("Attempting login",
+		zap.String("email", req.Email))
+
 	// List users to find by email
 	resp, err := s.userSvc.ListUsers(ctx, &userpb.ListUsersRequest{
 		Filters: map[string]string{"email": req.Email},
 	})
 	if err != nil {
+		log.Error("Failed to get user",
+			zap.String("email", req.Email),
+			zap.Error(err))
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	if len(resp.Users) == 0 {
+		log.Warn("Invalid credentials - user not found",
+			zap.String("email", req.Email))
 		return nil, ErrInvalidCredentials
 	}
 	user := resp.Users[0]
@@ -130,10 +140,14 @@ func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.
 	s.mu.RUnlock()
 
 	if !ok {
+		log.Warn("Invalid credentials - no password hash",
+			zap.String("user_id", user.Id))
 		return nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(req.Password)); err != nil {
+		log.Warn("Invalid credentials - password mismatch",
+			zap.String("user_id", user.Id))
 		return nil, ErrInvalidCredentials
 	}
 
@@ -150,8 +164,14 @@ func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(s.jwtSecret)
 	if err != nil {
+		log.Error("Failed to sign token",
+			zap.String("user_id", user.Id),
+			zap.Error(err))
 		return nil, fmt.Errorf("failed to sign token: %w", err)
 	}
+
+	log.Info("Login successful",
+		zap.String("user_id", user.Id))
 
 	return &auth.LoginResponse{
 		AccessToken: tokenString,
@@ -161,16 +181,26 @@ func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.
 
 // ValidateToken verifies and parses a JWT token
 func (s *ServiceImpl) ValidateToken(ctx context.Context, req *auth.ValidateTokenRequest) (*auth.ValidateTokenResponse, error) {
+	s.log.Info("Validating token")
+
 	claims, err := s.parseToken(req.Token)
 	if err != nil {
+		s.log.Warn("Token validation failed",
+			zap.Error(err))
 		return nil, err
 	}
 
 	// Get user to verify it still exists and is active
 	userResp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{UserId: claims.UserID})
 	if err != nil {
+		s.log.Error("Failed to get user during token validation",
+			zap.String("user_id", claims.UserID),
+			zap.Error(err))
 		return nil, ErrInvalidToken
 	}
+
+	s.log.Info("Token validated successfully",
+		zap.String("user_id", claims.UserID))
 
 	return &auth.ValidateTokenResponse{
 		Valid:  true,

@@ -21,7 +21,7 @@ func BenchmarkUnaryInterceptor_Sequential(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		interceptor(context.Background(), i, info, handler)
+		_, _ = interceptor(context.Background(), i, info, handler)
 	}
 }
 
@@ -37,7 +37,7 @@ func BenchmarkUnaryInterceptor_Parallel(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			interceptor(context.Background(), nil, info, handler)
+			_, _ = interceptor(context.Background(), nil, info, handler)
 		}
 	})
 }

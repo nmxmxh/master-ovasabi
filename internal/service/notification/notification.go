@@ -32,12 +32,10 @@ func NewNotificationService(log *zap.Logger) notificationpb.NotificationServiceS
 
 // SendEmail implements the SendEmail RPC method
 func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRequest) (*notificationpb.SendEmailResponse, error) {
-	// In a real implementation, you would:
-	// 1. Validate email format
-	// 2. Check user preferences
-	// 3. Use an email service provider
-	// 4. Handle rate limiting
-	// For this example, we'll just record the notification
+	s.log.Info("Sending email",
+		zap.String("to", req.To),
+		zap.String("subject", req.Subject),
+		zap.Bool("html", req.Html))
 
 	notification := &notificationpb.NotificationHistory{
 		Id:        uuid.New().String(),
@@ -64,12 +62,9 @@ func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRe
 
 // SendSMS implements the SendSMS RPC method
 func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSRequest) (*notificationpb.SendSMSResponse, error) {
-	// In a real implementation, you would:
-	// 1. Validate phone number format
-	// 2. Check user preferences
-	// 3. Use an SMS service provider
-	// 4. Handle rate limiting
-	// For this example, we'll just record the notification
+	s.log.Info("Sending SMS",
+		zap.String("to", req.To),
+		zap.Int("message_length", len(req.Message)))
 
 	notification := &notificationpb.NotificationHistory{
 		Id:        uuid.New().String(),
@@ -96,12 +91,9 @@ func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSReques
 
 // SendPushNotification implements the SendPushNotification RPC method
 func (s *Service) SendPushNotification(ctx context.Context, req *notificationpb.SendPushNotificationRequest) (*notificationpb.SendPushNotificationResponse, error) {
-	// In a real implementation, you would:
-	// 1. Validate user's device tokens
-	// 2. Check user preferences
-	// 3. Use a push notification service (FCM, APNS, etc.)
-	// 4. Handle rate limiting
-	// For this example, we'll just record the notification
+	s.log.Info("Sending push notification",
+		zap.String("user_id", req.UserId),
+		zap.String("message", req.Message))
 
 	notification := &notificationpb.NotificationHistory{
 		Id:        uuid.New().String(),
@@ -190,6 +182,9 @@ func (s *Service) GetNotificationHistory(ctx context.Context, req *notificationp
 // UpdateNotificationPreferences implements the UpdateNotificationPreferences RPC method
 func (s *Service) UpdateNotificationPreferences(ctx context.Context, req *notificationpb.UpdateNotificationPreferencesRequest) (*notificationpb.UpdateNotificationPreferencesResponse, error) {
 	if req.Preferences == nil {
+		s.log.Error("Invalid preferences",
+			zap.String("user_id", req.UserId),
+			zap.Error(status.Error(codes.InvalidArgument, "preferences cannot be nil")))
 		return nil, status.Error(codes.InvalidArgument, "preferences cannot be nil")
 	}
 

@@ -72,7 +72,11 @@ func generateFile(path string, tmpl string, config ServiceConfig) {
 		fmt.Printf("Error creating file: %v\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Printf("Failed to close file: %v\n", err)
+		}
+	}()
 
 	if err := t.Execute(f, config); err != nil {
 		fmt.Printf("Error executing template: %v\n", err)

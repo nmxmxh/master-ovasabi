@@ -7,6 +7,7 @@ This documentation covers the various tools and utilities used in the OVASABI pl
 ## Project Setup
 
 1. Initialize a new Go module:
+
 ```bash
 go mod init github.com/nmxmxh/master-ovasabi
 ```

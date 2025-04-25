@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -191,6 +192,8 @@ func Init() {
 	// Start metrics server
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		http.ListenAndServe(":9090", nil)
+		if err := http.ListenAndServe(":9090", nil); err != nil {
+			log.Printf("Metrics server exited: %v", err)
+		}
 	}()
 }

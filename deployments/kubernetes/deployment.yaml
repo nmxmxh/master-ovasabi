@@ -13,35 +13,76 @@ spec:
     metadata:
       labels:
         app: master-ovasabi
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
     spec:
       containers:
       - name: master-ovasabi
         image: ovasabi/master-ovasabi:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50051
           name: grpc
         - containerPort: 9090
           name: metrics
-        livenessProbe:
-          tcpSocket:
-            port: grpc
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        readinessProbe:
-          tcpSocket:
-            port: grpc
-          initialDelaySeconds: 5
-          periodSeconds: 10
+        env:
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: master-ovasabi-config
+              key: ENVIRONMENT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: master-ovasabi-config
+              key: LOG_LEVEL
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "jaeger-collector:4317"
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "grpc"
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: master-ovasabi-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: master-ovasabi-secrets
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: master-ovasabi-config
+              key: POSTGRES_DB
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
         resources:
           requests:
             cpu: "100m"
             memory: "128Mi"
           limits:
             cpu: "500m"
-            memory: "256Mi"
-        env:
-        - name: JAEGER_ENDPOINT
-          value: "http://jaeger-collector:14268/api/traces"
+            memory: "512Mi"
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 20
       volumes:
       - name: config-volume
         configMap:

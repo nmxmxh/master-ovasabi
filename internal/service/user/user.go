@@ -30,12 +30,19 @@ func NewUserService(log *zap.Logger) userpb.UserServiceServer {
 
 // CreateUser implements the CreateUser RPC method
 func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
+	s.log.Info("Creating user",
+		zap.String("email", req.Email),
+		zap.String("username", req.Username))
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// Check if user already exists
 	for _, user := range s.users {
 		if user.Email == req.Email || user.Username == req.Username {
+			s.log.Warn("User already exists",
+				zap.String("email", req.Email),
+				zap.String("username", req.Username))
 			return nil, status.Error(codes.AlreadyExists, "user already exists")
 		}
 	}
@@ -54,6 +61,10 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 
 	s.users[user.Id] = user
 
+	s.log.Info("User created successfully",
+		zap.String("user_id", user.Id),
+		zap.String("email", user.Email))
+
 	return &userpb.CreateUserResponse{
 		User: user,
 	}, nil
@@ -61,11 +72,16 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 
 // GetUser implements the GetUser RPC method
 func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.GetUserResponse, error) {
+	s.log.Info("Getting user",
+		zap.String("user_id", req.UserId))
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	user, ok := s.users[req.UserId]
 	if !ok {
+		s.log.Warn("User not found",
+			zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.NotFound, "user not found")
 	}
 

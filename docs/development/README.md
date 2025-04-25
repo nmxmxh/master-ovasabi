@@ -12,6 +12,7 @@
 ### Setup
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/nmxmxh/master-ovasabi.git
 cd master-ovasabi

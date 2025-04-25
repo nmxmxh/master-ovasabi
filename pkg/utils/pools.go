@@ -5,6 +5,9 @@ import (
 	"sync"
 )
 
+// Utility: General-purpose buffer and byte slice pooling for performance optimization.
+// This file is intentionally kept as a utility.
+
 var (
 	// BufferPool is a pool of bytes.Buffer objects
 	BufferPool = sync.Pool{

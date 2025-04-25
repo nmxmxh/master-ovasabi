@@ -4,6 +4,7 @@ package tracing
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -13,8 +14,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Config holds the configuration for tracing initialization.
@@ -23,41 +22,68 @@ type Config struct {
 	ServiceVersion string
 	Environment    string
 	JaegerEndpoint string
+	// New fields for configuration
+	RetryTimeout time.Duration
+	BatchTimeout time.Duration
+}
+
+// DefaultConfig returns the default configuration
+func DefaultConfig() Config {
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "localhost:4317" // Default Jaeger gRPC endpoint
+	}
+	return Config{
+		JaegerEndpoint: endpoint,
+		RetryTimeout:   30 * time.Second,
+		BatchTimeout:   time.Second,
+	}
 }
 
 // Init initializes OpenTelemetry tracing with the provided configuration.
 // It returns a TracerProvider and a shutdown function that should be called when the application exits.
 func Init(cfg Config) (*sdktrace.TracerProvider, func(context.Context) error, error) {
+	// Check if tracing is disabled
+	if os.Getenv("OTEL_SDK_DISABLED") == "true" {
+		return nil, func(context.Context) error { return nil }, nil
+	}
+
 	if cfg.JaegerEndpoint == "" {
-		cfg.JaegerEndpoint = "localhost:4317" // Default Jaeger gRPC endpoint
+		cfg.JaegerEndpoint = DefaultConfig().JaegerEndpoint
 	}
 
-	dialCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	// Create gRPC connection to collector with timeout
-	conn, err := grpc.DialContext(dialCtx, cfg.JaegerEndpoint,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create gRPC connection to collector: %w", err)
+	// Set required OTLP environment variables
+	if err := os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"); err != nil {
+		fmt.Printf("Failed to set OTEL_EXPORTER_OTLP_PROTOCOL: %v\n", err)
+	}
+	if err := os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", cfg.JaegerEndpoint); err != nil {
+		fmt.Printf("Failed to set OTEL_EXPORTER_OTLP_ENDPOINT: %v\n", err)
+	}
+	if err := os.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "true"); err != nil {
+		fmt.Printf("Failed to set OTEL_EXPORTER_OTLP_INSECURE: %v\n", err)
 	}
 
-	// Create OTLP exporter with timeout
-	exportCtx, exportCancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer exportCancel()
+	ctx := context.Background()
 
-	traceExporter, err := otlptrace.New(exportCtx,
-		otlptracegrpc.NewClient(
-			otlptracegrpc.WithGRPCConn(conn),
-		),
-	)
+	// Create OTLP exporter with explicit configuration
+	opts := []otlptracegrpc.Option{
+		otlptracegrpc.WithEndpoint(cfg.JaegerEndpoint),
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithTimeout(10 * time.Second),
+		otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{
+			Enabled:         true,
+			InitialInterval: 1 * time.Second,
+			MaxInterval:     5 * time.Second,
+			MaxElapsedTime:  cfg.RetryTimeout,
+		}),
+	}
+
+	traceExporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient(opts...))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create trace exporter: %w", err)
 	}
 
-	resources, err := resource.New(context.Background(),
+	resources, err := resource.New(ctx,
 		resource.WithAttributes(
 			semconv.ServiceName(cfg.ServiceName),
 			semconv.ServiceVersion(cfg.ServiceVersion),
@@ -70,7 +96,9 @@ func Init(cfg Config) (*sdktrace.TracerProvider, func(context.Context) error, er
 
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter,
-			sdktrace.WithBatchTimeout(time.Second),
+			sdktrace.WithBatchTimeout(cfg.BatchTimeout),
+			sdktrace.WithMaxExportBatchSize(512),
+			sdktrace.WithMaxQueueSize(2048),
 		),
 		sdktrace.WithResource(resources),
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
@@ -82,7 +110,10 @@ func Init(cfg Config) (*sdktrace.TracerProvider, func(context.Context) error, er
 		propagation.Baggage{},
 	))
 
-	return tracerProvider, tracerProvider.Shutdown, nil
+	// Return provider and a shutdown function
+	return tracerProvider, func(ctx context.Context) error {
+		return tracerProvider.Shutdown(ctx)
+	}, nil
 }
 
 // Shutdown gracefully shuts down the TracerProvider.

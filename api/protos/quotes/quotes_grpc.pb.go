@@ -22,6 +22,7 @@ const (
 	QuotesService_GenerateQuote_FullMethodName = "/quotes.QuotesService/GenerateQuote"
 	QuotesService_SaveQuote_FullMethodName     = "/quotes.QuotesService/SaveQuote"
 	QuotesService_GetQuote_FullMethodName      = "/quotes.QuotesService/GetQuote"
+	QuotesService_CreateQuote_FullMethodName   = "/quotes.QuotesService/CreateQuote"
 )
 
 // QuotesServiceClient is the client API for QuotesService service.
@@ -34,6 +35,8 @@ type QuotesServiceClient interface {
 	SaveQuote(ctx context.Context, in *SaveQuoteRequest, opts ...grpc.CallOption) (*SaveQuoteResponse, error)
 	// GetQuote retrieves a saved quote
 	GetQuote(ctx context.Context, in *GetQuoteRequest, opts ...grpc.CallOption) (*GetQuoteResponse, error)
+	// CreateQuote creates a new quote with author attribution
+	CreateQuote(ctx context.Context, in *CreateQuoteRequest, opts ...grpc.CallOption) (*CreateQuoteResponse, error)
 }
 
 type quotesServiceClient struct {
@@ -71,6 +74,15 @@ func (c *quotesServiceClient) GetQuote(ctx context.Context, in *GetQuoteRequest,
 	return out, nil
 }
 
+func (c *quotesServiceClient) CreateQuote(ctx context.Context, in *CreateQuoteRequest, opts ...grpc.CallOption) (*CreateQuoteResponse, error) {
+	out := new(CreateQuoteResponse)
+	err := c.cc.Invoke(ctx, QuotesService_CreateQuote_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QuotesServiceServer is the server API for QuotesService service.
 // All implementations must embed UnimplementedQuotesServiceServer
 // for forward compatibility
@@ -81,6 +93,8 @@ type QuotesServiceServer interface {
 	SaveQuote(context.Context, *SaveQuoteRequest) (*SaveQuoteResponse, error)
 	// GetQuote retrieves a saved quote
 	GetQuote(context.Context, *GetQuoteRequest) (*GetQuoteResponse, error)
+	// CreateQuote creates a new quote with author attribution
+	CreateQuote(context.Context, *CreateQuoteRequest) (*CreateQuoteResponse, error)
 	mustEmbedUnimplementedQuotesServiceServer()
 }
 
@@ -96,6 +110,9 @@ func (UnimplementedQuotesServiceServer) SaveQuote(context.Context, *SaveQuoteReq
 }
 func (UnimplementedQuotesServiceServer) GetQuote(context.Context, *GetQuoteRequest) (*GetQuoteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetQuote not implemented")
+}
+func (UnimplementedQuotesServiceServer) CreateQuote(context.Context, *CreateQuoteRequest) (*CreateQuoteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateQuote not implemented")
 }
 func (UnimplementedQuotesServiceServer) mustEmbedUnimplementedQuotesServiceServer() {}
 
@@ -164,6 +181,24 @@ func _QuotesService_GetQuote_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuotesService_CreateQuote_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateQuoteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuotesServiceServer).CreateQuote(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuotesService_CreateQuote_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuotesServiceServer).CreateQuote(ctx, req.(*CreateQuoteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QuotesService_ServiceDesc is the grpc.ServiceDesc for QuotesService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -182,6 +217,10 @@ var QuotesService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetQuote",
 			Handler:    _QuotesService_GetQuote_Handler,
+		},
+		{
+			MethodName: "CreateQuote",
+			Handler:    _QuotesService_CreateQuote_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

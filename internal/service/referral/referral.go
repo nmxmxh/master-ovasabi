@@ -23,6 +23,9 @@ func NewReferralService(log *zap.Logger) *ReferralServiceImpl {
 
 // CreateReferral implements the CreateReferral RPC method
 func (s *ReferralServiceImpl) CreateReferral(ctx context.Context, req *referral.CreateReferralRequest) (*referral.CreateReferralResponse, error) {
+	s.log.Info("Creating referral code",
+		zap.String("user_id", req.UserId))
+
 	// TODO: Implement proper referral code generation
 	// For now, just return a mock referral code
 	return &referral.CreateReferralResponse{
@@ -33,6 +36,10 @@ func (s *ReferralServiceImpl) CreateReferral(ctx context.Context, req *referral.
 
 // ApplyReferral implements the ApplyReferral RPC method
 func (s *ReferralServiceImpl) ApplyReferral(ctx context.Context, req *referral.ApplyReferralRequest) (*referral.ApplyReferralResponse, error) {
+	s.log.Info("Applying referral code",
+		zap.String("referral_code", req.ReferralCode),
+		zap.String("user_id", req.UserId))
+
 	// TODO: Implement proper referral application
 	// For now, just return success with mock rewards
 	return &referral.ApplyReferralResponse{
@@ -44,6 +51,9 @@ func (s *ReferralServiceImpl) ApplyReferral(ctx context.Context, req *referral.A
 
 // GetReferralStats implements the GetReferralStats RPC method
 func (s *ReferralServiceImpl) GetReferralStats(ctx context.Context, req *referral.GetReferralStatsRequest) (*referral.GetReferralStatsResponse, error) {
+	s.log.Info("Retrieving referral stats",
+		zap.String("user_id", req.UserId))
+
 	// TODO: Implement proper stats calculation
 	// For now, just return mock stats
 	return &referral.GetReferralStatsResponse{

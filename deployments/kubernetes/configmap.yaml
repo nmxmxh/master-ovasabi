@@ -3,6 +3,10 @@ kind: ConfigMap
 metadata:
   name: master-ovasabi-config
 data:
+  ENVIRONMENT: "development"
+  LOG_LEVEL: "debug"
+  POSTGRES_DB: "master_ovasabi"
+  CONFIG_PATH: "/app/config/config.yaml"
   config.yaml: |
     server:
       port: 8080
@@ -38,8 +42,9 @@ data:
       tracing:
         enabled: true
         service_name: "master-ovasabi"
-        exporter: "jaeger"
-        endpoint: "http://jaeger:14268/api/traces"
+        exporter: "otlp"
+        endpoint: "jaeger-collector:4317"
+        protocol: "grpc"
       logging:
         level: "info"
         format: "json"
