@@ -39,12 +39,6 @@ data:
         enabled: true
         port: 9090
         path: "/metrics"
-      tracing:
-        enabled: true
-        service_name: "master-ovasabi"
-        exporter: "otlp"
-        endpoint: "jaeger-collector:4317"
-        protocol: "grpc"
       logging:
         level: "info"
         format: "json"
@@ -72,4 +66,4 @@ data:
       notification:
         channels: ["email", "sms", "push"]
         batch_size: 100
-        retry_attempts: 3 
+        retry_attempts: 3

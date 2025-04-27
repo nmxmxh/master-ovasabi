@@ -1,116 +1,88 @@
+// logger/logger.go
 package logger
 
 import (
-	"context"
+	"fmt"
+	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-// Config holds configuration for the logger
 type Config struct {
 	Environment string
 	LogLevel    string
 	ServiceName string
-	SubService  string // Added field for sub-service name
 }
 
-// contextKey is a type for context keys to avoid collisions
-type contextKey string
+type Logger struct {
+	zapLogger *zap.Logger
+}
 
-const (
-	// subServiceKey is the context key for sub-service name
-	subServiceKey = contextKey("sub_service")
-)
+// New initializes a new Logger based on config.
+func New(cfg Config) (*Logger, error) {
+	var zapCfg zap.Config
 
-// New creates a new logger with the given configuration
-func New(cfg Config) *zap.Logger {
-	// Set default environment if not provided
-	if cfg.Environment == "" {
-		cfg.Environment = "development"
+	if strings.EqualFold(cfg.Environment, "production") {
+		zapCfg = zap.NewProductionConfig()
+	} else {
+		zapCfg = zap.NewDevelopmentConfig()
+
+		// Make logs more human-readable in development
+		zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		zapCfg.Encoding = "console" // important: not JSON, just nice console
 	}
 
-	// Set default log level if not provided
-	if cfg.LogLevel == "" {
-		cfg.LogLevel = "info"
+	// Set log level
+	level := parseLogLevel(cfg.LogLevel)
+	zapCfg.Level = zap.NewAtomicLevelAt(level)
+
+	// Add service name as a field
+	zapCfg.InitialFields = map[string]interface{}{
+		"service": cfg.ServiceName,
 	}
 
-	// Create encoder config
-	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "ts",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.EpochNanosTimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	}
-
-	// Create core configuration
-	config := zap.Config{
-		Level:            getLogLevel(cfg.LogLevel),
-		Development:      cfg.Environment == "development",
-		Encoding:         "json",
-		EncoderConfig:    encoderConfig,
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
-	}
-
-	// Create logger
-	logger, err := config.Build(
-		zap.AddCallerSkip(1),
-	)
+	zapLogger, err := zapCfg.Build()
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to build logger: %w", err)
 	}
 
-	// Add base fields
-	fields := []zap.Field{
-		zap.String("service", cfg.ServiceName),
-		zap.String("environment", cfg.Environment),
-	}
-
-	// Add sub-service field if provided and not empty
-	if cfg.SubService != "" {
-		fields = append(fields, zap.String("sub_service-1", cfg.SubService))
-	}
-
-	return logger.With(fields...)
+	return &Logger{
+		zapLogger: zapLogger,
+	}, nil
 }
 
-// FromContext creates a logger with sub-service information from context
-func FromContext(ctx context.Context, baseLogger *zap.Logger) *zap.Logger {
-	if subService, ok := ctx.Value(subServiceKey).(string); ok && subService != "" {
-		// Create a new logger with the sub-service field
-		return baseLogger.With(zap.String("sub_service", subService))
-	}
-	return baseLogger
+// Logger returns the underlying *zap.Logger.
+func (l *Logger) Logger() *zap.Logger {
+	return l.zapLogger
 }
 
-// WithContext adds sub-service information to context
-func WithContext(ctx context.Context, subService string) context.Context {
-	if subService == "" {
-		return ctx
+// Sync flushes any buffered logs.
+func (l *Logger) Sync() {
+	if err := l.zapLogger.Sync(); err != nil {
+		// Use the logger itself to report sync errors
+		l.zapLogger.Warn("failed to sync logger",
+			zap.Error(err))
 	}
-	return context.WithValue(ctx, subServiceKey, subService)
 }
 
-// getLogLevel converts string log level to zap.AtomicLevel
-func getLogLevel(level string) zap.AtomicLevel {
-	switch level {
+func parseLogLevel(levelStr string) zapcore.Level {
+	switch strings.ToLower(levelStr) {
 	case "debug":
-		return zap.NewAtomicLevelAt(zapcore.DebugLevel)
+		return zapcore.DebugLevel
 	case "info":
-		return zap.NewAtomicLevelAt(zapcore.InfoLevel)
-	case "warn":
-		return zap.NewAtomicLevelAt(zapcore.WarnLevel)
+		return zapcore.InfoLevel
+	case "warn", "warning":
+		return zapcore.WarnLevel
 	case "error":
-		return zap.NewAtomicLevelAt(zapcore.ErrorLevel)
+		return zapcore.ErrorLevel
+	case "dpanic":
+		return zapcore.DPanicLevel
+	case "panic":
+		return zapcore.PanicLevel
+	case "fatal":
+		return zapcore.FatalLevel
 	default:
-		return zap.NewAtomicLevelAt(zapcore.InfoLevel)
+		return zapcore.InfoLevel // fallback
 	}
 }

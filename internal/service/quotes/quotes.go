@@ -2,140 +2,224 @@ package quotes
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
-	"sync"
+	"fmt"
+	"math"
 	"time"
 
-	"github.com/google/uuid"
-	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes"
+	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
+	"github.com/nmxmxh/master-ovasabi/internal/shared/dbiface"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
-	// ErrQuoteNotFound is returned when a quote cannot be found
+	// ErrQuoteNotFound is returned when a quote cannot be found.
 	ErrQuoteNotFound = errors.New("quote not found")
-	// ErrQuoteExists is returned when attempting to save a quote that already exists
+	// ErrQuoteExists is returned when attempting to save a quote that already exists.
 	ErrQuoteExists = errors.New("quote already exists")
 )
 
-// ServiceImpl implements the QuotesService interface
+// SafeInt32 converts an int to int32 with overflow checking.
+func SafeInt32(i int) (int32, error) {
+	if i > math.MaxInt32 || i < math.MinInt32 {
+		return 0, fmt.Errorf("integer overflow: value %d out of int32 range", i)
+	}
+	return int32(i), nil
+}
+
+// ServiceImpl implements the QuotesService interface.
 type ServiceImpl struct {
 	quotespb.UnimplementedQuotesServiceServer
-	log    *zap.Logger
-	mu     sync.RWMutex
-	quotes map[string]*quotespb.GetQuoteResponse
+	log *zap.Logger
+	db  dbiface.DB
 }
 
-// NewQuotesService creates a new instance of QuotesService
-func NewQuotesService(log *zap.Logger) *ServiceImpl {
+// NewQuotesService creates a new instance of QuotesService.
+func NewQuotesService(log *zap.Logger, db dbiface.DB) quotespb.QuotesServiceServer {
 	return &ServiceImpl{
-		log:    log,
-		quotes: make(map[string]*quotespb.GetQuoteResponse),
+		log: log,
+		db:  db,
 	}
-}
-
-// GenerateQuote implements the GenerateQuote RPC method
-func (s *ServiceImpl) GenerateQuote(ctx context.Context, req *quotespb.GenerateQuoteRequest) (*quotespb.GenerateQuoteResponse, error) {
-	s.log.Info("Generating quote",
-		zap.String("category", req.Category),
-		zap.Any("parameters", req.Parameters))
-
-	quoteID := "quote-" + time.Now().Format("20060102150405")
-	quote := &quotespb.GetQuoteResponse{
-		QuoteId:   quoteID,
-		Content:   "This is a mock quote",
-		Category:  req.Category,
-		UserId:    "mock-user-id",
-		Metadata:  req.Parameters,
-		CreatedAt: time.Now().Unix(),
-	}
-
-	s.mu.Lock()
-	s.quotes[quoteID] = quote
-	s.mu.Unlock()
-
-	return &quotespb.GenerateQuoteResponse{
-		QuoteId:  quoteID,
-		Content:  quote.Content,
-		Category: quote.Category,
-		Metadata: quote.Metadata,
-	}, nil
-}
-
-// SaveQuote implements the SaveQuote RPC method
-func (s *ServiceImpl) SaveQuote(ctx context.Context, req *quotespb.SaveQuoteRequest) (*quotespb.SaveQuoteResponse, error) {
-	quoteID := "quote-" + time.Now().Format("20060102150405")
-	s.log.Info("Saving quote",
-		zap.String("quote_id", quoteID))
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	quote := &quotespb.GetQuoteResponse{
-		QuoteId:   quoteID,
-		Content:   req.Content,
-		Category:  req.Category,
-		UserId:    req.UserId,
-		Metadata:  req.Metadata,
-		CreatedAt: time.Now().Unix(),
-	}
-
-	s.quotes[quoteID] = quote
-
-	return &quotespb.SaveQuoteResponse{
-		QuoteId: quoteID,
-		Message: "Quote saved successfully",
-	}, nil
-}
-
-// GetQuote implements the GetQuote RPC method
-func (s *ServiceImpl) GetQuote(ctx context.Context, req *quotespb.GetQuoteRequest) (*quotespb.GetQuoteResponse, error) {
-	if req.QuoteId == "" {
-		s.log.Error("Invalid quote ID",
-			zap.Error(status.Error(codes.InvalidArgument, "quote_id cannot be empty")))
-		return nil, status.Error(codes.InvalidArgument, "quote_id cannot be empty")
-	}
-
-	s.log.Info("Retrieving quote",
-		zap.String("quote_id", req.QuoteId))
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if quote, exists := s.quotes[req.QuoteId]; exists {
-		return quote, nil
-	}
-
-	return nil, ErrQuoteNotFound
 }
 
 func (s *ServiceImpl) CreateQuote(ctx context.Context, req *quotespb.CreateQuoteRequest) (*quotespb.CreateQuoteResponse, error) {
-	if req.Text == "" {
-		s.log.Error("Invalid quote text",
-			zap.Error(status.Error(codes.InvalidArgument, "quote text cannot be empty")))
-		return nil, status.Error(codes.InvalidArgument, "quote text cannot be empty")
+	s.log.Info("Creating quote",
+		zap.Int32("master_id", req.MasterId),
+		zap.Int32("campaign_id", req.CampaignId))
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			s.log.Warn("failed to rollback tx", zap.Error(err))
+		}
+	}()
+
+	// Marshal metadata to JSONB
+	metadata, err := json.Marshal(req.Metadata)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to marshal metadata: %v", err)
 	}
 
-	if req.Author == "" {
-		s.log.Error("Invalid quote author",
-			zap.Error(status.Error(codes.InvalidArgument, "quote author cannot be empty")))
-		return nil, status.Error(codes.InvalidArgument, "quote author cannot be empty")
+	// Create service_quote record
+	var quote quotespb.BillingQuote
+	var createdAt time.Time
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO service_quote 
+		(master_id, campaign_id, description, author, metadata, created_at) 
+		VALUES ($1, $2, $3, $4, $5, NOW()) 
+		RETURNING id, master_id, campaign_id, description, author, created_at`,
+		req.MasterId, req.CampaignId, req.Description, req.Author, metadata).
+		Scan(&quote.Id, &quote.MasterId, &quote.CampaignId, &quote.Description, &quote.Author, &createdAt)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create quote: %v", err)
 	}
 
-	quote := &quotespb.Quote{
-		Id:        uuid.New().String(),
-		Text:      req.Text,
-		Author:    req.Author,
-		CreatedAt: time.Now().Unix(),
+	// Set the created_at timestamp
+	quote.CreatedAt = timestamppb.New(createdAt)
+	quote.Metadata = req.Metadata
+
+	// Log event
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO service_event 
+		(master_id, event_type, payload) 
+		VALUES ($1, 'quote_created', $2)`,
+		req.MasterId, metadata)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to log event: %v", err)
 	}
 
-	s.log.Info("Created new quote",
-		zap.String("quote_id", quote.Id),
-		zap.String("author", quote.Author))
+	if err := tx.Commit(); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
+	}
 
 	return &quotespb.CreateQuoteResponse{
-		Quote: quote,
+		Quote:   &quote,
+		Success: true,
+	}, nil
+}
+
+func (s *ServiceImpl) GetQuote(ctx context.Context, req *quotespb.GetQuoteRequest) (*quotespb.GetQuoteResponse, error) {
+	var quote quotespb.BillingQuote
+	var metadataBytes []byte
+	var createdAt time.Time
+
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, master_id, campaign_id, description, author, metadata, amount, currency, created_at
+		FROM service_quote
+		WHERE id = $1`,
+		req.QuoteId).
+		Scan(&quote.Id, &quote.MasterId, &quote.CampaignId, &quote.Description, &quote.Author,
+			&metadataBytes, &quote.Amount, &quote.Currency, &createdAt)
+
+	if err == sql.ErrNoRows {
+		return nil, status.Error(codes.NotFound, "quote not found")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+	}
+
+	// Parse metadata
+	if err := json.Unmarshal(metadataBytes, &quote.Metadata); err != nil {
+		s.log.Warn("failed to unmarshal quote metadata",
+			zap.Int32("quote_id", quote.Id),
+			zap.Error(err))
+	}
+
+	quote.CreatedAt = timestamppb.New(createdAt)
+
+	return &quotespb.GetQuoteResponse{
+		Quote: &quote,
+	}, nil
+}
+
+func (s *ServiceImpl) ListQuotes(ctx context.Context, req *quotespb.ListQuotesRequest) (*quotespb.ListQuotesResponse, error) {
+	query := `
+		SELECT id, master_id, campaign_id, description, author, metadata, amount, currency, created_at,
+		       COUNT(*) OVER() as total_count
+		FROM service_quote
+		WHERE 1=1
+	`
+	args := []interface{}{}
+	argPos := 1
+
+	// Apply campaign filter
+	if req.CampaignId != 0 {
+		query += fmt.Sprintf(" AND campaign_id = $%d", argPos)
+		args = append(args, req.CampaignId)
+		argPos++
+	}
+
+	// Add pagination
+	pageSize := int32(10)
+	if req.PageSize > 0 {
+		pageSize = req.PageSize
+	}
+	offset := req.Page * pageSize
+
+	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPos, argPos+1)
+	args = append(args, pageSize, offset)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			s.log.Warn("failed to close rows", zap.Error(err))
+		}
+	}()
+
+	var quotes []*quotespb.BillingQuote
+	var totalCount int32
+
+	for rows.Next() {
+		var quote quotespb.BillingQuote
+		var metadataBytes []byte
+		var createdAt time.Time
+
+		err := rows.Scan(
+			&quote.Id,
+			&quote.MasterId,
+			&quote.CampaignId,
+			&quote.Description,
+			&quote.Author,
+			&metadataBytes,
+			&quote.Amount,
+			&quote.Currency,
+			&createdAt,
+			&totalCount,
+		)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to scan row: %v", err)
+		}
+
+		if err := json.Unmarshal(metadataBytes, &quote.Metadata); err != nil {
+			s.log.Warn("failed to unmarshal quote metadata",
+				zap.Int32("quote_id", quote.Id),
+				zap.Error(err))
+		}
+
+		quote.CreatedAt = timestamppb.New(createdAt)
+		quotes = append(quotes, &quote)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, status.Errorf(codes.Internal, "error iterating rows: %v", err)
+	}
+
+	totalPages := (totalCount + pageSize - 1) / pageSize
+	return &quotespb.ListQuotesResponse{
+		Quotes:     quotes,
+		TotalCount: totalCount,
+		Page:       req.Page,
+		TotalPages: totalPages,
 	}, nil
 }

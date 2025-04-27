@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package campaign;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/campaign";
+
+import "google/protobuf/timestamp.proto";
+
+message Campaign {
+  int32 id = 1;
+  string slug = 2;
+  string title = 3;
+  string description = 4;
+  string ranking_formula = 5;
+  google.protobuf.Timestamp start_date = 6;
+  google.protobuf.Timestamp end_date = 7;
+  string metadata = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message CreateCampaignRequest {
+  string slug = 1;
+  string title = 2;
+  string description = 3;
+  string ranking_formula = 4;
+  google.protobuf.Timestamp start_date = 5;
+  google.protobuf.Timestamp end_date = 6;
+  string metadata = 7;
+}
+
+message CreateCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message GetCampaignRequest {
+  string slug = 1;
+}
+
+message GetCampaignResponse {
+  Campaign campaign = 1;
+}
+
+service CampaignService {
+  rpc CreateCampaign(CreateCampaignRequest) returns (CreateCampaignResponse);
+  rpc GetCampaign(GetCampaignRequest) returns (GetCampaignResponse);
+} 

@@ -2,215 +2,298 @@ package user
 
 import (
 	"context"
-	"sync"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user"
+	"github.com/lib/pq"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
+	"github.com/nmxmxh/master-ovasabi/internal/shared/dbiface"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Service implements the UserService gRPC interface
+// Service implements the UserService gRPC interface.
 type Service struct {
 	userpb.UnimplementedUserServiceServer
-	log   *zap.Logger
-	mu    sync.RWMutex
-	users map[string]*userpb.User
+	log *zap.Logger
+	db  dbiface.DB
 }
 
-// NewUserService creates a new instance of UserService
-func NewUserService(log *zap.Logger) userpb.UserServiceServer {
+// NewUserService creates a new instance of UserService.
+func NewUserService(log *zap.Logger, db dbiface.DB) userpb.UserServiceServer {
 	return &Service{
-		log:   log,
-		users: make(map[string]*userpb.User),
+		log: log,
+		db:  db,
 	}
 }
 
-// CreateUser implements the CreateUser RPC method
+// CreateUser creates a new user following the Master-Client-Service-Event pattern.
 func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
-	s.log.Info("Creating user",
-		zap.String("email", req.Email),
-		zap.String("username", req.Username))
+	s.log.Info("Creating user", zap.String("email", req.Email))
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Check if user already exists
-	for _, user := range s.users {
-		if user.Email == req.Email || user.Username == req.Username {
-			s.log.Warn("User already exists",
-				zap.String("email", req.Email),
-				zap.String("username", req.Username))
-			return nil, status.Error(codes.AlreadyExists, "user already exists")
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			s.log.Warn("failed to rollback tx", zap.Error(err))
 		}
+	}()
+
+	// 1. Create master record
+	var masterID int32
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO master (uuid, name, type) 
+		 VALUES ($1, $2, 'user') 
+		 RETURNING id`,
+		req.Email, req.Username).Scan(&masterID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create master record: %v", err)
 	}
 
-	user := &userpb.User{
-		Id:        uuid.New().String(),
-		Email:     req.Email,
-		Username:  req.Username,
-		Roles:     req.Roles,
-		Profile:   req.Profile,
-		Status:    userpb.UserStatus_USER_STATUS_ACTIVE,
-		CreatedAt: time.Now().Unix(),
-		UpdatedAt: time.Now().Unix(),
-		Metadata:  req.Metadata,
+	// 2. Create service_user record
+	var userID int32
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO service_user 
+		 (master_id, email, referral_code, device_hash, location, created_at, updated_at) 
+		 VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) 
+		 RETURNING id`,
+		masterID, req.Email, req.Metadata["referral_code"],
+		req.Metadata["device_hash"], req.Metadata["location"]).Scan(&userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create service_user record: %v", err)
 	}
 
-	s.users[user.Id] = user
+	// 3. Log event
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO service_event 
+		 (master_id, event_type, payload) 
+		 VALUES ($1, 'user_created', $2)`,
+		masterID, req.Metadata)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to log event: %v", err)
+	}
 
-	s.log.Info("User created successfully",
-		zap.String("user_id", user.Id),
-		zap.String("email", user.Email))
+	if err := tx.Commit(); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
+	}
 
+	// Return the created user
 	return &userpb.CreateUserResponse{
-		User: user,
+		User: &userpb.User{
+			Id:           userID,
+			Email:        req.Email,
+			ReferralCode: req.Metadata["referral_code"],
+			DeviceHash:   req.Metadata["device_hash"],
+			Location:     req.Metadata["location"],
+			CreatedAt:    timestamppb.Now(),
+			UpdatedAt:    timestamppb.Now(),
+		},
 	}, nil
 }
 
-// GetUser implements the GetUser RPC method
+// GetUser retrieves user information.
 func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.GetUserResponse, error) {
-	s.log.Info("Getting user",
-		zap.String("user_id", req.UserId))
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	user, ok := s.users[req.UserId]
-	if !ok {
-		s.log.Warn("User not found",
-			zap.String("user_id", req.UserId))
+	var user userpb.User
+	err := s.db.QueryRowContext(ctx,
+		`SELECT u.id, u.email, u.referral_code, u.device_hash, u.location, 
+		        u.created_at, u.updated_at
+		 FROM service_user u
+		 JOIN master m ON m.id = u.master_id
+		 WHERE u.id = $1`, req.UserId).
+		Scan(&user.Id, &user.Email, &user.ReferralCode, &user.DeviceHash,
+			&user.Location, &user.CreatedAt, &user.UpdatedAt)
+	if err == sql.ErrNoRows {
 		return nil, status.Error(codes.NotFound, "user not found")
 	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+	}
 
-	return &userpb.GetUserResponse{
-		User: user,
-	}, nil
+	return &userpb.GetUserResponse{User: &user}, nil
 }
 
-// UpdateUser implements the UpdateUser RPC method
 func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.UpdateUserResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	user, ok := s.users[req.UserId]
-	if !ok {
-		return nil, status.Error(codes.NotFound, "user not found")
+	userID, err := strconv.Atoi(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
 	}
 
-	// Update only specified fields
+	// Build dynamic update query
+	fields := []string{}
+	args := []interface{}{}
+	argPos := 1
+
 	if len(req.FieldsToUpdate) > 0 {
 		for _, field := range req.FieldsToUpdate {
 			switch field {
 			case "email":
-				user.Email = req.User.Email
-			case "username":
-				user.Username = req.User.Username
-			case "roles":
-				user.Roles = req.User.Roles
-			case "profile":
-				user.Profile = req.User.Profile
-			case "status":
-				user.Status = req.User.Status
-			case "metadata":
-				user.Metadata = req.User.Metadata
+				fields = append(fields, "email = $"+strconv.Itoa(argPos))
+				args = append(args, req.User.Email)
+				argPos++
+			case "referral_code":
+				fields = append(fields, "referral_code = $"+strconv.Itoa(argPos))
+				args = append(args, req.User.ReferralCode)
+				argPos++
+			case "location":
+				fields = append(fields, "location = $"+strconv.Itoa(argPos))
+				args = append(args, req.User.Location)
+				argPos++
 			}
 		}
-	} else {
-		// Update all fields if no specific fields are specified
-		user.Email = req.User.Email
-		user.Username = req.User.Username
-		user.Roles = req.User.Roles
-		user.Profile = req.User.Profile
-		user.Status = req.User.Status
-		user.Metadata = req.User.Metadata
 	}
 
-	user.UpdatedAt = time.Now().Unix()
-	s.users[user.Id] = user
+	if len(fields) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "no fields to update")
+	}
+
+	fields = append(fields, "updated_at = NOW()")
+	query := "UPDATE service_user SET " +
+		strings.Join(fields, ", ") +
+		" WHERE id = $" + strconv.Itoa(argPos)
+	args = append(args, userID)
+
+	_, err = s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, status.Error(codes.AlreadyExists, "duplicate value for unique field")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to update user: %v", err)
+	}
+
+	// Fetch updated user
+	getResp, err := s.GetUser(ctx, &userpb.GetUserRequest{UserId: req.UserId})
+	if err != nil {
+		return nil, err
+	}
 
 	return &userpb.UpdateUserResponse{
-		User: user,
+		User: getResp.User,
 	}, nil
 }
 
-// DeleteUser implements the DeleteUser RPC method
 func (s *Service) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequest) (*userpb.DeleteUserResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.users[req.UserId]; !ok {
-		return nil, status.Error(codes.NotFound, "user not found")
+	userID, err := strconv.Atoi(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
 	}
 
-	delete(s.users, req.UserId)
+	res, err := s.db.ExecContext(ctx, "DELETE FROM service_user WHERE id = $1", userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to delete user: %v", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if n == 0 {
+		return nil, status.Error(codes.NotFound, "user not found")
+	}
 
 	return &userpb.DeleteUserResponse{
 		Success: true,
 	}, nil
 }
 
-// ListUsers implements the ListUsers RPC method
+// ListUsers retrieves a list of users with pagination and filtering.
 func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (*userpb.ListUsersResponse, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// Input validation
+	if req.Page < 0 {
+		return nil, status.Error(codes.InvalidArgument, "page number cannot be negative")
+	}
+	if req.PageSize < 0 || req.PageSize > 100 {
+		return nil, status.Error(codes.InvalidArgument, "page size must be between 0 and 100")
+	}
+
+	// Build the query with filters
+	query := `
+		SELECT u.id, u.email, u.referral_code, u.device_hash, u.location, 
+		       u.created_at, u.updated_at,
+		       COUNT(*) OVER() as total_count
+		FROM service_user u
+		JOIN master m ON m.id = u.master_id
+		WHERE 1=1
+	`
+	args := []any{}
+	argPos := 1
+
+	// Apply filters
+	for key, value := range req.Filters {
+		switch key {
+		case "email":
+			query += fmt.Sprintf(" AND u.email = $%d", argPos)
+			args = append(args, value)
+			argPos++
+		case "location":
+			query += fmt.Sprintf(" AND u.location = $%d", argPos)
+			args = append(args, value)
+			argPos++
+		}
+	}
+
+	// Add pagination
+	pageSize := int32(10)
+	if req.PageSize > 0 {
+		pageSize = req.PageSize
+	}
+	offset := req.Page * pageSize
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argPos, argPos+1)
+	args = append(args, pageSize, offset)
+
+	// Execute query
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		s.log.Error("failed to execute list users query",
+			zap.Error(err),
+			zap.String("query", query),
+			zap.Any("args", args))
+		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			s.log.Warn("failed to close rows", zap.Error(err))
+		}
+	}()
 
 	var users []*userpb.User
-	for _, user := range s.users {
-		// Apply filters if any
-		if len(req.Filters) > 0 {
-			match := true
-			for key, value := range req.Filters {
-				switch key {
-				case "status":
-					if user.Status.String() != value {
-						match = false
-					}
-					// Add more filter cases as needed
-				}
-			}
-			if !match {
-				continue
-			}
+	var totalCount int32
+
+	for rows.Next() {
+		var user userpb.User
+		err := rows.Scan(
+			&user.Id, &user.Email, &user.ReferralCode, &user.DeviceHash,
+			&user.Location, &user.CreatedAt, &user.UpdatedAt, &totalCount)
+		if err != nil {
+			s.log.Error("failed to scan user row", zap.Error(err))
+			return nil, status.Errorf(codes.Internal, "failed to scan row: %v", err)
 		}
-		users = append(users, user)
+		users = append(users, &user)
 	}
 
-	// Calculate pagination
-	totalCount := len(users)
-	pageSize := int(req.PageSize)
-	if pageSize <= 0 {
-		pageSize = 10
+	// Check for errors from iterating over rows
+	if err = rows.Err(); err != nil {
+		s.log.Error("error iterating over user rows", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "error iterating rows: %v", err)
 	}
+
 	totalPages := (totalCount + pageSize - 1) / pageSize
-
-	start := int(req.Page) * pageSize
-	if start >= totalCount {
-		return &userpb.ListUsersResponse{
-			Users:      []*userpb.User{},
-			TotalCount: int32(totalCount),
-			Page:       req.Page,
-			TotalPages: int32(totalPages),
-		}, nil
-	}
-
-	end := start + pageSize
-	if end > totalCount {
-		end = totalCount
-	}
-
 	return &userpb.ListUsersResponse{
-		Users:      users[start:end],
-		TotalCount: int32(totalCount),
+		Users:      users,
+		TotalCount: totalCount,
 		Page:       req.Page,
-		TotalPages: int32(totalPages),
+		TotalPages: totalPages,
 	}, nil
 }
 
-// UpdatePassword implements the UpdatePassword RPC method
-func (s *Service) UpdatePassword(ctx context.Context, req *userpb.UpdatePasswordRequest) (*userpb.UpdatePasswordResponse, error) {
+// UpdatePassword implements the UpdatePassword RPC method.
+func (s *Service) UpdatePassword(_ context.Context, _ *userpb.UpdatePasswordRequest) (*userpb.UpdatePasswordResponse, error) {
 	// In a real implementation, you would:
 	// 1. Verify the current password
 	// 2. Hash the new password
@@ -222,47 +305,81 @@ func (s *Service) UpdatePassword(ctx context.Context, req *userpb.UpdatePassword
 	}, nil
 }
 
-// UpdateProfile implements the UpdateProfile RPC method
+// Fixed issues with User struct alignment and field handling.
 func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRequest) (*userpb.UpdateProfileResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	user, ok := s.users[req.UserId]
-	if !ok {
-		return nil, status.Error(codes.NotFound, "user not found")
+	userID, err := strconv.Atoi(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
 	}
 
-	if len(req.FieldsToUpdate) > 0 {
-		for _, field := range req.FieldsToUpdate {
-			switch field {
-			case "first_name":
-				user.Profile.FirstName = req.Profile.FirstName
-			case "last_name":
-				user.Profile.LastName = req.Profile.LastName
-			case "phone_number":
-				user.Profile.PhoneNumber = req.Profile.PhoneNumber
-			case "avatar_url":
-				user.Profile.AvatarUrl = req.Profile.AvatarUrl
-			case "bio":
-				user.Profile.Bio = req.Profile.Bio
-			case "location":
-				user.Profile.Location = req.Profile.Location
-			case "timezone":
-				user.Profile.Timezone = req.Profile.Timezone
-			case "language":
-				user.Profile.Language = req.Profile.Language
-			case "custom_fields":
-				user.Profile.CustomFields = req.Profile.CustomFields
+	fields := []string{}
+	args := []any{}
+	argPos := 1
+
+	// For backward compatibility, also support updating email, referral_code, device_hash, location if present in FieldsToUpdate
+	for _, field := range req.FieldsToUpdate {
+		switch field {
+		case "email":
+			if req.Profile != nil && req.Profile.CustomFields["email"] != "" {
+				fields = append(fields, "email = $"+strconv.Itoa(argPos))
+				args = append(args, req.Profile.CustomFields["email"])
+				argPos++
+			}
+		case "referral_code":
+			if req.Profile != nil && req.Profile.CustomFields["referral_code"] != "" {
+				fields = append(fields, "referral_code = $"+strconv.Itoa(argPos))
+				args = append(args, req.Profile.CustomFields["referral_code"])
+				argPos++
+			}
+		case "device_hash":
+			if req.Profile != nil && req.Profile.CustomFields["device_hash"] != "" {
+				fields = append(fields, "device_hash = $"+strconv.Itoa(argPos))
+				args = append(args, req.Profile.CustomFields["device_hash"])
+				argPos++
+			}
+		case "location":
+			if req.Profile != nil && req.Profile.CustomFields["location"] != "" {
+				fields = append(fields, "location = $"+strconv.Itoa(argPos))
+				args = append(args, req.Profile.CustomFields["location"])
+				argPos++
 			}
 		}
-	} else {
-		user.Profile = req.Profile
 	}
 
-	user.UpdatedAt = time.Now().Unix()
-	s.users[user.Id] = user
+	if len(fields) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "no fields to update")
+	}
+
+	fields = append(fields, "updated_at = NOW()")
+	query := "UPDATE service_user SET " +
+		strings.Join(fields, ", ") +
+		" WHERE id = $" + strconv.Itoa(argPos)
+	args = append(args, userID)
+
+	_, err = s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, status.Error(codes.AlreadyExists, "duplicate value for unique field")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to update profile: %v", err)
+	}
+
+	// Fetch updated user
+	getResp, err := s.GetUser(ctx, &userpb.GetUserRequest{UserId: req.UserId})
+	if err != nil {
+		return nil, err
+	}
 
 	return &userpb.UpdateProfileResponse{
-		User: user,
+		User: getResp.User,
 	}, nil
+}
+
+// Helper to check for unique constraint violation.
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr)
 }

@@ -1,33 +1,32 @@
-// Package main is the entry point for the Master Ovasabi gRPC server.
-// It initializes the server with monitoring, logging, and tracing capabilities.
+// main.go
 package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
+	"strconv"
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel"
+	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
 
-	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth"
-	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast"
-	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n"
-	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification"
-	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes"
-	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user"
+	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
+	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
+	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
+	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
+	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
-	healthcheck "github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
-	"github.com/nmxmxh/master-ovasabi/pkg/tracing"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -35,108 +34,196 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-const (
-	defaultPort = "50051"
-)
+var log *zap.Logger
 
-// main is the entry point of the application.
-// It sets up the gRPC server with monitoring, logging, and tracing,
-// registers services, and handles graceful shutdown.
 func main() {
-	// Initialize base logger
-	log := logger.New(logger.Config{
-		Environment: os.Getenv("ENVIRONMENT"),
+	// Initialize logger
+	loggerInstance, err := logger.New(logger.Config{
+		Environment: os.Getenv("APP_ENV"),
 		LogLevel:    os.Getenv("LOG_LEVEL"),
-		ServiceName: "ovasabi-server",
+		ServiceName: os.Getenv("APP_NAME"),
 	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	log = loggerInstance.Logger()
 	defer func() {
 		if err := log.Sync(); err != nil {
-			log.Warn("Failed to sync logger", zap.Error(err))
+			fmt.Fprintf(os.Stderr, "Failed to sync logger: %v\n", err)
 		}
 	}()
 
-	// Create context that listens for the interrupt signal
+	log.Info("Logger initialized", zap.String("service", os.Getenv("APP_NAME")))
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Initialize tracing with improved configuration
-	tracingCfg := tracing.DefaultConfig()
-	tracingCfg.ServiceName = "master-ovasabi"
-	tracingCfg.ServiceVersion = "1.0.0"
-	tracingCfg.Environment = os.Getenv("ENVIRONMENT")
-	tracingCfg.JaegerEndpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	tracingCfg.RetryTimeout = 30 * time.Second
-	tracingCfg.BatchTimeout = time.Second
+	port := getEnvOrDefault("APP_PORT", "8080")
 
-	var handler grpc.ServerOption
-	if os.Getenv("OTEL_SDK_DISABLED") != "true" {
-		tp, shutdownTracing, err := tracing.Init(tracingCfg)
-		if err != nil {
-			log.Warn("Failed to initialize tracing, continuing without it",
-				zap.Error(err),
-			)
-		} else {
-			otel.SetTracerProvider(tp)
-			defer func() {
-				if err := shutdownTracing(context.Background()); err != nil {
-					log.Warn("Failed to shutdown tracing", zap.Error(err))
-				}
-			}()
-			// NOTE: otelgrpc.UnaryServerInterceptor is deprecated, but otelgrpc.NewServerHandler is not a drop-in replacement for interceptors.
-			// This is the correct usage for gRPC interceptor chains until OpenTelemetry provides a direct replacement.
-			handler = grpc.StatsHandler(otelgrpc.NewServerHandler())
+	// Connect to database
+	db := connectToDatabase()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Error("Error closing database", zap.Error(err))
 		}
-	}
+	}()
 
-	// Get port from environment variable or use default
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
-	}
-
-	// Create listener
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
-	if err != nil {
-		log.Fatal("Failed to listen",
-			zap.String("port", port),
-			zap.Error(err),
-		)
-	}
-
-	// Create gRPC server with optional tracing interceptor
-	var opts []grpc.ServerOption
-
-	// Create interceptors chain
-	var unaryInterceptors []grpc.UnaryServerInterceptor
-
-	// Add tracing interceptor if enabled
-	if handler != nil {
-		unaryInterceptors = append(unaryInterceptors, otelgrpc.UnaryServerInterceptor())
-	}
-
-	// Add logging interceptor
-	unaryInterceptors = append(unaryInterceptors, loggingInterceptor(log))
-
-	// Chain all interceptors
-	opts = append(opts, grpc.ChainUnaryInterceptor(unaryInterceptors...))
-
-	server := grpc.NewServer(opts...)
-
-	// Initialize service provider with base logger (no sub-service)
-	baseLogger := logger.New(logger.Config{
-		Environment: os.Getenv("ENVIRONMENT"),
-		LogLevel:    os.Getenv("LOG_LEVEL"),
-		ServiceName: "master-ovasabi",
+	// Initialize Redis client
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:         getEnvOrDefault("REDIS_HOST", "localhost") + ":" + getEnvOrDefault("REDIS_PORT", "6379"),
+		Password:     getEnvOrDefault("REDIS_PASSWORD", ""),
+		DB:           getEnvOrDefaultInt("REDIS_DB", 0),
+		PoolSize:     getEnvOrDefaultInt("REDIS_POOL_SIZE", 5),
+		MinIdleConns: getEnvOrDefaultInt("REDIS_MIN_IDLE_CONNS", 2),
 	})
 
-	provider, err := service.NewProvider(baseLogger)
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			log.Error("Error closing Redis client", zap.Error(err))
+		}
+	}()
+
+	log.Info("Redis client initialized successfully")
+
+	// Listener
+	lis := createListener(port)
+
+	// gRPC Server
+	server := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(loggingInterceptor(log)),
+	)
+	log.Info("gRPC server created")
+
+	// Initialize services
+	provider, err := service.NewProvider(log, db)
 	if err != nil {
-		log.Fatal("Failed to create service provider",
-			zap.Error(err),
-		)
+		handleFatalError(err, "Failed to initialize service provider")
 	}
+	log.Info("Service provider initialized")
 
 	// Register services
+	registerServices(server, provider)
+
+	// Health and Reflection
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(server, healthServer)
+	reflection.Register(server)
+
+	// Start Prometheus metrics
+	go startMetricsServer()
+
+	// Graceful shutdown
+	go func() {
+		<-ctx.Done()
+		log.Warn("Shutdown signal received")
+
+		server.GracefulStop()
+		healthServer.Shutdown()
+		log.Info("Server shutdown complete")
+	}()
+
+	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+
+	// Start Server
+	log.Info("Server starting", zap.String("address", lis.Addr().String()))
+	if err := server.Serve(lis); err != nil {
+		handleFatalError(err, "Server exited with error")
+	}
+}
+
+func connectToDatabase() *sql.DB {
+	var db *sql.DB
+	var err error
+
+	for i := 1; i <= 5; i++ {
+		dbHost := getEnvOrDefault("DB_HOST", "postgres")
+		log.Info("Resolved database host", zap.String("DB_HOST", dbHost))
+
+		dsn := fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			dbHost,
+			getEnvOrDefault("DB_PORT", "postgres"),
+			getEnvOrDefault("DB_USER", "postgres"),
+			getEnvOrDefault("DB_PASSWORD", "postgres"),
+			getEnvOrDefault("DB_NAME", "master_ovasabi"),
+			getEnvOrDefault("DB_SSL_MOD", "disable"),
+		)
+
+		log.Info("Attempting database connection", zap.String("dsn", dsn), zap.Int("attempt", i))
+
+		db, err = sql.Open("postgres", dsn)
+		if err != nil {
+			log.Error("Database ping error", zap.Error(err))
+			if closeErr := db.Close(); closeErr != nil {
+				log.Error("Error closing database after failed ping", zap.Error(closeErr))
+			}
+			time.Sleep(3 * time.Second)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = db.PingContext(ctx)
+		cancel()
+
+		if err == nil {
+			log.Info("Database connection established")
+			return db
+		}
+
+		log.Error("Database ping error", zap.Error(err))
+		db.Close()
+		time.Sleep(3 * time.Second)
+	}
+
+	log.Fatal("Could not connect to database after retries", zap.Error(err))
+	return nil
+}
+
+func createListener(port string) net.Listener {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	if err != nil {
+		log.Fatal("Failed to create listener", zap.String("port", port), zap.Error(err))
+	}
+	log.Info("Listener created", zap.String("address", lis.Addr().String()))
+	return lis
+}
+
+func startMetricsServer() {
+	metricsAddr := ":9090"
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+
+	srv := &http.Server{
+		Addr:         metricsAddr,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
+	}
+
+	// Graceful shutdown
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+		<-sigChan
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Error("metrics server shutdown error", zap.Error(err))
+		}
+	}()
+
+	log.Info("Starting metrics server", zap.String("address", metricsAddr))
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Error("metrics server failed", zap.Error(err))
+	}
+}
+
+func registerServices(server *grpc.Server, provider *service.Provider) {
+	log.Info("Registering services")
+
 	authpb.RegisterAuthServiceServer(server, provider.Auth())
 	userpb.RegisterUserServiceServer(server, provider.User())
 	notificationpb.RegisterNotificationServiceServer(server, provider.Notification())
@@ -145,126 +232,86 @@ func main() {
 	quotespb.RegisterQuotesServiceServer(server, provider.Quotes())
 	referralpb.RegisterReferralServiceServer(server, provider.Referrals())
 
-	// Register health check service
-	healthServer := health.NewServer()
-	grpc_health_v1.RegisterHealthServer(server, healthServer)
-
-	// Register reflection service (useful for grpcurl and other tools)
-	reflection.Register(server)
-
-	// Start Prometheus metrics server in a goroutine
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		if err := http.ListenAndServe(":9090", nil); err != nil {
-			log.Warn("Metrics server exited", zap.Error(err))
-		}
-	}()
-
-	// Start server
-	log.Info("Starting gRPC server",
-		zap.String("port", port),
-		zap.String("environment", os.Getenv("ENVIRONMENT")),
-	)
-
-	// Handle graceful shutdown
-	go func() {
-		<-ctx.Done()
-
-		log.Info("Received shutdown signal")
-
-		// Gracefully stop the server
-		server.GracefulStop()
-
-		// Set all services as not serving
-		healthServer.Shutdown()
-
-		log.Info("Server stopped gracefully")
-	}()
-
-	// Set all services as serving
-	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
-
-	// Start serving
-	go func() {
-		if err := server.Serve(lis); err != nil {
-			log.Fatal("Failed to serve",
-				zap.Error(err),
-			)
-		}
-	}()
-
-	// Create health check client to wait for service to be ready
-	healthClient, err := healthcheck.NewHealthCheckClient(fmt.Sprintf("localhost:%s", port))
-	if err != nil {
-		log.Fatal("Failed to create health check client",
-			zap.Error(err),
-		)
-	}
-	defer func() {
-		if err := healthClient.Close(); err != nil {
-			log.Warn("Failed to close health client", zap.Error(err))
-		}
-	}()
-
-	// Wait for service to be healthy with a timeout
-	if err := healthClient.WaitForReady(ctx, 30*time.Second); err != nil {
-		log.Fatal("Service failed to become healthy",
-			zap.Error(err),
-		)
-	}
-
-	log.Info("Service is healthy and ready to serve requests")
-
-	// Wait for interrupt signal
-	<-ctx.Done()
+	log.Info("All services registered successfully")
 }
 
-// loggingInterceptor creates a gRPC interceptor that adds logging
 func loggingInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
+	isDev := os.Getenv("APP_ENV") == "development"
+
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Extract service name from the full method
-		subService := extractServiceName(info.FullMethod)
+		start := time.Now()
+		reqID := uuid.New().String()
 
-		// Add sub-service to context
-		ctx = logger.WithContext(ctx, subService)
-
-		// Get logger with context
-		reqLogger := logger.FromContext(ctx, log)
-
-		// Log the incoming request
-		reqLogger.Info("received request",
+		reqLog := log.With(
 			zap.String("method", info.FullMethod),
-			zap.Any("request", req))
+			zap.String("request_id", reqID),
+		)
 
-		// Handle the request
-		resp, err := handler(ctx, req)
-
-		// Log the response
-		if err != nil {
-			reqLogger.Error("request failed",
-				zap.String("method", info.FullMethod),
-				zap.Error(err))
-		} else {
-			reqLogger.Info("request completed",
-				zap.String("method", info.FullMethod))
+		if isDev {
+			reqLog.Debug("--------------------------------")
 		}
 
-		return resp, err
+		reqLog.Info("➡️ Request started",
+			zap.String("method -->", info.FullMethod),
+			zap.String("request_id -->", reqID),
+		)
+
+		resp, err := handler(ctx, req)
+		duration := time.Since(start)
+
+		if err != nil {
+			reqLog.Error("❌ Request failed",
+				zap.Error(err),
+				zap.Duration("duration -->", duration),
+			)
+			if isDev {
+				reqLog.Debug("--------------------------------")
+			}
+			return nil, err
+		}
+
+		reqLog.Info("✅ Request completed",
+			zap.Duration("duration -->", duration),
+		)
+
+		if isDev {
+			reqLog.Debug("--------------------------------")
+		}
+
+		return resp, nil
 	}
 }
 
-// extractServiceName extracts the service name from the full method path
-func extractServiceName(fullMethod string) string {
-	// Expected format: /package.ServiceName/MethodName
-	// We want to extract "ServiceName" as the sub-service
-	parts := strings.Split(fullMethod, ".")
-	if len(parts) < 2 {
-		return ""
+func getEnvOrDefault(key, defaultValue string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
 	}
-	servicePart := parts[1]
-	methodParts := strings.Split(servicePart, "/")
-	if len(methodParts) < 1 {
-		return ""
+	return defaultValue
+}
+
+func getEnvOrDefaultInt(key string, defaultValue int) int {
+	if val := os.Getenv(key); val != "" {
+		if intValue, err := strconv.Atoi(val); err == nil {
+			return intValue
+		}
 	}
-	return strings.ToLower(methodParts[0])
+	return defaultValue
+}
+
+func cleanup() {
+	if log != nil {
+		if err := log.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to sync logger: %v\n", err)
+		}
+	}
+}
+
+func handleFatalError(err error, msg string) {
+	if log != nil {
+		log.Error(msg, zap.Error(err))
+		cleanup()
+	} else {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", msg, err)
+	}
+	os.Exit(1)
 }

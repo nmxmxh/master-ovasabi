@@ -4,7 +4,7 @@ import (
 	errs "github.com/nmxmxh/master-ovasabi/pkg/errors"
 )
 
-// DI-specific error variables re-exported from pkg/errors
+// DI-specific error variables re-exported from pkg/errors.
 var (
 	// ErrInterfaceMustBePointer is returned when a non-pointer interface is registered.
 	ErrInterfaceMustBePointer = errs.ErrInterfaceMustBePointer

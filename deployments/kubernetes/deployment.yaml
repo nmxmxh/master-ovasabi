@@ -13,9 +13,6 @@ spec:
     metadata:
       labels:
         app: master-ovasabi
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
     spec:
       containers:
       - name: master-ovasabi
@@ -126,4 +123,4 @@ spec:
       name: memory
       target:
         type: Utilization
-        averageUtilization: 80 
+        averageUtilization: 80

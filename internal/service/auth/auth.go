@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/nmxmxh/master-ovasabi/api/protos/auth"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user"
-	"github.com/nmxmxh/master-ovasabi/pkg/logger"
+	auth "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -34,26 +34,24 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// ServiceImpl implements the AuthService interface
+// ServiceImpl implements the AuthService interface.
 type ServiceImpl struct {
 	auth.UnimplementedAuthServiceServer
-	log        *zap.Logger
-	userSvc    userpb.UserServiceServer
-	jwtSecret  []byte
-	expiration time.Duration
-
-	// Password storage
+	log          *zap.Logger
+	userSvc      userpb.UserServiceServer
+	jwtSecret    []byte
+	expiration   time.Duration
 	mu           sync.RWMutex
-	passwordHash map[string]string // userID -> hashed password
+	passwordHash map[string]string
 }
 
-// NewService creates a new instance of AuthService
+// NewService creates a new instance of AuthService with proper logging.
 func NewService(log *zap.Logger, userSvc userpb.UserServiceServer) *ServiceImpl {
 	return &ServiceImpl{
-		log:          log,
+		log:          log.With(zap.String("service", "auth")),
 		userSvc:      userSvc,
-		jwtSecret:    []byte("your-secret-key"), // TODO: Load from config
-		expiration:   24 * time.Hour,            // TODO: Load from config
+		jwtSecret:    []byte(os.Getenv("JWT_SECRET")),
+		expiration:   24 * time.Hour,
 		passwordHash: make(map[string]string),
 	}
 }
@@ -73,87 +71,115 @@ func validatePassword(password string) error {
 	return nil
 }
 
-// Register handles user registration
+// Register handles user registration.
 func (s *ServiceImpl) Register(ctx context.Context, req *auth.RegisterRequest) (*auth.RegisterResponse, error) {
-	if err := validateEmail(req.Email); err != nil {
-		return nil, err
+	log := s.log.With(
+		zap.String("operation", "register"),
+		zap.String("username", req.Username))
+
+	log.Info("Starting user registration")
+
+	if req.Username == "" {
+		log.Warn("Registration failed: empty username")
+		return nil, status.Error(codes.InvalidArgument, "username required")
+	}
+
+	if err := validateEmail(req.Username); err != nil {
+		log.Warn("Registration failed: invalid email format",
+			zap.Error(err))
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if err := validatePassword(req.Password); err != nil {
+		log.Warn("Registration failed: Password validation failed",
+			zap.Error(err))
 		return nil, err
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
+		log.Error("Registration failed: password hashing failed",
+			zap.Error(err))
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 
-	// Create user using UserService
+	// Create user
 	resp, err := s.userSvc.CreateUser(ctx, &userpb.CreateUserRequest{
-		Email:    req.Email,
-		Username: req.Email, // Use email as username for now
+		Email:    req.Username,
+		Username: req.Username,
+		Password: req.Password,
+		Metadata: req.Metadata,
 	})
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
+			log.Warn("Registration failed: User already exists",
+				zap.Error(err))
 			return nil, fmt.Errorf("user already exists")
 		}
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		log.Error("Registration failed: user creation failed",
+			zap.Error(err))
+		return nil, err
 	}
 
-	// Store password hash
 	s.mu.Lock()
-	s.passwordHash[resp.User.Id] = string(hashedPassword)
+	s.passwordHash[fmt.Sprint(resp.User.Id)] = string(hashedPassword)
 	s.mu.Unlock()
+
+	log.Info("User registered successfully",
+		zap.Int32("user_id", resp.User.Id))
 
 	return &auth.RegisterResponse{
 		UserId:  resp.User.Id,
+		Success: true,
 		Message: "Registration successful",
 	}, nil
 }
 
-// Login handles user authentication
+// Login handles user authentication.
 func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.LoginResponse, error) {
-	log := logger.FromContext(ctx, s.log)
-	log.Info("Attempting login",
-		zap.String("email", req.Email))
+	log := s.log.With(
+		zap.String("operation", "login"),
+		zap.String("username", req.Username))
 
-	// List users to find by email
+	log.Info("Processing login request")
+
 	resp, err := s.userSvc.ListUsers(ctx, &userpb.ListUsersRequest{
-		Filters: map[string]string{"email": req.Email},
+		Filters: map[string]string{"username": req.Username},
 	})
 	if err != nil {
-		log.Error("Failed to get user",
-			zap.String("email", req.Email),
+		log.Error("Login failed: user retrieval failed",
 			zap.Error(err))
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, status.Error(codes.Internal, "failed to retrieve user")
 	}
+
 	if len(resp.Users) == 0 {
-		log.Warn("Invalid credentials - user not found",
-			zap.String("email", req.Email))
+		log.Warn("Login failed: user not found")
 		return nil, ErrInvalidCredentials
 	}
-	user := resp.Users[0]
 
-	// Get password hash
+	user := resp.Users[0]
 	s.mu.RLock()
-	hashedPassword, ok := s.passwordHash[user.Id]
+	hashedPassword, ok := s.passwordHash[fmt.Sprint(user.Id)]
 	s.mu.RUnlock()
 
 	if !ok {
-		log.Warn("Invalid credentials - no password hash",
-			zap.String("user_id", user.Id))
+		log.Warn("Login failed: no password hash found",
+			zap.Int32("user_id", user.Id))
 		return nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(req.Password)); err != nil {
-		log.Warn("Invalid credentials - password mismatch",
-			zap.String("user_id", user.Id))
+		log.Warn("Login failed: invalid password",
+			zap.Int32("user_id", user.Id))
 		return nil, ErrInvalidCredentials
 	}
 
+	log.Info("Password validated successfully, generating token",
+		zap.Int32("user_id", user.Id))
+
 	claims := &Claims{
-		UserID: user.Id,
-		Roles:  user.Roles,
+		UserID: fmt.Sprint(user.Id),
+		Roles:  nil,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -164,48 +190,54 @@ func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(s.jwtSecret)
 	if err != nil {
-		log.Error("Failed to sign token",
-			zap.String("user_id", user.Id),
+		log.Error("Login failed: token generation failed",
+			zap.Int32("user_id", user.Id),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to sign token: %w", err)
 	}
 
 	log.Info("Login successful",
-		zap.String("user_id", user.Id))
+		zap.Int32("user_id", user.Id))
 
 	return &auth.LoginResponse{
-		AccessToken: tokenString,
-		ExpiresIn:   int64(s.expiration.Seconds()),
+		Token:   tokenString,
+		UserId:  user.Id,
+		Success: true,
+		Message: "Login successful",
 	}, nil
 }
 
-// ValidateToken verifies and parses a JWT token
+// ValidateToken verifies and parses a JWT token.
 func (s *ServiceImpl) ValidateToken(ctx context.Context, req *auth.ValidateTokenRequest) (*auth.ValidateTokenResponse, error) {
-	s.log.Info("Validating token")
+	log := s.log.With(
+		zap.String("operation", "validate_token"))
+
+	log.Info("Starting token validation")
 
 	claims, err := s.parseToken(req.Token)
 	if err != nil {
-		s.log.Warn("Token validation failed",
+		log.Warn("Token validation failed",
 			zap.Error(err))
 		return nil, err
 	}
 
-	// Get user to verify it still exists and is active
+	log.Info("Token parsed successfully, verifying user",
+		zap.String("user_id", claims.UserID))
+
 	userResp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{UserId: claims.UserID})
 	if err != nil {
-		s.log.Error("Failed to get user during token validation",
+		log.Error("Token validation failed: User verification failed",
 			zap.String("user_id", claims.UserID),
 			zap.Error(err))
 		return nil, ErrInvalidToken
 	}
 
-	s.log.Info("Token validated successfully",
+	log.Info("Token validation completed successfully",
 		zap.String("user_id", claims.UserID))
 
 	return &auth.ValidateTokenResponse{
 		Valid:  true,
-		UserId: userResp.User.Id,
-		Roles:  userResp.User.Roles,
+		UserId: fmt.Sprint(userResp.User.Id),
 	}, nil
 }
 
@@ -216,7 +248,6 @@ func (s *ServiceImpl) parseToken(tokenString string) (*Claims, error) {
 		}
 		return s.jwtSecret, nil
 	})
-
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTokenExpired

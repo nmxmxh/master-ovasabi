@@ -21,6 +21,25 @@ type MethodConfig struct {
 	Reply   string
 }
 
+func generateFile(path, tmpl string, config ServiceConfig) error {
+	t, err := template.New("").Parse(tmpl)
+	if err != nil {
+		return fmt.Errorf("error parsing template: %w", err)
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("error creating file: %w", err)
+	}
+	defer f.Close()
+
+	if err := t.Execute(f, config); err != nil {
+		return fmt.Errorf("error executing template: %w", err)
+	}
+
+	return nil
+}
+
 func main() {
 	var (
 		packageName = flag.String("package", "", "Package name for generated code")
@@ -47,40 +66,26 @@ func main() {
 	}
 
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(*outputDir, 0755); err != nil {
+	if err := os.MkdirAll(*outputDir, 0o755); err != nil {
 		fmt.Printf("Error creating output directory: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Generate service file
-	generateFile(filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_service.go"), serviceTemplate, config)
-	// Generate repository file
-	generateFile(filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_repository.go"), repositoryTemplate, config)
-	// Generate handler file
-	generateFile(filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_handler.go"), handlerTemplate, config)
-}
-
-func generateFile(path string, tmpl string, config ServiceConfig) {
-	t, err := template.New("").Parse(tmpl)
-	if err != nil {
-		fmt.Printf("Error parsing template: %v\n", err)
-		os.Exit(1)
+	// Generate files
+	files := []struct {
+		path string
+		tmpl string
+	}{
+		{filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_service.go"), serviceTemplate},
+		{filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_repository.go"), repositoryTemplate},
+		{filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_handler.go"), handlerTemplate},
 	}
 
-	f, err := os.Create(path)
-	if err != nil {
-		fmt.Printf("Error creating file: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			fmt.Printf("Failed to close file: %v\n", err)
+	for _, file := range files {
+		if err := generateFile(file.path, file.tmpl, config); err != nil {
+			fmt.Printf("Error generating %s: %v\n", file.path, err)
+			os.Exit(1)
 		}
-	}()
-
-	if err := t.Execute(f, config); err != nil {
-		fmt.Printf("Error executing template: %v\n", err)
-		os.Exit(1)
 	}
 }
 
@@ -98,16 +103,16 @@ type {{.ServiceName}}Service interface {
 {{end}}
 }
 
+// {{.ServiceName}}ServiceImpl implements {{.ServiceName}}Service
+type {{.ServiceName}}ServiceImpl struct {
+	repo {{.ServiceName}}Repository
+}
+
 // New{{.ServiceName}}Service creates a new {{.ServiceName}} service
 func New{{.ServiceName}}Service(repo {{.ServiceName}}Repository) {{.ServiceName}}Service {
 	return &{{.ServiceName}}ServiceImpl{
 		repo: repo,
 	}
-}
-
-// {{.ServiceName}}ServiceImpl implements {{.ServiceName}}Service
-type {{.ServiceName}}ServiceImpl struct {
-	repo {{.ServiceName}}Repository
 }
 
 {{range .Methods}}
@@ -122,32 +127,30 @@ const repositoryTemplate = `package {{.PackageName}}
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 )
 
-// {{.ServiceName}}Repository defines the interface for {{.ServiceName}} data access
+// {{.ServiceName}}Repository defines the interface for {{.ServiceName}} data operations
 type {{.ServiceName}}Repository interface {
 {{range .Methods}}
 	{{.Name}}(ctx context.Context, req *{{.Request}}) (*{{.Reply}}, error)
 {{end}}
 }
 
-// New{{.ServiceName}}Repository creates a new {{.ServiceName}} repository
-func New{{.ServiceName}}Repository(db *sql.DB) {{.ServiceName}}Repository {
-	return &{{.ServiceName}}RepositoryImpl{
-		db: db,
-	}
-}
-
 // {{.ServiceName}}RepositoryImpl implements {{.ServiceName}}Repository
 type {{.ServiceName}}RepositoryImpl struct {
-	db *sql.DB
+	// Add database connection or other dependencies here
+}
+
+// New{{.ServiceName}}Repository creates a new {{.ServiceName}} repository
+func New{{.ServiceName}}Repository() {{.ServiceName}}Repository {
+	return &{{.ServiceName}}RepositoryImpl{}
 }
 
 {{range .Methods}}
 func (r *{{$.ServiceName}}RepositoryImpl) {{.Name}}(ctx context.Context, req *{{.Request}}) (*{{.Reply}}, error) {
 	// TODO: Implement {{.Name}} method
-	return nil, nil
+	return nil, errors.New("not implemented")
 }
 {{end}}
 `
@@ -157,11 +160,9 @@ const handlerTemplate = `package {{.PackageName}}
 import (
 	"context"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
 )
 
-// {{.ServiceName}}Handler handles HTTP requests for {{.ServiceName}}
+// {{.ServiceName}}Handler handles HTTP requests for {{.ServiceName}} operations
 type {{.ServiceName}}Handler struct {
 	service {{.ServiceName}}Service
 }
@@ -173,29 +174,21 @@ func New{{.ServiceName}}Handler(service {{.ServiceName}}Service) *{{.ServiceName
 	}
 }
 
-// RegisterRoutes registers the routes for {{.ServiceName}}
-func (h *{{.ServiceName}}Handler) RegisterRoutes(r *gin.Engine) {
-	group := r.Group("/api/{{.PackageName}}")
 {{range .Methods}}
-	group.{{.Name}}("/{{.Name | ToLower}}", h.handle{{.Name}})
-{{end}}
-}
-
-{{range .Methods}}
-func (h *{{$.ServiceName}}Handler) handle{{.Name}}(c *gin.Context) {
-	var req {{.Request}}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	resp, err := h.service.{{.Name}}(c.Request.Context(), &req)
+func (h *{{$.ServiceName}}Handler) {{.Name}}(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	req := &{{.Request}}{}
+	
+	// TODO: Parse request body into req
+	
+	resp, err := h.service.{{.Name}}(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// TODO: Handle error
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	c.JSON(http.StatusOK, resp)
+	
+	// TODO: Write response
 }
 {{end}}
 `

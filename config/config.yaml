@@ -7,7 +7,7 @@ server:
 
 # Database configuration
 database:
-  host: "localhost"
+  host: "postgres"
   port: 5432
   user: "postgres"
   password: "postgres"
@@ -19,7 +19,7 @@ database:
 
 # Redis configuration
 redis:
-  host: "localhost"
+  host: "redis"
   port: 6379
   password: ""
   db: 0
@@ -33,11 +33,6 @@ monitoring:
     enabled: true
     port: 9090
     path: "/metrics"
-  tracing:
-    enabled: true
-    service_name: "master-ovasabi"
-    exporter: "jaeger"
-    endpoint: "http://localhost:14268/api/traces"
   logging:
     level: "info"
     format: "json"
@@ -67,4 +62,4 @@ services:
   notification:
     channels: ["email", "sms", "push"]
     batch_size: 100
-    retry_attempts: 3 
+    retry_attempts: 3

@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package auth.v0;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0";
+
+import "google/protobuf/timestamp.proto";
+
+// AuthService provides user authentication and management
+service AuthService {
+  // Register creates a new user account
+  rpc Register(RegisterRequest) returns (RegisterResponse) {}
+  // Login authenticates a user and returns access tokens
+  rpc Login(LoginRequest) returns (LoginResponse) {}
+  // ValidateToken validates a JWT token and returns user information
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse) {}
+  // GetUser retrieves user information
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
+  // GetUserAuth retrieves user authentication information
+  rpc GetUserAuth(GetUserAuthRequest) returns (GetUserAuthResponse) {}
+}
+
+// RegisterRequest contains user registration information
+message RegisterRequest {
+  int32 master_id = 1;
+  int32 campaign_id = 2;
+  string username = 3;
+  string password = 4;
+  map<string, string> metadata = 5;
+}
+
+// RegisterResponse contains the result of registration
+message RegisterResponse {
+  int32 user_id = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// LoginRequest contains user login credentials
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+  int32 campaign_id = 3;
+  map<string, string> metadata = 4;
+}
+
+// LoginResponse contains authentication tokens
+message LoginResponse {
+  string token = 1;
+  int32 user_id = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// ValidateTokenRequest contains the token to validate
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+// ValidateTokenResponse contains the validation result
+message ValidateTokenResponse {
+  bool valid = 1;
+  string user_id = 2;
+  repeated string roles = 3;
+}
+
+// GetUserRequest contains the user identifier
+message GetUserRequest {
+  string user_id = 1;
+}
+
+// GetUserResponse contains user information
+message GetUserResponse {
+  string user_id = 1;
+  string email = 2;
+  string name = 3;
+  int64 created_at = 4;
+}
+
+// GetUserAuthRequest contains the user identifier for GetUserAuth
+message GetUserAuthRequest {
+  int32 user_id = 1;
+}
+
+// GetUserAuthResponse contains user authentication information
+message GetUserAuthResponse {
+  int32 user_id = 1;
+  int32 master_id = 2;
+  int32 campaign_id = 3;
+  map<string, string> metadata = 4;
+  google.protobuf.Timestamp created_at = 5;
+}

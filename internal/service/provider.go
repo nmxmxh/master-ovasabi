@@ -1,15 +1,15 @@
 package service
 
 import (
-	"sync"
+	"database/sql"
 
-	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth"
-	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast"
-	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n"
-	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification"
-	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes"
-	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user"
+	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
+	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
+	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
+	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
+	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
 	"github.com/nmxmxh/master-ovasabi/internal/service/auth"
 	"github.com/nmxmxh/master-ovasabi/internal/service/broadcast"
 	"github.com/nmxmxh/master-ovasabi/internal/service/i18n"
@@ -21,12 +21,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// Provider implements ServiceProvider interface
+// Provider manages service instances and their dependencies.
 type Provider struct {
-	container *di.Container
-	log       *zap.Logger
-	mu        sync.RWMutex
+	log *zap.Logger
+	db  *sql.DB
 
+	container           *di.Container
 	authService         authpb.AuthServiceServer
 	userService         userpb.UserServiceServer
 	notificationService notificationpb.NotificationServiceServer
@@ -36,202 +36,154 @@ type Provider struct {
 	referralService     referralpb.ReferralServiceServer
 }
 
-// NewProvider creates a new service provider
-func NewProvider(log *zap.Logger) (*Provider, error) {
-	container := di.New()
-	provider := &Provider{
-		container: container,
+// NewProvider creates a new service provider.
+func NewProvider(log *zap.Logger, db *sql.DB) (*Provider, error) {
+	p := &Provider{
 		log:       log,
+		db:        db,
+		container: di.New(), // Use the New function to initialize the container
 	}
 
-	// Register services
-	if err := provider.registerServices(); err != nil {
+	if err := p.registerServices(); err != nil {
+		p.log.Error("Failed to register services", zap.Error(err))
 		return nil, err
 	}
 
-	return provider, nil
+	return p, nil
 }
 
-// registerServices registers all services with the container
+// Add logging to trace service registration.
 func (p *Provider) registerServices() error {
-	// Register AuthService
-	if err := p.container.Register((*authpb.AuthServiceServer)(nil), func(c *di.Container) (interface{}, error) {
+	p.log.Info("Registering UserService")
+	if err := p.container.Register((*userpb.UserServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		return userservice.NewUserService(p.log, &sqlDBWrapper{db: p.db}), nil
+	}); err != nil {
+		p.log.Error("Failed to register UserService", zap.Error(err))
+		return err
+	}
+
+	p.log.Info("Registering AuthService")
+	if err := p.container.Register((*authpb.AuthServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		var userSvc userpb.UserServiceServer
-		if err := c.Resolve(&userSvc); err != nil {
+		if err := p.container.Resolve(&userSvc); err != nil {
+			p.log.Error("Failed to resolve UserService for AuthService", zap.Error(err))
 			return nil, err
 		}
 		return auth.NewService(p.log, userSvc), nil
 	}); err != nil {
+		p.log.Error("Failed to register AuthService", zap.Error(err))
 		return err
 	}
 
-	// Register UserService
-	if err := p.container.Register((*userpb.UserServiceServer)(nil), func(c *di.Container) (interface{}, error) {
-		return userservice.NewUserService(p.log), nil
+	p.log.Info("Registering NotificationService")
+	if err := p.container.Register((*notificationpb.NotificationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		return notification.NewNotificationService(p.log, &sqlDBWrapper{db: p.db}), nil
 	}); err != nil {
+		p.log.Error("Failed to register NotificationService", zap.Error(err))
 		return err
 	}
 
-	// Register NotificationService
-	if err := p.container.Register((*notificationpb.NotificationServiceServer)(nil), func(c *di.Container) (interface{}, error) {
-		return notification.NewNotificationService(p.log), nil
+	p.log.Info("Registering BroadcastService")
+	if err := p.container.Register((*broadcastpb.BroadcastServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		return broadcast.NewService(p.log, &sqlDBWrapper{db: p.db}), nil
 	}); err != nil {
+		p.log.Error("Failed to register BroadcastService", zap.Error(err))
 		return err
 	}
 
-	// Register BroadcastService
-	if err := p.container.Register((*broadcastpb.BroadcastServiceServer)(nil), func(c *di.Container) (interface{}, error) {
-		return broadcast.NewService(p.log), nil
+	p.log.Info("Registering I18nService")
+	if err := p.container.Register((*i18npb.I18NServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		return i18n.NewService(p.log, &sqlDBWrapper{db: p.db}), nil
 	}); err != nil {
+		p.log.Error("Failed to register I18nService", zap.Error(err))
 		return err
 	}
 
-	// Register I18nService
-	if err := p.container.Register((*i18npb.I18NServiceServer)(nil), func(c *di.Container) (interface{}, error) {
-		return i18n.NewService(p.log), nil
+	p.log.Info("Registering QuotesService")
+	if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		return quotesservice.NewQuotesService(p.log, &sqlDBWrapper{db: p.db}), nil
 	}); err != nil {
+		p.log.Error("Failed to register QuotesService", zap.Error(err))
 		return err
 	}
 
-	// Register QuotesService
-	if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(c *di.Container) (interface{}, error) {
-		return quotesservice.NewQuotesService(p.log), nil
+	p.log.Info("Registering ReferralService")
+	if err := p.container.Register((*referralpb.ReferralServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		return referralservice.NewReferralService(p.log, &sqlDBWrapper{db: p.db}), nil
 	}); err != nil {
-		return err
-	}
-
-	// Register ReferralService
-	if err := p.container.Register((*referralpb.ReferralServiceServer)(nil), func(c *di.Container) (interface{}, error) {
-		return referralservice.NewReferralService(p.log), nil
-	}); err != nil {
+		p.log.Error("Failed to register ReferralService", zap.Error(err))
 		return err
 	}
 
 	return nil
 }
 
-// Auth returns the AuthService instance
+// Auth returns the AuthService instance.
 func (p *Provider) Auth() authpb.AuthServiceServer {
-	p.mu.RLock()
-	if p.authService != nil {
-		defer p.mu.RUnlock()
-		return p.authService
-	}
-	p.mu.RUnlock()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.authService == nil {
-		p.container.MustResolve(&p.authService)
+		if err := p.container.MustResolve(&p.authService); err != nil {
+			p.log.Fatal("Failed to resolve auth service", zap.Error(err))
+		}
 	}
 	return p.authService
 }
 
-// User returns the UserService instance
+// User returns the UserService instance.
 func (p *Provider) User() userpb.UserServiceServer {
-	p.mu.RLock()
-	if p.userService != nil {
-		defer p.mu.RUnlock()
-		return p.userService
-	}
-	p.mu.RUnlock()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.userService == nil {
-		p.container.MustResolve(&p.userService)
+		if err := p.container.MustResolve(&p.userService); err != nil {
+			p.log.Fatal("Failed to resolve user service", zap.Error(err))
+		}
 	}
 	return p.userService
 }
 
-// Notification returns the NotificationService instance
+// Notification returns the NotificationService instance.
 func (p *Provider) Notification() notificationpb.NotificationServiceServer {
-	p.mu.RLock()
-	if p.notificationService != nil {
-		defer p.mu.RUnlock()
-		return p.notificationService
-	}
-	p.mu.RUnlock()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.notificationService == nil {
-		p.container.MustResolve(&p.notificationService)
+		if err := p.container.MustResolve(&p.notificationService); err != nil {
+			p.log.Fatal("Failed to resolve notification service", zap.Error(err))
+		}
 	}
 	return p.notificationService
 }
 
-// Broadcast returns the BroadcastService instance
+// Broadcast returns the BroadcastService instance.
 func (p *Provider) Broadcast() broadcastpb.BroadcastServiceServer {
-	p.mu.RLock()
-	if p.broadcastService != nil {
-		defer p.mu.RUnlock()
-		return p.broadcastService
-	}
-	p.mu.RUnlock()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.broadcastService == nil {
-		p.container.MustResolve(&p.broadcastService)
+		if err := p.container.MustResolve(&p.broadcastService); err != nil {
+			p.log.Fatal("Failed to resolve broadcast service", zap.Error(err))
+		}
 	}
 	return p.broadcastService
 }
 
-// I18n returns the I18nService instance
+// I18n returns the I18nService instance.
 func (p *Provider) I18n() i18npb.I18NServiceServer {
-	p.mu.RLock()
-	if p.i18nService != nil {
-		defer p.mu.RUnlock()
-		return p.i18nService
-	}
-	p.mu.RUnlock()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.i18nService == nil {
-		p.container.MustResolve(&p.i18nService)
+		if err := p.container.MustResolve(&p.i18nService); err != nil {
+			p.log.Fatal("Failed to resolve i18n service", zap.Error(err))
+		}
 	}
 	return p.i18nService
 }
 
-// Quotes returns the QuotesService instance
+// Quotes returns the QuotesService instance.
 func (p *Provider) Quotes() quotespb.QuotesServiceServer {
-	p.mu.RLock()
-	if p.quotesService != nil {
-		defer p.mu.RUnlock()
-		return p.quotesService
-	}
-	p.mu.RUnlock()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.quotesService == nil {
-		p.container.MustResolve(&p.quotesService)
+		if err := p.container.MustResolve(&p.quotesService); err != nil {
+			p.log.Fatal("Failed to resolve quotes service", zap.Error(err))
+		}
 	}
 	return p.quotesService
 }
 
-// Referrals returns the ReferralService instance
+// Referrals returns the ReferralService instance.
 func (p *Provider) Referrals() referralpb.ReferralServiceServer {
-	p.mu.RLock()
-	if p.referralService != nil {
-		defer p.mu.RUnlock()
-		return p.referralService
-	}
-	p.mu.RUnlock()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.referralService == nil {
-		p.container.MustResolve(&p.referralService)
+		if err := p.container.MustResolve(&p.referralService); err != nil {
+			p.log.Fatal("Failed to resolve referral service", zap.Error(err))
+		}
 	}
 	return p.referralService
 }

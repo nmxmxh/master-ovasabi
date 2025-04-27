@@ -30,7 +30,7 @@ func NewEchoService() *EchoService {
 // Returns:
 //   - *protos.EchoResponse: Response containing the echoed message
 //   - error: Any error that occurred during processing
-func (s *EchoService) Echo(ctx context.Context, req *protos.EchoRequest) (*protos.EchoResponse, error) {
+func (s *EchoService) Echo(_ context.Context, req *protos.EchoRequest) (*protos.EchoResponse, error) {
 	return &protos.EchoResponse{
 		Message: req.Message,
 	}, nil

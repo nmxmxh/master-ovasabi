@@ -10,36 +10,26 @@ services:
       cache_from:
         - ovasabi/master-ovasabi:latest
     ports:
-      - "50051:50051"  # gRPC port
-      - "9090:9090"    # Metrics port
+      - "8080:8080" # gRPC port
     environment:
-      - ENVIRONMENT=development
-      - LOG_LEVEL=debug
-      - CONFIG_PATH=/app/config/config.yaml
-      - OTEL_SDK_DISABLED=false
-      - OTEL_EXPORTER_OTLP_ENDPOINT=jaeger-collector:4317
-      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-      - OTEL_SERVICE_NAME=master-ovasabi
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=master_ovasabi
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      ENVIRONMENT: development
+      LOG_LEVEL: debug
+      CONFIG_PATH: /app/config/config.yaml
+      DB_HOST: postgres
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-master_ovasabi}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
     volumes:
       - ../../config:/app/config:ro
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-      jaeger-collector:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/metrics"]
+      test: ["CMD", "curl", "-f", "http://localhost:50051"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -47,30 +37,40 @@ services:
     restart: unless-stopped
     networks:
       - ovasabi-network
+    env_file:
+      - ../../.env
 
   postgres:
     image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=master_ovasabi
     ports:
       - "5432:5432"
+    environment:
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-master_ovasabi}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=100"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U $${DB_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
     networks:
       - ovasabi-network
+    env_file:
+      - ../../.env
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    environment:
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
     volumes:
       - redis_data:/data
     healthcheck:
@@ -81,133 +81,48 @@ services:
     restart: unless-stopped
     networks:
       - ovasabi-network
+    env_file:
+      - ../../.env
 
-  # Jaeger v2 Components
-  jaeger-collector:
-    image: jaegertracing/jaeger-collector:latest
-    command:
-      - "--collector.otlp.enabled=true"
-      - "--sampling.strategies-file=/etc/jaeger/sampling.json"
-      - "--es.server-urls=http://elasticsearch:9200"
-      - "--es.num-shards=1"
-      - "--es.num-replicas=0"
-      - "--log-level=debug"
-    ports:
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
-      - "14250:14250" # Model
-      - "14268:14268" # Jaeger HTTP
-      - "9411:9411"   # Zipkin
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-      - ES_SERVER_URLS=http://elasticsearch:9200
-      - ES_TAGS_AS_FIELDS_ALL=true
-      - ES_TAGS_AS_FIELDS=true
-    volumes:
-      - ./jaeger/sampling.json:/etc/jaeger/sampling.json:ro
+  migrate:
+    image: migrate/migrate
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      migrate -path /migrations -database "postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-master_ovasabi}?sslmode=disable" drop -f &&
+      migrate -path /migrations -database "postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-master_ovasabi}?sslmode=disable" up
     depends_on:
-      elasticsearch:
+      postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:14269/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      postgres-init:
+        condition: service_completed_successfully
+    volumes:
+      - ../../database/migrations:/migrations
     networks:
       - ovasabi-network
+    env_file:
+      - ../../.env
 
-  jaeger-query:
-    image: jaegertracing/jaeger-query:latest
-    command:
-      - "--es.server-urls=http://elasticsearch:9200"
-      - "--span-storage.type=elasticsearch"
-      - "--query.bearer-token-propagation=true"
+  postgres-init:
+    image: postgres:15-alpine
     environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-      - ES_SERVER_URLS=http://elasticsearch:9200
-    ports:
-      - "16686:16686"
-      - "16687:16687"
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-master_ovasabi}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+    entrypoint: ["/bin/sh", "-c", "export PGPASSWORD='$DB_PASSWORD'; until pg_isready -h postgres -U '$DB_USER'; do echo 'Waiting for postgres...'; sleep 2; done && psql -h postgres -U '$DB_USER' -d '$DB_NAME' -c 'CREATE ROLE \"$ADMIN_USER\" WITH LOGIN PASSWORD '\\''$ADMIN_PASSWORD'\\'' SUPERUSER;' || true"]
     depends_on:
-      - jaeger-collector
-      - elasticsearch
-    networks:
-      - ovasabi-network
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.1
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - "indices.fielddata.cache.size=20%"
-      - "indices.query.bool.max_clause_count=4096"
-    ports:
-      - "9200:9200"
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
-      interval: 20s
-      timeout: 10s
-      retries: 5
-    networks:
-      - ovasabi-network
-
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9091:9090"  # Changed to avoid conflict with app metrics
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - ovasabi-network
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-    depends_on:
-      prometheus:
+      postgres:
         condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
     networks:
       - ovasabi-network
+    env_file:
+      - ../../.env
 
 volumes:
   postgres_data:
   redis_data:
-  grafana_data:
-  prometheus_data:
-  elasticsearch_data:
 
 networks:
   ovasabi-network:
-    driver: bridge 
+    driver: bridge

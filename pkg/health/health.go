@@ -2,11 +2,12 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
 
-// Status represents the health status
+// Status represents the health status.
 type Status string
 
 const (
@@ -14,102 +15,132 @@ const (
 	StatusDown Status = "DOWN"
 )
 
-// HealthCheck represents a health check
-type HealthCheck interface {
+// Check interface defines the health check contract.
+type Check interface {
 	Check(ctx context.Context) error
 	Name() string
 }
 
-// HealthChecker manages health checks
-type HealthChecker struct {
-	checks []HealthCheck
+// Checker manages health checks.
+type Checker struct {
+	checks []Check
 	mu     sync.RWMutex
 }
 
-// NewHealthChecker creates a new health checker
-func NewHealthChecker() *HealthChecker {
-	return &HealthChecker{
-		checks: make([]HealthCheck, 0),
+// Add adds a new health check.
+func (c *Checker) Add(check Check) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.checks = append(c.checks, check)
+}
+
+// Run performs all health checks.
+func (c *Checker) Run(ctx context.Context) map[string]error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	results := make(map[string]error)
+	for _, check := range c.checks {
+		results[fmt.Sprintf("%T", check)] = check.Check(ctx)
+	}
+	return results
+}
+
+// Client represents a health check client.
+type Client struct {
+	baseURL string
+}
+
+// NewClient creates a new health check client.
+func NewClient(baseURL string) *Client {
+	return &Client{
+		baseURL: baseURL,
 	}
 }
 
-// Register adds a new health check
-func (hc *HealthChecker) Register(check HealthCheck) {
-	hc.mu.Lock()
-	defer hc.mu.Unlock()
-	hc.checks = append(hc.checks, check)
+// Check performs a health check against the remote service.
+func (c *Client) Check(_ context.Context) error {
+	// TODO: Implement actual HTTP health check
+	return nil
 }
 
-// Check performs all health checks
-func (hc *HealthChecker) Check(ctx context.Context) map[string]error {
-	hc.mu.RLock()
-	defer hc.mu.RUnlock()
+// Register adds a new health check.
+func (c *Checker) Register(check Check) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.checks = append(c.checks, check)
+}
+
+// Check performs all health checks.
+func (c *Checker) Check(ctx context.Context) map[string]error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	results := make(map[string]error)
-	for _, check := range hc.checks {
+	for _, check := range c.checks {
 		results[check.Name()] = check.Check(ctx)
 	}
 	return results
 }
 
-// DatabaseHealthCheck checks database connectivity
-type DatabaseHealthCheck struct {
+// DatabaseCheck checks database connectivity.
+type DatabaseCheck struct {
 	name string
 	// Add database connection details
 }
 
-func NewDatabaseHealthCheck(name string) *DatabaseHealthCheck {
-	return &DatabaseHealthCheck{name: name}
+func NewDatabaseCheck(name string) *DatabaseCheck {
+	return &DatabaseCheck{name: name}
 }
 
-func (d *DatabaseHealthCheck) Check(ctx context.Context) error {
+func (d *DatabaseCheck) Check(_ context.Context) error {
 	// Implement actual database check
 	return nil
 }
 
-func (d *DatabaseHealthCheck) Name() string {
+func (d *DatabaseCheck) Name() string {
 	return d.name
 }
 
-// RedisHealthCheck checks Redis connectivity
-type RedisHealthCheck struct {
+// RedisCheck checks Redis connectivity.
+type RedisCheck struct {
 	name string
 	// Add Redis connection details
 }
 
-func NewRedisHealthCheck(name string) *RedisHealthCheck {
-	return &RedisHealthCheck{name: name}
+func NewRedisCheck(name string) *RedisCheck {
+	return &RedisCheck{name: name}
 }
 
-func (r *RedisHealthCheck) Check(ctx context.Context) error {
+func (r *RedisCheck) Check(_ context.Context) error {
 	// Implement actual Redis check
 	return nil
 }
 
-func (r *RedisHealthCheck) Name() string {
+func (r *RedisCheck) Name() string {
 	return r.name
 }
 
-// HTTPHealthCheck checks HTTP service connectivity
-type HTTPHealthCheck struct {
+// HTTPCheck checks HTTP service connectivity.
+type HTTPCheck struct {
 	name    string
 	url     string
 	timeout time.Duration
 }
 
-func NewHTTPHealthCheck(name, url string, timeout time.Duration) *HTTPHealthCheck {
-	return &HTTPHealthCheck{
+func NewHTTPCheck(name, url string, timeout time.Duration) *HTTPCheck {
+	return &HTTPCheck{
 		name:    name,
 		url:     url,
 		timeout: timeout,
 	}
 }
 
-func (h *HTTPHealthCheck) Check(ctx context.Context) error {
+func (h *HTTPCheck) Check(_ context.Context) error {
 	// Implement actual HTTP check
 	return nil
 }
 
-func (h *HTTPHealthCheck) Name() string {
+func (h *HTTPCheck) Name() string {
 	return h.name
 }

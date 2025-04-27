@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package i18n;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/i18n";
+
+import "google/protobuf/timestamp.proto";
+
+// I18nService manages translations and localization
+service I18nService {
+  rpc CreateTranslation(CreateTranslationRequest) returns (CreateTranslationResponse) {}
+  rpc GetTranslation(GetTranslationRequest) returns (GetTranslationResponse) {}
+  rpc ListTranslations(ListTranslationsRequest) returns (ListTranslationsResponse) {}
+}
+
+message Translation {
+  int32 id = 1;
+  int32 master_id = 2;
+  int32 campaign_id = 3;
+  string key = 4;
+  string language = 5;
+  string value = 6;
+  map<string, string> metadata = 7; // Flexible, JSONB-like
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message CreateTranslationRequest {
+  int32 master_id = 1;
+  int32 campaign_id = 2;
+  string key = 3;
+  string language = 4;
+  string value = 5;
+  map<string, string> metadata = 6;
+}
+
+message CreateTranslationResponse {
+  Translation translation = 1;
+  bool success = 2;
+}
+
+message GetTranslationRequest {
+  int32 translation_id = 1;
+}
+
+message GetTranslationResponse {
+  Translation translation = 1;
+}
+
+message ListTranslationsRequest {
+  int32 campaign_id = 1;
+  string language = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListTranslationsResponse {
+  repeated Translation translations = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+} 

@@ -3,25 +3,25 @@ package errors
 import "errors"
 
 var (
-	// ErrUserNotFound is returned when a user cannot be found
+	// ErrUserNotFound is returned when a user cannot be found.
 	ErrUserNotFound = errors.New("user not found")
-	// ErrInvalidInput is returned when input validation fails
+	// ErrInvalidInput is returned when input validation fails.
 	ErrInvalidInput = errors.New("invalid input")
-	// ErrInvalidCredentials is returned when authentication fails
+	// ErrInvalidCredentials is returned when authentication fails.
 	ErrInvalidCredentials = errors.New("invalid credentials")
-	// ErrUserExists is returned when trying to create a duplicate user
+	// ErrUserExists is returned when trying to create a duplicate user.
 	ErrUserExists = errors.New("user already exists")
-	// ErrInvalidToken is returned when a token is invalid
+	// ErrInvalidToken is returned when a token is invalid.
 	ErrInvalidToken = errors.New("invalid token")
-	// ErrTokenExpired is returned when a token has expired
+	// ErrTokenExpired is returned when a token has expired.
 	ErrTokenExpired = errors.New("token expired")
-	// ErrInvalidEmail is returned when an email format is invalid
+	// ErrInvalidEmail is returned when an email format is invalid.
 	ErrInvalidEmail = errors.New("invalid email format")
-	// ErrWeakPassword is returned when a password is too weak
+	// ErrWeakPassword is returned when a password is too weak.
 	ErrWeakPassword = errors.New("password too weak")
 )
 
-// DI container errors
+// DI container errors.
 var (
 	// ErrInterfaceMustBePointer is returned when a non-pointer interface is registered.
 	ErrInterfaceMustBePointer = errors.New("interface must be a pointer type")

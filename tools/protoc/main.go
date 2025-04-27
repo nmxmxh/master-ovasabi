@@ -1,86 +1,104 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+	"regexp"
 )
 
 var (
-	protoDir = flag.String("proto-dir", "api/protos", "directory containing .proto files")
-	outDir   = flag.String("out-dir", "api/protos", "output directory for generated files")
-	lang     = flag.String("lang", "go", "target language (go, python, java)")
+	// Regex for validating proto file names.
+	protoFileRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*\.proto$`)
+	// Regex for validating directory paths.
+	dirPathRegex = regexp.MustCompile(`^[a-zA-Z0-9/_.-]+$`)
 )
 
-func main() {
-	flag.Parse()
+func validateInputs(protoFile, protoDir, outDir string) error {
+	// Validate proto file name
+	if !protoFileRegex.MatchString(filepath.Base(protoFile)) {
+		return fmt.Errorf("invalid proto file name: %s", protoFile)
+	}
 
-	// Find all .proto files
-	protoFiles, err := findProtoFiles(*protoDir)
+	// Validate directory paths
+	if !dirPathRegex.MatchString(protoDir) || !dirPathRegex.MatchString(outDir) {
+		return fmt.Errorf("invalid directory path")
+	}
+
+	// Check if directories exist
+	if _, err := os.Stat(protoDir); os.IsNotExist(err) {
+		return fmt.Errorf("proto directory does not exist: %s", protoDir)
+	}
+	if _, err := os.Stat(outDir); os.IsNotExist(err) {
+		return fmt.Errorf("output directory does not exist: %s", outDir)
+	}
+
+	// Ensure proto file exists
+	protoPath := filepath.Join(protoDir, protoFile)
+	if _, err := os.Stat(protoPath); os.IsNotExist(err) {
+		return fmt.Errorf("proto file does not exist: %s", protoPath)
+	}
+
+	return nil
+}
+
+func runProtoc(protoFile, protoDir, outDir string) error {
+	// Validate inputs
+	if err := validateInputs(protoFile, protoDir, outDir); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Construct command with absolute paths
+	protoPath, err := filepath.Abs(filepath.Join(protoDir, protoFile))
 	if err != nil {
-		fmt.Printf("Error finding proto files: %v\n", err)
+		return fmt.Errorf("failed to get absolute path: %w", err)
+	}
+	outPath, err := filepath.Abs(outDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	// Construct protoc command with sanitized inputs
+	args := []string{
+		"--go_out=" + outPath,
+		"--go_opt=paths=source_relative",
+		"--go-grpc_out=" + outPath,
+		"--go-grpc_opt=paths=source_relative",
+		"--grpc-gateway_out=" + outPath,
+		"--grpc-gateway_opt=paths=source_relative",
+		"-I=" + filepath.Dir(protoPath),
+		protoPath,
+	}
+
+	// Create command with clean environment
+	cmd := exec.Command("protoc", args...)
+	cmd.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + os.Getenv("HOME"),
+	}
+
+	// Capture output
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("protoc failed: %w\nOutput: %s", err, output)
+	}
+
+	return nil
+}
+
+func main() {
+	if len(os.Args) != 4 {
+		fmt.Printf("Usage: %s <proto_file> <proto_dir> <out_dir>\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	// Generate code for each proto file
-	for _, protoFile := range protoFiles {
-		if err := generateCode(protoFile); err != nil {
-			fmt.Printf("Error generating code for %s: %v\n", protoFile, err)
-			os.Exit(1)
-		}
+	protoFile := os.Args[1]
+	protoDir := os.Args[2]
+	outDir := os.Args[3]
+
+	if err := runProtoc(protoFile, protoDir, outDir); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
 	}
-}
-
-func findProtoFiles(dir string) ([]string, error) {
-	var files []string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && strings.HasSuffix(path, ".proto") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	return files, err
-}
-
-func generateCode(protoFile string) error {
-	var cmd *exec.Cmd
-
-	switch *lang {
-	case "go":
-		cmd = exec.Command("protoc",
-			"--go_out="+*outDir,
-			"--go_opt=paths=source_relative",
-			"--go-grpc_out="+*outDir,
-			"--go-grpc_opt=paths=source_relative",
-			"-I"+*protoDir,
-			protoFile,
-		)
-	case "python":
-		cmd = exec.Command("protoc",
-			"--python_out="+*outDir,
-			"--grpc_python_out="+*outDir,
-			"-I"+*protoDir,
-			protoFile,
-		)
-	case "java":
-		cmd = exec.Command("protoc",
-			"--java_out="+*outDir,
-			"--grpc-java_out="+*outDir,
-			"-I"+*protoDir,
-			protoFile,
-		)
-	default:
-		return fmt.Errorf("unsupported language: %s", *lang)
-	}
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
 }

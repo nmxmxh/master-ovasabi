@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package referral;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/referral";
+
+import "google/protobuf/timestamp.proto";
+
+// ReferralService manages user referrals and rewards
+service ReferralService {
+  // CreateReferral creates a new referral code for a user
+  rpc CreateReferral(CreateReferralRequest) returns (CreateReferralResponse) {}
+  // GetReferral retrieves a referral by referral code
+  rpc GetReferral(GetReferralRequest) returns (GetReferralResponse) {}
+  // GetReferralStats retrieves referral statistics
+  rpc GetReferralStats(GetReferralStatsRequest) returns (GetReferralStatsResponse) {}
+}
+
+// Referral contains information about a referral
+message Referral {
+  int32 id = 1;
+  int32 referrer_master_id = 2;
+  int32 campaign_id = 3;
+  string device_hash = 4;
+  string referral_code = 5;
+  bool successful = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// CreateReferralRequest contains referral creation parameters
+message CreateReferralRequest {
+  int32 referrer_master_id = 1;
+  int32 campaign_id = 2;
+  string device_hash = 3;
+}
+
+// CreateReferralResponse contains the created referral code
+message CreateReferralResponse {
+  Referral referral = 1;
+  bool success = 2;
+}
+
+// GetReferralRequest contains the referral code to retrieve
+message GetReferralRequest {
+  string referral_code = 1;
+}
+
+// GetReferralResponse contains the retrieved referral
+message GetReferralResponse {
+  Referral referral = 1;
+}
+
+// GetReferralStatsRequest contains the user identifier
+message GetReferralStatsRequest {
+  string user_id = 1;
+}
+
+// GetReferralStatsResponse contains referral statistics
+message GetReferralStatsResponse {
+  int32 total_referrals = 1;
+  int32 active_referrals = 2;
+  int32 total_rewards = 3;
+  repeated ReferralDetail referrals = 4;
+}
+
+// ReferralDetail contains information about a specific referral
+message ReferralDetail {
+  string referral_code = 1;
+  string referred_user_id = 2;
+  int64 created_at = 3;
+  bool is_active = 4;
+  int32 reward_points = 5;
+} 

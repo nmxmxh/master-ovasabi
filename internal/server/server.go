@@ -3,57 +3,44 @@ package server
 
 import (
 	"context"
+	"strings"
 	"time"
 
-	"github.com/nmxmxh/master-ovasabi/api/protos/auth"
-	"github.com/nmxmxh/master-ovasabi/api/protos/broadcast"
-	"github.com/nmxmxh/master-ovasabi/api/protos/i18n"
-	"github.com/nmxmxh/master-ovasabi/api/protos/quotes"
-	"github.com/nmxmxh/master-ovasabi/api/protos/referral"
+	auth "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
+	"github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
+	"github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
+	"github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
+	"github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
-	"github.com/nmxmxh/master-ovasabi/pkg/metrics"
 
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/status"
 )
 
-// UnaryServerInterceptor returns a new unary server interceptor that:
-// - Creates a tracing span for each request
-// - Tracks active requests count
-// - Measures request duration
-// - Logs request details
+// UnaryServerInterceptor creates a new unary server interceptor that logs request details.
 func UnaryServerInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Start tracing span
-		tr := otel.Tracer("grpc.server")
-		ctx, span := tr.Start(ctx, info.FullMethod)
+		startTime := time.Now()
+
+		// Extract service and method names
+		svcName, methodName := extractServiceAndMethod(info.FullMethod)
+
+		// Create span
+		spanCtx, span := otel.Tracer("").Start(ctx, info.FullMethod)
 		defer span.End()
 
-		// Increment active requests
-		metrics.ActiveRequests.Inc()
-		defer metrics.ActiveRequests.Dec()
-
-		// Start timer
-		start := time.Now()
-
-		// Call handler
-		resp, err := handler(ctx, req)
+		// Handle the RPC
+		resp, err := handler(spanCtx, req)
 
 		// Record metrics
-		duration := time.Since(start)
-		metrics.RequestDuration.WithLabelValues(info.FullMethod, status.Code(err).String()).Observe(duration.Seconds())
+		duration := time.Since(startTime).Seconds()
 
-		// Record error in span if any
-		if err != nil {
-			span.RecordError(err)
-		}
-
-		// Log request
-		log.Info("gRPC request",
-			zap.String("method", info.FullMethod),
-			zap.Duration("duration", duration),
+		// Log the request
+		log.Info("handled request",
+			zap.String("service", svcName),
+			zap.String("method", methodName),
+			zap.Float64("duration_seconds", duration),
 			zap.Error(err),
 		)
 
@@ -61,13 +48,12 @@ func UnaryServerInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
 	}
 }
 
-// StreamServerInterceptor returns a new stream server interceptor that:
-// - Creates a tracing span for each stream
-// - Tracks active streams count
-// - Measures stream duration
-// - Logs stream details
+// StreamServerInterceptor creates a new stream server interceptor that logs stream details.
 func StreamServerInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		// Extract service and method names
+		svcName, methodName := extractServiceAndMethod(info.FullMethod)
+
 		// Start tracing span
 		tr := otel.Tracer("grpc.server")
 		ctx, span := tr.Start(ss.Context(), info.FullMethod)
@@ -79,10 +65,6 @@ func StreamServerInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
 			ctx:          ctx,
 		}
 
-		// Increment active requests
-		metrics.ActiveRequests.Inc()
-		defer metrics.ActiveRequests.Dec()
-
 		// Start timer
 		start := time.Now()
 
@@ -90,8 +72,7 @@ func StreamServerInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
 		err := handler(srv, wrapped)
 
 		// Record metrics
-		duration := time.Since(start)
-		metrics.RequestDuration.WithLabelValues(info.FullMethod, status.Code(err).String()).Observe(duration.Seconds())
+		duration := time.Since(start).Seconds()
 
 		// Record error in span if any
 		if err != nil {
@@ -100,8 +81,9 @@ func StreamServerInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
 
 		// Log request
 		log.Info("gRPC stream",
-			zap.String("method", info.FullMethod),
-			zap.Duration("duration", duration),
+			zap.String("service", svcName),
+			zap.String("method", methodName),
+			zap.Float64("duration_seconds", duration),
 			zap.Error(err),
 		)
 
@@ -109,20 +91,19 @@ func StreamServerInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
 	}
 }
 
-// wrappedStream wraps grpc.ServerStream to provide a custom context
-// that includes tracing information
+// wrappedStream wraps grpc.ServerStream to include tracing information.
 type wrappedStream struct {
 	grpc.ServerStream
 	ctx context.Context
 }
 
-// Context returns the custom context with tracing information
+// Context returns the custom context with tracing information.
 func (w *wrappedStream) Context() context.Context {
 	return w.ctx
 }
 
-// RegisterServices registers all gRPC services with the server
-func RegisterServices(s *grpc.Server, provider service.ServiceProvider) error {
+// RegisterServices registers all gRPC services with the server.
+func RegisterServices(s *grpc.Server, provider service.Container) error {
 	// Register AuthService
 	auth.RegisterAuthServiceServer(s, provider.Auth())
 
@@ -139,4 +120,15 @@ func RegisterServices(s *grpc.Server, provider service.ServiceProvider) error {
 	quotes.RegisterQuotesServiceServer(s, provider.Quotes())
 
 	return nil
+}
+
+// extractServiceAndMethod extracts the service and method names from the full method string.
+// Returns serviceName and methodName as strings.
+func extractServiceAndMethod(fullMethod string) (serviceName, methodName string) {
+	// fullMethod format: "/package.service/method"
+	parts := strings.SplitN(fullMethod[1:], "/", 2)
+	if len(parts) != 2 {
+		return "unknown", "unknown"
+	}
+	return parts[0], parts[1]
 }

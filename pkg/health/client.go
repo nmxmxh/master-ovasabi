@@ -10,27 +10,27 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// HealthCheckClient provides methods to check service health
-type HealthCheckClient struct {
+// GRPCClient provides methods to check gRPC service health.
+type GRPCClient struct {
 	conn   *grpc.ClientConn
 	client grpc_health_v1.HealthClient
 }
 
-// NewHealthCheckClient creates a new health check client
-func NewHealthCheckClient(target string) (*HealthCheckClient, error) {
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// NewGRPCClient creates a new gRPC health check client.
+func NewGRPCClient(target string) (*GRPCClient, error) {
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection: %w", err)
 	}
 
-	return &HealthCheckClient{
+	return &GRPCClient{
 		conn:   conn,
 		client: grpc_health_v1.NewHealthClient(conn),
 	}, nil
 }
 
-// WaitForReady waits for the service to be ready with a timeout
-func (c *HealthCheckClient) WaitForReady(ctx context.Context, timeout time.Duration) error {
+// WaitForReady waits for the service to be ready with a timeout.
+func (c *GRPCClient) WaitForReady(ctx context.Context, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -50,8 +50,8 @@ func (c *HealthCheckClient) WaitForReady(ctx context.Context, timeout time.Durat
 	}
 }
 
-// Close closes the client connection
-func (c *HealthCheckClient) Close() error {
+// Close closes the client connection.
+func (c *GRPCClient) Close() error {
 	if c.conn != nil {
 		return c.conn.Close()
 	}

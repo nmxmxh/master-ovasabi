@@ -9,6 +9,9 @@ KUBECTL=kubectl
 K8S_NAMESPACE=ovasabi
 K8S_CONTEXT=docker-desktop
 
+include .env
+export $(shell sed 's/=.*//' .env)
+
 # Go parameters
 GOCMD=go
 GOBUILD=$(GOCMD) build
@@ -70,6 +73,10 @@ clean:
 	find $(PROTO_PATH) -name "*.pb.go" -delete
 	find $(PROTO_PATH) -name "*.pb.gw.go" -delete
 
+# run linter
+lint:
+	golangci-lint run
+
 # Run in development mode
 dev:
 	$(GOCMD) run ./cmd/server
@@ -121,19 +128,21 @@ docker-build-scan-ci: docker-build trivy-scan-ci
 # Generate protobuf code
 proto:
 	@echo "Generating protobuf code..."
-	@for dir in $(shell find $(PROTO_PATH) -type d); do \
-		if ls $$dir/*.proto >/dev/null 2>&1; then \
-			echo "Processing protos in $$dir..."; \
+	@for service_dir in $(shell find $(PROTO_PATH) -mindepth 1 -maxdepth 1 -type d); do \
+		latest_version_dir=$$(ls -d $$service_dir/v*/ | sort -V | tail -n 1); \
+		if [ -d "$$latest_version_dir" ]; then \
+			echo "Processing protos in $$latest_version_dir..."; \
 			protoc \
 				--proto_path=. \
 				--go_out=$(PROTO_GO_OUT) \
 				--go_opt=$(PROTO_GO_OPT) \
 				--go-grpc_out=$(PROTO_GRPC_OUT) \
 				--go-grpc_opt=$(PROTO_GRPC_OPT) \
-				$$dir/*.proto; \
+				$$latest_version_dir/*.proto; \
 		fi \
 	done
 	@echo "Protobuf code generation complete"
+
 
 # Generate swagger documentation
 swagger:
@@ -185,6 +194,14 @@ k8s-dashboard:
 # Development with Docker Desktop Kubernetes
 dev-k8s: docker-build k8s-set-context k8s-deploy
 
+# Run database migrations up
+migrate-up:
+	$(DOCKER_COMPOSE) run migrate-up
+
+# Run database migrations down using Docker Compose
+migrate-down:
+	$(DOCKER_COMPOSE) run migrate-drop
+
 # Help
 help:
 	@echo "Available commands:"
@@ -234,4 +251,4 @@ new-service:
 	mkdir -p internal/service/$$SERVICE_NAME; \
 	echo 'syntax = "proto3";\n\npackage '$$SERVICE_NAME';\n\noption go_package = "github.com/nmxmxh/master-ovasabi/api/protos/'$$SERVICE_NAME'";\n\nservice '$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service {\n  // Add your RPC methods here\n}' > api/protos/$$SERVICE_NAME/$$SERVICE_NAME.proto; \
 	echo 'package service\n\nimport (\n\t"context"\n\n\t"github.com/nmxmxh/master-ovasabi/api/protos/'$$SERVICE_NAME'"\n\t"go.uber.org/zap"\n)\n\n// '$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service implements the '$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service interface\ntype '$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service struct {\n\tlogger *zap.Logger\n}\n\n// New'$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service creates a new '$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service instance\nfunc New'$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service(logger *zap.Logger) *'$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service {\n\treturn &'$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service{\n\t\tlogger: logger,\n\t}\n}' > internal/service/$$SERVICE_NAME/$$SERVICE_NAME.go; \
-	echo 'package service\n\nimport (\n\t"context"\n\t"testing"\n\n\t"github.com/nmxmxh/master-ovasabi/api/protos/'$$SERVICE_NAME'"\n\t"github.com/stretchr/testify/assert"\n\t"go.uber.org/zap"\n)\n\nfunc TestNew'$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service(t *testing.T) {\n\tlogger := zap.NewNop()\n\tsvc := New'$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service(logger)\n\n\tassert.NotNil(t, svc)\n\tassert.Equal(t, logger, svc.logger)\n}' > internal/service/$$SERVICE_NAME/$$SERVICE_NAME_test.go 
+	echo 'package service\n\nimport (\n\t"context"\n\t"testing"\n\n\t"github.com/nmxmxh/master-ovasabi/api/protos/'$$SERVICE_NAME'"\n\t"github.com/stretchr/testify/assert"\n\t"go.uber.org/zap"\n)\n\nfunc TestNew'$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service(t *testing.T) {\n\tlogger := zap.NewNop()\n\tsvc := New'$$(echo $$SERVICE_NAME | tr '[:lower:]' '[:upper:]')'Service(logger)\n\n\tassert.NotNil(t, svc)\n\tassert.Equal(t, logger, svc.logger)\n}' > internal/service/$$SERVICE_NAME/$$SERVICE_NAME_test.go

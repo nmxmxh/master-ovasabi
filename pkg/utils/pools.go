@@ -9,40 +9,53 @@ import (
 // This file is intentionally kept as a utility.
 
 var (
-	// BufferPool is a pool of bytes.Buffer objects
+	// BufferPool is a pool of bytes.Buffer objects.
 	BufferPool = sync.Pool{
 		New: func() interface{} {
 			return new(bytes.Buffer)
 		},
 	}
 
-	// ByteSlicePool is a pool of byte slices for JSON operations
+	// ByteSlicePool is a pool of byte slices for JSON operations.
 	ByteSlicePool = sync.Pool{
 		New: func() interface{} {
-			b := make([]byte, 0, 1024) // 1KB initial capacity
+			b := make([]byte, 0, 64)
 			return &b
 		},
 	}
 )
 
-// GetBuffer retrieves a buffer from the pool
+// GetBuffer retrieves a buffer from the pool.
 func GetBuffer() *bytes.Buffer {
-	return BufferPool.Get().(*bytes.Buffer)
-}
-
-// PutBuffer returns a buffer to the pool
-func PutBuffer(buf *bytes.Buffer) {
+	buf, ok := BufferPool.Get().(*bytes.Buffer)
+	if !ok {
+		return new(bytes.Buffer)
+	}
 	buf.Reset()
-	BufferPool.Put(buf)
+	return buf
 }
 
-// GetByteSlice retrieves a byte slice from the pool
+// PutBuffer returns a buffer to the pool.
+func PutBuffer(buf *bytes.Buffer) {
+	if buf != nil {
+		BufferPool.Put(buf)
+	}
+}
+
+// GetByteSlice retrieves a byte slice from the pool.
 func GetByteSlice() []byte {
-	return *ByteSlicePool.Get().(*[]byte)
+	bs, ok := ByteSlicePool.Get().(*[]byte)
+	if !ok {
+		b := make([]byte, 0, 64)
+		return b
+	}
+	*bs = (*bs)[:0]
+	return *bs
 }
 
-// PutByteSlice returns a byte slice to the pool
+// PutByteSlice returns a byte slice to the pool.
 func PutByteSlice(b []byte) {
-	b = b[:0] // Clear but keep capacity
-	ByteSlicePool.Put(&b)
+	if b != nil {
+		ByteSlicePool.Put(&b)
+	}
 }
