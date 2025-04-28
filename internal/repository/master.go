@@ -3,72 +3,71 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 )
 
-type Master struct {
-	ID          int
-	UUID        uuid.UUID
-	Name        string
-	Description string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	IsActive    bool
+// DefaultMasterRepository implements MasterRepository
+// (interface is defined in types.go)
+type DefaultMasterRepository struct {
+	*BaseRepository
 }
 
-type MasterRepository struct {
-	db *sql.DB
+// NewMasterRepository creates a new master repository instance
+func NewMasterRepository(db *sql.DB) MasterRepository {
+	return &DefaultMasterRepository{
+		BaseRepository: NewBaseRepository(db),
+	}
 }
 
-func NewMasterRepository(db *sql.DB) *MasterRepository {
-	return &MasterRepository{db: db}
+// Create creates a new master record
+func (r *DefaultMasterRepository) Create(ctx context.Context, entityType EntityType) (int64, error) {
+	var id int64
+	err := r.GetDB().QueryRowContext(ctx,
+		`INSERT INTO master (uuid, type, created_at, updated_at, is_active, version) 
+		 VALUES ($1, $2, NOW(), NOW(), true, 1) 
+		 RETURNING id`,
+		uuid.New(), entityType).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
-func (r *MasterRepository) Create(ctx context.Context, name, description string) (*Master, error) {
-	id := 0
-	newUUID := uuid.New()
-	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO master (uuid, name, description) VALUES ($1, $2, $3) RETURNING id`,
-		newUUID, name, description,
-	).Scan(&id)
+// Get retrieves a master record by ID
+func (r *DefaultMasterRepository) Get(ctx context.Context, id int64) (*Master, error) {
+	master := &Master{}
+	err := r.GetDB().QueryRowContext(ctx,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active 
+		 FROM master 
+		 WHERE id = $1`,
+		id).Scan(
+		&master.ID, &master.UUID, &master.Name, &master.Type,
+		&master.Description, &master.Version, &master.CreatedAt,
+		&master.UpdatedAt, &master.IsActive)
 	if err != nil {
 		return nil, err
 	}
-	return r.GetByID(ctx, id)
+	return master, nil
 }
 
-func (r *MasterRepository) GetByID(ctx context.Context, id int) (*Master, error) {
-	var m Master
-	err := r.db.QueryRowContext(ctx,
-		`SELECT id, uuid, name, description, created_at, updated_at, is_active FROM master WHERE id = $1`, id,
-	).Scan(&m.ID, &m.UUID, &m.Name, &m.Description, &m.CreatedAt, &m.UpdatedAt, &m.IsActive)
-	if err != nil {
-		return nil, err
-	}
-	return &m, nil
-}
-
-func (r *MasterRepository) Update(ctx context.Context, id int, name, description string, isActive bool) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE master SET name = $1, description = $2, is_active = $3, updated_at = NOW() WHERE id = $4`,
-		name, description, isActive, id,
+// Delete removes a master record
+func (r *DefaultMasterRepository) Delete(ctx context.Context, id int64) error {
+	_, err := r.GetDB().ExecContext(ctx,
+		`DELETE FROM master WHERE id = $1`,
+		id,
 	)
 	return err
 }
 
-func (r *MasterRepository) Delete(ctx context.Context, id int) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM master WHERE id = $1`, id)
-	return err
-}
-
-func (r *MasterRepository) List(ctx context.Context, limit, offset int) ([]*Master, error) {
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, uuid, name, description, created_at, updated_at, is_active FROM master ORDER BY id LIMIT $1 OFFSET $2`,
-		limit, offset,
-	)
+// List retrieves a paginated list of master records
+func (r *DefaultMasterRepository) List(ctx context.Context, limit, offset int) ([]*Master, error) {
+	rows, err := r.GetDB().QueryContext(ctx,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active 
+		 FROM master 
+		 ORDER BY id 
+		 LIMIT $1 OFFSET $2`,
+		limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -78,14 +77,57 @@ func (r *MasterRepository) List(ctx context.Context, limit, offset int) ([]*Mast
 
 	var masters []*Master
 	for rows.Next() {
-		var m Master
-		if err := rows.Scan(&m.ID, &m.UUID, &m.Name, &m.Description, &m.CreatedAt, &m.UpdatedAt, &m.IsActive); err != nil {
-			return nil, fmt.Errorf("failed to scan master: %w", err)
+		master := &Master{}
+		err := rows.Scan(
+			&master.ID, &master.UUID, &master.Name, &master.Type,
+			&master.Description, &master.Version, &master.CreatedAt,
+			&master.UpdatedAt, &master.IsActive)
+		if err != nil {
+			return nil, err
 		}
-		masters = append(masters, &m)
+		masters = append(masters, master)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
+	return masters, rows.Err()
+}
+
+// GetByUUID retrieves a master record by UUID
+func (r *DefaultMasterRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (*Master, error) {
+	master := &Master{}
+	err := r.GetDB().QueryRowContext(ctx,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active 
+		 FROM master 
+		 WHERE uuid = $1`,
+		uuid).Scan(
+		&master.ID, &master.UUID, &master.Name, &master.Type,
+		&master.Description, &master.Version, &master.CreatedAt,
+		&master.UpdatedAt, &master.IsActive)
+	if err != nil {
+		return nil, err
 	}
-	return masters, nil
+	return master, nil
+}
+
+// Update updates a master record
+func (r *DefaultMasterRepository) Update(ctx context.Context, master *Master) error {
+	result, err := r.GetDB().ExecContext(ctx,
+		`UPDATE master 
+		 SET name = $1, description = $2, is_active = $3, version = version + 1, updated_at = NOW()
+		 WHERE id = $4 AND version = $5`,
+		master.Name, master.Description, master.IsActive,
+		master.ID, master.Version)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+
+	master.Version++
+	return nil
 }

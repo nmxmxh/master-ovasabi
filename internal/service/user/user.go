@@ -3,15 +3,15 @@ package user
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/lib/pq"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
-	"github.com/nmxmxh/master-ovasabi/internal/shared/dbiface"
+	userrepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,15 +21,17 @@ import (
 // Service implements the UserService gRPC interface.
 type Service struct {
 	userpb.UnimplementedUserServiceServer
-	log *zap.Logger
-	db  dbiface.DB
+	log   *zap.Logger
+	cache *redis.Cache
+	repo  *userrepo.UserRepository
 }
 
 // NewUserService creates a new instance of UserService.
-func NewUserService(log *zap.Logger, db dbiface.DB) userpb.UserServiceServer {
+func NewUserService(log *zap.Logger, repo *userrepo.UserRepository, cache *redis.Cache) userpb.UserServiceServer {
 	return &Service{
-		log: log,
-		db:  db,
+		log:   log,
+		repo:  repo,
+		cache: cache,
 	}
 }
 
@@ -37,259 +39,152 @@ func NewUserService(log *zap.Logger, db dbiface.DB) userpb.UserServiceServer {
 func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
 	s.log.Info("Creating user", zap.String("email", req.Email))
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	user := &userrepo.User{
+		Email:    req.Email,
+		Password: req.Password,
+	}
+	if req.Metadata != nil {
+		metadata, _ := json.Marshal(req.Metadata)
+		user.Metadata = metadata
+	}
+
+	created, err := s.repo.Create(ctx, user)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			s.log.Warn("failed to rollback tx", zap.Error(err))
-		}
-	}()
-
-	// 1. Create master record
-	var masterID int32
-	err = tx.QueryRowContext(ctx,
-		`INSERT INTO master (uuid, name, type) 
-		 VALUES ($1, $2, 'user') 
-		 RETURNING id`,
-		req.Email, req.Username).Scan(&masterID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create master record: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
 	}
 
-	// 2. Create service_user record
-	var userID int32
-	err = tx.QueryRowContext(ctx,
-		`INSERT INTO service_user 
-		 (master_id, email, referral_code, device_hash, location, created_at, updated_at) 
-		 VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) 
-		 RETURNING id`,
-		masterID, req.Email, req.Metadata["referral_code"],
-		req.Metadata["device_hash"], req.Metadata["location"]).Scan(&userID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create service_user record: %v", err)
+	respUser := &userpb.User{
+		Id:           int32(created.ID),
+		Email:        created.Email,
+		CreatedAt:    timestamppb.New(created.CreatedAt),
+		UpdatedAt:    timestamppb.New(created.UpdatedAt),
+		PasswordHash: created.Password,
+	}
+	// Optionally unmarshal metadata to respUser.Metadata if needed
+
+	// Cache the new user
+	if err := s.cache.Set(ctx, fmt.Sprint(created.ID), "profile", respUser, redis.TTLUserProfile); err != nil {
+		s.log.Error("Failed to cache user profile",
+			zap.Int64("user_id", created.ID),
+			zap.Error(err))
+		// Don't fail creation if caching fails
 	}
 
-	// 3. Log event
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO service_event 
-		 (master_id, event_type, payload) 
-		 VALUES ($1, 'user_created', $2)`,
-		masterID, req.Metadata)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to log event: %v", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
-	}
-
-	// Return the created user
 	return &userpb.CreateUserResponse{
-		User: &userpb.User{
-			Id:           userID,
-			Email:        req.Email,
-			ReferralCode: req.Metadata["referral_code"],
-			DeviceHash:   req.Metadata["device_hash"],
-			Location:     req.Metadata["location"],
-			CreatedAt:    timestamppb.Now(),
-			UpdatedAt:    timestamppb.Now(),
-		},
+		User: respUser,
 	}, nil
 }
 
 // GetUser retrieves user information.
 func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.GetUserResponse, error) {
 	var user userpb.User
-	err := s.db.QueryRowContext(ctx,
-		`SELECT u.id, u.email, u.referral_code, u.device_hash, u.location, 
-		        u.created_at, u.updated_at
-		 FROM service_user u
-		 JOIN master m ON m.id = u.master_id
-		 WHERE u.id = $1`, req.UserId).
-		Scan(&user.Id, &user.Email, &user.ReferralCode, &user.DeviceHash,
-			&user.Location, &user.CreatedAt, &user.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, status.Error(codes.NotFound, "user not found")
-	}
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+	if err := s.cache.Get(ctx, req.UserId, "profile", &user); err == nil {
+		return &userpb.GetUserResponse{User: &user}, nil
 	}
 
-	return &userpb.GetUserResponse{User: &user}, nil
-}
-
-func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.UpdateUserResponse, error) {
-	userID, err := strconv.Atoi(req.UserId)
+	id, err := strconv.ParseInt(req.UserId, 10, 64)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
 	}
-
-	// Build dynamic update query
-	fields := []string{}
-	args := []interface{}{}
-	argPos := 1
-
-	if len(req.FieldsToUpdate) > 0 {
-		for _, field := range req.FieldsToUpdate {
-			switch field {
-			case "email":
-				fields = append(fields, "email = $"+strconv.Itoa(argPos))
-				args = append(args, req.User.Email)
-				argPos++
-			case "referral_code":
-				fields = append(fields, "referral_code = $"+strconv.Itoa(argPos))
-				args = append(args, req.User.ReferralCode)
-				argPos++
-			case "location":
-				fields = append(fields, "location = $"+strconv.Itoa(argPos))
-				args = append(args, req.User.Location)
-				argPos++
-			}
-		}
-	}
-
-	if len(fields) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "no fields to update")
-	}
-
-	fields = append(fields, "updated_at = NOW()")
-	query := "UPDATE service_user SET " +
-		strings.Join(fields, ", ") +
-		" WHERE id = $" + strconv.Itoa(argPos)
-	args = append(args, userID)
-
-	_, err = s.db.ExecContext(ctx, query, args...)
+	repoUser, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		if isUniqueViolation(err) {
-			return nil, status.Error(codes.AlreadyExists, "duplicate value for unique field")
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, status.Error(codes.NotFound, "user not found")
 		}
+		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+	}
+	respUser := &userpb.User{
+		Id:           int32(repoUser.ID),
+		Email:        repoUser.Email,
+		CreatedAt:    timestamppb.New(repoUser.CreatedAt),
+		UpdatedAt:    timestamppb.New(repoUser.UpdatedAt),
+		PasswordHash: repoUser.Password,
+	}
+	// Optionally unmarshal metadata to respUser.Metadata if needed
+
+	if err := s.cache.Set(ctx, req.UserId, "profile", respUser, redis.TTLUserProfile); err != nil {
+		s.log.Error("Failed to cache user profile",
+			zap.String("user_id", req.UserId),
+			zap.Error(err))
+	}
+
+	return &userpb.GetUserResponse{User: respUser}, nil
+}
+
+// UpdateUser updates a user record.
+func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.UpdateUserResponse, error) {
+	id, err := strconv.ParseInt(req.UserId, 10, 64)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	repoUser, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "user not found")
+	}
+	// Update fields
+	repoUser.Email = req.User.Email
+	repoUser.Password = req.User.PasswordHash
+	if err := s.repo.Update(ctx, repoUser); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update user: %v", err)
 	}
-
-	// Fetch updated user
+	if err := s.cache.Delete(ctx, req.UserId, "profile"); err != nil {
+		s.log.Error("Failed to invalidate user cache",
+			zap.String("user_id", req.UserId),
+			zap.Error(err))
+	}
 	getResp, err := s.GetUser(ctx, &userpb.GetUserRequest{UserId: req.UserId})
 	if err != nil {
 		return nil, err
 	}
-
-	return &userpb.UpdateUserResponse{
-		User: getResp.User,
-	}, nil
+	return &userpb.UpdateUserResponse{User: getResp.User}, nil
 }
 
+// DeleteUser removes a user and its master record.
 func (s *Service) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequest) (*userpb.DeleteUserResponse, error) {
-	userID, err := strconv.Atoi(req.UserId)
+	id, err := strconv.ParseInt(req.UserId, 10, 64)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
 	}
-
-	res, err := s.db.ExecContext(ctx, "DELETE FROM service_user WHERE id = $1", userID)
-	if err != nil {
+	if err := s.repo.Delete(ctx, id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, status.Error(codes.NotFound, "user not found")
+		}
 		return nil, status.Errorf(codes.Internal, "failed to delete user: %v", err)
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+	if err := s.cache.Delete(ctx, req.UserId, "profile"); err != nil {
+		s.log.Error("Failed to invalidate user cache",
+			zap.String("user_id", req.UserId),
+			zap.Error(err))
 	}
-	if n == 0 {
-		return nil, status.Error(codes.NotFound, "user not found")
-	}
-
-	return &userpb.DeleteUserResponse{
-		Success: true,
-	}, nil
+	return &userpb.DeleteUserResponse{Success: true}, nil
 }
 
 // ListUsers retrieves a list of users with pagination and filtering.
 func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (*userpb.ListUsersResponse, error) {
-	// Input validation
-	if req.Page < 0 {
-		return nil, status.Error(codes.InvalidArgument, "page number cannot be negative")
-	}
-	if req.PageSize < 0 || req.PageSize > 100 {
-		return nil, status.Error(codes.InvalidArgument, "page size must be between 0 and 100")
-	}
-
-	// Build the query with filters
-	query := `
-		SELECT u.id, u.email, u.referral_code, u.device_hash, u.location, 
-		       u.created_at, u.updated_at,
-		       COUNT(*) OVER() as total_count
-		FROM service_user u
-		JOIN master m ON m.id = u.master_id
-		WHERE 1=1
-	`
-	args := []any{}
-	argPos := 1
-
-	// Apply filters
-	for key, value := range req.Filters {
-		switch key {
-		case "email":
-			query += fmt.Sprintf(" AND u.email = $%d", argPos)
-			args = append(args, value)
-			argPos++
-		case "location":
-			query += fmt.Sprintf(" AND u.location = $%d", argPos)
-			args = append(args, value)
-			argPos++
-		}
-	}
-
-	// Add pagination
-	pageSize := int32(10)
+	limit := 10
 	if req.PageSize > 0 {
-		pageSize = req.PageSize
+		limit = int(req.PageSize)
 	}
-	offset := req.Page * pageSize
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argPos, argPos+1)
-	args = append(args, pageSize, offset)
-
-	// Execute query
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	offset := int(req.Page * int32(limit))
+	users, err := s.repo.List(ctx, limit, offset)
 	if err != nil {
-		s.log.Error("failed to execute list users query",
-			zap.Error(err),
-			zap.String("query", query),
-			zap.Any("args", args))
-		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+		s.log.Error("failed to list users", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to list users: %v", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			s.log.Warn("failed to close rows", zap.Error(err))
+	resp := &userpb.ListUsersResponse{
+		Users: make([]*userpb.User, 0, len(users)),
+	}
+	for _, u := range users {
+		respUser := &userpb.User{
+			Id:           int32(u.ID),
+			Email:        u.Email,
+			CreatedAt:    timestamppb.New(u.CreatedAt),
+			UpdatedAt:    timestamppb.New(u.UpdatedAt),
+			PasswordHash: u.Password,
 		}
-	}()
-
-	var users []*userpb.User
-	var totalCount int32
-
-	for rows.Next() {
-		var user userpb.User
-		err := rows.Scan(
-			&user.Id, &user.Email, &user.ReferralCode, &user.DeviceHash,
-			&user.Location, &user.CreatedAt, &user.UpdatedAt, &totalCount)
-		if err != nil {
-			s.log.Error("failed to scan user row", zap.Error(err))
-			return nil, status.Errorf(codes.Internal, "failed to scan row: %v", err)
-		}
-		users = append(users, &user)
+		resp.Users = append(resp.Users, respUser)
 	}
-
-	// Check for errors from iterating over rows
-	if err = rows.Err(); err != nil {
-		s.log.Error("error iterating over user rows", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "error iterating rows: %v", err)
-	}
-
-	totalPages := (totalCount + pageSize - 1) / pageSize
-	return &userpb.ListUsersResponse{
-		Users:      users,
-		TotalCount: totalCount,
-		Page:       req.Page,
-		TotalPages: totalPages,
-	}, nil
+	return resp, nil
 }
 
 // UpdatePassword implements the UpdatePassword RPC method.
@@ -305,81 +200,39 @@ func (s *Service) UpdatePassword(_ context.Context, _ *userpb.UpdatePasswordRequ
 	}, nil
 }
 
-// Fixed issues with User struct alignment and field handling.
+// UpdateProfile updates a user's profile.
 func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRequest) (*userpb.UpdateProfileResponse, error) {
-	userID, err := strconv.Atoi(req.UserId)
+	id, err := strconv.ParseInt(req.UserId, 10, 64)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
 	}
-
-	fields := []string{}
-	args := []any{}
-	argPos := 1
-
-	// For backward compatibility, also support updating email, referral_code, device_hash, location if present in FieldsToUpdate
-	for _, field := range req.FieldsToUpdate {
-		switch field {
-		case "email":
-			if req.Profile != nil && req.Profile.CustomFields["email"] != "" {
-				fields = append(fields, "email = $"+strconv.Itoa(argPos))
-				args = append(args, req.Profile.CustomFields["email"])
-				argPos++
-			}
-		case "referral_code":
-			if req.Profile != nil && req.Profile.CustomFields["referral_code"] != "" {
-				fields = append(fields, "referral_code = $"+strconv.Itoa(argPos))
-				args = append(args, req.Profile.CustomFields["referral_code"])
-				argPos++
-			}
-		case "device_hash":
-			if req.Profile != nil && req.Profile.CustomFields["device_hash"] != "" {
-				fields = append(fields, "device_hash = $"+strconv.Itoa(argPos))
-				args = append(args, req.Profile.CustomFields["device_hash"])
-				argPos++
-			}
-		case "location":
-			if req.Profile != nil && req.Profile.CustomFields["location"] != "" {
-				fields = append(fields, "location = $"+strconv.Itoa(argPos))
-				args = append(args, req.Profile.CustomFields["location"])
-				argPos++
-			}
-		}
-	}
-
-	if len(fields) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "no fields to update")
-	}
-
-	fields = append(fields, "updated_at = NOW()")
-	query := "UPDATE service_user SET " +
-		strings.Join(fields, ", ") +
-		" WHERE id = $" + strconv.Itoa(argPos)
-	args = append(args, userID)
-
-	_, err = s.db.ExecContext(ctx, query, args...)
+	repoUser, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		if isUniqueViolation(err) {
-			return nil, status.Error(codes.AlreadyExists, "duplicate value for unique field")
+		return nil, status.Error(codes.NotFound, "user not found")
+	}
+	// Update fields based on FieldsToUpdate and Profile.CustomFields
+	for _, field := range req.FieldsToUpdate {
+		if req.Profile != nil && req.Profile.CustomFields != nil {
+			switch field {
+			case "email":
+				if v, ok := req.Profile.CustomFields["email"]; ok {
+					repoUser.Email = v
+				}
+			case "referral_code":
+				// Not present in repository.User, skip or handle as needed
+			case "device_hash":
+				// Not present in repository.User, skip or handle as needed
+			case "location":
+				// Not present in repository.User, skip or handle as needed
+			}
 		}
+	}
+	if err := s.repo.Update(ctx, repoUser); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update profile: %v", err)
 	}
-
-	// Fetch updated user
 	getResp, err := s.GetUser(ctx, &userpb.GetUserRequest{UserId: req.UserId})
 	if err != nil {
 		return nil, err
 	}
-
-	return &userpb.UpdateProfileResponse{
-		User: getResp.User,
-	}, nil
-}
-
-// Helper to check for unique constraint violation.
-func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var pqErr *pq.Error
-	return errors.As(err, &pqErr)
+	return &userpb.UpdateProfileResponse{User: getResp.User}, nil
 }

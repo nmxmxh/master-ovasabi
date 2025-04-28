@@ -41,7 +41,36 @@ message GetCampaignResponse {
   Campaign campaign = 1;
 }
 
+message UpdateCampaignRequest {
+  Campaign campaign = 1;
+}
+
+message UpdateCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message DeleteCampaignRequest {
+  int32 id = 1;
+  string slug = 2;
+}
+
+message DeleteCampaignResponse {
+  bool success = 1;
+}
+
+message ListCampaignsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message ListCampaignsResponse {
+  repeated Campaign campaigns = 1;
+}
+
 service CampaignService {
   rpc CreateCampaign(CreateCampaignRequest) returns (CreateCampaignResponse);
   rpc GetCampaign(GetCampaignRequest) returns (GetCampaignResponse);
+  rpc UpdateCampaign(UpdateCampaignRequest) returns (UpdateCampaignResponse);
+  rpc DeleteCampaign(DeleteCampaignRequest) returns (DeleteCampaignResponse);
+  rpc ListCampaigns(ListCampaignsRequest) returns (ListCampaignsResponse);
 } 

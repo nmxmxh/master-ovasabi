@@ -87,6 +87,10 @@ services:
   migrate:
     image: migrate/migrate
     entrypoint: ["/bin/sh", "-c"]
+    environment:
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-master_ovasabi}
     command: >
       migrate -path /migrations -database "postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-master_ovasabi}?sslmode=disable" drop -f &&
       migrate -path /migrations -database "postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-master_ovasabi}?sslmode=disable" up

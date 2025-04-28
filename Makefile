@@ -195,12 +195,8 @@ k8s-dashboard:
 dev-k8s: docker-build k8s-set-context k8s-deploy
 
 # Run database migrations up
-migrate-up:
-	$(DOCKER_COMPOSE) run migrate-up
-
-# Run database migrations down using Docker Compose
-migrate-down:
-	$(DOCKER_COMPOSE) run migrate-drop
+migrate:
+	$(DOCKER_COMPOSE) run migrate up
 
 # Help
 help:

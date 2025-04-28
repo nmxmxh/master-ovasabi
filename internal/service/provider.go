@@ -10,6 +10,13 @@ import (
 	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	broadcastrepo "github.com/nmxmxh/master-ovasabi/internal/repository/broadcast"
+	i18nrepo "github.com/nmxmxh/master-ovasabi/internal/repository/i18n"
+	notificationrepo "github.com/nmxmxh/master-ovasabi/internal/repository/notification"
+	quotesrepo "github.com/nmxmxh/master-ovasabi/internal/repository/quotes"
+	referralrepo "github.com/nmxmxh/master-ovasabi/internal/repository/referral"
+	userrepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
 	"github.com/nmxmxh/master-ovasabi/internal/service/auth"
 	"github.com/nmxmxh/master-ovasabi/internal/service/broadcast"
 	"github.com/nmxmxh/master-ovasabi/internal/service/i18n"
@@ -18,13 +25,15 @@ import (
 	referralservice "github.com/nmxmxh/master-ovasabi/internal/service/referral"
 	userservice "github.com/nmxmxh/master-ovasabi/internal/service/user"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
 // Provider manages service instances and their dependencies.
 type Provider struct {
-	log *zap.Logger
-	db  *sql.DB
+	log   *zap.Logger
+	db    *sql.DB
+	redis *redis.Client
 
 	container           *di.Container
 	authService         authpb.AuthServiceServer
@@ -37,15 +46,25 @@ type Provider struct {
 }
 
 // NewProvider creates a new service provider.
-func NewProvider(log *zap.Logger, db *sql.DB) (*Provider, error) {
+func NewProvider(log *zap.Logger, db *sql.DB, redisConfig redis.Config) (*Provider, error) {
+	redisClient, err := redis.NewClient(redisConfig, log)
+	if err != nil {
+		log.Error("Failed to create Redis client", zap.Error(err))
+		return nil, err
+	}
+
 	p := &Provider{
 		log:       log,
 		db:        db,
-		container: di.New(), // Use the New function to initialize the container
+		redis:     redisClient,
+		container: di.New(),
 	}
 
 	if err := p.registerServices(); err != nil {
 		p.log.Error("Failed to register services", zap.Error(err))
+		if err := redisClient.Close(); err != nil {
+			log.Error("Failed to close Redis client", zap.Error(err))
+		}
 		return nil, err
 	}
 
@@ -55,8 +74,11 @@ func NewProvider(log *zap.Logger, db *sql.DB) (*Provider, error) {
 // Add logging to trace service registration.
 func (p *Provider) registerServices() error {
 	p.log.Info("Registering UserService")
+	masterRepo := repository.NewMasterRepository(p.db)
+	userRepo := userrepo.NewUserRepository(p.db, masterRepo)
 	if err := p.container.Register((*userpb.UserServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return userservice.NewUserService(p.log, &sqlDBWrapper{db: p.db}), nil
+		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextUser)
+		return userservice.NewUserService(p.log, userRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register UserService", zap.Error(err))
 		return err
@@ -69,47 +91,58 @@ func (p *Provider) registerServices() error {
 			p.log.Error("Failed to resolve UserService for AuthService", zap.Error(err))
 			return nil, err
 		}
-		return auth.NewService(p.log, userSvc), nil
+		cache := redis.NewCache(p.redis, redis.NamespaceSession, redis.ContextAuth)
+		return auth.NewService(p.log, userSvc, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register AuthService", zap.Error(err))
 		return err
 	}
 
 	p.log.Info("Registering NotificationService")
+	notificationRepo := notificationrepo.NewNotificationRepository(p.db, masterRepo)
 	if err := p.container.Register((*notificationpb.NotificationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return notification.NewNotificationService(p.log, &sqlDBWrapper{db: p.db}), nil
+		cache := redis.NewCache(p.redis, redis.NamespaceQueue, redis.ContextNotification)
+		return notification.NewNotificationService(p.log, notificationRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register NotificationService", zap.Error(err))
 		return err
 	}
 
 	p.log.Info("Registering BroadcastService")
+	broadcastRepo := broadcastrepo.NewBroadcastRepository(p.db, masterRepo)
 	if err := p.container.Register((*broadcastpb.BroadcastServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return broadcast.NewService(p.log, &sqlDBWrapper{db: p.db}), nil
+		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextBroadcast)
+		return broadcast.NewService(p.log, broadcastRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register BroadcastService", zap.Error(err))
 		return err
 	}
 
 	p.log.Info("Registering I18nService")
+	i18nRepo := i18nrepo.NewRepository(p.db, masterRepo)
 	if err := p.container.Register((*i18npb.I18NServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return i18n.NewService(p.log, &sqlDBWrapper{db: p.db}), nil
+		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextI18n)
+		return i18n.NewService(p.log, i18nRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register I18nService", zap.Error(err))
 		return err
 	}
 
 	p.log.Info("Registering QuotesService")
+	quotesRepo := quotesrepo.NewQuoteRepository(p.db, masterRepo)
 	if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return quotesservice.NewQuotesService(p.log, &sqlDBWrapper{db: p.db}), nil
+		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextQuotes)
+		return quotesservice.NewQuotesService(p.log, quotesRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register QuotesService", zap.Error(err))
 		return err
 	}
 
 	p.log.Info("Registering ReferralService")
+	referralRepo := referralrepo.NewReferralRepository(p.db, masterRepo)
 	if err := p.container.Register((*referralpb.ReferralServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return referralservice.NewReferralService(p.log, &sqlDBWrapper{db: p.db}), nil
+		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextReferral)
+		return referralservice.NewReferralService(p.log, referralRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register ReferralService", zap.Error(err))
 		return err

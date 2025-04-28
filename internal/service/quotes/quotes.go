@@ -10,7 +10,8 @@ import (
 	"time"
 
 	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
-	"github.com/nmxmxh/master-ovasabi/internal/shared/dbiface"
+	quotesrepo "github.com/nmxmxh/master-ovasabi/internal/repository/quotes"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +25,12 @@ var (
 	ErrQuoteExists = errors.New("quote already exists")
 )
 
+// TTL constants for quotes caching
+const (
+	TTLQuote     = 30 * time.Minute
+	TTLQuoteList = 5 * time.Minute
+)
+
 // SafeInt32 converts an int to int32 with overflow checking.
 func SafeInt32(i int) (int32, error) {
 	if i > math.MaxInt32 || i < math.MinInt32 {
@@ -35,15 +42,17 @@ func SafeInt32(i int) (int32, error) {
 // ServiceImpl implements the QuotesService interface.
 type ServiceImpl struct {
 	quotespb.UnimplementedQuotesServiceServer
-	log *zap.Logger
-	db  dbiface.DB
+	log   *zap.Logger
+	db    *quotesrepo.QuoteRepository
+	cache *redis.Cache
 }
 
 // NewQuotesService creates a new instance of QuotesService.
-func NewQuotesService(log *zap.Logger, db dbiface.DB) quotespb.QuotesServiceServer {
+func NewQuotesService(log *zap.Logger, db *quotesrepo.QuoteRepository, cache *redis.Cache) quotespb.QuotesServiceServer {
 	return &ServiceImpl{
-		log: log,
-		db:  db,
+		log:   log,
+		db:    db,
+		cache: cache,
 	}
 }
 
@@ -52,7 +61,7 @@ func (s *ServiceImpl) CreateQuote(ctx context.Context, req *quotespb.CreateQuote
 		zap.Int32("master_id", req.MasterId),
 		zap.Int32("campaign_id", req.CampaignId))
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.db.GetDB().BeginTx(ctx, nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
 	}
@@ -100,6 +109,21 @@ func (s *ServiceImpl) CreateQuote(ctx context.Context, req *quotespb.CreateQuote
 		return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
 	}
 
+	// Invalidate related caches
+	cacheKeys := []string{
+		fmt.Sprintf("quote:%d", quote.Id),
+		fmt.Sprintf("quotes:campaign:%d:page:0", req.CampaignId),
+	}
+
+	for _, key := range cacheKeys {
+		if err := s.cache.Delete(ctx, key, ""); err != nil {
+			s.log.Error("Failed to invalidate cache",
+				zap.String("cache_key", key),
+				zap.Error(err))
+			// Continue even if cache invalidation fails
+		}
+	}
+
 	return &quotespb.CreateQuoteResponse{
 		Quote:   &quote,
 		Success: true,
@@ -107,11 +131,19 @@ func (s *ServiceImpl) CreateQuote(ctx context.Context, req *quotespb.CreateQuote
 }
 
 func (s *ServiceImpl) GetQuote(ctx context.Context, req *quotespb.GetQuoteRequest) (*quotespb.GetQuoteResponse, error) {
+	// Try to get from cache first
+	cacheKey := fmt.Sprintf("quote:%d", req.QuoteId)
 	var quote quotespb.BillingQuote
+	if err := s.cache.Get(ctx, cacheKey, "", &quote); err == nil {
+		return &quotespb.GetQuoteResponse{
+			Quote: &quote,
+		}, nil
+	}
+
 	var metadataBytes []byte
 	var createdAt time.Time
 
-	err := s.db.QueryRowContext(ctx, `
+	err := s.db.GetDB().QueryRowContext(ctx, `
 		SELECT id, master_id, campaign_id, description, author, metadata, amount, currency, created_at
 		FROM service_quote
 		WHERE id = $1`,
@@ -135,12 +167,27 @@ func (s *ServiceImpl) GetQuote(ctx context.Context, req *quotespb.GetQuoteReques
 
 	quote.CreatedAt = timestamppb.New(createdAt)
 
+	// Cache the quote
+	if err := s.cache.Set(ctx, cacheKey, "", &quote, TTLQuote); err != nil {
+		s.log.Error("Failed to cache quote",
+			zap.Int32("quote_id", quote.Id),
+			zap.Error(err))
+		// Don't fail the get if caching fails
+	}
+
 	return &quotespb.GetQuoteResponse{
 		Quote: &quote,
 	}, nil
 }
 
 func (s *ServiceImpl) ListQuotes(ctx context.Context, req *quotespb.ListQuotesRequest) (*quotespb.ListQuotesResponse, error) {
+	// Try to get from cache first
+	cacheKey := fmt.Sprintf("quotes:campaign:%d:page:%d", req.CampaignId, req.Page)
+	var response quotespb.ListQuotesResponse
+	if err := s.cache.Get(ctx, cacheKey, "", &response); err == nil {
+		return &response, nil
+	}
+
 	query := `
 		SELECT id, master_id, campaign_id, description, author, metadata, amount, currency, created_at,
 		       COUNT(*) OVER() as total_count
@@ -167,7 +214,7 @@ func (s *ServiceImpl) ListQuotes(ctx context.Context, req *quotespb.ListQuotesRe
 	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argPos, argPos+1)
 	args = append(args, pageSize, offset)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.db.GetDB().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "database error: %v", err)
 	}
@@ -198,9 +245,10 @@ func (s *ServiceImpl) ListQuotes(ctx context.Context, req *quotespb.ListQuotesRe
 			&totalCount,
 		)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to scan row: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to scan quote: %v", err)
 		}
 
+		// Parse metadata
 		if err := json.Unmarshal(metadataBytes, &quote.Metadata); err != nil {
 			s.log.Warn("failed to unmarshal quote metadata",
 				zap.Int32("quote_id", quote.Id),
@@ -211,15 +259,22 @@ func (s *ServiceImpl) ListQuotes(ctx context.Context, req *quotespb.ListQuotesRe
 		quotes = append(quotes, &quote)
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, status.Errorf(codes.Internal, "error iterating rows: %v", err)
-	}
-
 	totalPages := (totalCount + pageSize - 1) / pageSize
-	return &quotespb.ListQuotesResponse{
+	response = quotespb.ListQuotesResponse{
 		Quotes:     quotes,
 		TotalCount: totalCount,
 		Page:       req.Page,
 		TotalPages: totalPages,
-	}, nil
+	}
+
+	// Cache the response
+	if err := s.cache.Set(ctx, cacheKey, "", &response, TTLQuoteList); err != nil {
+		s.log.Error("Failed to cache quotes list",
+			zap.Int32("campaign_id", req.CampaignId),
+			zap.Int32("page", req.Page),
+			zap.Error(err))
+		// Don't fail the list if caching fails
+	}
+
+	return &response, nil
 }

@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
 	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
@@ -26,7 +26,7 @@ import (
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -49,9 +49,8 @@ func main() {
 	}
 	log = loggerInstance.Logger()
 	defer func() {
-		if err := log.Sync(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to sync logger: %v\n", err)
-		}
+		// Ignore sync errors as they are harmless
+		_ = log.Sync()
 	}()
 
 	log.Info("Logger initialized", zap.String("service", os.Getenv("APP_NAME")))
@@ -69,22 +68,16 @@ func main() {
 		}
 	}()
 
-	// Initialize Redis client
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:         getEnvOrDefault("REDIS_HOST", "localhost") + ":" + getEnvOrDefault("REDIS_PORT", "6379"),
+	// Initialize Redis client with our custom configuration
+	redisConfig := redis.Config{
+		Host:         getEnvOrDefault("REDIS_HOST", "localhost"),
+		Port:         getEnvOrDefault("REDIS_PORT", "6379"),
 		Password:     getEnvOrDefault("REDIS_PASSWORD", ""),
 		DB:           getEnvOrDefaultInt("REDIS_DB", 0),
 		PoolSize:     getEnvOrDefaultInt("REDIS_POOL_SIZE", 5),
 		MinIdleConns: getEnvOrDefaultInt("REDIS_MIN_IDLE_CONNS", 2),
-	})
-
-	defer func() {
-		if err := redisClient.Close(); err != nil {
-			log.Error("Error closing Redis client", zap.Error(err))
-		}
-	}()
-
-	log.Info("Redis client initialized successfully")
+		MaxRetries:   getEnvOrDefaultInt("REDIS_MAX_RETRIES", 3),
+	}
 
 	// Listener
 	lis := createListener(port)
@@ -95,8 +88,8 @@ func main() {
 	)
 	log.Info("gRPC server created")
 
-	// Initialize services
-	provider, err := service.NewProvider(log, db)
+	// Initialize services with Redis configuration
+	provider, err := service.NewProvider(log, db, redisConfig)
 	if err != nil {
 		handleFatalError(err, "Failed to initialize service provider")
 	}
@@ -171,7 +164,7 @@ func connectToDatabase() *sql.DB {
 		}
 
 		log.Error("Database ping error", zap.Error(err))
-		db.Close()
+		_ = db.Close()
 		time.Sleep(3 * time.Second)
 	}
 

@@ -90,6 +90,7 @@ type User struct {
 	Location      string                 `protobuf:"bytes,7,opt,name=location,proto3" json:"location,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	PasswordHash  string                 `protobuf:"bytes,10,opt,name=password_hash,json=passwordHash,proto3" json:"password_hash,omitempty"` // Stores the hashed password
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -185,6 +186,13 @@ func (x *User) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *User) GetPasswordHash() string {
+	if x != nil {
+		return x.PasswordHash
+	}
+	return ""
 }
 
 // UserProfile contains additional user information
@@ -1298,7 +1306,7 @@ var File_api_protos_user_v0_user_proto protoreflect.FileDescriptor
 
 const file_api_protos_user_v0_user_proto_rawDesc = "" +
 	"\n" +
-	"\x1dapi/protos/user/v0/user.proto\x12\x04user\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc2\x02\n" +
+	"\x1dapi/protos/user/v0/user.proto\x12\x04user\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe7\x02\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\x02 \x01(\x05R\bmasterId\x12\x14\n" +
@@ -1312,7 +1320,9 @@ const file_api_protos_user_v0_user_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xe0\x02\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12#\n" +
+	"\rpassword_hash\x18\n" +
+	" \x01(\tR\fpasswordHash\"\xe0\x02\n" +
 	"\vUserProfile\x12\x1d\n" +
 	"\n" +
 	"first_name\x18\x01 \x01(\tR\tfirstName\x12\x1b\n" +
