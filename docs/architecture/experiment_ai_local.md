@@ -5,7 +5,10 @@ filename: experimental_local_ai.mb
 
 ## 🧪 Experimental Local AI with Go + gRPC + Ollama/DeepSeek
 
-This document outlines how to set up a local AI-powered pattern generation and retrieval system using Go (gRPC), Ollama/DeepSeek (LLMs), Amadeus (pattern engine), and a knowledge graph (e.g., Nexus). The architecture supports retrieval-augmented generation (RAG), with dynamic context generation and pattern interaction.
+This document outlines how to set up a local AI-powered pattern generation and retrieval system
+using Go (gRPC), Ollama/DeepSeek (LLMs), Amadeus (pattern engine), and a knowledge graph (e.g.,
+Nexus). The architecture supports retrieval-augmented generation (RAG), with dynamic context
+generation and pattern interaction.
 
 ---
 
@@ -44,11 +47,13 @@ experimental_local_ai/
 ## 🏗️ Setting Up the Vector Store
 
 **Dependencies**:
+
 - Python
 - sentence-transformers
 - chromadb
 
 **`vector-store/embed_and_store.py`**:
+
 ```python
 from sentence_transformers import SentenceTransformer
 import chromadb
@@ -64,6 +69,7 @@ for doc, vec in zip(patterns, embeddings):
 ```
 
 Run:
+
 ```bash
 python3 vector-store/embed_and_store.py
 ```
@@ -73,6 +79,7 @@ python3 vector-store/embed_and_store.py
 ## 🌐 Go gRPC Setup
 
 ### `proto/ai.proto`
+
 ```protobuf
 syntax = "proto3";
 
@@ -90,6 +97,7 @@ message AIResponse {
 ```
 
 ### `main.go`
+
 ```go
 package main
 
@@ -113,6 +121,7 @@ func main() {
 ```
 
 ### `server.go`
+
 ```go
 package main
 
@@ -149,6 +158,7 @@ func (s *server) QueryAI(ctx context.Context, req *pb.AIRequest) (*pb.AIResponse
 ## 🧪 Amadeus Integration (Sample)
 
 **`amadeus/engine.go`**:
+
 ```go
 package amadeus
 
@@ -159,6 +169,7 @@ func ValidatePattern(output string) bool {
 ```
 
 Hook into the `QueryAI` response to pipe result into Amadeus:
+
 ```go
 if !amadeus.ValidatePattern(llmResponse) {
     return nil, fmt.Errorf("Invalid pattern response")
@@ -187,21 +198,25 @@ embed:
 ## 📄 README.md (Usage)
 
 ### 1. Generate Protobufs
+
 ```bash
 make proto
 ```
 
 ### 2. Run Vector Embedding
+
 ```bash
 make embed
 ```
 
 ### 3. Start gRPC Server
+
 ```bash
 make run
 ```
 
 ### 4. gRPC Client Request
+
 ```go
 // Use any gRPC client to call QueryAI with a query string
 ```
@@ -209,6 +224,7 @@ make run
 ---
 
 ## 🚀 Future Work
+
 - Automatic feedback loops into Amadeus
 - Frontend web UI
 - Pattern simulation based on retrieved context

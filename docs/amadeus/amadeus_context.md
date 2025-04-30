@@ -41,6 +41,73 @@ The knowledge graph is structured with these main sections:
 - `redis_practices`: Redis usage patterns and data structures
 - `amadeus_integration`: Self-description of the knowledge graph system
 
+For advanced configuration and implementation details, see
+[`super_knowledge_graph.json`](../amadeus/super_knowledge_graph.json).
+
+## Service Implementation Pattern
+
+The platform follows a standardized service implementation pattern:
+
+```mermaid
+graph TD
+    A[Proto Layer] -->|Defines Contract| B[Service Layer]
+    B -->|Uses| C[Repository Layer]
+    C -->|Accesses| D[Database]
+    C -->|Caches| E[Redis]
+    F[Amadeus KG] -->|Tracks| B
+    F -->|Monitors| C
+```
+
+### Layer Components
+
+1. **Proto Layer** (`api/protos/{service}/v0`)
+
+   - Service interface definitions
+   - Data model definitions
+   - Version control
+   - Language-agnostic contracts
+
+2. **Service Layer** (`internal/service/{service}`)
+
+   - Business logic implementation
+   - gRPC service handlers
+   - Internal service interfaces
+   - Error mapping
+   - Logging and tracing
+
+3. **Repository Layer** (`internal/repository/{service}`)
+   - Data access abstraction
+   - Cache implementation
+   - Transaction handling
+   - Error mapping
+   - Master-client pattern
+
+### Service Registration
+
+Services must register with Amadeus:
+
+```go
+type ServiceRegistration struct {
+    Name         string           `json:"name"`
+    Version      string           `json:"version"`
+    Capabilities []string         `json:"capabilities"`
+    Dependencies []string         `json:"dependencies"`
+    Schema       *ServiceSchema   `json:"schema"`
+    Endpoints    []EndpointInfo   `json:"endpoints"`
+    Models       []ModelInfo      `json:"models"`
+}
+```
+
+### Service Evolution
+
+Services maintain their evolution history in Amadeus:
+
+- Version tracking
+- Capability changes
+- Breaking changes
+- Migration paths
+- Impact analysis
+
 ## Integration Methods
 
 Services can integrate with Amadeus via:
@@ -77,6 +144,7 @@ Amadeus enables:
 - **Integration Points**: Service Hooks and Nexus Pattern available
 - **Documentation**: Implementation guide, integration examples, and architecture docs complete
 - **Visualization**: Mermaid-based diagram generation implemented
+- **Service Pattern**: Standardized implementation pattern established
 
 ## Evolution Tracking
 
@@ -85,6 +153,7 @@ The knowledge graph maintains its own evolution history:
 - **Version field**: Explicit version of the knowledge graph format
 - **Last updated timestamp**: When the graph was last modified
 - **Backups**: Historical versions stored in `amadeus/backups`
+- **Service implementations**: Tracks service implementation patterns
 
 ## Implementation Status
 
@@ -94,6 +163,7 @@ The knowledge graph maintains its own evolution history:
 - Nexus integration established
 - Documentation published
 - Backup system set up
+- Service pattern documented
 
 ## Usage Guidelines
 
@@ -102,6 +172,7 @@ The knowledge graph maintains its own evolution history:
 3. CI/CD pipelines should validate knowledge graph consistency
 4. Pattern implementations should be documented in the graph
 5. Impact analysis should be performed before major changes
+6. Follow standardized service implementation pattern
 
 ## Future Development
 
@@ -110,6 +181,106 @@ The knowledge graph maintains its own evolution history:
 - Specialized knowledge graph query language
 - Advanced visualization capabilities
 - System evolution tracking and prediction
+- Automated service pattern compliance checking
+
+## Continuous Knowledge Graph Updates
+
+The knowledge graph is continuously updated through multiple mechanisms to ensure it remains
+accurate and valuable:
+
+1. **Real-time Updates**
+
+   - Service registration hooks trigger immediate graph updates
+   - Event-driven updates based on system changes
+   - Automatic schema and capability detection
+
+2. **Batch Processing**
+
+   - Scheduled validation jobs verify graph consistency
+   - Periodic scans for new patterns and relationships
+   - Historical analysis for evolution tracking
+
+3. **Integration Points**
+
+   ```mermaid
+   graph TD
+       A[Service Events] -->|Real-time| B[Knowledge Graph]
+       C[CI/CD Pipeline] -->|Deployment| B
+       D[Code Analysis] -->|Pattern Detection| B
+       E[Manual Updates] -->|Curator API| B
+       F[External Systems] -->|Webhook API| B
+   ```
+
+4. **Update Validation**
+
+   - Pre-update validation ensures graph consistency
+   - Post-update verification confirms relationships
+   - Automatic backup creation before major changes
+
+5. **Neural-Symbolic Integration**
+   - Continuous learning from system behavior
+   - Pattern recognition for new relationships
+   - Automated suggestion of graph improvements
+
+### Update Mechanisms
+
+1. **Service-Level Updates**
+
+   ```go
+   type ServiceUpdate struct {
+       ServiceID    string           `json:"service_id"`
+       UpdateType   string           `json:"update_type"`
+       Capabilities []string         `json:"capabilities"`
+       Schema       *ServiceSchema   `json:"schema"`
+       Timestamp    time.Time        `json:"timestamp"`
+   }
+   ```
+
+2. **Pattern Detection**
+
+   - Automated scanning for new implementation patterns
+   - Relationship inference from service interactions
+   - Usage pattern analysis for optimization
+
+3. **Version Control Integration**
+
+   - Git hooks for documentation updates
+   - PR validation for graph consistency
+   - Automatic documentation generation
+
+4. **External System Integration**
+   - Webhook API for third-party updates
+   - Event stream processing
+   - Batch import capabilities
+
+### Update Policies
+
+1. **Consistency Rules**
+
+   - All updates must maintain graph consistency
+   - Version tracking for all changes
+   - Rollback capability for failed updates
+
+2. **Access Control**
+
+   - Role-based update permissions
+   - Audit logging for all changes
+   - Change approval workflows for major updates
+
+3. **Performance Considerations**
+
+   - Batching of minor updates
+   - Async processing for non-critical changes
+   - Cache invalidation strategies
+
+4. **Backup Strategy**
+   - Automatic backups before updates
+   - Historical version retention
+   - Point-in-time recovery capability
+
+For detailed implementation of advanced querying, perspective-aware AI systems, and language model
+integration, refer to the [`super_knowledge_graph.json`](../amadeus/super_knowledge_graph.json)
+configuration.
 
 ## References
 
@@ -120,3 +291,134 @@ For detailed information, see:
 - [Architecture Overview](architecture.md)
 - [API Reference](api_reference.md)
 - [Consistent Update Guide](consistent_updates.md)
+- [Service Implementation Pattern](../services/implementation_pattern.md)
+- [Service List](../services/service_list.md)
+
+## Build and Development Commands
+
+The project includes a comprehensive Makefile that provides standardized commands for development,
+testing, and deployment. Here are the key command categories:
+
+### Core Development Commands
+
+```makefile
+# Setup and Installation
+setup              # Sets up development environment
+install-tools      # Installs required Go tools
+deps              # Installs additional dependencies
+
+# Build and Development
+build             # Builds the binary with proto generation
+dev               # Runs the server in development mode
+clean             # Cleans build artifacts
+
+# Testing
+test              # Runs all tests (unit + integration)
+test-unit         # Runs only unit tests
+test-integration  # Runs integration tests
+coverage          # Generates test coverage report
+```
+
+### Code Quality and Documentation
+
+```makefile
+# Linting
+lint              # Full linting suite
+lint-focused      # Excludes backup files and amadeus utilities
+lint-safe         # Completely excludes amadeus directory
+
+# Documentation
+docs-format       # Formats documentation
+docs-validate     # Validates documentation
+docs-serve        # Serves documentation locally
+docs-deploy-github # Deploys to GitHub Pages
+```
+
+### Container and Deployment
+
+```makefile
+# Docker Operations
+docker-build      # Builds Docker images
+docker-up         # Starts containers
+docker-down       # Stops containers
+docker-logs       # Shows container logs
+docker-clean      # Removes containers and volumes
+
+# Security Scanning
+trivy-scan        # Vulnerability scanning
+trivy-scan-ci     # CI/CD vulnerability checks
+
+# Kubernetes Deployment
+k8s-deploy        # Deploys to Kubernetes
+k8s-status        # Shows deployment status
+```
+
+### Knowledge Graph Specific
+
+```makefile
+# Proto Generation
+proto             # Generates protobuf code for all services
+
+# Backup and Restore
+backup            # Creates KG backup
+restore           # Restores from backup
+```
+
+### Usage Guidelines
+
+1. **Development Workflow**:
+
+   ```bash
+   make setup     # First-time setup
+   make build     # Build the project
+   make dev       # Run in development mode
+   ```
+
+2. **Testing Workflow**:
+
+   ```bash
+   make test-unit # Run unit tests during development
+   make test      # Run full test suite before commits
+   make coverage  # Check test coverage
+   ```
+
+3. **Deployment Workflow**:
+
+   ```bash
+   make docker-build-scan # Build and security scan
+   make k8s-deploy       # Deploy to Kubernetes
+   ```
+
+4. **Documentation Workflow**:
+   ```bash
+   make docs-format      # Format documentation
+   make docs-validate    # Validate before commits
+   make docs-deploy-github # Deploy documentation
+   ```
+
+### Environment Configuration
+
+The Makefile uses these key variables:
+
+- `BINARY_NAME=master-ovasabi`
+- `DOCKER_IMAGE=ovasabi/$(BINARY_NAME)`
+- `K8S_NAMESPACE=ovasabi`
+- `K8S_CONTEXT=docker-desktop`
+
+Environment variables are loaded from `.env` file and include:
+
+- Database configuration
+- Redis settings
+- Knowledge graph parameters
+- Service endpoints
+
+### Best Practices
+
+1. Always run `make lint-safe` before commits
+2. Use `make test` to ensure all tests pass
+3. Run `make docker-build-scan` before deployments
+4. Keep documentation updated with `make docs-format`
+5. Use `make backup` before major changes
+
+For detailed implementation of specific commands, refer to the [`Makefile`](../../Makefile) in the
+project root.

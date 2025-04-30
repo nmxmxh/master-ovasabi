@@ -1,0 +1,31 @@
+service:
+  name: kg-service
+  version: 1.0.0
+  environment: ${ENVIRONMENT:-development}
+  log_level: ${LOG_LEVEL:-debug}
+
+redis:
+  host: ${REDIS_HOST:-redis}
+  port: ${REDIS_PORT:-6379}
+  password: ${REDIS_PASSWORD:-@Osiano1995}
+  db: 0
+  pool_size: 10
+
+knowledge_graph:
+  update_channel: ${KG_UPDATE_CHANNEL:-kg:updates}
+  validation_queue: ${KG_VALIDATION_QUEUE:-kg:validation}
+  backup_prefix: ${KG_BACKUP_PREFIX:-kg:backup:}
+  backup_path: /data/kg/backups
+  batch_size: 100
+  batch_window: 5s
+  retention_days: 30
+
+health:
+  port: 8081
+  check_interval: 30s
+  timeout: 10s
+  retries: 3
+
+metrics:
+  enabled: true
+  port: 9091 

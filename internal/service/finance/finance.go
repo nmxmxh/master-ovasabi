@@ -30,12 +30,12 @@ const (
 
 // Service defines the interface for finance operations
 type Service interface {
-	GetBalance(ctx context.Context, userID uuid.UUID) (float64, error)
-	Deposit(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error)
-	Withdraw(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error)
-	Transfer(ctx context.Context, fromUserID, toUserID uuid.UUID, amount float64) (*finance.TransactionModel, error)
-	GetTransaction(ctx context.Context, transactionID uuid.UUID) (*finance.TransactionModel, error)
-	ListTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*finance.TransactionModel, error)
+	GetBalanceInternal(ctx context.Context, userID uuid.UUID) (float64, error)
+	DepositInternal(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error)
+	WithdrawInternal(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error)
+	TransferInternal(ctx context.Context, fromUserID, toUserID uuid.UUID, amount float64) (*finance.TransactionModel, error)
+	GetTransactionInternal(ctx context.Context, transactionID uuid.UUID) (*finance.TransactionModel, error)
+	ListTransactionsInternal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*finance.TransactionModel, error)
 }
 
 // service implements both the Service interface and gRPC service
@@ -57,8 +57,8 @@ func New(repo finance.Repository, master repository.MasterRepository, cache *red
 	}
 }
 
-// GetBalance retrieves the current balance for a user
-func (s *service) GetBalance(ctx context.Context, userID uuid.UUID) (float64, error) {
+// GetBalanceInternal retrieves the current balance for a user
+func (s *service) GetBalanceInternal(ctx context.Context, userID uuid.UUID) (float64, error) {
 	balance, err := s.repo.GetBalance(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get balance: %w", err)
@@ -66,8 +66,8 @@ func (s *service) GetBalance(ctx context.Context, userID uuid.UUID) (float64, er
 	return balance, nil
 }
 
-// Deposit adds funds to a user's account
-func (s *service) Deposit(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
+// DepositInternal adds funds to a user's account
+func (s *service) DepositInternal(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("deposit amount must be positive")
 	}
@@ -108,13 +108,13 @@ func (s *service) Deposit(ctx context.Context, userID uuid.UUID, amount float64)
 	return tx, nil
 }
 
-// Withdraw removes funds from a user's account
-func (s *service) Withdraw(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
+// WithdrawInternal removes funds from a user's account
+func (s *service) WithdrawInternal(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("withdrawal amount must be positive")
 	}
 
-	balance, err := s.GetBalance(ctx, userID)
+	balance, err := s.GetBalanceInternal(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get balance: %w", err)
 	}
@@ -159,8 +159,8 @@ func (s *service) Withdraw(ctx context.Context, userID uuid.UUID, amount float64
 	return tx, nil
 }
 
-// Transfer moves funds between two user accounts
-func (s *service) Transfer(ctx context.Context, fromUserID, toUserID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
+// TransferInternal moves funds between two user accounts
+func (s *service) TransferInternal(ctx context.Context, fromUserID, toUserID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("transfer amount must be positive")
 	}
@@ -169,7 +169,7 @@ func (s *service) Transfer(ctx context.Context, fromUserID, toUserID uuid.UUID, 
 		return nil, fmt.Errorf("cannot transfer to same account")
 	}
 
-	balance, err := s.GetBalance(ctx, fromUserID)
+	balance, err := s.GetBalanceInternal(ctx, fromUserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get balance: %w", err)
 	}
@@ -227,8 +227,8 @@ func (s *service) Transfer(ctx context.Context, fromUserID, toUserID uuid.UUID, 
 	return tx, nil
 }
 
-// GetTransaction retrieves a specific transaction
-func (s *service) GetTransaction(ctx context.Context, transactionID uuid.UUID) (*finance.TransactionModel, error) {
+// GetTransactionInternal retrieves a specific transaction
+func (s *service) GetTransactionInternal(ctx context.Context, transactionID uuid.UUID) (*finance.TransactionModel, error) {
 	tx, err := s.repo.GetTransaction(ctx, transactionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction: %w", err)
@@ -236,8 +236,8 @@ func (s *service) GetTransaction(ctx context.Context, transactionID uuid.UUID) (
 	return tx, nil
 }
 
-// ListTransactions retrieves a paginated list of transactions for a user
-func (s *service) ListTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*finance.TransactionModel, error) {
+// ListTransactionsInternal retrieves a paginated list of transactions for a user
+func (s *service) ListTransactionsInternal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*finance.TransactionModel, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -253,13 +253,13 @@ func (s *service) ListTransactions(ctx context.Context, userID uuid.UUID, limit,
 }
 
 // gRPC service implementation
-func (s *service) GetBalanceRPC(ctx context.Context, req *financepb.GetBalanceRequest) (*financepb.GetBalanceResponse, error) {
+func (s *service) GetBalance(ctx context.Context, req *financepb.GetBalanceRequest) (*financepb.GetBalanceResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	balance, err := s.GetBalance(ctx, userID)
+	balance, err := s.GetBalanceInternal(ctx, userID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get balance: %v", err)
 	}
@@ -273,13 +273,13 @@ func (s *service) GetBalanceRPC(ctx context.Context, req *financepb.GetBalanceRe
 	}, nil
 }
 
-func (s *service) DepositRPC(ctx context.Context, req *financepb.DepositRequest) (*financepb.TransactionResponse, error) {
+func (s *service) Deposit(ctx context.Context, req *financepb.DepositRequest) (*financepb.TransactionResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	tx, err := s.Deposit(ctx, userID, req.Amount)
+	tx, err := s.DepositInternal(ctx, userID, req.Amount)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to process deposit: %v", err)
 	}
@@ -289,13 +289,13 @@ func (s *service) DepositRPC(ctx context.Context, req *financepb.DepositRequest)
 	}, nil
 }
 
-func (s *service) WithdrawRPC(ctx context.Context, req *financepb.WithdrawRequest) (*financepb.TransactionResponse, error) {
+func (s *service) Withdraw(ctx context.Context, req *financepb.WithdrawRequest) (*financepb.TransactionResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	tx, err := s.Withdraw(ctx, userID, req.Amount)
+	tx, err := s.WithdrawInternal(ctx, userID, req.Amount)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to process withdrawal: %v", err)
 	}
@@ -305,7 +305,7 @@ func (s *service) WithdrawRPC(ctx context.Context, req *financepb.WithdrawReques
 	}, nil
 }
 
-func (s *service) TransferRPC(ctx context.Context, req *financepb.TransferRequest) (*financepb.TransactionResponse, error) {
+func (s *service) Transfer(ctx context.Context, req *financepb.TransferRequest) (*financepb.TransactionResponse, error) {
 	fromUserID, err := uuid.Parse(req.FromUserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid from_user_id: %v", err)
@@ -316,7 +316,7 @@ func (s *service) TransferRPC(ctx context.Context, req *financepb.TransferReques
 		return nil, status.Errorf(codes.InvalidArgument, "invalid to_user_id: %v", err)
 	}
 
-	tx, err := s.Transfer(ctx, fromUserID, toUserID, req.Amount)
+	tx, err := s.TransferInternal(ctx, fromUserID, toUserID, req.Amount)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to process transfer: %v", err)
 	}
@@ -326,13 +326,13 @@ func (s *service) TransferRPC(ctx context.Context, req *financepb.TransferReques
 	}, nil
 }
 
-func (s *service) GetTransactionRPC(ctx context.Context, req *financepb.GetTransactionRequest) (*financepb.TransactionResponse, error) {
+func (s *service) GetTransaction(ctx context.Context, req *financepb.GetTransactionRequest) (*financepb.TransactionResponse, error) {
 	txID, err := uuid.Parse(req.TransactionId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid transaction ID: %v", err)
 	}
 
-	tx, err := s.GetTransaction(ctx, txID)
+	tx, err := s.GetTransactionInternal(ctx, txID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get transaction: %v", err)
 	}
@@ -346,13 +346,13 @@ func (s *service) GetTransactionRPC(ctx context.Context, req *financepb.GetTrans
 	}, nil
 }
 
-func (s *service) ListTransactionsRPC(ctx context.Context, req *financepb.ListTransactionsRequest) (*financepb.ListTransactionsResponse, error) {
+func (s *service) ListTransactions(ctx context.Context, req *financepb.ListTransactionsRequest) (*financepb.ListTransactionsResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	txs, err := s.ListTransactions(ctx, userID, int(req.PageSize), int(req.Page)*int(req.PageSize))
+	txs, err := s.ListTransactionsInternal(ctx, userID, int(req.PageSize), int(req.Page)*int(req.PageSize))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list transactions: %v", err)
 	}

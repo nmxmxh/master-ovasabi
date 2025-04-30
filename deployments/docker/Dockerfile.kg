@@ -1,0 +1,50 @@
+# ----------- Build Stage -----------
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make curl
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files first (for caching)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the source code
+COPY . .
+
+# Build the knowledge graph service
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/kg-service ./cmd/kg
+
+# ----------- Final Stage -----------
+FROM alpine:latest
+
+# Add OCI labels
+LABEL org.opencontainers.image.title="ovasabi-kg-service"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/nmxmxh/master-ovasabi"
+LABEL org.opencontainers.image.authors="hello@ovasabi.studio"
+
+# Install basic tools
+RUN apk add --no-cache curl
+
+# Copy built binary and config
+COPY --from=builder /app/kg-service /
+COPY --from=builder /app/config/kg-config.yaml /config/
+
+# Create directory for backups
+RUN mkdir -p /data/kg/backups
+
+# Expose health check port
+EXPOSE 8081
+
+# Set environment variables
+ENV GIN_MODE=release
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8081/health || exit 1
+
+# Start the service
+CMD ["/kg-service"] 

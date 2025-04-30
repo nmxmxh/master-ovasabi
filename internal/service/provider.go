@@ -267,20 +267,6 @@ func (p *Provider) registerServices() error {
 		return err
 	}
 
-	// p.log.Info("Registering FinanceService")
-	// financeRepo := financerepo.New(p.db, p.log)
-	// financeCache, err := p.redisProvider.GetCache("finance")
-	// if err != nil {
-	// 	return fmt.Errorf("failed to get finance cache: %w", err)
-	// }
-	// cachedRepo := financerepo.NewCachedRepository(financeRepo, financeCache, p.log)
-	// if err := p.container.Register((*financepb.FinanceServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-	// 	return financeservice.New(cachedRepo, masterRepo, financeCache, p.log), nil
-	// }); err != nil {
-	// 	p.log.Error("Failed to register FinanceService", zap.Error(err))
-	// 	return err
-	// }
-
 	p.log.Info("Registering FinanceService")
 
 	// Create the finance repository
@@ -295,17 +281,11 @@ func (p *Provider) registerServices() error {
 	// Wrap with cache
 	cachedRepo := financerepo.NewCachedRepository(financeRepo, financeCache, p.log)
 
-	// Create the service instance
-	financeService := financeservice.New(cachedRepo, masterRepo, financeCache, p.log)
-
-	// Ensure the service implements the interface
-	// var _ financepb.FinanceServiceServer = financeService
-
 	// Register the service with the DI container
 	if err := p.container.Register(
 		(*financepb.FinanceServiceServer)(nil),
 		func(_ *di.Container) (interface{}, error) {
-			return financeService, nil
+			return financeservice.New(cachedRepo, masterRepo, financeCache, p.log), nil
 		},
 	); err != nil {
 		p.log.Error("Failed to register FinanceService", zap.Error(err))
