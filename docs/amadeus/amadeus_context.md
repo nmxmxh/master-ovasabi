@@ -222,9 +222,7 @@ accurate and valuable:
    - Pattern recognition for new relationships
    - Automated suggestion of graph improvements
 
-### Update Mechanisms
-
-1. **Service-Level Updates**
+6. **Service-Level Updates**
 
    ```go
    type ServiceUpdate struct {
@@ -236,19 +234,19 @@ accurate and valuable:
    }
    ```
 
-2. **Pattern Detection**
+7. **Pattern Detection**
 
    - Automated scanning for new implementation patterns
    - Relationship inference from service interactions
    - Usage pattern analysis for optimization
 
-3. **Version Control Integration**
+8. **Version Control Integration**
 
    - Git hooks for documentation updates
    - PR validation for graph consistency
    - Automatic documentation generation
 
-4. **External System Integration**
+9. **External System Integration**
    - Webhook API for third-party updates
    - Event stream processing
    - Batch import capabilities
@@ -364,8 +362,6 @@ backup            # Creates KG backup
 restore           # Restores from backup
 ```
 
-### Usage Guidelines
-
 1. **Development Workflow**:
 
    ```bash
@@ -390,6 +386,7 @@ restore           # Restores from backup
    ```
 
 4. **Documentation Workflow**:
+
    ```bash
    make docs-format      # Format documentation
    make docs-validate    # Validate before commits
