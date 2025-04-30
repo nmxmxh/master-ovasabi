@@ -110,4 +110,24 @@ desktop.ini
 
 # Project specific
 /loadtest/results/
-/benchmarks/results/ 
+/benchmarks/results/
+
+# Yarn specific
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+
+# Python
+.venv/
+.env/
+env/
+venv/
+ENV/
+*.pyc
+__pycache__/
+site/
+docs-site.tar.gz 

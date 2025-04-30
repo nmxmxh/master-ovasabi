@@ -2,7 +2,8 @@
 
 ## Overview
 
-This documentation covers the API design, implementation, and usage guidelines for the OVASABI platform.
+This documentation covers the API design, implementation, and usage guidelines for the OVASABI
+platform.
 
 ## API Design Principles
 
@@ -13,7 +14,7 @@ This documentation covers the API design, implementation, and usage guidelines f
    type Handler struct {
        service Service
    }
-   
+
    func (h *Handler) RegisterRoutes(r *mux.Router) {
        r.HandleFunc("/api/v1/users", h.CreateUser).Methods("POST")
        r.HandleFunc("/api/v1/users/{id}", h.GetUser).Methods("GET")
@@ -43,13 +44,13 @@ This documentation covers the API design, implementation, and usage guidelines f
    type JWT struct {
        secret []byte
    }
-   
+
    func (j *JWT) GenerateToken(user *User) (string, error) {
        claims := jwt.MapClaims{
            "user_id": user.ID,
            "exp":     time.Now().Add(24 * time.Hour).Unix(),
        }
-       
+
        token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
        return token.SignedString(j.secret)
    }
@@ -62,19 +63,19 @@ This documentation covers the API design, implementation, and usage guidelines f
    type Authorizer struct {
        roles map[string][]string
    }
-   
+
    func (a *Authorizer) HasPermission(user *User, resource string, action string) bool {
        roles, ok := a.roles[user.Role]
        if !ok {
            return false
        }
-       
+
        for _, role := range roles {
            if role == resource+":"+action {
                return true
            }
        }
-       
+
        return false
    }
    ```
@@ -88,7 +89,7 @@ This documentation covers the API design, implementation, and usage guidelines f
    type Validator struct {
        validate *validator.Validate
    }
-   
+
    func (v *Validator) ValidateRequest(req interface{}) error {
        if err := v.validate.Struct(req); err != nil {
            return fmt.Errorf("validation failed: %w", err)
@@ -107,7 +108,7 @@ This documentation covers the API design, implementation, and usage guidelines f
        Error   string      `json:"error,omitempty"`
        Message string      `json:"message,omitempty"`
    }
-   
+
    func NewSuccessResponse(data interface{}) *Response {
        return &Response{
            Status: "success",
@@ -127,7 +128,7 @@ This documentation covers the API design, implementation, and usage guidelines f
        Message string `json:"message"`
        Status  int    `json:"-"`
    }
-   
+
    func (e *Error) Error() string {
        return e.Message
    }
@@ -144,7 +145,7 @@ This documentation covers the API design, implementation, and usage guidelines f
            pkg.NewEncoder(w).Encode(apiErr)
            return
        }
-       
+
        w.WriteHeader(http.StatusInternalServerError)
        pkg.NewEncoder(w).Encode(&Error{
            Code:    "internal_error",
@@ -162,7 +163,7 @@ This documentation covers the API design, implementation, and usage guidelines f
    type RateLimiter struct {
        limiter *rate.Limiter
    }
-   
+
    func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
            if !rl.limiter.Allow() {
@@ -182,17 +183,17 @@ This documentation covers the API design, implementation, and usage guidelines f
        limiters map[string]*rate.Limiter
        mu       sync.RWMutex
    }
-   
+
    func (il *IPLimiter) getLimiter(ip string) *rate.Limiter {
        il.mu.Lock()
        defer il.mu.Unlock()
-       
+
        limiter, exists := il.limiters[ip]
        if !exists {
            limiter = rate.NewLimiter(rate.Limit(10), 20)
            il.limiters[ip] = limiter
        }
-       
+
        return limiter
    }
    ```
@@ -207,7 +208,7 @@ This documentation covers the API design, implementation, and usage guidelines f
        APIVersion = "v1"
        VersionHeader = "X-API-Version"
    )
-   
+
    func (h *Handler) checkVersion(next http.Handler) http.Handler {
        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
            version := r.Header.Get(VersionHeader)
@@ -226,15 +227,15 @@ This documentation covers the API design, implementation, and usage guidelines f
    // Example from internal/api/router.go
    func (h *Handler) setupRoutes() *mux.Router {
        r := mux.NewRouter()
-       
+
        // Version 1 routes
        v1 := r.PathPrefix("/api/v1").Subrouter()
        h.registerV1Routes(v1)
-       
+
        // Version 2 routes
        v2 := r.PathPrefix("/api/v2").Subrouter()
        h.registerV2Routes(v2)
-       
+
        return r
    }
    ```
@@ -249,7 +250,7 @@ This documentation covers the API design, implementation, and usage guidelines f
    info:
      title: OVASABI API
      version: 1.0.0
-   
+
    paths:
      /api/v1/users:
        post:
@@ -287,12 +288,12 @@ This documentation covers the API design, implementation, and usage guidelines f
            Email: "test@example.com",
            Name:  "Test User",
        }
-       
+
        resp, err := client.CreateUser(context.Background(), req)
        if err != nil {
            t.Fatalf("CreateUser failed: %v", err)
        }
-       
+
        if resp.Email != req.Email {
            t.Errorf("got %v, want %v", resp.Email, req.Email)
        }
@@ -307,10 +308,10 @@ This documentation covers the API design, implementation, and usage guidelines f
        // Setup test server
        srv := setupTestServer(t)
        defer srv.Close()
-       
+
        // Run tests
        client := newTestClient(srv.URL)
-       
+
        // Test endpoints
        testCreateUser(t, client)
        testGetUser(t, client)

@@ -20,7 +20,8 @@ cd master-ovasabi
 
 ## Overview
 
-This documentation covers the development workflow, coding standards, and best practices for contributing to the OVASABI platform.
+This documentation covers the development workflow, coding standards, and best practices for
+contributing to the OVASABI platform.
 
 ## Development Environment Setup
 
@@ -40,10 +41,10 @@ This documentation covers the development workflow, coding standards, and best p
    # Clone repository
    git clone https://github.com/nmxmh/master-ovasabi.git
    cd master-ovasabi
-   
+
    # Install dependencies
    make deps
-   
+
    # Start development environment
    make dev
    ```
@@ -78,7 +79,7 @@ This documentation covers the development workflow, coding standards, and best p
        logger  *log.Logger
        metrics Metrics
    }
-   
+
    func NewService(repo Repository, logger *log.Logger) *Service {
        return &Service{
            repo:    repo,
@@ -96,12 +97,12 @@ This documentation covers the development workflow, coding standards, and best p
        if err := validateRequest(req); err != nil {
            return fmt.Errorf("invalid request: %w", err)
        }
-       
+
        result, err := processData(req)
        if err != nil {
            return fmt.Errorf("failed to process data: %w", err)
        }
-       
+
        return nil
    }
    ```
@@ -126,17 +127,17 @@ This documentation covers the development workflow, coding standards, and best p
                wantErr: false,
            },
        }
-       
+
        for _, tt := range tests {
            t.Run(tt.name, func(t *testing.T) {
                s := NewService()
                got, err := s.Process(tt.input)
-               
+
                if (err != nil) != tt.wantErr {
                    t.Errorf("Process() error = %v, wantErr %v", err, tt.wantErr)
                    return
                }
-               
+
                if got != tt.want {
                    t.Errorf("Process() = %v, want %v", got, tt.want)
                }
@@ -151,20 +152,20 @@ This documentation covers the development workflow, coding standards, and best p
    // Example from test/integration/service_test.go
    func TestServiceIntegration(t *testing.T) {
        ctx := context.Background()
-       
+
        // Setup test environment
        db := setupTestDB(t)
        defer db.Close()
-       
+
        // Create service
        svc := NewService(db)
-       
+
        // Run tests
        result, err := svc.Process(ctx, "test")
        if err != nil {
            t.Fatalf("Process failed: %v", err)
        }
-       
+
        // Verify results
        if result != "expected" {
            t.Errorf("got %v, want %v", result, "expected")
@@ -179,11 +180,11 @@ This documentation covers the development workflow, coding standards, and best p
    ```bash
    # Create feature branch
    git checkout -b feature/new-feature
-   
+
    # Make changes
    git add .
    git commit -m "feat: add new feature"
-   
+
    # Push changes
    git push origin feature/new-feature
    ```
@@ -206,7 +207,7 @@ This documentation covers the development workflow, coding standards, and best p
    type Service struct {
        // ... fields
    }
-   
+
    // Process handles the incoming request and returns
    // the processed result.
    //
@@ -235,16 +236,16 @@ This documentation covers the development workflow, coding standards, and best p
        maxSize int
        mu      sync.RWMutex
    }
-   
+
    func (c *Cache) Set(key string, value interface{}) {
        c.mu.Lock()
        defer c.mu.Unlock()
-       
+
        // Evict old entries if needed
        if len(c.data) >= c.maxSize {
            c.evictOldest()
        }
-       
+
        c.data[key] = value
    }
    ```
@@ -264,15 +265,15 @@ This documentation covers the development workflow, coding standards, and best p
        if req == nil {
            return errors.New("request cannot be nil")
        }
-       
+
        if len(req.Data) == 0 {
            return errors.New("data cannot be empty")
        }
-       
+
        if !isValidFormat(req.Data) {
            return errors.New("invalid data format")
        }
-       
+
        return nil
    }
    ```
@@ -290,7 +291,7 @@ This documentation covers the development workflow, coding standards, and best p
    // Example from pkg/logging/logger.go
    func LogRequest(ctx context.Context, req *Request) {
        logger := log.FromContext(ctx)
-       
+
        logger.Info("processing request",
            "request_id", req.ID,
            "user_id", req.UserID,

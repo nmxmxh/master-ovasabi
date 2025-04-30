@@ -47,6 +47,8 @@ func (p *Provider) RegisterCache(name string, opts *Options) {
 	p.log.Info("registered Redis cache configuration",
 		zap.String("name", name),
 		zap.String("addr", opts.Addr),
+		zap.String("namespace", opts.Namespace),
+		zap.String("context", opts.Context),
 	)
 }
 

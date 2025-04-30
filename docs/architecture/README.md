@@ -13,16 +13,19 @@ The OVASABI platform is built using a clean, modular architecture that emphasize
 ## Core Design Principles
 
 1. **Modularity**
+
    - Services are self-contained
    - Clear separation of concerns
    - Independent deployment units
 
 2. **Resilience**
+
    - Circuit breakers
    - Retry mechanisms
    - Graceful degradation
 
 3. **Observability**
+
    - Comprehensive logging
    - Metrics collection
    - Distributed tracing
@@ -49,16 +52,19 @@ The OVASABI platform is built using a clean, modular architecture that emphasize
 The application uses a hybrid concurrency model:
 
 1. **Goroutines**
+
    - Lightweight threads for I/O operations
    - Managed by Go runtime
    - Automatic scheduling
 
 2. **Worker Pools**
+
    - Fixed-size goroutine pools
    - Task distribution
    - Resource control
 
 3. **Channels**
+
    - Communication between goroutines
    - Synchronization
    - Data sharing
@@ -73,11 +79,13 @@ The application uses a hybrid concurrency model:
 ### Core Services
 
 1. **API Gateway**
+
    - Request routing
    - Authentication
    - Rate limiting
 
 2. **Service Layer**
+
    - Business logic
    - Data transformation
    - Error handling
@@ -90,11 +98,13 @@ The application uses a hybrid concurrency model:
 ### Supporting Services
 
 1. **Health Checks**
+
    - Service monitoring
    - Dependency checks
    - Status reporting
 
 2. **Metrics**
+
    - Performance monitoring
    - Resource usage
    - Business metrics
@@ -127,11 +137,13 @@ The application uses a hybrid concurrency model:
 ## Performance Considerations
 
 1. **Caching Strategy**
+
    - Multi-level caching
    - Cache invalidation
    - Cache warming
 
 2. **Database Optimization**
+
    - Connection pooling
    - Query optimization
    - Indexing strategy
@@ -144,11 +156,13 @@ The application uses a hybrid concurrency model:
 ## Security Measures
 
 1. **Authentication**
+
    - JWT tokens
    - OAuth2
    - API keys
 
 2. **Authorization**
+
    - Role-based access
    - Permission checks
    - Resource ownership
@@ -161,11 +175,13 @@ The application uses a hybrid concurrency model:
 ## Deployment Strategy
 
 1. **Containerization**
+
    - Docker images
    - Container orchestration
    - Service discovery
 
 2. **Scaling**
+
    - Horizontal scaling
    - Load balancing
    - Auto-scaling
@@ -178,11 +194,13 @@ The application uses a hybrid concurrency model:
 ## Development Workflow
 
 1. **Local Development**
+
    - Environment setup
    - Testing
    - Debugging
 
 2. **CI/CD Pipeline**
+
    - Automated testing
    - Code quality checks
    - Deployment automation
@@ -191,3 +209,16 @@ The application uses a hybrid concurrency model:
    - Versioning
    - Release notes
    - Rollback procedures
+
+## Documentation Index
+
+- [Use Cases](use_cases.md) - Service relationship use cases and implementation patterns
+- [Patterns](patterns.md) - Design patterns used throughout the codebase
+- [Nexus](nexus.md) - Details about the Nexus service orchestration system
+- [Experimental](experimental.md) - Experimental features and future integration possibilities
+- [Experimental Token](experimental_token.md) - Token ecosystem and economic layer integration
+- [Value Estimation](value_estimation.md) - Potential value estimates for platform and creators
+- [Founder Economics](founder_economics.md) - Capital accumulation strategies and founder value
+  capture mechanisms
+- [Integration Patterns](integration_patterns.md) - Experimental patterns for service-token
+  architecture integration

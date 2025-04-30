@@ -2,16 +2,19 @@
 
 ## Overview
 
-This documentation covers the deployment process, infrastructure setup, and operational aspects of the OVASABI platform.
+This documentation covers the deployment process, infrastructure setup, and operational aspects of
+the OVASABI platform.
 
 ## Infrastructure Requirements
 
 1. **Compute Resources**
+
    - Minimum 2 vCPUs per service
    - 4GB RAM per service
    - SSD storage
 
 2. **Networking**
+
    - Load balancer configuration
    - DNS setup
    - SSL/TLS certificates
@@ -28,11 +31,11 @@ This documentation covers the deployment process, infrastructure setup, and oper
    ```bash
    # Example from scripts/setup-env.sh
    #!/bin/bash
-   
+
    # Create necessary directories
    mkdir -p /var/log/ovasabi
    mkdir -p /var/lib/ovasabi/data
-   
+
    # Set permissions
    chown -R ovasabi:ovasabi /var/log/ovasabi
    chown -R ovasabi:ovasabi /var/lib/ovasabi
@@ -43,10 +46,10 @@ This documentation covers the deployment process, infrastructure setup, and oper
    ```bash
    # Example from scripts/deploy-service.sh
    #!/bin/bash
-   
+
    # Build service
    go build -o service cmd/server/main.go
-   
+
    # Deploy service
    systemctl stop ovasabi-service
    cp service /usr/local/bin/ovasabi-service
@@ -91,7 +94,7 @@ This documentation covers the deployment process, infrastructure setup, and oper
            latencyHistogram,
            errorCounter,
        )
-       
+
        // Start metrics server
        http.Handle("/metrics", promhttp.Handler())
        go http.ListenAndServe(":9090", nil)
@@ -105,10 +108,10 @@ This documentation covers the deployment process, infrastructure setup, and oper
    func SetupLogging() {
        // Configure log format
        log.SetFormatter(&log.JSONFormatter{})
-       
+
        // Set log level
        log.SetLevel(log.InfoLevel)
-       
+
        // Set output
        log.SetOutput(os.Stdout)
    }
@@ -117,6 +120,7 @@ This documentation covers the deployment process, infrastructure setup, and oper
 ## Scaling Strategy
 
 1. **Horizontal Scaling**
+
    - Load balancer configuration
    - Service replication
    - Session management
@@ -133,10 +137,10 @@ This documentation covers the deployment process, infrastructure setup, and oper
    ```bash
    # Example from scripts/backup-db.sh
    #!/bin/bash
-   
+
    # Create backup directory
    mkdir -p /backup/db
-   
+
    # Perform backup
    pg_dump -U $DB_USER -h $DB_HOST -p $DB_PORT $DB_NAME > /backup/db/backup_$(date +%Y%m%d).sql
    ```
@@ -149,6 +153,7 @@ This documentation covers the deployment process, infrastructure setup, and oper
 ## Security Considerations
 
 1. **Network Security**
+
    - Firewall configuration
    - VPN setup
    - DDoS protection
@@ -161,6 +166,7 @@ This documentation covers the deployment process, infrastructure setup, and oper
 ## Maintenance Procedures
 
 1. **Software Updates**
+
    - Version control
    - Dependency updates
    - Security patches
@@ -173,6 +179,7 @@ This documentation covers the deployment process, infrastructure setup, and oper
 ## Troubleshooting Guide
 
 1. **Common Issues**
+
    - Service startup failures
    - Database connection issues
    - Performance problems
@@ -189,13 +196,13 @@ This documentation covers the deployment process, infrastructure setup, and oper
    ```bash
    # Example from scripts/rollback.sh
    #!/bin/bash
-   
+
    # Stop current service
    systemctl stop ovasabi-service
-   
+
    # Restore previous version
    cp /backup/service/previous /usr/local/bin/ovasabi-service
-   
+
    # Start service
    systemctl start ovasabi-service
    ```

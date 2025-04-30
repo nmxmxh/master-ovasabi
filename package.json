@@ -1,0 +1,14 @@
+{
+  "name": "ovasabi-docs",
+  "version": "1.0.0",
+  "description": "Documentation formatting tools for OVASABI project",
+  "scripts": {
+    "format:docs": "prettier --write \"**/*.md\"",
+    "format:check": "prettier --check \"**/*.md\"",
+    "format": "npm run format:docs"
+  },
+  "devDependencies": {
+    "prettier": "^3.1.0",
+    "markdown-link-check": "^3.11.2"
+  }
+}

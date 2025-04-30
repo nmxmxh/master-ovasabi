@@ -1,0 +1,15 @@
+# Build directories
+bin/
+vendor/
+
+# Generated code
+api/protos/**/*.pb.go
+
+# Node modules
+node_modules/
+
+# Log files
+logs/
+
+# Amadeus Knowledge Graph - documentation/utility only, excluded from formatting
+amadeus/ 

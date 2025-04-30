@@ -1,15 +1,18 @@
 # Redis Practices
 
-> **NOTE:** This document defines the required instructions, rules, and best practices for all Redis-related code, operations, and usage within this project.
+> **NOTE:** This document defines the required instructions, rules, and best practices for all
+> Redis-related code, operations, and usage within this project.
 >
-> Before integrating or modifying Redis operations, contributors and tools (including AI assistants) must read and follow the rules in this file.
+> Before integrating or modifying Redis operations, contributors and tools (including AI assistants)
+> must read and follow the rules in this file.
 
 ---
 
 ## General Principles
 
 1. **Use Redis purposefully.**  
-   Redis is best used for caching, pub/sub messaging, short-lived metadata, queues, and ephemeral storage.
+   Redis is best used for caching, pub/sub messaging, short-lived metadata, queues, and ephemeral
+   storage.
 
 2. **Do not store critical, persistent data in Redis.**  
    Redis is an in-memory store and may lose data unexpectedly if not configured for persistence.
@@ -24,7 +27,8 @@
    Only store essential, transient, or cacheable information.
 
 6. **Use dependency injection for Redis clients.**  
-   Always inject the Redis client into your services to maintain testability, lifecycle management, and loose coupling.
+   Always inject the Redis client into your services to maintain testability, lifecycle management,
+   and loose coupling.
 
 7. **Design for failure.**  
    Handle Redis downtime gracefully. Never assume Redis operations always succeed.
@@ -34,12 +38,14 @@
 ## Key Naming Pattern
 
 - **Namespace:Context:Entity:Attribute**
+
   - Examples:
     - `cache:user:1234:profile`
     - `session:auth:token:abcd1234`
     - `queue:service:email_dispatch`
 
 - **Naming Rules:**
+
   - Lowercase words.
   - Use colons (`:`) to separate logical parts.
   - Prefix keys by function (e.g., `cache:`, `queue:`, `session:`).
@@ -52,20 +58,24 @@
 ## Usage Patterns
 
 1. **Caching:**
+
    - Use Redis to cache frequent database reads.
    - Always set an expiration (TTL) when caching.
    - Invalidate or refresh caches on data updates.
 
 2. **Sessions and Tokens:**
+
    - Store short-lived authentication sessions with expirations.
    - Never store long-lived user state solely in Redis.
 
 3. **Queues and Pub/Sub:**
+
    - Use Redis lists for simple queues.
    - Use Redis pub/sub for broadcasting ephemeral messages.
    - If queue persistence is important, consider using reliable message queues (e.g., Kafka).
 
 4. **Ephemeral Metadata:**
+
    - Use Redis for metadata needed during processing (e.g., job locks, temporary counters).
 
 5. **Locks:**
@@ -78,10 +88,12 @@
 ## Dependency Injection & Lifecycle
 
 - **Inject Redis Client:**
+
   - Configure Redis clients at the application entry point.
   - Inject client instances into services via constructor or context.
 
 - **Connection Management:**
+
   - Pool connections where possible.
   - Close Redis clients gracefully on server shutdown.
 
@@ -141,15 +153,18 @@
 ### Service-Specific Usage
 
 1. **Auth Service:**
+
    - Token caching
    - Rate limiting
    - Session management
 
 2. **User Service:**
+
    - Profile caching
    - Referral code caching
 
 3. **Notification Service:**
+
    - Notification queuing
    - Delivery status tracking
 

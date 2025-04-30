@@ -2,7 +2,10 @@
 
 ## Overview
 
-The Nexus system is a powerful relationship and pattern management system that enables complex operations and relationships between different entities in the application. It provides a flexible way to define, manage, and execute patterns of operations while maintaining proper relationships between entities.
+The Nexus system is a powerful relationship and pattern management system that enables complex
+operations and relationships between different entities in the application. It provides a flexible
+way to define, manage, and execute patterns of operations while maintaining proper relationships
+between entities.
 
 ## Core Components
 

@@ -1,6 +1,7 @@
 # Master Ovasabi
 
-A production-ready Go gRPC service boilerplate with comprehensive monitoring, concurrency management, and Kubernetes support.
+A production-ready Go gRPC service boilerplate with comprehensive monitoring, concurrency
+management, and Kubernetes support.
 
 ## Architecture Overview
 
@@ -13,6 +14,7 @@ The project follows a clean architecture approach with clear separation of conce
 ### Key Features
 
 - **Monitoring & Observability**
+
   - Prometheus metrics collection
   - OpenTelemetry distributed tracing with Jaeger
   - Structured logging with Zap
@@ -28,6 +30,7 @@ The project follows a clean architecture approach with clear separation of conce
 ## Getting Started
 
 1. **Prerequisites**
+
    - Go 1.22.2+
    - Docker & Kubernetes
    - Make
@@ -102,6 +105,7 @@ The project follows a clean architecture approach with clear separation of conce
 - [API Documentation](docs/api.md)
 - [Development Guide](docs/development.md)
 - [Deployment Guide](docs/deployment.md)
+- [Documentation Tooling](docs/tools/documentation-tooling.md)
 
 ## Contributing
 
@@ -129,6 +133,7 @@ Before generating protobuf code, ensure you have the following installed:
    ```
 
    This will install:
+
    - protoc-gen-go (for generating Go code)
    - protoc-gen-grpc-gateway (for gRPC-Gateway)
    - protoc-gen-swagger (for Swagger/OpenAPI)

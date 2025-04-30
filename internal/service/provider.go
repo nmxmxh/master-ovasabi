@@ -66,42 +66,75 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisConfig redis.Config) (*Provid
 	// Create Redis provider
 	redisProvider := redis.NewProvider(log)
 
-	// Register cache configurations
+	// Register cache configurations with explicit Redis connection information
+	redisAddr := fmt.Sprintf("%s:%s", redisConfig.Host, redisConfig.Port)
+	log.Info("Using Redis configuration",
+		zap.String("host", redisConfig.Host),
+		zap.String("port", redisConfig.Port),
+		zap.String("addr", redisAddr))
+
 	redisProvider.RegisterCache("user", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextUser,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 	redisProvider.RegisterCache("auth", &redis.Options{
 		Namespace: redis.NamespaceSession,
 		Context:   redis.ContextAuth,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 	redisProvider.RegisterCache("notification", &redis.Options{
 		Namespace: redis.NamespaceQueue,
 		Context:   redis.ContextNotification,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 	redisProvider.RegisterCache("broadcast", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextBroadcast,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 	redisProvider.RegisterCache("i18n", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextI18n,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 	redisProvider.RegisterCache("quotes", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextQuotes,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 	redisProvider.RegisterCache("referral", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextReferral,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 	redisProvider.RegisterCache("asset", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextAsset,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 	redisProvider.RegisterCache("finance", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextFinance,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
 	})
 
 	p := &Provider{

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -27,19 +29,49 @@ type Options struct {
 
 // DefaultOptions returns default Redis options
 func DefaultOptions() *Options {
+	// Read environment variables for Redis configuration
+	redisHost := getEnvOrDefault("REDIS_HOST", "redis")
+	redisPort := getEnvOrDefault("REDIS_PORT", "6379")
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisDB := getEnvOrDefaultInt("REDIS_DB", 0)
+	redisPoolSize := getEnvOrDefaultInt("REDIS_POOL_SIZE", 10)
+	redisMinIdleConns := getEnvOrDefaultInt("REDIS_MIN_IDLE_CONNS", 5)
+	redisMaxRetries := getEnvOrDefaultInt("REDIS_MAX_RETRIES", 3)
+
 	return &Options{
-		Addr:         "localhost:6379",
-		Password:     "",
-		DB:           0,
-		PoolSize:     10,
-		MinIdleConns: 5,
-		MaxRetries:   3,
+		Addr:         fmt.Sprintf("%s:%s", redisHost, redisPort),
+		Password:     redisPassword,
+		DB:           redisDB,
+		PoolSize:     redisPoolSize,
+		MinIdleConns: redisMinIdleConns,
+		MaxRetries:   redisMaxRetries,
 		DialTimeout:  5 * time.Second,
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,
 		Namespace:    "app",
 		Context:      "default",
 	}
+}
+
+// Helper functions for environment variables
+func getEnvOrDefault(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func getEnvOrDefaultInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	intValue, err := strconv.Atoi(value)
+	if err != nil {
+		return defaultValue
+	}
+	return intValue
 }
 
 // Cache provides Redis caching functionality
@@ -56,6 +88,16 @@ func NewCache(opts *Options, log *zap.Logger) (*Cache, error) {
 		opts = DefaultOptions()
 	}
 
+	// Debug log the Redis connection details
+	if log != nil {
+		log.Debug("Creating Redis cache",
+			zap.String("addr", opts.Addr),
+			zap.Int("db", opts.DB),
+			zap.Int("pool_size", opts.PoolSize),
+			zap.Int("min_idle_conns", opts.MinIdleConns),
+		)
+	}
+
 	client := redis.NewClient(&redis.Options{
 		Addr:         opts.Addr,
 		Password:     opts.Password,
@@ -69,7 +111,16 @@ func NewCache(opts *Options, log *zap.Logger) (*Cache, error) {
 	})
 
 	// Test connection
-	if err := client.Ping(context.Background()).Err(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		if log != nil {
+			log.Error("Failed to connect to Redis",
+				zap.String("addr", opts.Addr),
+				zap.Error(err),
+			)
+		}
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 

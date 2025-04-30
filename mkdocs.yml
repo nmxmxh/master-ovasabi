@@ -1,0 +1,79 @@
+site_name: OVASABI Documentation
+site_description: Documentation for the OVASABI platform
+site_author: OVASABI Team
+copyright: '&copy; 2025 OVASABI Studios'
+
+repo_name: master-ovasabi
+repo_url: https://github.com/yourusername/master-ovasabi
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+  logo: assets/images/logo.svg
+  favicon: assets/images/favicon.svg
+
+nav:
+  - Home: index.md
+  - Architecture:
+    - Overview: architecture/README.md
+    - Nexus: architecture/nexus.md
+    - Patterns: architecture/patterns.md
+    - Integration Patterns: architecture/integration_patterns.md
+    - Use Cases: architecture/use_cases.md
+  - Amadeus:
+    - Overview: amadeus/index.md
+    - Architecture: amadeus/architecture.md
+    - Implementation Guide: amadeus/implementation_guide.md
+    - API Reference: amadeus/api_reference.md
+    - Integration Examples: amadeus/integration_examples.md
+    - Backup & Restore: amadeus/backup_restore.md
+    - Consistent Updates: amadeus/consistent_updates.md
+  - Development:
+    - Overview: development/README.md
+    - Database Practices: development/database_practices.md
+    - Redis Practices: development/redis_practices.md
+    - Asset Practices: development/asset_practices.md
+    - Testing: development/testing.md
+  - Deployment:
+    - Overview: deployment/README.md
+  - Tools:
+    - Documentation: tools/documentation-tooling.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - meta
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/yourusername/master-ovasabi
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/yourusername
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+plugins:
+  - search
+  - minify:
+      minify_html: true 

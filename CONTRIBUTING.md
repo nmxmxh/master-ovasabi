@@ -59,16 +59,19 @@ This document describes the project structure and guidelines for contributing to
 ## Development Guidelines
 
 1. **Code Organization**
+
    - Keep packages focused and cohesive
    - Follow standard Go project layout
    - Use meaningful package names
 
 2. **Testing**
+
    - Write unit tests alongside the code
    - Integration tests go in `/test`
    - Aim for high test coverage
 
 3. **Documentation**
+
    - Document all exported functions and types
    - Keep READMEs up to date
    - Use examples in documentation

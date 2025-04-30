@@ -14,20 +14,20 @@ Each configuration file follows this structure:
 
 ```yaml
 server:
-  host: string       # Server host address
-  port: number      # Server port
-  debug: boolean    # Debug mode flag
+  host: string # Server host address
+  port: number # Server port
+  debug: boolean # Debug mode flag
 
 database:
-  host: string      # Database host
-  port: number      # Database port
-  name: string      # Database name
-  user: string      # Database user
-  password: string  # Database password (use env var in prod)
+  host: string # Database host
+  port: number # Database port
+  name: string # Database name
+  user: string # Database user
+  password: string # Database password (use env var in prod)
 
 logging:
-  level: string     # Logging level (debug/info/warn/error)
-  format: string    # Log format (json/console)
+  level: string # Logging level (debug/info/warn/error)
+  format: string # Log format (json/console)
 
 auth:
   jwt_secret: string # JWT signing secret (use env var in prod)
@@ -35,11 +35,11 @@ auth:
 
 api:
   rate_limit: number # API rate limit (requests per minute)
-  timeout: string    # API timeout duration
+  timeout: string # API timeout duration
 
 feature_flags:
   enable_new_features: boolean # Toggle new features
-  maintenance_mode: boolean    # Toggle maintenance mode
+  maintenance_mode: boolean # Toggle maintenance mode
 ```
 
 ## Environment Variables

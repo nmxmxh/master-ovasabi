@@ -136,6 +136,7 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - amadeus$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
@@ -152,3 +153,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - amadeus$

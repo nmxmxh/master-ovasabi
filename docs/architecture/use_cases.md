@@ -2,7 +2,9 @@
 
 ## Overview
 
-This document outlines the various use-case scenarios and service relationships possible within the OVASABI platform. It describes how different services can interact and form relationships to create complex, yet maintainable business workflows.
+This document outlines the various use-case scenarios and service relationships possible within the
+OVASABI platform. It describes how different services can interact and form relationships to create
+complex, yet maintainable business workflows.
 
 ## Core Service Relationships
 

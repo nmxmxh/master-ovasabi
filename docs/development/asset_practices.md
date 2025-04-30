@@ -1,34 +1,37 @@
 # 3D Asset Storage & Delivery Practices
 
-> **NOTE:** This document defines the required instructions, rules, and best practices for all 3D asset storage, retrieval, and delivery in this project. Contributors and tools (including AI assistants) must read and follow these rules before integrating or modifying 3D asset workflows.
+> **NOTE:** This document defines the required instructions, rules, and best practices for all 3D
+> asset storage, retrieval, and delivery in this project. Contributors and tools (including AI
+> assistants) must read and follow these rules before integrating or modifying 3D asset workflows.
 
 ---
 
 ## General Principles
 
-1. **Choose storage based on asset size and usage.**  
+1. **Choose storage based on asset size and usage.**
    - Small, frequently accessed, or transactional assets: store as `BYTEA` in Postgres.
-   - Large, high-res, or static assets: store in external object storage (e.g., S3, Supabase, CDN) and reference by URL.
-2. **Never store large binary assets in JSONB.**  
+   - Large, high-res, or static assets: store in external object storage (e.g., S3, Supabase, CDN)
+     and reference by URL.
+2. **Never store large binary assets in JSONB.**
    - Use `BYTEA` for binary, `JSONB` for metadata or scene graphs only.
-3. **Optimize for delivery and caching.**  
+3. **Optimize for delivery and caching.**
    - Use CDNs for large/external assets.
    - Use in-memory or browser cache for small/inlined assets.
-4. **Support both inline and external assets.**  
+4. **Support both inline and external assets.**
    - Design schema and APIs to handle both types seamlessly.
-5. **Store metadata for all assets.**  
+5. **Store metadata for all assets.**
    - Always record size, type, MIME, and creation time.
 
 ---
 
 ## Storage Patterns
 
-| Use Case                                 | Storage      | Why                                      |
-|-------------------------------------------|--------------|-------------------------------------------|
-| Small meshes, icons, modular geometry     | Postgres     | Fast, transactional, low overhead         |
-| User-generated, frequently updated assets | Postgres     | Transactional, easy to version            |
-| Large scenes, photoreal models, textures  | External CDN | Scalable, cacheable, reduces DB bloat     |
-| Scene graphs, compositions                | JSONB        | Efficient querying/filtering, not binary  |
+| Use Case                                  | Storage      | Why                                      |
+| ----------------------------------------- | ------------ | ---------------------------------------- |
+| Small meshes, icons, modular geometry     | Postgres     | Fast, transactional, low overhead        |
+| User-generated, frequently updated assets | Postgres     | Transactional, easy to version           |
+| Large scenes, photoreal models, textures  | External CDN | Scalable, cacheable, reduces DB bloat    |
+| Scene graphs, compositions                | JSONB        | Efficient querying/filtering, not binary |
 
 ---
 
@@ -75,7 +78,8 @@ CREATE TABLE assets (
 
 ## High-Performance File Uploader in Go
 
-Inspired by [Building a High-Performance File Uploader in Go](https://medium.com/@souravchoudhary0306/building-a-high-performance-file-uploader-in-go-e812076d598c):
+Inspired by
+[Building a High-Performance File Uploader in Go](https://medium.com/@souravchoudhary0306/building-a-high-performance-file-uploader-in-go-e812076d598c):
 
 - Use Go's `http` package with streaming to handle large files efficiently.
 - Avoid loading the entire file into memory; use `io.Copy` or buffered reads/writes.
@@ -120,7 +124,8 @@ func uploadAssetHandler(w http.ResponseWriter, r *http.Request) {
 
 ## Advanced Error Handling for Asset Uploads
 
-Inspired by [Advanced Error Handling in Go](https://medium.com/@UsamahJ/advanced-error-handling-in-go-9ab6aeca08ee):
+Inspired by
+[Advanced Error Handling in Go](https://medium.com/@UsamahJ/advanced-error-handling-in-go-9ab6aeca08ee):
 
 - Use custom error types for different error scenarios (validation, storage, network, etc.).
 - Wrap errors with context using `fmt.Errorf("context: %w", err)`.
@@ -180,12 +185,13 @@ if err != nil {
 ## Example: React/Three.js Loader Logic
 
 ```js
-const loadAsset = (asset) => {
+const loadAsset = asset => {
   const loader = new GLTFLoader();
-  const source = asset.type === 'inline'
-    ? URL.createObjectURL(new Blob([asset.byte_data], { type: asset.mime_type }))
-    : asset.url;
-  loader.load(source, (gltf) => scene.add(gltf.scene));
+  const source =
+    asset.type === 'inline'
+      ? URL.createObjectURL(new Blob([asset.byte_data], { type: asset.mime_type }))
+      : asset.url;
+  loader.load(source, gltf => scene.add(gltf.scene));
 };
 ```
 
@@ -193,13 +199,13 @@ const loadAsset = (asset) => {
 
 ## Summary Table
 
-| Principle                | Practice                                      |
-|--------------------------|-----------------------------------------------|
-| Small assets             | Store as BYTEA in Postgres                    |
-| Large assets             | Store in external storage, reference by URL   |
-| Metadata                 | Always record size, type, MIME, created_at    |
-| Security                 | Serve via API, not direct DB access           |
-| Performance              | Use CDN, cache headers, and efficient loaders |
+| Principle    | Practice                                      |
+| ------------ | --------------------------------------------- |
+| Small assets | Store as BYTEA in Postgres                    |
+| Large assets | Store in external storage, reference by URL   |
+| Metadata     | Always record size, type, MIME, created_at    |
+| Security     | Serve via API, not direct DB access           |
+| Performance  | Use CDN, cache headers, and efficient loaders |
 
 ---
 

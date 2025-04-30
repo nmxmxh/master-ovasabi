@@ -2,7 +2,9 @@
 
 ## Overview
 
-The pattern system provides a flexible and reusable way to define and execute complex operations in the application. It supports both system-defined and user-defined patterns, with proper versioning, categorization, and execution tracking.
+The pattern system provides a flexible and reusable way to define and execute complex operations in
+the application. It supports both system-defined and user-defined patterns, with proper versioning,
+categorization, and execution tracking.
 
 ## Components
 
@@ -77,11 +79,13 @@ The pattern executor handles the execution of patterns. Key features include:
 ### Step Types
 
 1. Cache Operations
+
    - get: Retrieve data from cache
    - set: Store data in cache
    - delete: Remove data from cache
 
 2. Pipeline Operations
+
    - Multiple cache operations in a single round trip
    - Atomic execution
    - Improved performance
@@ -225,6 +229,7 @@ if err != nil {
 ## Best Practices
 
 1. Pattern Design
+
    - Keep patterns focused and single-purpose
    - Use meaningful names and descriptions
    - Include proper error handling
@@ -232,6 +237,7 @@ if err != nil {
    - Document dependencies and requirements
 
 2. Performance
+
    - Use pipeline operations when possible
    - Set appropriate batch sizes
    - Monitor resource usage
@@ -239,6 +245,7 @@ if err != nil {
    - Implement proper cleanup
 
 3. Maintenance
+
    - Version patterns appropriately
    - Monitor pattern usage and success rates
    - Clean up unused patterns

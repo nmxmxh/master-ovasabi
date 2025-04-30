@@ -48,16 +48,19 @@ This directory contains the gRPC service definitions using Protocol Buffers.
 ## Development Guidelines
 
 1. **Proto File Organization**
+
    - One service per file
    - Related messages in the same file
    - Clear package naming
 
 2. **Versioning**
+
    - Use semantic versioning
    - Maintain backward compatibility
    - Document breaking changes
 
 3. **Documentation**
+
    - Document all services and RPCs
    - Include usage examples
    - Explain error codes

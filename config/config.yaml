@@ -21,7 +21,7 @@ database:
 redis:
   host: "redis"
   port: 6379
-  password: ""
+  password: "@Osiano1995"
   db: 0
   pool_size: 10
   min_idle_conns: 5
