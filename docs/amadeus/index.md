@@ -68,25 +68,25 @@ graph LR
         C[Error Handling Pattern]
         D[Context Management]
     end
-    
+
     subgraph "Communication Patterns"
         E[gRPC Service Pattern]
         F[Event-Driven Pattern]
         G[Pub/Sub Pattern]
     end
-    
+
     subgraph "Data Patterns"
         H[CQRS Pattern]
         I[Outbox Pattern]
         J[Circuit Breaker]
     end
-    
+
     subgraph "Architectural Patterns"
         K[Hexagonal Architecture]
         L[Microservices]
         M[BFF Pattern]
     end
-    
+
     A --> K
     B --> K
     C --> K
@@ -108,40 +108,40 @@ graph TD
     KGS[Knowledge Graph Store]
     KGAPI[Knowledge Graph API]
     IL[Integration Layer]
-    
+
     %% Integration Components
     SH[Service Hooks]
     NP[Nexus Patterns]
     CLI[CLI Tools]
-    
+
     %% External Systems
     SVC[OVASABI Services]
     NS[Nexus System]
     OT[Operational Tools]
-    
+
     %% Connections
     KGAPI -->|Reads/Writes| KGS
     IL -->|Uses| KGAPI
     IL -->|Provides| SH
     IL -->|Provides| NP
     IL -->|Provides| CLI
-    
+
     SH -->|Updates| SVC
     NP -->|Integrates| NS
     CLI -->|Used by| OT
-    
+
     SVC -->|Sends updates| SH
     NS -->|Executes patterns| NP
     OT -->|Invokes| CLI
-    
+
     %% Styles
     classDef core fill:#f9f,stroke:#333,stroke-width:2px;
     classDef integration fill:#bbf,stroke:#333,stroke-width:1px;
     classDef external fill:#bfb,stroke:#333,stroke-width:1px;
-    
+
     class KGS,KGAPI core;
     class SH,NP,CLI,IL integration;
-    class SVC,NS,OT external; 
+    class SVC,NS,OT external;
 ```
 
 ### Knowledge Graph Structure
@@ -149,7 +149,7 @@ graph TD
 ```mermaid
 graph TD
     KG[Knowledge Graph]
-    
+
     KG --> SC[System Components]
     KG --> RS[Repository Structure]
     KG --> SVC[Services]
@@ -158,16 +158,16 @@ graph TD
     KG --> DB[Database Practices]
     KG --> RD[Redis Practices]
     KG --> AI[Amadeus Integration]
-    
+
     SC --> SC1[Core Components]
     SC --> SC2[Supporting Services]
     SC --> SC3[Infrastructure]
-    
+
     SVC --> SVC1[Auth Service]
     SVC --> SVC2[User Service]
     SVC --> SVC3[Asset Service]
     SVC --> SVC4[Other Services...]
-    
+
     PT --> PT1[Repository Pattern]
     PT --> PT2[Dependency Injection]
     PT --> PT3[Service Pattern]

@@ -1,0 +1,3 @@
+# Package main
+
+main.go

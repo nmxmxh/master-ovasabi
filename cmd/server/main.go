@@ -135,7 +135,7 @@ func initializeComponents(ctx context.Context) (*components, error) {
 
 	// Initialize Redis configuration
 	redisConfig := redis.Config{
-		Host:         getEnvOrDefault("REDIS_HOST", "localhost"),
+		Host:         getEnvOrDefault("REDIS_HOST", "redis"),
 		Port:         getEnvOrDefault("REDIS_PORT", "6379"),
 		Password:     os.Getenv("REDIS_PASSWORD"),
 		DB:           getEnvOrDefaultInt("REDIS_DB", 0),

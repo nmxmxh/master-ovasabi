@@ -131,3 +131,5 @@ ENV/
 __pycache__/
 site/
 docs-site.tar.gz 
+
+*/amadeus/
