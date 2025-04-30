@@ -13,6 +13,7 @@ import (
 	userrepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -37,11 +38,20 @@ func NewUserService(log *zap.Logger, repo *userrepo.UserRepository, cache *redis
 
 // CreateUser creates a new user following the Master-Client-Service-Event pattern.
 func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
-	s.log.Info("Creating user", zap.String("email", req.Email))
+	s.log.Info("Creating user",
+		zap.String("email", req.Email),
+		zap.String("username", req.Username))
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		s.log.Error("Failed to hash password", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to hash password: %v", err)
+	}
 
 	user := &userrepo.User{
+		Username: req.Username,
 		Email:    req.Email,
-		Password: req.Password,
+		Password: string(hashedPassword),
 	}
 	if req.Metadata != nil {
 		metadata, _ := json.Marshal(req.Metadata)
@@ -50,17 +60,26 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 
 	created, err := s.repo.Create(ctx, user)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
+		switch {
+		case errors.Is(err, userrepo.ErrInvalidUsername):
+			return nil, status.Error(codes.InvalidArgument, "invalid username format")
+		case errors.Is(err, userrepo.ErrUsernameReserved):
+			return nil, status.Error(codes.InvalidArgument, "username is reserved")
+		case errors.Is(err, userrepo.ErrUsernameTaken):
+			return nil, status.Error(codes.AlreadyExists, "username is already taken")
+		default:
+			return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
+		}
 	}
 
 	respUser := &userpb.User{
 		Id:           int32(created.ID),
+		Username:     created.Username,
 		Email:        created.Email,
 		CreatedAt:    timestamppb.New(created.CreatedAt),
 		UpdatedAt:    timestamppb.New(created.UpdatedAt),
 		PasswordHash: created.Password,
 	}
-	// Optionally unmarshal metadata to respUser.Metadata if needed
 
 	// Cache the new user
 	if err := s.cache.Set(ctx, fmt.Sprint(created.ID), "profile", respUser, redis.TTLUserProfile); err != nil {
@@ -88,19 +107,19 @@ func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*use
 	}
 	repoUser, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, userrepo.ErrUserNotFound) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 		return nil, status.Errorf(codes.Internal, "database error: %v", err)
 	}
 	respUser := &userpb.User{
 		Id:           int32(repoUser.ID),
+		Username:     repoUser.Username,
 		Email:        repoUser.Email,
 		CreatedAt:    timestamppb.New(repoUser.CreatedAt),
 		UpdatedAt:    timestamppb.New(repoUser.UpdatedAt),
 		PasswordHash: repoUser.Password,
 	}
-	// Optionally unmarshal metadata to respUser.Metadata if needed
 
 	if err := s.cache.Set(ctx, req.UserId, "profile", respUser, redis.TTLUserProfile); err != nil {
 		s.log.Error("Failed to cache user profile",
@@ -111,6 +130,28 @@ func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*use
 	return &userpb.GetUserResponse{User: respUser}, nil
 }
 
+// GetUserByUsername retrieves user information by username.
+func (s *Service) GetUserByUsername(ctx context.Context, req *userpb.GetUserByUsernameRequest) (*userpb.GetUserByUsernameResponse, error) {
+	repoUser, err := s.repo.GetByUsername(ctx, req.Username)
+	if err != nil {
+		if errors.Is(err, userrepo.ErrUserNotFound) {
+			return nil, status.Error(codes.NotFound, "user not found")
+		}
+		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+	}
+
+	respUser := &userpb.User{
+		Id:           int32(repoUser.ID),
+		Username:     repoUser.Username,
+		Email:        repoUser.Email,
+		CreatedAt:    timestamppb.New(repoUser.CreatedAt),
+		UpdatedAt:    timestamppb.New(repoUser.UpdatedAt),
+		PasswordHash: repoUser.Password,
+	}
+
+	return &userpb.GetUserByUsernameResponse{User: respUser}, nil
+}
+
 // UpdateUser updates a user record.
 func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.UpdateUserResponse, error) {
 	id, err := strconv.ParseInt(req.UserId, 10, 64)
@@ -119,19 +160,42 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 	}
 	repoUser, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, "user not found")
+		if errors.Is(err, userrepo.ErrUserNotFound) {
+			return nil, status.Error(codes.NotFound, "user not found")
+		}
+		return nil, status.Error(codes.Internal, "failed to get user")
 	}
+
 	// Update fields
-	repoUser.Email = req.User.Email
-	repoUser.Password = req.User.PasswordHash
-	if err := s.repo.Update(ctx, repoUser); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to update user: %v", err)
+	if req.User.Username != "" {
+		repoUser.Username = req.User.Username
 	}
+	if req.User.Email != "" {
+		repoUser.Email = req.User.Email
+	}
+	if req.User.PasswordHash != "" {
+		repoUser.Password = req.User.PasswordHash
+	}
+
+	if err := s.repo.Update(ctx, repoUser); err != nil {
+		switch {
+		case errors.Is(err, userrepo.ErrInvalidUsername):
+			return nil, status.Error(codes.InvalidArgument, "invalid username format")
+		case errors.Is(err, userrepo.ErrUsernameReserved):
+			return nil, status.Error(codes.InvalidArgument, "username is reserved")
+		case errors.Is(err, userrepo.ErrUsernameTaken):
+			return nil, status.Error(codes.AlreadyExists, "username is already taken")
+		default:
+			return nil, status.Errorf(codes.Internal, "failed to update user: %v", err)
+		}
+	}
+
 	if err := s.cache.Delete(ctx, req.UserId, "profile"); err != nil {
 		s.log.Error("Failed to invalidate user cache",
 			zap.String("user_id", req.UserId),
 			zap.Error(err))
 	}
+
 	getResp, err := s.GetUser(ctx, &userpb.GetUserRequest{UserId: req.UserId})
 	if err != nil {
 		return nil, err

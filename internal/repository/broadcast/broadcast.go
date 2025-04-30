@@ -45,7 +45,13 @@ func NewBroadcastRepository(db *sql.DB, masterRepo repository.MasterRepository) 
 
 // Create inserts a new broadcast record
 func (r *BroadcastRepository) Create(ctx context.Context, broadcast *Broadcast) (*Broadcast, error) {
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeBroadcast)
+	// Generate a descriptive name for the master record
+	masterName := r.GenerateMasterName(repository.EntityTypeBroadcast,
+		broadcast.Title,
+		string(broadcast.Type),
+		broadcast.Status)
+
+	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeBroadcast, masterName)
 	if err != nil {
 		return nil, err
 	}

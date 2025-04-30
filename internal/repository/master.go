@@ -3,34 +3,116 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"go.uber.org/zap"
 )
+
+var (
+	// ErrMasterNotFound indicates the master record was not found
+	ErrMasterNotFound = errors.New("master record not found")
+	// ErrMasterVersionConflict indicates a version conflict during update
+	ErrMasterVersionConflict = errors.New("master record version conflict")
+	// ErrInvalidEntityType indicates an invalid entity type
+	ErrInvalidEntityType = errors.New("invalid entity type")
+)
+
+const (
+	TTLSearchPattern = 5 * time.Minute  // Pattern search results TTL
+	TTLSearchExact   = 30 * time.Minute // Exact search results TTL
+	TTLSearchStats   = 1 * time.Hour    // Search statistics TTL
+)
+
+// Statement represents a SQL statement with its arguments
+type Statement struct {
+	Query string
+	Args  []interface{}
+}
 
 // DefaultMasterRepository implements MasterRepository
 // (interface is defined in types.go)
 type DefaultMasterRepository struct {
 	*BaseRepository
+	log *zap.Logger
 }
 
 // NewMasterRepository creates a new master repository instance
-func NewMasterRepository(db *sql.DB) MasterRepository {
+func NewMasterRepository(db *sql.DB, log *zap.Logger) MasterRepository {
 	return &DefaultMasterRepository{
 		BaseRepository: NewBaseRepository(db),
+		log:            log,
 	}
 }
 
+// validateEntityType checks if the entity type is valid
+func (r *DefaultMasterRepository) validateEntityType(entityType EntityType) error {
+	tx, err := r.GetDB().BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	var exists bool
+	err = tx.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM entity_types WHERE type = $1)",
+		entityType,
+	).Scan(&exists)
+
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return ErrInvalidEntityType
+	}
+
+	return nil
+}
+
 // Create creates a new master record
-func (r *DefaultMasterRepository) Create(ctx context.Context, entityType EntityType) (int64, error) {
-	var id int64
-	err := r.GetDB().QueryRowContext(ctx,
-		`INSERT INTO master (uuid, type, created_at, updated_at, is_active, version) 
-		 VALUES ($1, $2, NOW(), NOW(), true, 1) 
-		 RETURNING id`,
-		uuid.New(), entityType).Scan(&id)
+func (r *DefaultMasterRepository) Create(ctx context.Context, entityType EntityType, name string) (int64, error) {
+	if err := r.validateEntityType(entityType); err != nil {
+		return 0, err
+	}
+
+	tx, err := r.GetDB().BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	var id int64
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO master (uuid, name, type, created_at, updated_at, is_active, version) 
+		 VALUES ($1, $2, $3, NOW(), NOW(), true, 1) 
+		 RETURNING id`,
+		uuid.New(), name, entityType).Scan(&id)
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok {
+			switch pqErr.Code {
+			case "23505": // unique_violation
+				return 0, fmt.Errorf("duplicate master record: %w", err)
+			}
+		}
+		return 0, fmt.Errorf("failed to create master record: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return id, nil
 }
 
@@ -46,22 +128,59 @@ func (r *DefaultMasterRepository) Get(ctx context.Context, id int64) (*Master, e
 		&master.Description, &master.Version, &master.CreatedAt,
 		&master.UpdatedAt, &master.IsActive)
 	if err != nil {
-		return nil, err
+		if err == sql.ErrNoRows {
+			return nil, ErrMasterNotFound
+		}
+		return nil, fmt.Errorf("failed to get master record: %w", err)
 	}
 	return master, nil
 }
 
 // Delete removes a master record
 func (r *DefaultMasterRepository) Delete(ctx context.Context, id int64) error {
-	_, err := r.GetDB().ExecContext(ctx,
+	tx, err := r.GetDB().BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	result, err := tx.ExecContext(ctx,
 		`DELETE FROM master WHERE id = $1`,
 		id,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to delete master record: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get affected rows: %w", err)
+	}
+
+	if rows == 0 {
+		return ErrMasterNotFound
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }
 
 // List retrieves a paginated list of master records
 func (r *DefaultMasterRepository) List(ctx context.Context, limit, offset int) ([]*Master, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active 
 		 FROM master 
@@ -69,65 +188,460 @@ func (r *DefaultMasterRepository) List(ctx context.Context, limit, offset int) (
 		 LIMIT $1 OFFSET $2`,
 		limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list master records: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if err := rows.Close(); err != nil {
+			r.log.Error("failed to close rows", zap.Error(err))
+		}
 	}()
 
 	var masters []*Master
 	for rows.Next() {
-		master := &Master{}
-		err := rows.Scan(
-			&master.ID, &master.UUID, &master.Name, &master.Type,
-			&master.Description, &master.Version, &master.CreatedAt,
-			&master.UpdatedAt, &master.IsActive)
-		if err != nil {
-			return nil, err
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			master := &Master{}
+			err := rows.Scan(
+				&master.ID, &master.UUID, &master.Name, &master.Type,
+				&master.Description, &master.Version, &master.CreatedAt,
+				&master.UpdatedAt, &master.IsActive)
+			if err != nil {
+				return nil, fmt.Errorf("failed to scan master record: %w", err)
+			}
+			masters = append(masters, master)
 		}
-		masters = append(masters, master)
 	}
-	return masters, rows.Err()
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating master records: %w", err)
+	}
+
+	return masters, nil
 }
 
 // GetByUUID retrieves a master record by UUID
-func (r *DefaultMasterRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (*Master, error) {
-	master := &Master{}
-	err := r.GetDB().QueryRowContext(ctx,
-		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active 
-		 FROM master 
-		 WHERE uuid = $1`,
-		uuid).Scan(
-		&master.ID, &master.UUID, &master.Name, &master.Type,
-		&master.Description, &master.Version, &master.CreatedAt,
-		&master.UpdatedAt, &master.IsActive)
+func (r *DefaultMasterRepository) GetByUUID(ctx context.Context, id uuid.UUID) (*Master, error) {
+	tx, err := r.GetDB().BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	master := &Master{}
+	err = tx.QueryRowContext(ctx,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active
+		FROM master
+		WHERE uuid = $1`,
+		id,
+	).Scan(
+		&master.ID, &master.UUID, &master.Name,
+		&master.Type, &master.Description, &master.Version,
+		&master.CreatedAt, &master.UpdatedAt, &master.IsActive,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrMasterNotFound
+		}
+		return nil, fmt.Errorf("failed to get master record: %w", err)
+	}
+
 	return master, nil
 }
 
-// Update updates a master record
+// Update updates a master record with optimistic locking
 func (r *DefaultMasterRepository) Update(ctx context.Context, master *Master) error {
-	result, err := r.GetDB().ExecContext(ctx,
-		`UPDATE master 
-		 SET name = $1, description = $2, is_active = $3, version = version + 1, updated_at = NOW()
-		 WHERE id = $4 AND version = $5`,
-		master.Name, master.Description, master.IsActive,
-		master.ID, master.Version)
+	if err := r.validateEntityType(master.Type); err != nil {
+		return err
+	}
+
+	tx, err := r.GetDB().BeginTx(ctx, nil)
 	if err != nil {
 		return err
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	result, err := tx.ExecContext(ctx,
+		`UPDATE master 
+		 SET name = $1, description = $2, is_active = $3, version = version + 1, updated_at = NOW()
+		 WHERE id = $4 AND version = $5 AND type = $6`,
+		master.Name, master.Description, master.IsActive,
+		master.ID, master.Version, master.Type)
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok {
+			switch pqErr.Code {
+			case "23505": // unique_violation
+				return fmt.Errorf("duplicate master record: %w", err)
+			}
+		}
+		return fmt.Errorf("failed to update master record: %w", err)
 	}
 
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get affected rows: %w", err)
 	}
 
 	if rows == 0 {
-		return sql.ErrNoRows
+		// Check if the record exists
+		exists, err := r.recordExists(ctx, tx, master.ID)
+		if err != nil {
+			return fmt.Errorf("failed to check record existence: %w", err)
+		}
+		if !exists {
+			return ErrMasterNotFound
+		}
+		return ErrMasterVersionConflict
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	master.Version++
 	return nil
+}
+
+// recordExists checks if a master record exists
+func (r *DefaultMasterRepository) recordExists(ctx context.Context, tx *sql.Tx, id int64) (bool, error) {
+	if tx == nil {
+		var err error
+		tx, err = r.GetDB().BeginTx(ctx, nil)
+		if err != nil {
+			return false, err
+		}
+		defer func() {
+			if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+				r.log.Error("failed to rollback transaction", zap.Error(err))
+			}
+		}()
+	}
+
+	var exists bool
+	err := tx.QueryRowContext(ctx,
+		"SELECT EXISTS(SELECT 1 FROM master WHERE id = $1)",
+		id,
+	).Scan(&exists)
+
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+// SearchResult represents a master record with similarity score
+type SearchResult struct {
+	*Master
+	Similarity float64
+}
+
+// SearchByPattern searches for master records matching a pattern
+func (r *DefaultMasterRepository) SearchByPattern(ctx context.Context, pattern string, entityType EntityType, limit int) ([]*SearchResult, error) {
+	if err := r.validateEntityType(entityType); err != nil {
+		return nil, err
+	}
+
+	if limit <= 0 {
+		limit = 10
+	}
+
+	rows, err := r.GetDB().QueryContext(ctx,
+		`SELECT id, name, entity_type, similarity(name, $1) as sim
+		FROM masters
+		WHERE entity_type = $2 AND similarity(name, $1) > 0.3
+		ORDER BY sim DESC
+		LIMIT $3`,
+		pattern, entityType, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			r.log.Error("failed to close rows", zap.Error(err))
+		}
+	}()
+
+	var results []*SearchResult
+	for rows.Next() {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			result := &SearchResult{
+				Master: &Master{},
+			}
+			err := rows.Scan(
+				&result.ID, &result.Name, &result.Type,
+				&result.Similarity,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to scan search result: %w", err)
+			}
+			results = append(results, result)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating search results: %w", err)
+	}
+
+	return results, nil
+}
+
+// SearchByPatternAcrossTypes searches for master records matching a pattern across all entity types
+func (r *DefaultMasterRepository) SearchByPatternAcrossTypes(ctx context.Context, pattern string, limit int) ([]*SearchResult, error) {
+	return r.SearchByPattern(ctx, pattern, "", limit)
+}
+
+// QuickSearch performs a fast search with default parameters
+func (r *DefaultMasterRepository) QuickSearch(ctx context.Context, pattern string) ([]*SearchResult, error) {
+	return r.SearchByPatternAcrossTypes(ctx, pattern, 10)
+}
+
+// WithLock executes a function while holding a distributed lock
+func (r *DefaultMasterRepository) WithLock(ctx context.Context, entityType EntityType, id interface{}, ttl time.Duration, fn func() error) error {
+	tx, err := r.GetDB().BeginTx(ctx, &sql.TxOptions{
+		Isolation: sql.LevelSerializable,
+		ReadOnly:  false,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	// Try to acquire lock using SELECT FOR UPDATE
+	_, err = tx.ExecContext(ctx,
+		`SELECT id FROM master WHERE id = $1 FOR UPDATE NOWAIT`,
+		id)
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "55P03" {
+			return fmt.Errorf("failed to acquire lock: already locked")
+		}
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+
+	// Execute the function
+	if err := fn(); err != nil {
+		return err
+	}
+
+	// Commit the transaction to release the lock
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (r *DefaultMasterRepository) ExecuteInTx(ctx context.Context, fn func(*sql.Tx) error) error {
+	tx, err := r.GetDB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (r *DefaultMasterRepository) BatchExecute(ctx context.Context, queries []string) error {
+	tx, err := r.GetDB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	for _, query := range queries {
+		if _, err := tx.ExecContext(ctx, query); err != nil {
+			return fmt.Errorf("failed to execute query: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (r *DefaultMasterRepository) BatchExecuteWithArgs(ctx context.Context, statements []Statement) error {
+	tx, err := r.GetDB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	for _, stmt := range statements {
+		if _, err := tx.ExecContext(ctx, stmt.Query, stmt.Args...); err != nil {
+			return fmt.Errorf("failed to execute statement: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateWithTransaction updates a master record within a transaction
+func (r *DefaultMasterRepository) UpdateWithTransaction(ctx context.Context, tx *sql.Tx, master *Master) error {
+	if tx == nil {
+		var err error
+		tx, err = r.GetDB().BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+				r.log.Error("failed to rollback transaction", zap.Error(err))
+			}
+		}()
+	}
+
+	if err := r.validateEntityType(master.Type); err != nil {
+		return err
+	}
+
+	result, err := tx.ExecContext(ctx,
+		`UPDATE master 
+		 SET name = $1, description = $2, is_active = $3, version = version + 1, updated_at = NOW()
+		 WHERE id = $4 AND version = $5 AND type = $6`,
+		master.Name, master.Description, master.IsActive,
+		master.ID, master.Version, master.Type)
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok {
+			switch pqErr.Code {
+			case "23505": // unique_violation
+				return fmt.Errorf("duplicate master record: %w", err)
+			}
+		}
+		return fmt.Errorf("failed to update master record: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get affected rows: %w", err)
+	}
+
+	if rows == 0 {
+		// Check if the record exists
+		exists, err := r.recordExists(ctx, tx, master.ID)
+		if err != nil {
+			return fmt.Errorf("failed to check record existence: %w", err)
+		}
+		if !exists {
+			return ErrMasterNotFound
+		}
+		return ErrMasterVersionConflict
+	}
+
+	master.Version++
+	return nil
+}
+
+// GetByName retrieves a master record by name
+func (r *DefaultMasterRepository) GetByName(ctx context.Context, name string, entityType EntityType) (*Master, error) {
+	tx, err := r.GetDB().BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	master := &Master{}
+	err = tx.QueryRowContext(ctx,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active
+		FROM master
+		WHERE name = $1 AND type = $2`,
+		name, entityType,
+	).Scan(
+		&master.ID, &master.UUID, &master.Name,
+		&master.Type, &master.Description, &master.Version,
+		&master.CreatedAt, &master.UpdatedAt, &master.IsActive,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrMasterNotFound
+		}
+		return nil, fmt.Errorf("failed to get master record: %w", err)
+	}
+
+	return master, nil
+}
+
+// GetByID retrieves a master record by ID
+func (r *DefaultMasterRepository) GetByID(ctx context.Context, id int64) (*Master, error) {
+	tx, err := r.GetDB().BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.log.Error("failed to rollback transaction", zap.Error(err))
+		}
+	}()
+
+	master := &Master{}
+	err = tx.QueryRowContext(ctx,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active
+		FROM master
+		WHERE id = $1`,
+		id,
+	).Scan(
+		&master.ID, &master.UUID, &master.Name,
+		&master.Type, &master.Description, &master.Version,
+		&master.CreatedAt, &master.UpdatedAt, &master.IsActive,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrMasterNotFound
+		}
+		return nil, fmt.Errorf("failed to get master record: %w", err)
+	}
+
+	return master, nil
 }

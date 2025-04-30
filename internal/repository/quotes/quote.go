@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -51,8 +52,12 @@ func NewQuoteRepository(db *sql.DB, masterRepo repository.MasterRepository) *Quo
 
 // Create inserts a new quote record
 func (r *QuoteRepository) Create(ctx context.Context, quote *Quote) (*Quote, error) {
-	// First create the master record
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeQuote)
+	// Generate a descriptive name for the master record
+	masterName := r.GenerateMasterName(repository.EntityTypeQuote,
+		quote.Symbol,
+		fmt.Sprintf("%.2f", quote.Price))
+
+	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeQuote, masterName)
 	if err != nil {
 		return nil, err
 	}

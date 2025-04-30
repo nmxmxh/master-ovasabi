@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package user;
+package user.v0;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/user";
+option go_package = "master-ovasabi/api/protos/user/v0;userv0";
 
 import "google/protobuf/timestamp.proto";
 
@@ -13,6 +13,9 @@ service UserService {
   
   // GetUser retrieves user information
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
+  
+  // GetUserByUsername retrieves user information by username
+  rpc GetUserByUsername(GetUserByUsernameRequest) returns (GetUserByUsernameResponse) {}
   
   // UpdateUser updates user information
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {}
@@ -39,7 +42,7 @@ service UserService {
 // User represents a user in the system
 message User {
   int32 id = 1;
-  int32 master_id = 2;
+  string username = 2;
   string email = 3;
   string referral_code = 4;
   string referred_by = 5;
@@ -48,6 +51,7 @@ message User {
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
   string password_hash = 10; // Stores the hashed password
+  map<string, string> metadata = 11;
 }
 
 // UserProfile contains additional user information
@@ -73,8 +77,8 @@ enum UserStatus {
 
 // CreateUserRequest represents the request to create a new user
 message CreateUserRequest {
-  string email = 1;
-  string username = 2;
+  string username = 1;
+  string email = 2;
   string password = 3;
   UserProfile profile = 4;
   repeated string roles = 5;
@@ -93,6 +97,16 @@ message GetUserRequest {
 
 // GetUserResponse represents the response containing user information
 message GetUserResponse {
+  User user = 1;
+}
+
+// GetUserByUsernameRequest represents the request to get user information by username
+message GetUserByUsernameRequest {
+  string username = 1;
+}
+
+// GetUserByUsernameResponse represents the response containing user information by username
+message GetUserByUsernameResponse {
   User user = 1;
 }
 

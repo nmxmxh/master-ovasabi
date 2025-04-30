@@ -40,6 +40,7 @@ const (
 	EntityTypeI18n         EntityType = "i18n"
 	EntityTypeReferral     EntityType = "referral"
 	EntityTypeAuth         EntityType = "auth"
+	EntityTypeFinance      EntityType = "finance"
 )
 
 // Master represents the core entity in the master table
@@ -55,13 +56,18 @@ type Master struct {
 	IsActive    bool       `db:"is_active"`
 }
 
+// MasterRepository defines the interface for master record operations
 type MasterRepository interface {
-	Create(ctx context.Context, entityType EntityType) (int64, error)
+	Create(ctx context.Context, entityType EntityType, name string) (int64, error)
 	Get(ctx context.Context, id int64) (*Master, error)
 	Delete(ctx context.Context, id int64) error
 	List(ctx context.Context, limit, offset int) ([]*Master, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (*Master, error)
 	Update(ctx context.Context, master *Master) error
+	SearchByPattern(ctx context.Context, pattern string, entityType EntityType, limit int) ([]*SearchResult, error)
+	SearchByPatternAcrossTypes(ctx context.Context, pattern string, limit int) ([]*SearchResult, error)
+	QuickSearch(ctx context.Context, pattern string) ([]*SearchResult, error)
+	WithLock(ctx context.Context, entityType EntityType, id interface{}, ttl time.Duration, fn func() error) error
 }
 
 // Remove Campaign struct and CampaignRepository interface

@@ -45,14 +45,14 @@ services:
     ports:
       - "5432:5432"
     environment:
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-master_ovasabi}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-master_ovasabi}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=100"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,12 +67,11 @@ services:
     ports:
       - "6379:6379"
     environment:
-      REDIS_HOST: ${REDIS_HOST:-redis}
-      REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-@Osiano1995}
     volumes:
+      - ../../redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis_data:/data
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--requirepass", "@Osiano1995"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -84,21 +83,9 @@ services:
     env_file:
       - ../../.env
 
+
   migrate:
     image: migrate/migrate
-    entrypoint: ["/bin/sh", "-c"]
-    environment:
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-master_ovasabi}
-    command: >
-      migrate -path /migrations -database "postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-master_ovasabi}?sslmode=disable" drop -f &&
-      migrate -path /migrations -database "postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-master_ovasabi}?sslmode=disable" up
-    depends_on:
-      postgres:
-        condition: service_healthy
-      postgres-init:
-        condition: service_completed_successfully
     volumes:
       - ../../database/migrations:/migrations
     networks:
@@ -109,11 +96,11 @@ services:
   postgres-init:
     image: postgres:15-alpine
     environment:
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-master_ovasabi}
-      ADMIN_USER: ${ADMIN_USER:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-master_ovasabi}
+      ADMIN_USER: ${ADMIN_USER:-okhai}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-@Osiano1995}
     entrypoint: ["/bin/sh", "-c", "export PGPASSWORD='$DB_PASSWORD'; until pg_isready -h postgres -U '$DB_USER'; do echo 'Waiting for postgres...'; sleep 2; done && psql -h postgres -U '$DB_USER' -d '$DB_NAME' -c 'CREATE ROLE \"$ADMIN_USER\" WITH LOGIN PASSWORD '\\''$ADMIN_PASSWORD'\\'' SUPERUSER;' || true"]
     depends_on:
       postgres:
@@ -130,3 +117,4 @@ volumes:
 networks:
   ovasabi-network:
     driver: bridge
+

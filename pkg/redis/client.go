@@ -69,22 +69,3 @@ func (c *Client) IsAvailable(ctx context.Context) error {
 func (c *Client) WithTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, timeout)
 }
-
-// KeyBuilder helps build Redis keys according to our naming convention
-type KeyBuilder struct {
-	namespace string
-	context   string
-}
-
-// NewKeyBuilder creates a new KeyBuilder with the given namespace
-func NewKeyBuilder(namespace, context string) *KeyBuilder {
-	return &KeyBuilder{
-		namespace: namespace,
-		context:   context,
-	}
-}
-
-// Build creates a Redis key following our naming convention
-func (kb *KeyBuilder) Build(entity, attribute string) string {
-	return fmt.Sprintf("%s:%s:%s:%s", kb.namespace, kb.context, entity, attribute)
-}

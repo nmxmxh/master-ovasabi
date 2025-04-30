@@ -2,23 +2,30 @@ package service
 
 import (
 	"database/sql"
+	"fmt"
 
+	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v0"
 	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
 	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
+	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v0"
 	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
 	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	assetrepo "github.com/nmxmxh/master-ovasabi/internal/repository/asset"
 	broadcastrepo "github.com/nmxmxh/master-ovasabi/internal/repository/broadcast"
+	financerepo "github.com/nmxmxh/master-ovasabi/internal/repository/finance"
 	i18nrepo "github.com/nmxmxh/master-ovasabi/internal/repository/i18n"
 	notificationrepo "github.com/nmxmxh/master-ovasabi/internal/repository/notification"
 	quotesrepo "github.com/nmxmxh/master-ovasabi/internal/repository/quotes"
 	referralrepo "github.com/nmxmxh/master-ovasabi/internal/repository/referral"
 	userrepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
+	"github.com/nmxmxh/master-ovasabi/internal/service/asset"
 	"github.com/nmxmxh/master-ovasabi/internal/service/auth"
 	"github.com/nmxmxh/master-ovasabi/internal/service/broadcast"
+	financeservice "github.com/nmxmxh/master-ovasabi/internal/service/finance"
 	"github.com/nmxmxh/master-ovasabi/internal/service/i18n"
 	"github.com/nmxmxh/master-ovasabi/internal/service/notification"
 	quotesservice "github.com/nmxmxh/master-ovasabi/internal/service/quotes"
@@ -31,9 +38,10 @@ import (
 
 // Provider manages service instances and their dependencies.
 type Provider struct {
-	log   *zap.Logger
-	db    *sql.DB
-	redis *redis.Client
+	log           *zap.Logger
+	db            *sql.DB
+	redisClient   *redis.Client
+	redisProvider *redis.Provider
 
 	container           *di.Container
 	authService         authpb.AuthServiceServer
@@ -43,6 +51,8 @@ type Provider struct {
 	i18nService         i18npb.I18NServiceServer
 	quotesService       quotespb.QuotesServiceServer
 	referralService     referralpb.ReferralServiceServer
+	assetService        assetpb.AssetServiceServer
+	financeService      financepb.FinanceServiceServer
 }
 
 // NewProvider creates a new service provider.
@@ -53,11 +63,53 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisConfig redis.Config) (*Provid
 		return nil, err
 	}
 
+	// Create Redis provider
+	redisProvider := redis.NewProvider(log)
+
+	// Register cache configurations
+	redisProvider.RegisterCache("user", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   redis.ContextUser,
+	})
+	redisProvider.RegisterCache("auth", &redis.Options{
+		Namespace: redis.NamespaceSession,
+		Context:   redis.ContextAuth,
+	})
+	redisProvider.RegisterCache("notification", &redis.Options{
+		Namespace: redis.NamespaceQueue,
+		Context:   redis.ContextNotification,
+	})
+	redisProvider.RegisterCache("broadcast", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   redis.ContextBroadcast,
+	})
+	redisProvider.RegisterCache("i18n", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   redis.ContextI18n,
+	})
+	redisProvider.RegisterCache("quotes", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   redis.ContextQuotes,
+	})
+	redisProvider.RegisterCache("referral", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   redis.ContextReferral,
+	})
+	redisProvider.RegisterCache("asset", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   redis.ContextAsset,
+	})
+	redisProvider.RegisterCache("finance", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   redis.ContextFinance,
+	})
+
 	p := &Provider{
-		log:       log,
-		db:        db,
-		redis:     redisClient,
-		container: di.New(),
+		log:           log,
+		db:            db,
+		redisClient:   redisClient,
+		redisProvider: redisProvider,
+		container:     di.New(),
 	}
 
 	if err := p.registerServices(); err != nil {
@@ -74,10 +126,13 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisConfig redis.Config) (*Provid
 // Add logging to trace service registration.
 func (p *Provider) registerServices() error {
 	p.log.Info("Registering UserService")
-	masterRepo := repository.NewMasterRepository(p.db)
+	masterRepo := repository.NewMasterRepository(p.db, p.log)
 	userRepo := userrepo.NewUserRepository(p.db, masterRepo)
 	if err := p.container.Register((*userpb.UserServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextUser)
+		cache, err := p.redisProvider.GetCache("user")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user cache: %w", err)
+		}
 		return userservice.NewUserService(p.log, userRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register UserService", zap.Error(err))
@@ -91,7 +146,10 @@ func (p *Provider) registerServices() error {
 			p.log.Error("Failed to resolve UserService for AuthService", zap.Error(err))
 			return nil, err
 		}
-		cache := redis.NewCache(p.redis, redis.NamespaceSession, redis.ContextAuth)
+		cache, err := p.redisProvider.GetCache("auth")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get auth cache: %w", err)
+		}
 		return auth.NewService(p.log, userSvc, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register AuthService", zap.Error(err))
@@ -101,7 +159,10 @@ func (p *Provider) registerServices() error {
 	p.log.Info("Registering NotificationService")
 	notificationRepo := notificationrepo.NewNotificationRepository(p.db, masterRepo)
 	if err := p.container.Register((*notificationpb.NotificationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache := redis.NewCache(p.redis, redis.NamespaceQueue, redis.ContextNotification)
+		cache, err := p.redisProvider.GetCache("notification")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get notification cache: %w", err)
+		}
 		return notification.NewNotificationService(p.log, notificationRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register NotificationService", zap.Error(err))
@@ -111,7 +172,10 @@ func (p *Provider) registerServices() error {
 	p.log.Info("Registering BroadcastService")
 	broadcastRepo := broadcastrepo.NewBroadcastRepository(p.db, masterRepo)
 	if err := p.container.Register((*broadcastpb.BroadcastServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextBroadcast)
+		cache, err := p.redisProvider.GetCache("broadcast")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get broadcast cache: %w", err)
+		}
 		return broadcast.NewService(p.log, broadcastRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register BroadcastService", zap.Error(err))
@@ -121,7 +185,10 @@ func (p *Provider) registerServices() error {
 	p.log.Info("Registering I18nService")
 	i18nRepo := i18nrepo.NewRepository(p.db, masterRepo)
 	if err := p.container.Register((*i18npb.I18NServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextI18n)
+		cache, err := p.redisProvider.GetCache("i18n")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get i18n cache: %w", err)
+		}
 		return i18n.NewService(p.log, i18nRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register I18nService", zap.Error(err))
@@ -131,7 +198,10 @@ func (p *Provider) registerServices() error {
 	p.log.Info("Registering QuotesService")
 	quotesRepo := quotesrepo.NewQuoteRepository(p.db, masterRepo)
 	if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextQuotes)
+		cache, err := p.redisProvider.GetCache("quotes")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get quotes cache: %w", err)
+		}
 		return quotesservice.NewQuotesService(p.log, quotesRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register QuotesService", zap.Error(err))
@@ -141,13 +211,54 @@ func (p *Provider) registerServices() error {
 	p.log.Info("Registering ReferralService")
 	referralRepo := referralrepo.NewReferralRepository(p.db, masterRepo)
 	if err := p.container.Register((*referralpb.ReferralServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache := redis.NewCache(p.redis, redis.NamespaceCache, redis.ContextReferral)
+		cache, err := p.redisProvider.GetCache("referral")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get referral cache: %w", err)
+		}
 		return referralservice.NewReferralService(p.log, referralRepo, cache), nil
 	}); err != nil {
 		p.log.Error("Failed to register ReferralService", zap.Error(err))
 		return err
 	}
 
+	p.log.Info("Registering AssetService")
+	assetRepo := assetrepo.InitRepository(p.db, p.log)
+	if err := p.container.Register((*assetpb.AssetServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		cache, err := p.redisProvider.GetCache("asset")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get asset cache: %w", err)
+		}
+		return asset.InitService(p.log, assetRepo, cache), nil
+	}); err != nil {
+		p.log.Error("Failed to register AssetService", zap.Error(err))
+		return err
+	}
+
+	p.log.Info("Registering FinanceService")
+	financeRepo := financerepo.New(p.db, p.log)
+	financeCache, err := p.redisProvider.GetCache("finance")
+	if err != nil {
+		return fmt.Errorf("failed to get finance cache: %w", err)
+	}
+	cachedRepo := financerepo.NewCachedRepository(financeRepo, financeCache, p.log)
+	if err := p.container.Register((*financepb.FinanceServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		return financeservice.New(cachedRepo, masterRepo, financeCache, p.log), nil
+	}); err != nil {
+		p.log.Error("Failed to register FinanceService", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+// Close closes all resources.
+func (p *Provider) Close() error {
+	if err := p.redisProvider.Close(); err != nil {
+		p.log.Error("Failed to close Redis provider", zap.Error(err))
+	}
+	if err := p.redisClient.Close(); err != nil {
+		p.log.Error("Failed to close Redis client", zap.Error(err))
+	}
 	return nil
 }
 
@@ -219,4 +330,24 @@ func (p *Provider) Referrals() referralpb.ReferralServiceServer {
 		}
 	}
 	return p.referralService
+}
+
+// Asset returns the AssetService instance.
+func (p *Provider) Asset() assetpb.AssetServiceServer {
+	if p.assetService == nil {
+		if err := p.container.MustResolve(&p.assetService); err != nil {
+			p.log.Fatal("Failed to resolve asset service", zap.Error(err))
+		}
+	}
+	return p.assetService
+}
+
+// Finance returns the FinanceService instance.
+func (p *Provider) Finance() financepb.FinanceServiceServer {
+	if p.financeService == nil {
+		if err := p.container.MustResolve(&p.financeService); err != nil {
+			p.log.Fatal("Failed to resolve finance service", zap.Error(err))
+		}
+	}
+	return p.financeService
 }

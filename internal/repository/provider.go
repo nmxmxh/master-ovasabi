@@ -2,21 +2,28 @@ package repository
 
 import (
 	"database/sql"
+
+	"go.uber.org/zap"
 )
 
-// repositoryProvider implements RepositoryProvider
-type repositoryProvider struct {
+// Provider manages repository instances
+type Provider struct {
 	db         *sql.DB
+	log        *zap.Logger
 	masterRepo MasterRepository
 }
 
-// NewRepositoryProvider creates a new repository provider
-func NewRepositoryProvider(db *sql.DB) *repositoryProvider {
-	provider := &repositoryProvider{db: db}
-	provider.masterRepo = NewMasterRepository(db)
+// NewProvider creates a new repository provider
+func NewProvider(db *sql.DB, log *zap.Logger) *Provider {
+	provider := &Provider{
+		db:  db,
+		log: log,
+	}
+	provider.masterRepo = NewMasterRepository(db, log)
 	return provider
 }
 
-func (p *repositoryProvider) Master() MasterRepository {
+// GetMasterRepository returns the master repository instance
+func (p *Provider) GetMasterRepository() MasterRepository {
 	return p.masterRepo
 }

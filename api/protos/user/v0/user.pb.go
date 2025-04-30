@@ -4,7 +4,7 @@
 // 	protoc        v5.29.2
 // source: api/protos/user/v0/user.proto
 
-package user
+package userv0
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -82,7 +82,7 @@ func (UserStatus) EnumDescriptor() ([]byte, []int) {
 type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      int32                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
 	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
 	ReferralCode  string                 `protobuf:"bytes,4,opt,name=referral_code,json=referralCode,proto3" json:"referral_code,omitempty"`
 	ReferredBy    string                 `protobuf:"bytes,5,opt,name=referred_by,json=referredBy,proto3" json:"referred_by,omitempty"`
@@ -91,6 +91,7 @@ type User struct {
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	PasswordHash  string                 `protobuf:"bytes,10,opt,name=password_hash,json=passwordHash,proto3" json:"password_hash,omitempty"` // Stores the hashed password
+	Metadata      map[string]string      `protobuf:"bytes,11,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -132,11 +133,11 @@ func (x *User) GetId() int32 {
 	return 0
 }
 
-func (x *User) GetMasterId() int32 {
+func (x *User) GetUsername() string {
 	if x != nil {
-		return x.MasterId
+		return x.Username
 	}
-	return 0
+	return ""
 }
 
 func (x *User) GetEmail() string {
@@ -193,6 +194,13 @@ func (x *User) GetPasswordHash() string {
 		return x.PasswordHash
 	}
 	return ""
+}
+
+func (x *User) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 // UserProfile contains additional user information
@@ -299,8 +307,8 @@ func (x *UserProfile) GetCustomFields() map[string]string {
 // CreateUserRequest represents the request to create a new user
 type CreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
-	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
 	Profile       *UserProfile           `protobuf:"bytes,4,opt,name=profile,proto3" json:"profile,omitempty"`
 	Roles         []string               `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
@@ -339,16 +347,16 @@ func (*CreateUserRequest) Descriptor() ([]byte, []int) {
 	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *CreateUserRequest) GetEmail() string {
+func (x *CreateUserRequest) GetUsername() string {
 	if x != nil {
-		return x.Email
+		return x.Username
 	}
 	return ""
 }
 
-func (x *CreateUserRequest) GetUsername() string {
+func (x *CreateUserRequest) GetEmail() string {
 	if x != nil {
-		return x.Username
+		return x.Email
 	}
 	return ""
 }
@@ -516,6 +524,96 @@ func (x *GetUserResponse) GetUser() *User {
 	return nil
 }
 
+// GetUserByUsernameRequest represents the request to get user information by username
+type GetUserByUsernameRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserByUsernameRequest) Reset() {
+	*x = GetUserByUsernameRequest{}
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserByUsernameRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserByUsernameRequest) ProtoMessage() {}
+
+func (x *GetUserByUsernameRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserByUsernameRequest.ProtoReflect.Descriptor instead.
+func (*GetUserByUsernameRequest) Descriptor() ([]byte, []int) {
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetUserByUsernameRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+// GetUserByUsernameResponse represents the response containing user information by username
+type GetUserByUsernameResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserByUsernameResponse) Reset() {
+	*x = GetUserByUsernameResponse{}
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserByUsernameResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserByUsernameResponse) ProtoMessage() {}
+
+func (x *GetUserByUsernameResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserByUsernameResponse.ProtoReflect.Descriptor instead.
+func (*GetUserByUsernameResponse) Descriptor() ([]byte, []int) {
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetUserByUsernameResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
 // UpdateUserRequest represents the request to update user information
 type UpdateUserRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
@@ -528,7 +626,7 @@ type UpdateUserRequest struct {
 
 func (x *UpdateUserRequest) Reset() {
 	*x = UpdateUserRequest{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[6]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -540,7 +638,7 @@ func (x *UpdateUserRequest) String() string {
 func (*UpdateUserRequest) ProtoMessage() {}
 
 func (x *UpdateUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[6]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -553,7 +651,7 @@ func (x *UpdateUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserRequest.ProtoReflect.Descriptor instead.
 func (*UpdateUserRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{6}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateUserRequest) GetUserId() string {
@@ -587,7 +685,7 @@ type UpdateUserResponse struct {
 
 func (x *UpdateUserResponse) Reset() {
 	*x = UpdateUserResponse{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[7]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -599,7 +697,7 @@ func (x *UpdateUserResponse) String() string {
 func (*UpdateUserResponse) ProtoMessage() {}
 
 func (x *UpdateUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[7]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -612,7 +710,7 @@ func (x *UpdateUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserResponse.ProtoReflect.Descriptor instead.
 func (*UpdateUserResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{7}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UpdateUserResponse) GetUser() *User {
@@ -633,7 +731,7 @@ type DeleteUserRequest struct {
 
 func (x *DeleteUserRequest) Reset() {
 	*x = DeleteUserRequest{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[8]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -645,7 +743,7 @@ func (x *DeleteUserRequest) String() string {
 func (*DeleteUserRequest) ProtoMessage() {}
 
 func (x *DeleteUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[8]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -658,7 +756,7 @@ func (x *DeleteUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteUserRequest.ProtoReflect.Descriptor instead.
 func (*DeleteUserRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{8}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeleteUserRequest) GetUserId() string {
@@ -685,7 +783,7 @@ type DeleteUserResponse struct {
 
 func (x *DeleteUserResponse) Reset() {
 	*x = DeleteUserResponse{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[9]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -697,7 +795,7 @@ func (x *DeleteUserResponse) String() string {
 func (*DeleteUserResponse) ProtoMessage() {}
 
 func (x *DeleteUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[9]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -710,7 +808,7 @@ func (x *DeleteUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteUserResponse.ProtoReflect.Descriptor instead.
 func (*DeleteUserResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{9}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DeleteUserResponse) GetSuccess() bool {
@@ -734,7 +832,7 @@ type ListUsersRequest struct {
 
 func (x *ListUsersRequest) Reset() {
 	*x = ListUsersRequest{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[10]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -746,7 +844,7 @@ func (x *ListUsersRequest) String() string {
 func (*ListUsersRequest) ProtoMessage() {}
 
 func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[10]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +857,7 @@ func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersRequest.ProtoReflect.Descriptor instead.
 func (*ListUsersRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{10}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListUsersRequest) GetPage() int32 {
@@ -810,7 +908,7 @@ type ListUsersResponse struct {
 
 func (x *ListUsersResponse) Reset() {
 	*x = ListUsersResponse{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[11]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -822,7 +920,7 @@ func (x *ListUsersResponse) String() string {
 func (*ListUsersResponse) ProtoMessage() {}
 
 func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[11]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -835,7 +933,7 @@ func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersResponse.ProtoReflect.Descriptor instead.
 func (*ListUsersResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{11}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListUsersResponse) GetUsers() []*User {
@@ -878,7 +976,7 @@ type UpdatePasswordRequest struct {
 
 func (x *UpdatePasswordRequest) Reset() {
 	*x = UpdatePasswordRequest{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[12]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -890,7 +988,7 @@ func (x *UpdatePasswordRequest) String() string {
 func (*UpdatePasswordRequest) ProtoMessage() {}
 
 func (x *UpdatePasswordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[12]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -903,7 +1001,7 @@ func (x *UpdatePasswordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePasswordRequest.ProtoReflect.Descriptor instead.
 func (*UpdatePasswordRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{12}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UpdatePasswordRequest) GetUserId() string {
@@ -938,7 +1036,7 @@ type UpdatePasswordResponse struct {
 
 func (x *UpdatePasswordResponse) Reset() {
 	*x = UpdatePasswordResponse{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[13]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -950,7 +1048,7 @@ func (x *UpdatePasswordResponse) String() string {
 func (*UpdatePasswordResponse) ProtoMessage() {}
 
 func (x *UpdatePasswordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[13]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -963,7 +1061,7 @@ func (x *UpdatePasswordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePasswordResponse.ProtoReflect.Descriptor instead.
 func (*UpdatePasswordResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{13}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdatePasswordResponse) GetSuccess() bool {
@@ -992,7 +1090,7 @@ type UpdateProfileRequest struct {
 
 func (x *UpdateProfileRequest) Reset() {
 	*x = UpdateProfileRequest{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[14]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1004,7 +1102,7 @@ func (x *UpdateProfileRequest) String() string {
 func (*UpdateProfileRequest) ProtoMessage() {}
 
 func (x *UpdateProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[14]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1017,7 +1115,7 @@ func (x *UpdateProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateProfileRequest.ProtoReflect.Descriptor instead.
 func (*UpdateProfileRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{14}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UpdateProfileRequest) GetUserId() string {
@@ -1051,7 +1149,7 @@ type UpdateProfileResponse struct {
 
 func (x *UpdateProfileResponse) Reset() {
 	*x = UpdateProfileResponse{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[15]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1063,7 +1161,7 @@ func (x *UpdateProfileResponse) String() string {
 func (*UpdateProfileResponse) ProtoMessage() {}
 
 func (x *UpdateProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[15]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1076,7 +1174,7 @@ func (x *UpdateProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateProfileResponse.ProtoReflect.Descriptor instead.
 func (*UpdateProfileResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{15}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *UpdateProfileResponse) GetUser() *User {
@@ -1097,7 +1195,7 @@ type RegisterInterestRequest struct {
 
 func (x *RegisterInterestRequest) Reset() {
 	*x = RegisterInterestRequest{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[16]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1109,7 +1207,7 @@ func (x *RegisterInterestRequest) String() string {
 func (*RegisterInterestRequest) ProtoMessage() {}
 
 func (x *RegisterInterestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[16]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1122,7 +1220,7 @@ func (x *RegisterInterestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterInterestRequest.ProtoReflect.Descriptor instead.
 func (*RegisterInterestRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{16}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RegisterInterestRequest) GetEmail() string {
@@ -1155,7 +1253,7 @@ type RegisterInterestResponse struct {
 
 func (x *RegisterInterestResponse) Reset() {
 	*x = RegisterInterestResponse{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[17]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1167,7 +1265,7 @@ func (x *RegisterInterestResponse) String() string {
 func (*RegisterInterestResponse) ProtoMessage() {}
 
 func (x *RegisterInterestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[17]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1180,7 +1278,7 @@ func (x *RegisterInterestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterInterestResponse.ProtoReflect.Descriptor instead.
 func (*RegisterInterestResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{17}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RegisterInterestResponse) GetUser() *User {
@@ -1201,7 +1299,7 @@ type CreateReferralRequest struct {
 
 func (x *CreateReferralRequest) Reset() {
 	*x = CreateReferralRequest{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[18]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1213,7 +1311,7 @@ func (x *CreateReferralRequest) String() string {
 func (*CreateReferralRequest) ProtoMessage() {}
 
 func (x *CreateReferralRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[18]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1226,7 +1324,7 @@ func (x *CreateReferralRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateReferralRequest.ProtoReflect.Descriptor instead.
 func (*CreateReferralRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{18}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CreateReferralRequest) GetUserId() int32 {
@@ -1260,7 +1358,7 @@ type CreateReferralResponse struct {
 
 func (x *CreateReferralResponse) Reset() {
 	*x = CreateReferralResponse{}
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[19]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1272,7 +1370,7 @@ func (x *CreateReferralResponse) String() string {
 func (*CreateReferralResponse) ProtoMessage() {}
 
 func (x *CreateReferralResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_user_v0_user_proto_msgTypes[19]
+	mi := &file_api_protos_user_v0_user_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1285,7 +1383,7 @@ func (x *CreateReferralResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateReferralResponse.ProtoReflect.Descriptor instead.
 func (*CreateReferralResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{19}
+	return file_api_protos_user_v0_user_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CreateReferralResponse) GetReferralCode() string {
@@ -1306,10 +1404,10 @@ var File_api_protos_user_v0_user_proto protoreflect.FileDescriptor
 
 const file_api_protos_user_v0_user_proto_rawDesc = "" +
 	"\n" +
-	"\x1dapi/protos/user/v0/user.proto\x12\x04user\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe7\x02\n" +
+	"\x1dapi/protos/user/v0/user.proto\x12\auser.v0\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdc\x03\n" +
 	"\x04User\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1b\n" +
-	"\tmaster_id\x18\x02 \x01(\x05R\bmasterId\x12\x14\n" +
+	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12#\n" +
 	"\rreferral_code\x18\x04 \x01(\tR\freferralCode\x12\x1f\n" +
 	"\vreferred_by\x18\x05 \x01(\tR\n" +
@@ -1322,7 +1420,11 @@ const file_api_protos_user_v0_user_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12#\n" +
 	"\rpassword_hash\x18\n" +
-	" \x01(\tR\fpasswordHash\"\xe0\x02\n" +
+	" \x01(\tR\fpasswordHash\x127\n" +
+	"\bmetadata\x18\v \x03(\v2\x1b.user.v0.User.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe3\x02\n" +
 	"\vUserProfile\x12\x1d\n" +
 	"\n" +
 	"first_name\x18\x01 \x01(\tR\tfirstName\x12\x1b\n" +
@@ -1332,55 +1434,54 @@ const file_api_protos_user_v0_user_proto_rawDesc = "" +
 	"avatar_url\x18\x04 \x01(\tR\tavatarUrl\x12\x10\n" +
 	"\x03bio\x18\x05 \x01(\tR\x03bio\x12\x1a\n" +
 	"\btimezone\x18\a \x01(\tR\btimezone\x12\x1a\n" +
-	"\blanguage\x18\b \x01(\tR\blanguage\x12H\n" +
-	"\rcustom_fields\x18\t \x03(\v2#.user.UserProfile.CustomFieldsEntryR\fcustomFields\x1a?\n" +
+	"\blanguage\x18\b \x01(\tR\blanguage\x12K\n" +
+	"\rcustom_fields\x18\t \x03(\v2&.user.v0.UserProfile.CustomFieldsEntryR\fcustomFields\x1a?\n" +
 	"\x11CustomFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa4\x02\n" +
-	"\x11CreateUserRequest\x12\x14\n" +
-	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x03 \x01(\tR\bpassword\x12+\n" +
-	"\aprofile\x18\x04 \x01(\v2\x11.user.UserProfileR\aprofile\x12\x14\n" +
-	"\x05roles\x18\x05 \x03(\tR\x05roles\x12A\n" +
-	"\bmetadata\x18\x06 \x03(\v2%.user.CreateUserRequest.MetadataEntryR\bmetadata\x1a;\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xaa\x02\n" +
+	"\x11CreateUserRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\x12.\n" +
+	"\aprofile\x18\x04 \x01(\v2\x14.user.v0.UserProfileR\aprofile\x12\x14\n" +
+	"\x05roles\x18\x05 \x03(\tR\x05roles\x12D\n" +
+	"\bmetadata\x18\x06 \x03(\v2(.user.v0.CreateUserRequest.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"4\n" +
-	"\x12CreateUserResponse\x12\x1e\n" +
-	"\x04user\x18\x01 \x01(\v2\n" +
-	".user.UserR\x04user\")\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"7\n" +
+	"\x12CreateUserResponse\x12!\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v0.UserR\x04user\")\n" +
 	"\x0eGetUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"1\n" +
-	"\x0fGetUserResponse\x12\x1e\n" +
-	"\x04user\x18\x01 \x01(\v2\n" +
-	".user.UserR\x04user\"v\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"4\n" +
+	"\x0fGetUserResponse\x12!\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v0.UserR\x04user\"6\n" +
+	"\x18GetUserByUsernameRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\">\n" +
+	"\x19GetUserByUsernameResponse\x12!\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v0.UserR\x04user\"y\n" +
 	"\x11UpdateUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1e\n" +
-	"\x04user\x18\x02 \x01(\v2\n" +
-	".user.UserR\x04user\x12(\n" +
-	"\x10fields_to_update\x18\x03 \x03(\tR\x0efieldsToUpdate\"4\n" +
-	"\x12UpdateUserResponse\x12\x1e\n" +
-	"\x04user\x18\x01 \x01(\v2\n" +
-	".user.UserR\x04user\"M\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
+	"\x04user\x18\x02 \x01(\v2\r.user.v0.UserR\x04user\x12(\n" +
+	"\x10fields_to_update\x18\x03 \x03(\tR\x0efieldsToUpdate\"7\n" +
+	"\x12UpdateUserResponse\x12!\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v0.UserR\x04user\"M\n" +
 	"\x11DeleteUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1f\n" +
 	"\vhard_delete\x18\x02 \x01(\bR\n" +
 	"hardDelete\".\n" +
 	"\x12DeleteUserResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xf4\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xf7\x01\n" +
 	"\x10ListUsersRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x17\n" +
 	"\asort_by\x18\x03 \x01(\tR\x06sortBy\x12\x1b\n" +
-	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12=\n" +
-	"\afilters\x18\x05 \x03(\v2#.user.ListUsersRequest.FiltersEntryR\afilters\x1a:\n" +
+	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12@\n" +
+	"\afilters\x18\x05 \x03(\v2&.user.v0.ListUsersRequest.FiltersEntryR\afilters\x1a:\n" +
 	"\fFiltersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8b\x01\n" +
-	"\x11ListUsersResponse\x12 \n" +
-	"\x05users\x18\x01 \x03(\v2\n" +
-	".user.UserR\x05users\x12\x1f\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8e\x01\n" +
+	"\x11ListUsersResponse\x12#\n" +
+	"\x05users\x18\x01 \x03(\v2\r.user.v0.UserR\x05users\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
@@ -1393,22 +1494,20 @@ const file_api_protos_user_v0_user_proto_rawDesc = "" +
 	"\x16UpdatePasswordResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x02 \x01(\x03R\tupdatedAt\"\x86\x01\n" +
+	"updated_at\x18\x02 \x01(\x03R\tupdatedAt\"\x89\x01\n" +
 	"\x14UpdateProfileRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12+\n" +
-	"\aprofile\x18\x02 \x01(\v2\x11.user.UserProfileR\aprofile\x12(\n" +
-	"\x10fields_to_update\x18\x03 \x03(\tR\x0efieldsToUpdate\"7\n" +
-	"\x15UpdateProfileResponse\x12\x1e\n" +
-	"\x04user\x18\x01 \x01(\v2\n" +
-	".user.UserR\x04user\"l\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12.\n" +
+	"\aprofile\x18\x02 \x01(\v2\x14.user.v0.UserProfileR\aprofile\x12(\n" +
+	"\x10fields_to_update\x18\x03 \x03(\tR\x0efieldsToUpdate\":\n" +
+	"\x15UpdateProfileResponse\x12!\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v0.UserR\x04user\"l\n" +
 	"\x17RegisterInterestRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1f\n" +
 	"\vdevice_hash\x18\x02 \x01(\tR\n" +
 	"deviceHash\x12\x1a\n" +
-	"\blocation\x18\x03 \x01(\tR\blocation\":\n" +
-	"\x18RegisterInterestResponse\x12\x1e\n" +
-	"\x04user\x18\x01 \x01(\v2\n" +
-	".user.UserR\x04user\"v\n" +
+	"\blocation\x18\x03 \x01(\tR\blocation\"=\n" +
+	"\x18RegisterInterestResponse\x12!\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v0.UserR\x04user\"v\n" +
 	"\x15CreateReferralRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x05R\x06userId\x12#\n" +
 	"\rcampaign_slug\x18\x02 \x01(\tR\fcampaignSlug\x12\x1f\n" +
@@ -1423,20 +1522,21 @@ const file_api_protos_user_v0_user_proto_rawDesc = "" +
 	"\x12USER_STATUS_ACTIVE\x10\x01\x12\x18\n" +
 	"\x14USER_STATUS_INACTIVE\x10\x02\x12\x19\n" +
 	"\x15USER_STATUS_SUSPENDED\x10\x03\x12\x17\n" +
-	"\x13USER_STATUS_PENDING\x10\x042\x8f\x05\n" +
-	"\vUserService\x12A\n" +
+	"\x13USER_STATUS_PENDING\x10\x042\xa3\x06\n" +
+	"\vUserService\x12G\n" +
 	"\n" +
-	"CreateUser\x12\x17.user.CreateUserRequest\x1a\x18.user.CreateUserResponse\"\x00\x128\n" +
-	"\aGetUser\x12\x14.user.GetUserRequest\x1a\x15.user.GetUserResponse\"\x00\x12A\n" +
+	"CreateUser\x12\x1a.user.v0.CreateUserRequest\x1a\x1b.user.v0.CreateUserResponse\"\x00\x12>\n" +
+	"\aGetUser\x12\x17.user.v0.GetUserRequest\x1a\x18.user.v0.GetUserResponse\"\x00\x12\\\n" +
+	"\x11GetUserByUsername\x12!.user.v0.GetUserByUsernameRequest\x1a\".user.v0.GetUserByUsernameResponse\"\x00\x12G\n" +
 	"\n" +
-	"UpdateUser\x12\x17.user.UpdateUserRequest\x1a\x18.user.UpdateUserResponse\"\x00\x12A\n" +
+	"UpdateUser\x12\x1a.user.v0.UpdateUserRequest\x1a\x1b.user.v0.UpdateUserResponse\"\x00\x12G\n" +
 	"\n" +
-	"DeleteUser\x12\x17.user.DeleteUserRequest\x1a\x18.user.DeleteUserResponse\"\x00\x12>\n" +
-	"\tListUsers\x12\x16.user.ListUsersRequest\x1a\x17.user.ListUsersResponse\"\x00\x12M\n" +
-	"\x0eUpdatePassword\x12\x1b.user.UpdatePasswordRequest\x1a\x1c.user.UpdatePasswordResponse\"\x00\x12J\n" +
-	"\rUpdateProfile\x12\x1a.user.UpdateProfileRequest\x1a\x1b.user.UpdateProfileResponse\"\x00\x12S\n" +
-	"\x10RegisterInterest\x12\x1d.user.RegisterInterestRequest\x1a\x1e.user.RegisterInterestResponse\"\x00\x12M\n" +
-	"\x0eCreateReferral\x12\x1b.user.CreateReferralRequest\x1a\x1c.user.CreateReferralResponse\"\x00B2Z0github.com/nmxmxh/master-ovasabi/api/protos/userb\x06proto3"
+	"DeleteUser\x12\x1a.user.v0.DeleteUserRequest\x1a\x1b.user.v0.DeleteUserResponse\"\x00\x12D\n" +
+	"\tListUsers\x12\x19.user.v0.ListUsersRequest\x1a\x1a.user.v0.ListUsersResponse\"\x00\x12S\n" +
+	"\x0eUpdatePassword\x12\x1e.user.v0.UpdatePasswordRequest\x1a\x1f.user.v0.UpdatePasswordResponse\"\x00\x12P\n" +
+	"\rUpdateProfile\x12\x1d.user.v0.UpdateProfileRequest\x1a\x1e.user.v0.UpdateProfileResponse\"\x00\x12Y\n" +
+	"\x10RegisterInterest\x12 .user.v0.RegisterInterestRequest\x1a!.user.v0.RegisterInterestResponse\"\x00\x12S\n" +
+	"\x0eCreateReferral\x12\x1e.user.v0.CreateReferralRequest\x1a\x1f.user.v0.CreateReferralResponse\"\x00B*Z(master-ovasabi/api/protos/user/v0;userv0b\x06proto3"
 
 var (
 	file_api_protos_user_v0_user_proto_rawDescOnce sync.Once
@@ -1451,72 +1551,79 @@ func file_api_protos_user_v0_user_proto_rawDescGZIP() []byte {
 }
 
 var file_api_protos_user_v0_user_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_protos_user_v0_user_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_api_protos_user_v0_user_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_api_protos_user_v0_user_proto_goTypes = []any{
-	(UserStatus)(0),                  // 0: user.UserStatus
-	(*User)(nil),                     // 1: user.User
-	(*UserProfile)(nil),              // 2: user.UserProfile
-	(*CreateUserRequest)(nil),        // 3: user.CreateUserRequest
-	(*CreateUserResponse)(nil),       // 4: user.CreateUserResponse
-	(*GetUserRequest)(nil),           // 5: user.GetUserRequest
-	(*GetUserResponse)(nil),          // 6: user.GetUserResponse
-	(*UpdateUserRequest)(nil),        // 7: user.UpdateUserRequest
-	(*UpdateUserResponse)(nil),       // 8: user.UpdateUserResponse
-	(*DeleteUserRequest)(nil),        // 9: user.DeleteUserRequest
-	(*DeleteUserResponse)(nil),       // 10: user.DeleteUserResponse
-	(*ListUsersRequest)(nil),         // 11: user.ListUsersRequest
-	(*ListUsersResponse)(nil),        // 12: user.ListUsersResponse
-	(*UpdatePasswordRequest)(nil),    // 13: user.UpdatePasswordRequest
-	(*UpdatePasswordResponse)(nil),   // 14: user.UpdatePasswordResponse
-	(*UpdateProfileRequest)(nil),     // 15: user.UpdateProfileRequest
-	(*UpdateProfileResponse)(nil),    // 16: user.UpdateProfileResponse
-	(*RegisterInterestRequest)(nil),  // 17: user.RegisterInterestRequest
-	(*RegisterInterestResponse)(nil), // 18: user.RegisterInterestResponse
-	(*CreateReferralRequest)(nil),    // 19: user.CreateReferralRequest
-	(*CreateReferralResponse)(nil),   // 20: user.CreateReferralResponse
-	nil,                              // 21: user.UserProfile.CustomFieldsEntry
-	nil,                              // 22: user.CreateUserRequest.MetadataEntry
-	nil,                              // 23: user.ListUsersRequest.FiltersEntry
-	(*timestamppb.Timestamp)(nil),    // 24: google.protobuf.Timestamp
+	(UserStatus)(0),                   // 0: user.v0.UserStatus
+	(*User)(nil),                      // 1: user.v0.User
+	(*UserProfile)(nil),               // 2: user.v0.UserProfile
+	(*CreateUserRequest)(nil),         // 3: user.v0.CreateUserRequest
+	(*CreateUserResponse)(nil),        // 4: user.v0.CreateUserResponse
+	(*GetUserRequest)(nil),            // 5: user.v0.GetUserRequest
+	(*GetUserResponse)(nil),           // 6: user.v0.GetUserResponse
+	(*GetUserByUsernameRequest)(nil),  // 7: user.v0.GetUserByUsernameRequest
+	(*GetUserByUsernameResponse)(nil), // 8: user.v0.GetUserByUsernameResponse
+	(*UpdateUserRequest)(nil),         // 9: user.v0.UpdateUserRequest
+	(*UpdateUserResponse)(nil),        // 10: user.v0.UpdateUserResponse
+	(*DeleteUserRequest)(nil),         // 11: user.v0.DeleteUserRequest
+	(*DeleteUserResponse)(nil),        // 12: user.v0.DeleteUserResponse
+	(*ListUsersRequest)(nil),          // 13: user.v0.ListUsersRequest
+	(*ListUsersResponse)(nil),         // 14: user.v0.ListUsersResponse
+	(*UpdatePasswordRequest)(nil),     // 15: user.v0.UpdatePasswordRequest
+	(*UpdatePasswordResponse)(nil),    // 16: user.v0.UpdatePasswordResponse
+	(*UpdateProfileRequest)(nil),      // 17: user.v0.UpdateProfileRequest
+	(*UpdateProfileResponse)(nil),     // 18: user.v0.UpdateProfileResponse
+	(*RegisterInterestRequest)(nil),   // 19: user.v0.RegisterInterestRequest
+	(*RegisterInterestResponse)(nil),  // 20: user.v0.RegisterInterestResponse
+	(*CreateReferralRequest)(nil),     // 21: user.v0.CreateReferralRequest
+	(*CreateReferralResponse)(nil),    // 22: user.v0.CreateReferralResponse
+	nil,                               // 23: user.v0.User.MetadataEntry
+	nil,                               // 24: user.v0.UserProfile.CustomFieldsEntry
+	nil,                               // 25: user.v0.CreateUserRequest.MetadataEntry
+	nil,                               // 26: user.v0.ListUsersRequest.FiltersEntry
+	(*timestamppb.Timestamp)(nil),     // 27: google.protobuf.Timestamp
 }
 var file_api_protos_user_v0_user_proto_depIdxs = []int32{
-	24, // 0: user.User.created_at:type_name -> google.protobuf.Timestamp
-	24, // 1: user.User.updated_at:type_name -> google.protobuf.Timestamp
-	21, // 2: user.UserProfile.custom_fields:type_name -> user.UserProfile.CustomFieldsEntry
-	2,  // 3: user.CreateUserRequest.profile:type_name -> user.UserProfile
-	22, // 4: user.CreateUserRequest.metadata:type_name -> user.CreateUserRequest.MetadataEntry
-	1,  // 5: user.CreateUserResponse.user:type_name -> user.User
-	1,  // 6: user.GetUserResponse.user:type_name -> user.User
-	1,  // 7: user.UpdateUserRequest.user:type_name -> user.User
-	1,  // 8: user.UpdateUserResponse.user:type_name -> user.User
-	23, // 9: user.ListUsersRequest.filters:type_name -> user.ListUsersRequest.FiltersEntry
-	1,  // 10: user.ListUsersResponse.users:type_name -> user.User
-	2,  // 11: user.UpdateProfileRequest.profile:type_name -> user.UserProfile
-	1,  // 12: user.UpdateProfileResponse.user:type_name -> user.User
-	1,  // 13: user.RegisterInterestResponse.user:type_name -> user.User
-	3,  // 14: user.UserService.CreateUser:input_type -> user.CreateUserRequest
-	5,  // 15: user.UserService.GetUser:input_type -> user.GetUserRequest
-	7,  // 16: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
-	9,  // 17: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
-	11, // 18: user.UserService.ListUsers:input_type -> user.ListUsersRequest
-	13, // 19: user.UserService.UpdatePassword:input_type -> user.UpdatePasswordRequest
-	15, // 20: user.UserService.UpdateProfile:input_type -> user.UpdateProfileRequest
-	17, // 21: user.UserService.RegisterInterest:input_type -> user.RegisterInterestRequest
-	19, // 22: user.UserService.CreateReferral:input_type -> user.CreateReferralRequest
-	4,  // 23: user.UserService.CreateUser:output_type -> user.CreateUserResponse
-	6,  // 24: user.UserService.GetUser:output_type -> user.GetUserResponse
-	8,  // 25: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
-	10, // 26: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
-	12, // 27: user.UserService.ListUsers:output_type -> user.ListUsersResponse
-	14, // 28: user.UserService.UpdatePassword:output_type -> user.UpdatePasswordResponse
-	16, // 29: user.UserService.UpdateProfile:output_type -> user.UpdateProfileResponse
-	18, // 30: user.UserService.RegisterInterest:output_type -> user.RegisterInterestResponse
-	20, // 31: user.UserService.CreateReferral:output_type -> user.CreateReferralResponse
-	23, // [23:32] is the sub-list for method output_type
-	14, // [14:23] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	27, // 0: user.v0.User.created_at:type_name -> google.protobuf.Timestamp
+	27, // 1: user.v0.User.updated_at:type_name -> google.protobuf.Timestamp
+	23, // 2: user.v0.User.metadata:type_name -> user.v0.User.MetadataEntry
+	24, // 3: user.v0.UserProfile.custom_fields:type_name -> user.v0.UserProfile.CustomFieldsEntry
+	2,  // 4: user.v0.CreateUserRequest.profile:type_name -> user.v0.UserProfile
+	25, // 5: user.v0.CreateUserRequest.metadata:type_name -> user.v0.CreateUserRequest.MetadataEntry
+	1,  // 6: user.v0.CreateUserResponse.user:type_name -> user.v0.User
+	1,  // 7: user.v0.GetUserResponse.user:type_name -> user.v0.User
+	1,  // 8: user.v0.GetUserByUsernameResponse.user:type_name -> user.v0.User
+	1,  // 9: user.v0.UpdateUserRequest.user:type_name -> user.v0.User
+	1,  // 10: user.v0.UpdateUserResponse.user:type_name -> user.v0.User
+	26, // 11: user.v0.ListUsersRequest.filters:type_name -> user.v0.ListUsersRequest.FiltersEntry
+	1,  // 12: user.v0.ListUsersResponse.users:type_name -> user.v0.User
+	2,  // 13: user.v0.UpdateProfileRequest.profile:type_name -> user.v0.UserProfile
+	1,  // 14: user.v0.UpdateProfileResponse.user:type_name -> user.v0.User
+	1,  // 15: user.v0.RegisterInterestResponse.user:type_name -> user.v0.User
+	3,  // 16: user.v0.UserService.CreateUser:input_type -> user.v0.CreateUserRequest
+	5,  // 17: user.v0.UserService.GetUser:input_type -> user.v0.GetUserRequest
+	7,  // 18: user.v0.UserService.GetUserByUsername:input_type -> user.v0.GetUserByUsernameRequest
+	9,  // 19: user.v0.UserService.UpdateUser:input_type -> user.v0.UpdateUserRequest
+	11, // 20: user.v0.UserService.DeleteUser:input_type -> user.v0.DeleteUserRequest
+	13, // 21: user.v0.UserService.ListUsers:input_type -> user.v0.ListUsersRequest
+	15, // 22: user.v0.UserService.UpdatePassword:input_type -> user.v0.UpdatePasswordRequest
+	17, // 23: user.v0.UserService.UpdateProfile:input_type -> user.v0.UpdateProfileRequest
+	19, // 24: user.v0.UserService.RegisterInterest:input_type -> user.v0.RegisterInterestRequest
+	21, // 25: user.v0.UserService.CreateReferral:input_type -> user.v0.CreateReferralRequest
+	4,  // 26: user.v0.UserService.CreateUser:output_type -> user.v0.CreateUserResponse
+	6,  // 27: user.v0.UserService.GetUser:output_type -> user.v0.GetUserResponse
+	8,  // 28: user.v0.UserService.GetUserByUsername:output_type -> user.v0.GetUserByUsernameResponse
+	10, // 29: user.v0.UserService.UpdateUser:output_type -> user.v0.UpdateUserResponse
+	12, // 30: user.v0.UserService.DeleteUser:output_type -> user.v0.DeleteUserResponse
+	14, // 31: user.v0.UserService.ListUsers:output_type -> user.v0.ListUsersResponse
+	16, // 32: user.v0.UserService.UpdatePassword:output_type -> user.v0.UpdatePasswordResponse
+	18, // 33: user.v0.UserService.UpdateProfile:output_type -> user.v0.UpdateProfileResponse
+	20, // 34: user.v0.UserService.RegisterInterest:output_type -> user.v0.RegisterInterestResponse
+	22, // 35: user.v0.UserService.CreateReferral:output_type -> user.v0.CreateReferralResponse
+	26, // [26:36] is the sub-list for method output_type
+	16, // [16:26] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_api_protos_user_v0_user_proto_init() }
@@ -1530,7 +1637,7 @@ func file_api_protos_user_v0_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_protos_user_v0_user_proto_rawDesc), len(file_api_protos_user_v0_user_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   23,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

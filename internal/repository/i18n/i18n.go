@@ -44,10 +44,16 @@ func NewRepository(db *sql.DB, masterRepo repository.MasterRepository) *Reposito
 
 // Create inserts a new translation record
 func (r *Repository) Create(ctx context.Context, translation *Translation) (*Translation, error) {
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeI18n)
+	// Generate a descriptive name for the master record
+	masterName := r.GenerateMasterName(repository.EntityTypeI18n,
+		translation.Key,
+		translation.Locale)
+
+	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeI18n, masterName)
 	if err != nil {
 		return nil, err
 	}
+
 	translation.MasterID = masterID
 	err = r.GetDB().QueryRowContext(ctx,
 		`INSERT INTO service_i18n (master_id, key, locale, value, description, tags, created_at, updated_at)
@@ -55,9 +61,12 @@ func (r *Repository) Create(ctx context.Context, translation *Translation) (*Tra
 		 RETURNING id, created_at, updated_at`,
 		translation.MasterID, translation.Key, translation.Locale, translation.Value, translation.Description, translation.Tags,
 	).Scan(&translation.ID, &translation.CreatedAt, &translation.UpdatedAt)
+
 	if err != nil {
+		_ = r.masterRepo.Delete(ctx, masterID)
 		return nil, err
 	}
+
 	return translation, nil
 }
 

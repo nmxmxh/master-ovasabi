@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -74,7 +75,13 @@ func NewNotificationRepository(db *sql.DB, masterRepo repository.MasterRepositor
 
 // Create inserts a new notification record
 func (r *NotificationRepository) Create(ctx context.Context, notification *Notification) (*Notification, error) {
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeNotification)
+	// Generate a descriptive name for the master record
+	masterName := r.GenerateMasterName(repository.EntityTypeNotification,
+		notification.Title,
+		string(notification.Type),
+		fmt.Sprintf("user-%d", notification.UserID))
+
+	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeNotification, masterName)
 	if err != nil {
 		return nil, err
 	}

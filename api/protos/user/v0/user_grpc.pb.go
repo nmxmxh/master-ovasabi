@@ -4,7 +4,7 @@
 // - protoc             v5.29.2
 // source: api/protos/user/v0/user.proto
 
-package user
+package userv0
 
 import (
 	context "context"
@@ -19,15 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	UserService_CreateUser_FullMethodName       = "/user.UserService/CreateUser"
-	UserService_GetUser_FullMethodName          = "/user.UserService/GetUser"
-	UserService_UpdateUser_FullMethodName       = "/user.UserService/UpdateUser"
-	UserService_DeleteUser_FullMethodName       = "/user.UserService/DeleteUser"
-	UserService_ListUsers_FullMethodName        = "/user.UserService/ListUsers"
-	UserService_UpdatePassword_FullMethodName   = "/user.UserService/UpdatePassword"
-	UserService_UpdateProfile_FullMethodName    = "/user.UserService/UpdateProfile"
-	UserService_RegisterInterest_FullMethodName = "/user.UserService/RegisterInterest"
-	UserService_CreateReferral_FullMethodName   = "/user.UserService/CreateReferral"
+	UserService_CreateUser_FullMethodName        = "/user.v0.UserService/CreateUser"
+	UserService_GetUser_FullMethodName           = "/user.v0.UserService/GetUser"
+	UserService_GetUserByUsername_FullMethodName = "/user.v0.UserService/GetUserByUsername"
+	UserService_UpdateUser_FullMethodName        = "/user.v0.UserService/UpdateUser"
+	UserService_DeleteUser_FullMethodName        = "/user.v0.UserService/DeleteUser"
+	UserService_ListUsers_FullMethodName         = "/user.v0.UserService/ListUsers"
+	UserService_UpdatePassword_FullMethodName    = "/user.v0.UserService/UpdatePassword"
+	UserService_UpdateProfile_FullMethodName     = "/user.v0.UserService/UpdateProfile"
+	UserService_RegisterInterest_FullMethodName  = "/user.v0.UserService/RegisterInterest"
+	UserService_CreateReferral_FullMethodName    = "/user.v0.UserService/CreateReferral"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -38,6 +39,8 @@ type UserServiceClient interface {
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*CreateUserResponse, error)
 	// GetUser retrieves user information
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	// GetUserByUsername retrieves user information by username
+	GetUserByUsername(ctx context.Context, in *GetUserByUsernameRequest, opts ...grpc.CallOption) (*GetUserByUsernameResponse, error)
 	// UpdateUser updates user information
 	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*UpdateUserResponse, error)
 	// DeleteUser deletes a user
@@ -74,6 +77,15 @@ func (c *userServiceClient) CreateUser(ctx context.Context, in *CreateUserReques
 func (c *userServiceClient) GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error) {
 	out := new(GetUserResponse)
 	err := c.cc.Invoke(ctx, UserService_GetUser_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetUserByUsername(ctx context.Context, in *GetUserByUsernameRequest, opts ...grpc.CallOption) (*GetUserByUsernameResponse, error) {
+	out := new(GetUserByUsernameResponse)
+	err := c.cc.Invoke(ctx, UserService_GetUserByUsername_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +163,8 @@ type UserServiceServer interface {
 	CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error)
 	// GetUser retrieves user information
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
+	// GetUserByUsername retrieves user information by username
+	GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*GetUserByUsernameResponse, error)
 	// UpdateUser updates user information
 	UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error)
 	// DeleteUser deletes a user
@@ -177,6 +191,9 @@ func (UnimplementedUserServiceServer) CreateUser(context.Context, *CreateUserReq
 }
 func (UnimplementedUserServiceServer) GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
+}
+func (UnimplementedUserServiceServer) GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*GetUserByUsernameResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserByUsername not implemented")
 }
 func (UnimplementedUserServiceServer) UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
@@ -244,6 +261,24 @@ func _UserService_GetUser_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).GetUser(ctx, req.(*GetUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetUserByUsername_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserByUsernameRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetUserByUsername(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetUserByUsername_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetUserByUsername(ctx, req.(*GetUserByUsernameRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -378,7 +413,7 @@ func _UserService_CreateReferral_Handler(srv interface{}, ctx context.Context, d
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var UserService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "user.UserService",
+	ServiceName: "user.v0.UserService",
 	HandlerType: (*UserServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -388,6 +423,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUser",
 			Handler:    _UserService_GetUser_Handler,
+		},
+		{
+			MethodName: "GetUserByUsername",
+			Handler:    _UserService_GetUserByUsername_Handler,
 		},
 		{
 			MethodName: "UpdateUser",

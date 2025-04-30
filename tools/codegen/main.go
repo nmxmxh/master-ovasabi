@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +22,54 @@ type MethodConfig struct {
 	Reply   string
 }
 
-func generateFile(path, tmpl string, config ServiceConfig) error {
+// CodeGenerator handles code generation for services
+type CodeGenerator struct {
+	outputDir string
+	templates map[string]string
+}
+
+// NewCodeGenerator creates a new code generator instance
+func NewCodeGenerator(outputDir string) *CodeGenerator {
+	return &CodeGenerator{
+		outputDir: outputDir,
+		templates: map[string]string{
+			"service":    serviceTemplate,
+			"repository": repositoryTemplate,
+			"handler":    handlerTemplate,
+		},
+	}
+}
+
+// GenerateService generates all the files for a service
+func (g *CodeGenerator) GenerateService(config ServiceConfig) error {
+	// Create service directory
+	serviceDir := filepath.Join(g.outputDir, strings.ToLower(config.ServiceName))
+	if err := os.MkdirAll(serviceDir, 0755); err != nil {
+		return fmt.Errorf("failed to create service directory: %w", err)
+	}
+
+	// Generate each component
+	components := map[string]string{
+		"service.go":    "service",
+		"repository.go": "repository",
+		"handler.go":    "handler",
+	}
+
+	for filename, templateName := range components {
+		if err := g.generateFile(
+			filepath.Join(serviceDir, filename),
+			g.templates[templateName],
+			config,
+		); err != nil {
+			return fmt.Errorf("failed to generate %s: %w", filename, err)
+		}
+	}
+
+	return nil
+}
+
+// generateFile generates a single file using the provided template and config
+func (g *CodeGenerator) generateFile(path, tmpl string, config ServiceConfig) error {
 	t, err := template.New("").Parse(tmpl)
 	if err != nil {
 		return fmt.Errorf("error parsing template: %w", err)
@@ -45,52 +93,76 @@ func generateFile(path, tmpl string, config ServiceConfig) error {
 }
 
 func main() {
-	var (
-		packageName = flag.String("package", "", "Package name for generated code")
-		serviceName = flag.String("service", "", "Service name")
-		outputDir   = flag.String("output", ".", "Output directory")
-	)
+	// Parse command line flags
+	outputDir := flag.String("output", "internal/service", "Output directory for generated code")
+	serviceName := flag.String("service", "", "Name of the service to generate")
+	packageName := flag.String("package", "", "Package name for the generated code")
 	flag.Parse()
 
-	if *packageName == "" || *serviceName == "" {
-		fmt.Println("Usage: codegen -package <package> -service <service> [-output <dir>]")
-		os.Exit(1)
+	if *serviceName == "" {
+		log.Fatal("Service name is required")
 	}
 
-	config := ServiceConfig{
-		PackageName: *packageName,
-		ServiceName: *serviceName,
-		Methods: []MethodConfig{
-			{Name: "Create", Request: "CreateRequest", Reply: "CreateResponse"},
-			{Name: "Get", Request: "GetRequest", Reply: "GetResponse"},
-			{Name: "List", Request: "ListRequest", Reply: "ListResponse"},
-			{Name: "Update", Request: "UpdateRequest", Reply: "UpdateResponse"},
-			{Name: "Delete", Request: "DeleteRequest", Reply: "DeleteResponse"},
-		},
+	if *packageName == "" {
+		*packageName = strings.ToLower(*serviceName)
+	}
+
+	// Create absolute path for output directory
+	outAbs, err := filepath.Abs(*outputDir)
+	if err != nil {
+		log.Fatalf("Failed to get absolute path for output directory: %v", err)
 	}
 
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(*outputDir, 0o755); err != nil {
-		fmt.Printf("Error creating output directory: %v\n", err)
-		os.Exit(1)
+	if err := os.MkdirAll(outAbs, 0755); err != nil {
+		log.Fatalf("Failed to create output directory: %v", err)
 	}
 
-	// Generate files
-	files := []struct {
-		path string
-		tmpl string
-	}{
-		{filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_service.go"), serviceTemplate},
-		{filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_repository.go"), repositoryTemplate},
-		{filepath.Join(*outputDir, strings.ToLower(*serviceName)+"_handler.go"), handlerTemplate},
+	// Example method configurations
+	methods := []MethodConfig{
+		{
+			Name:    "Create",
+			Request: "CreateRequest",
+			Reply:   "CreateResponse",
+		},
+		{
+			Name:    "Get",
+			Request: "GetRequest",
+			Reply:   "GetResponse",
+		},
+		{
+			Name:    "Update",
+			Request: "UpdateRequest",
+			Reply:   "UpdateResponse",
+		},
+		{
+			Name:    "Delete",
+			Request: "DeleteRequest",
+			Reply:   "DeleteResponse",
+		},
+		{
+			Name:    "List",
+			Request: "ListRequest",
+			Reply:   "ListResponse",
+		},
 	}
 
-	for _, file := range files {
-		if err := generateFile(file.path, file.tmpl, config); err != nil {
-			fmt.Printf("Error generating %s: %v\n", file.path, err)
-			os.Exit(1)
-		}
+	// Create service configuration
+	config := ServiceConfig{
+		PackageName: *packageName,
+		ServiceName: *serviceName,
+		Methods:     methods,
 	}
+
+	// Create code generator
+	generator := NewCodeGenerator(outAbs)
+
+	// Generate service code
+	if err := generator.GenerateService(config); err != nil {
+		log.Fatalf("Failed to generate service code: %v", err)
+	}
+
+	log.Printf("Service code generated successfully in %s", outAbs)
 }
 
 const serviceTemplate = `package {{.PackageName}}

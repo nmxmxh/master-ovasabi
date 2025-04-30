@@ -26,20 +26,18 @@ var (
 // Service implements the CampaignService gRPC interface
 type Service struct {
 	campaignpb.UnimplementedCampaignServiceServer
-	log   *zap.Logger
-	db    *sql.DB
-	repo  *campaignrepo.Repository
-	cache *redis.Cache
+	log        *zap.Logger
+	db         *sql.DB
+	masterRepo repository.MasterRepository
+	repo       *campaignrepo.Repository
+	cache      *redis.Cache
 }
 
-func NewCampaignService(log *zap.Logger, db *sql.DB, cache *redis.Cache) campaignpb.CampaignServiceServer {
-	masterRepo := repository.NewMasterRepository(db)
-	repo := campaignrepo.NewRepository(db, masterRepo)
+func NewService(db *sql.DB, log *zap.Logger) *Service {
 	return &Service{
-		log:   log.With(zap.String("service", "campaign")),
-		db:    db,
-		repo:  repo,
-		cache: cache,
+		db:         db,
+		log:        log,
+		masterRepo: repository.NewMasterRepository(db, log),
 	}
 }
 

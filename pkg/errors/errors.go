@@ -34,3 +34,16 @@ var (
 	// ErrFactoryFailed is returned when the factory fails to create an instance.
 	ErrFactoryFailed = errors.New("factory failed to create instance")
 )
+
+// New creates a new error with the given message
+func New(msg string) error {
+	return errors.New(msg)
+}
+
+// Wrap wraps an error with additional context
+func Wrap(err error, msg string) error {
+	if err == nil {
+		return nil
+	}
+	return errors.New(msg + ": " + err.Error())
+}

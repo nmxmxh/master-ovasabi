@@ -9,35 +9,52 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// Logger is the interface for logging
+type Logger interface {
+	Info(msg string, fields ...zapcore.Field)
+	Error(msg string, fields ...zapcore.Field)
+	Debug(msg string, fields ...zapcore.Field)
+	Warn(msg string, fields ...zapcore.Field)
+	Sync() error
+	With(fields ...zapcore.Field) Logger
+	GetZapLogger() *zap.Logger
+}
+
+// Config holds the configuration for the logger
 type Config struct {
-	Environment string
-	LogLevel    string
+	Environment string // "production" or "development"
+	LogLevel    string // "debug", "info", "warn", "error", "dpanic", "panic", "fatal"
 	ServiceName string
 }
 
-type Logger struct {
+type logger struct {
 	zapLogger *zap.Logger
 }
 
-// New initializes a new Logger based on config.
-func New(cfg Config) (*Logger, error) {
+// DefaultConfig returns a default configuration for the logger
+func DefaultConfig() Config {
+	return Config{
+		Environment: "development",
+		LogLevel:    "info",
+		ServiceName: "service",
+	}
+}
+
+// New creates a new logger instance with the given configuration
+func New(cfg Config) (Logger, error) {
 	var zapCfg zap.Config
 
 	if strings.EqualFold(cfg.Environment, "production") {
 		zapCfg = zap.NewProductionConfig()
 	} else {
 		zapCfg = zap.NewDevelopmentConfig()
-
-		// Make logs more human-readable in development
 		zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		zapCfg.Encoding = "console" // important: not JSON, just nice console
+		zapCfg.Encoding = "console"
 	}
 
-	// Set log level
 	level := parseLogLevel(cfg.LogLevel)
 	zapCfg.Level = zap.NewAtomicLevelAt(level)
 
-	// Add service name as a field
 	zapCfg.InitialFields = map[string]interface{}{
 		"service": cfg.ServiceName,
 	}
@@ -47,23 +64,44 @@ func New(cfg Config) (*Logger, error) {
 		return nil, fmt.Errorf("failed to build logger: %w", err)
 	}
 
-	return &Logger{
+	return &logger{
 		zapLogger: zapLogger,
 	}, nil
 }
 
-// Logger returns the underlying *zap.Logger.
-func (l *Logger) Logger() *zap.Logger {
-	return l.zapLogger
+// NewDefault creates a new logger instance with default configuration
+func NewDefault() (Logger, error) {
+	return New(DefaultConfig())
 }
 
-// Sync flushes any buffered logs.
-func (l *Logger) Sync() {
-	if err := l.zapLogger.Sync(); err != nil {
-		// Use the logger itself to report sync errors
-		l.zapLogger.Warn("failed to sync logger",
-			zap.Error(err))
+func (l *logger) Info(msg string, fields ...zapcore.Field) {
+	l.zapLogger.Info(msg, fields...)
+}
+
+func (l *logger) Error(msg string, fields ...zapcore.Field) {
+	l.zapLogger.Error(msg, fields...)
+}
+
+func (l *logger) Debug(msg string, fields ...zapcore.Field) {
+	l.zapLogger.Debug(msg, fields...)
+}
+
+func (l *logger) Warn(msg string, fields ...zapcore.Field) {
+	l.zapLogger.Warn(msg, fields...)
+}
+
+func (l *logger) Sync() error {
+	return l.zapLogger.Sync()
+}
+
+func (l *logger) With(fields ...zapcore.Field) Logger {
+	return &logger{
+		zapLogger: l.zapLogger.With(fields...),
 	}
+}
+
+func (l *logger) GetZapLogger() *zap.Logger {
+	return l.zapLogger
 }
 
 func parseLogLevel(levelStr string) zapcore.Level {
