@@ -9,6 +9,7 @@ import (
 	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
 	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v0"
 	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
+	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v0"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
 	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
@@ -27,6 +28,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service/broadcast"
 	financeservice "github.com/nmxmxh/master-ovasabi/internal/service/finance"
 	"github.com/nmxmxh/master-ovasabi/internal/service/i18n"
+	"github.com/nmxmxh/master-ovasabi/internal/service/nexus"
 	"github.com/nmxmxh/master-ovasabi/internal/service/notification"
 	quotesservice "github.com/nmxmxh/master-ovasabi/internal/service/quotes"
 	referralservice "github.com/nmxmxh/master-ovasabi/internal/service/referral"
@@ -53,6 +55,7 @@ type Provider struct {
 	referralService     referralpb.ReferralServiceServer
 	assetService        assetpb.AssetServiceServer
 	financeService      financepb.FinanceServiceServer
+	nexusService        nexuspb.NexusServiceServer
 }
 
 // NewProvider creates a new service provider.
@@ -132,6 +135,13 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisConfig redis.Config) (*Provid
 	redisProvider.RegisterCache("finance", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextFinance,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
+	})
+	redisProvider.RegisterCache("nexus", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   redis.ContextNexus,
 		Addr:      redisAddr,
 		Password:  redisConfig.Password,
 		DB:        redisConfig.DB,
@@ -292,6 +302,36 @@ func (p *Provider) registerServices() error {
 		return err
 	}
 
+	p.log.Info("Registering NexusService")
+	if err := p.container.Register((*nexuspb.NexusServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		// Get required services
+		var userSvc userpb.UserServiceServer
+		if err := p.container.Resolve(&userSvc); err != nil {
+			return nil, fmt.Errorf("failed to resolve UserService for NexusService: %w", err)
+		}
+
+		var assetSvc assetpb.AssetServiceServer
+		if err := p.container.Resolve(&assetSvc); err != nil {
+			return nil, fmt.Errorf("failed to resolve AssetService for NexusService: %w", err)
+		}
+
+		var notifySvc notificationpb.NotificationServiceServer
+		if err := p.container.Resolve(&notifySvc); err != nil {
+			return nil, fmt.Errorf("failed to resolve NotificationService for NexusService: %w", err)
+		}
+
+		// Get Nexus cache
+		cache, err := p.redisProvider.GetCache("nexus")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get nexus cache: %w", err)
+		}
+
+		return nexus.NewService(p.log, cache, userSvc, assetSvc, notifySvc), nil
+	}); err != nil {
+		p.log.Error("Failed to register NexusService", zap.Error(err))
+		return err
+	}
+
 	return nil
 }
 
@@ -394,4 +434,14 @@ func (p *Provider) Finance() financepb.FinanceServiceServer {
 		}
 	}
 	return p.financeService
+}
+
+// Nexus returns the NexusServiceServer instance.
+func (p *Provider) Nexus() nexuspb.NexusServiceServer {
+	if p.nexusService == nil {
+		if err := p.container.MustResolve(&p.nexusService); err != nil {
+			p.log.Fatal("Failed to resolve nexus service", zap.Error(err))
+		}
+	}
+	return p.nexusService
 }

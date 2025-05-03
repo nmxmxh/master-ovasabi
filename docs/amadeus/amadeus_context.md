@@ -41,8 +41,9 @@ The knowledge graph is structured with these main sections:
 - `redis_practices`: Redis usage patterns and data structures
 - `amadeus_integration`: Self-description of the knowledge graph system
 
-For advanced configuration and implementation details, see
-[`super_knowledge_graph.json`](../amadeus/super_knowledge_graph.json).
+For advanced configuration and implementation details, see the
+[Super Knowledge Graph Configuration](super_knowledge_graph.md) and
+[Implementation Guide](implementation_guide.md).
 
 ## Service Implementation Pattern
 
@@ -218,6 +219,7 @@ accurate and valuable:
    - Automatic backup creation before major changes
 
 5. **Neural-Symbolic Integration**
+
    - Continuous learning from system behavior
    - Pattern recognition for new relationships
    - Automated suggestion of graph improvements
@@ -277,8 +279,7 @@ accurate and valuable:
    - Point-in-time recovery capability
 
 For detailed implementation of advanced querying, perspective-aware AI systems, and language model
-integration, refer to the [`super_knowledge_graph.json`](../amadeus/super_knowledge_graph.json)
-configuration.
+integration, refer to the [Super Knowledge Graph Configuration](super_knowledge_graph.md).
 
 ## References
 

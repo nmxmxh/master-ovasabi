@@ -13,18 +13,20 @@ services:
       - '8080:8080'
       - '50051:50051'
     environment:
+      APP_ENV: '${APP_ENV:-development}'
+      APP_NAME: '${APP_NAME:-master-ovasabi}'
       ENVIRONMENT: development
       LOG_LEVEL: debug
       CONFIG_PATH: /app/config/config.yaml
       DB_HOST: postgres
+      DB_PORT: '${DB_PORT:-5432}'
       DB_USER: '${DB_USER:-postgres}'
       DB_PASSWORD: '${DB_PASSWORD:-postgres}'
       DB_NAME: '${DB_NAME:-master_ovasabi}'
       REDIS_HOST: '${REDIS_HOST:-redis}'
       REDIS_PORT: '${REDIS_PORT:-6379}'
-      KG_UPDATE_CHANNEL: 'kg:updates'
-      KG_VALIDATION_QUEUE: 'kg:validation'
-      KG_BACKUP_PREFIX: 'kg:backup:'
+      ADMIN_USER: '${ADMIN_USER:-okhai}'
+      ADMIN_PASSWORD: '${ADMIN_PASSWORD:-@Osiano1995}'
     volumes:
       - ../../config:/app/config:ro
     depends_on:
@@ -32,44 +34,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-      kg-service:
-        condition: service_healthy
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:50051']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - ovasabi-network
-    env_file:
-      - ../../.env
-
-  kg-service:
-    build:
-      context: ../..
-      dockerfile: deployments/docker/Dockerfile.kg
-    ports:
-      - '8081:8081'
-      - '9091:9091'
-    environment:
-      ENVIRONMENT: '${ENVIRONMENT:-development}'
-      LOG_LEVEL: '${LOG_LEVEL:-debug}'
-      CONFIG_PATH: /config/kg-config.yaml
-      REDIS_HOST: '${REDIS_HOST:-redis}'
-      REDIS_PORT: '${REDIS_PORT:-6379}'
-      REDIS_PASSWORD: '${REDIS_PASSWORD:-@Osiano1995}'
-      KG_UPDATE_CHANNEL: 'kg:updates'
-      KG_VALIDATION_QUEUE: 'kg:validation'
-      KG_BACKUP_PREFIX: 'kg:backup:'
-    volumes:
-      - kg_backups:/data/kg/backups
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8081/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -85,17 +51,11 @@ services:
     ports:
       - '6379:6379'
     environment:
-      REDIS_PASSWORD: '${REDIS_PASSWORD:-@Osiano1995}'
+      REDIS_PASSWORD: '@Osiano1995'
     volumes:
       - ../../redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis_data:/data
-    command:
-      [
-        'redis-server',
-        '/usr/local/etc/redis/redis.conf',
-        '--requirepass',
-        '${REDIS_PASSWORD:-@Osiano1995}'
-      ]
+    command: ['redis-server', '/usr/local/etc/redis/redis.conf', '--requirepass', '@Osiano1995']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -104,8 +64,6 @@ services:
     restart: unless-stopped
     networks:
       - ovasabi-network
-    env_file:
-      - ../../.env
 
   postgres:
     image: postgres:15-alpine
@@ -115,6 +73,11 @@ services:
       POSTGRES_USER: '${POSTGRES_USER:-postgres}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
       POSTGRES_DB: '${POSTGRES_DB:-master_ovasabi}'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
+      ADMIN_USER: '${ADMIN_USER:-okhai}'
+      ADMIN_PASSWORD: '${ADMIN_PASSWORD:-@Osiano1995}'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     command: ['postgres', '-c', 'listen_addresses=*', '-c', 'max_connections=100']
@@ -144,6 +107,9 @@ services:
       POSTGRES_USER: '${POSTGRES_USER:-postgres}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
       POSTGRES_DB: '${POSTGRES_DB:-master_ovasabi}'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
       ADMIN_USER: '${ADMIN_USER:-okhai}'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD:-@Osiano1995}'
     entrypoint:
@@ -166,7 +132,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  kg_backups:
 
 networks:
   ovasabi-network:

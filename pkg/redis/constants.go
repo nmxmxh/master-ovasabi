@@ -35,6 +35,7 @@ const (
 	ContextFeatures     = "features"
 	ContextRate         = "rate"
 	ContextPattern      = "pattern" // Pattern related data
+	ContextNexus        = "nexus"   // Nexus related data
 )
 
 // TTL constants defines the time-to-live durations for different types of data

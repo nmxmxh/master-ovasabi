@@ -53,7 +53,7 @@ func New(repo finance.Repository, master repository.MasterRepository, cache *red
 		repo:   repo,
 		master: master,
 		cache:  cache,
-		logger: logger.With(zap.String("service", "finance")),
+		logger: logger,
 	}
 }
 
@@ -80,12 +80,6 @@ func (s *service) DepositInternal(ctx context.Context, userID uuid.UUID, amount 
 		Status:    TransactionStatusPending,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	}
-
-	// Create master record for the transaction
-	_, err := s.master.Create(ctx, repository.EntityTypeFinance, fmt.Sprintf("deposit_%s", tx.ID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create master record: %w", err)
 	}
 
 	if err := s.repo.CreateTransaction(ctx, tx); err != nil {
@@ -131,12 +125,6 @@ func (s *service) WithdrawInternal(ctx context.Context, userID uuid.UUID, amount
 		Status:    TransactionStatusPending,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	}
-
-	// Create master record for the transaction
-	_, err = s.master.Create(ctx, repository.EntityTypeFinance, fmt.Sprintf("withdraw_%s", tx.ID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create master record: %w", err)
 	}
 
 	if err := s.repo.CreateTransaction(ctx, tx); err != nil {
@@ -187,12 +175,6 @@ func (s *service) TransferInternal(ctx context.Context, fromUserID, toUserID uui
 		Status:    TransactionStatusPending,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	}
-
-	// Create master record for the transaction
-	_, err = s.master.Create(ctx, repository.EntityTypeFinance, fmt.Sprintf("transfer_%s", tx.ID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create master record: %w", err)
 	}
 
 	if err := s.repo.CreateTransaction(ctx, tx); err != nil {

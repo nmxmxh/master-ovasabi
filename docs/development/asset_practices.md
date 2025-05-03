@@ -51,7 +51,7 @@ CREATE TABLE assets (
 ```
 
 - Add a generated column for easy filtering:
-  
+
   ```sql
   ALTER TABLE assets ADD COLUMN is_lightweight BOOLEAN GENERATED ALWAYS AS (size_bytes < 500000) STORED;
   ```

@@ -44,10 +44,10 @@ type ServiceImpl struct {
 	cache      *redis.Cache
 }
 
-// NewService creates a new instance of AuthService with proper logging.
+// NewService creates a new auth service instance
 func NewService(log *zap.Logger, userSvc userpb.UserServiceServer, cache *redis.Cache) *ServiceImpl {
 	return &ServiceImpl{
-		log:        log.With(zap.String("service", "auth")),
+		log:        log,
 		userSvc:    userSvc,
 		jwtSecret:  []byte(os.Getenv("JWT_SECRET")),
 		expiration: 24 * time.Hour,

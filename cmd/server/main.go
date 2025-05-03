@@ -4,11 +4,14 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"syscall"
 	"time"
@@ -17,10 +20,12 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v0"
 	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
 	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
 	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v0"
 	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
+	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v0"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
 	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
@@ -28,6 +33,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -70,7 +76,7 @@ func main() {
 	log = loggerInstance.GetZapLogger()
 	defer cleanup()
 
-	log.Info("Logger initialized", zap.String("service", os.Getenv("APP_NAME")))
+	log.Info("Logger initialized")
 
 	// Create root context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
@@ -128,7 +134,7 @@ func (c *components) cleanup() {
 
 func initializeComponents(ctx context.Context) (*components, error) {
 	// Connect to database
-	db, err := connectToDatabase()
+	db, err := connectToDatabase(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -150,7 +156,7 @@ func initializeComponents(ctx context.Context) (*components, error) {
 		return nil, fmt.Errorf("failed to initialize service provider: %w", err)
 	}
 
-	// Initialize gRPC server
+	// Initialize gRPC server with single interceptor that handles both logging and tracing
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(loggingInterceptor(log)),
 	)
@@ -174,7 +180,7 @@ func initializeComponents(ctx context.Context) (*components, error) {
 
 func startServers(ctx context.Context, c *components) error {
 	// Register services
-	registerServices(c.grpc, c.provider)
+	registerGRPCServices(c.grpc, c.provider)
 
 	// Start metrics server
 	go func() {
@@ -211,7 +217,7 @@ func validateEnv() error {
 	return nil
 }
 
-func connectToDatabase() (*sql.DB, error) {
+func connectToDatabase(ctx context.Context) (*sql.DB, error) {
 	var db *sql.DB
 	var err error
 
@@ -219,7 +225,7 @@ func connectToDatabase() (*sql.DB, error) {
 	for i := 1; i <= maxRetries; i++ {
 		dsn := fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			getEnvOrDefault("DB_HOST", "localhost"),
+			getEnvOrDefault("DB_HOST", "postgres"),
 			getEnvOrDefault("DB_PORT", "5432"),
 			os.Getenv("DB_USER"),
 			os.Getenv("DB_PASSWORD"),
@@ -236,7 +242,7 @@ func connectToDatabase() (*sql.DB, error) {
 			continue
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err = db.PingContext(ctx)
 		cancel()
 
@@ -267,10 +273,30 @@ func createListener(port string) (net.Listener, error) {
 
 func createMetricsServer() *http.Server {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+
+	// Add basic authentication middleware
+	authenticatedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		metricsUser := os.Getenv("METRICS_USER")
+		metricsPass := os.Getenv("METRICS_PASSWORD")
+
+		if !ok || user != metricsUser || pass != metricsPass {
+			w.Header().Set("WWW-Authenticate", `Basic realm="metrics"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		promhttp.Handler().ServeHTTP(w, r)
+	})
+
+	// Only bind to localhost by default
+	metricsHost := getEnvOrDefault("METRICS_HOST", "127.0.0.1")
+	metricsPort := getEnvOrDefault("METRICS_PORT", "9090")
+
+	mux.Handle("/metrics", authenticatedHandler)
 
 	return &http.Server{
-		Addr:         ":9090",
+		Addr:         fmt.Sprintf("%s:%s", metricsHost, metricsPort),
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -295,19 +321,20 @@ func startMetricsServer(ctx context.Context, srv *http.Server) error {
 	}
 }
 
-func registerServices(server *grpc.Server, provider *service.Provider) {
-	log.Info("Registering services")
+func registerGRPCServices(grpcServer *grpc.Server, provider *service.Provider) {
+	// Register existing services
+	authpb.RegisterAuthServiceServer(grpcServer, provider.Auth())
+	userpb.RegisterUserServiceServer(grpcServer, provider.User())
+	notificationpb.RegisterNotificationServiceServer(grpcServer, provider.Notification())
+	broadcastpb.RegisterBroadcastServiceServer(grpcServer, provider.Broadcast())
+	i18npb.RegisterI18NServiceServer(grpcServer, provider.I18n())
+	quotespb.RegisterQuotesServiceServer(grpcServer, provider.Quotes())
+	referralpb.RegisterReferralServiceServer(grpcServer, provider.Referrals())
+	assetpb.RegisterAssetServiceServer(grpcServer, provider.Asset())
+	financepb.RegisterFinanceServiceServer(grpcServer, provider.Finance())
 
-	authpb.RegisterAuthServiceServer(server, provider.Auth())
-	userpb.RegisterUserServiceServer(server, provider.User())
-	notificationpb.RegisterNotificationServiceServer(server, provider.Notification())
-	broadcastpb.RegisterBroadcastServiceServer(server, provider.Broadcast())
-	i18npb.RegisterI18NServiceServer(server, provider.I18n())
-	quotespb.RegisterQuotesServiceServer(server, provider.Quotes())
-	referralpb.RegisterReferralServiceServer(server, provider.Referrals())
-	financepb.RegisterFinanceServiceServer(server, provider.Finance())
-
-	log.Info("All services registered successfully")
+	// Register Nexus service
+	nexuspb.RegisterNexusServiceServer(grpcServer, provider.Nexus())
 }
 
 func loggingInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
@@ -317,36 +344,152 @@ func loggingInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
 		start := time.Now()
 		reqID := uuid.New().String()
 
+		// Create tracing span
+		spanCtx, span := otel.Tracer("").Start(ctx, info.FullMethod)
+		defer span.End()
+
+		// Sanitize sensitive fields based on method
+		sanitizedReq := sanitizeRequest(req, info.FullMethod)
+
 		reqLog := log.With(
 			zap.String("method", info.FullMethod),
 			zap.String("request_id", reqID),
 		)
 
 		if isDev {
-			reqLog.Debug("Request details", zap.Any("request", req))
+			reqLog.Debug("Request details", zap.Any("request", sanitizedReq))
 		}
 
-		resp, err := handler(ctx, req)
+		resp, err := handler(spanCtx, req)
 		duration := time.Since(start)
 
-		fields := []zap.Field{
-			zap.Duration("duration", duration),
-			zap.String("method", info.FullMethod),
-			zap.String("request_id", reqID),
-		}
+		// Sanitize response
+		sanitizedResp := sanitizeResponse(resp, info.FullMethod)
 
 		if err != nil {
-			fields = append(fields, zap.Error(err))
-			reqLog.Error("Request failed", fields...)
+			// Sanitize error message
+			sanitizedErr := sanitizeError(err)
+			span.RecordError(sanitizedErr)
+			reqLog.Error("Request failed",
+				zap.Duration("duration", duration),
+				zap.Error(sanitizedErr),
+			)
 		} else if isDev {
-			fields = append(fields, zap.Any("response", resp))
-			reqLog.Debug("Request completed", fields...)
+			reqLog.Debug("Request completed",
+				zap.Duration("duration", duration),
+				zap.Any("response", sanitizedResp),
+			)
 		} else {
-			reqLog.Info("Request completed", fields...)
+			reqLog.Info("Request completed", zap.Duration("duration", duration))
 		}
 
 		return resp, err
 	}
+}
+
+// sanitizeRequest removes sensitive information from requests
+func sanitizeRequest(req interface{}, method string) interface{} {
+	if req == nil {
+		return nil
+	}
+
+	// Create a copy to avoid modifying the original
+	sanitized := deepCopy(req)
+
+	switch method {
+	case "/auth.AuthService/Login", "/auth.AuthService/Register":
+		if r, ok := sanitized.(*authpb.LoginRequest); ok {
+			r.Password = "[REDACTED]"
+		}
+	case "/user.UserService/UpdatePassword":
+		if r, ok := sanitized.(*userpb.UpdatePasswordRequest); ok {
+			r.CurrentPassword = "[REDACTED]"
+			r.NewPassword = "[REDACTED]"
+		}
+	case "/finance.FinanceService/Deposit", "/finance.FinanceService/Withdraw":
+		if r, ok := sanitized.(*financepb.DepositRequest); ok {
+			r.Description = "[REDACTED]"
+		}
+	}
+
+	return sanitized
+}
+
+// sanitizeResponse removes sensitive information from responses
+func sanitizeResponse(resp interface{}, method string) interface{} {
+	if resp == nil {
+		return nil
+	}
+
+	sanitized := deepCopy(resp)
+
+	switch method {
+	case "/auth.AuthService/Login":
+		if r, ok := sanitized.(*authpb.LoginResponse); ok {
+			r.Token = "[REDACTED]"
+		}
+	case "/user.UserService/GetUser":
+		if r, ok := sanitized.(*userpb.GetUserResponse); ok {
+			if r.User != nil {
+				r.User.Email = "[REDACTED]"
+				// PhoneNumber is in UserProfile, not directly in User
+			}
+		}
+	}
+
+	return sanitized
+}
+
+// sanitizeError removes sensitive information from error messages
+func sanitizeError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// Remove potential sensitive info from error messages
+	errStr := err.Error()
+	errStr = redactSensitiveInfo(errStr)
+	return errors.New(errStr)
+}
+
+// redactSensitiveInfo removes sensitive patterns from strings
+func redactSensitiveInfo(s string) string {
+	patterns := []struct {
+		regex       string
+		replacement string
+	}{
+		{`password=\S+`, `password=[REDACTED]`},
+		{`Bearer [^"'\s]+`, `Bearer [REDACTED]`},
+		{`token=[^&\s]+`, `token=[REDACTED]`},
+		{`key=[^&\s]+`, `key=[REDACTED]`},
+		{`secret=[^&\s]+`, `secret=[REDACTED]`},
+	}
+
+	result := s
+	for _, p := range patterns {
+		re := regexp.MustCompile(p.regex)
+		result = re.ReplaceAllString(result, p.replacement)
+	}
+	return result
+}
+
+// deepCopy creates a deep copy of an interface
+func deepCopy(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	data, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+
+	var copy interface{}
+	if err := json.Unmarshal(data, &copy); err != nil {
+		return v
+	}
+
+	return copy
 }
 
 func handleSignals(sigChan chan os.Signal, cancel context.CancelFunc) {
@@ -380,6 +523,5 @@ func cleanup() {
 func handleFatalError(err error, msg string) {
 	log.Fatal(msg,
 		zap.Error(err),
-		zap.String("service", os.Getenv("APP_NAME")),
 	)
 }

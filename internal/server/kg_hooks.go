@@ -14,7 +14,7 @@ import (
 const (
 	kgUpdateChannel   = "kg:updates"
 	kgValidationQueue = "kg:validation"
-	kgBackupPrefix    = "kg:backup:"
+	kgBackupPrefix    = "kg:backup"
 	updateBatchSize   = 100
 	updateBatchWindow = 5 * time.Second
 )
@@ -196,33 +196,153 @@ func (h *KGHooks) validateUpdate(update *KGUpdate) error {
 }
 
 // createBackup creates a backup of the current state
-func (h *KGHooks) createBackup(key string) error {
-	// Implementation depends on your backup strategy
+func (h *KGHooks) createBackup(backupKey string) error {
+	// Get all keys matching the knowledge graph patterns
+	patterns := []string{
+		"kg:service:*",
+		"kg:schema:*",
+		"kg:pattern:*",
+		"kg:relation:*",
+	}
+
+	backup := make(map[string]string)
+	for _, pattern := range patterns {
+		keys, err := h.redis.Keys(h.ctx, pattern).Result()
+		if err != nil {
+			return fmt.Errorf("failed to get keys for pattern %s: %w", pattern, err)
+		}
+
+		for _, key := range keys {
+			value, err := h.redis.Get(h.ctx, key).Result()
+			if err != nil {
+				return fmt.Errorf("failed to get value for key %s: %w", key, err)
+			}
+			backup[key] = value
+		}
+	}
+
+	// Store backup
+	backupData, err := json.Marshal(backup)
+	if err != nil {
+		return fmt.Errorf("failed to marshal backup: %w", err)
+	}
+
+	if err := h.redis.Set(h.ctx, backupKey, backupData, 24*time.Hour).Err(); err != nil {
+		return fmt.Errorf("failed to store backup: %w", err)
+	}
+
+	h.logger.Info("Created knowledge graph backup",
+		zap.String("backup_key", backupKey),
+		zap.Int("keys", len(backup)))
+
 	return nil
 }
 
-// rollbackToBackup restores from a backup
-func (h *KGHooks) rollbackToBackup(key string) error {
-	// Implementation depends on your backup strategy
+// rollbackToBackup restores the state from a backup
+func (h *KGHooks) rollbackToBackup(backupKey string) error {
+	// Get backup data
+	backupData, err := h.redis.Get(h.ctx, backupKey).Result()
+	if err != nil {
+		return fmt.Errorf("failed to get backup data: %w", err)
+	}
+
+	var backup map[string]string
+	if err := json.Unmarshal([]byte(backupData), &backup); err != nil {
+		return fmt.Errorf("failed to unmarshal backup: %w", err)
+	}
+
+	// Restore in transaction
+	pipe := h.redis.Pipeline()
+
+	// Delete current state
+	patterns := []string{
+		"kg:service:*",
+		"kg:schema:*",
+		"kg:pattern:*",
+		"kg:relation:*",
+	}
+	for _, pattern := range patterns {
+		keys, err := h.redis.Keys(h.ctx, pattern).Result()
+		if err != nil {
+			return fmt.Errorf("failed to get keys for pattern %s: %w", pattern, err)
+		}
+		if len(keys) > 0 {
+			pipe.Del(h.ctx, keys...)
+		}
+	}
+
+	// Restore backup
+	for key, value := range backup {
+		pipe.Set(h.ctx, key, value, 0)
+	}
+
+	if _, err := pipe.Exec(h.ctx); err != nil {
+		return fmt.Errorf("failed to execute rollback: %w", err)
+	}
+
+	h.logger.Info("Rolled back to backup",
+		zap.String("backup_key", backupKey),
+		zap.Int("keys", len(backup)))
+
 	return nil
 }
 
-// handleServiceRegistration processes service registration updates
+// handleServiceRegistration processes a service registration update
 func (h *KGHooks) handleServiceRegistration(pipe redis.Pipeliner, update *KGUpdate) {
-	// Implementation for service registration
+	key := fmt.Sprintf("kg:service:%s", update.ServiceID)
+	data, err := json.Marshal(update.Payload)
+	if err != nil {
+		h.logger.Error("Failed to marshal service registration",
+			zap.String("service_id", update.ServiceID),
+			zap.Error(err))
+		return
+	}
+
+	pipe.Set(h.ctx, key, data, 0)
+	pipe.Set(h.ctx, fmt.Sprintf("kg:processed:%s", update.ID), "1", 24*time.Hour)
 }
 
-// handleSchemaUpdate processes schema updates
+// handleSchemaUpdate processes a schema update
 func (h *KGHooks) handleSchemaUpdate(pipe redis.Pipeliner, update *KGUpdate) {
-	// Implementation for schema updates
+	key := fmt.Sprintf("kg:schema:%s", update.ServiceID)
+	data, err := json.Marshal(update.Payload)
+	if err != nil {
+		h.logger.Error("Failed to marshal schema update",
+			zap.String("service_id", update.ServiceID),
+			zap.Error(err))
+		return
+	}
+
+	pipe.Set(h.ctx, key, data, 0)
+	pipe.Set(h.ctx, fmt.Sprintf("kg:processed:%s", update.ID), "1", 24*time.Hour)
 }
 
-// handlePatternDetection processes pattern detection updates
+// handlePatternDetection processes a pattern detection update
 func (h *KGHooks) handlePatternDetection(pipe redis.Pipeliner, update *KGUpdate) {
-	// Implementation for pattern detection
+	key := fmt.Sprintf("kg:pattern:%s:%d", update.ServiceID, time.Now().UnixNano())
+	data, err := json.Marshal(update.Payload)
+	if err != nil {
+		h.logger.Error("Failed to marshal pattern detection",
+			zap.String("service_id", update.ServiceID),
+			zap.Error(err))
+		return
+	}
+
+	pipe.Set(h.ctx, key, data, 0)
+	pipe.Set(h.ctx, fmt.Sprintf("kg:processed:%s", update.ID), "1", 24*time.Hour)
 }
 
-// handleRelationUpdate processes relation updates
+// handleRelationUpdate processes a relation update
 func (h *KGHooks) handleRelationUpdate(pipe redis.Pipeliner, update *KGUpdate) {
-	// Implementation for relation updates
+	key := fmt.Sprintf("kg:relation:%s:%d", update.ServiceID, time.Now().UnixNano())
+	data, err := json.Marshal(update.Payload)
+	if err != nil {
+		h.logger.Error("Failed to marshal relation update",
+			zap.String("service_id", update.ServiceID),
+			zap.Error(err))
+		return
+	}
+
+	pipe.Set(h.ctx, key, data, 0)
+	pipe.Set(h.ctx, fmt.Sprintf("kg:processed:%s", update.ID), "1", 24*time.Hour)
 }

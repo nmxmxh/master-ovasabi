@@ -90,11 +90,11 @@ lint-focused:
 	@yarn format:check -- --ignore-path='{.prettierignore,vendor/**,.venv/**}'
 	@echo "Linting checks completed."
 
-# Lint-safe command that completely excludes amadeus directory (documentation/knowledge graph utilities only)
+# Lint-safe command that completely excludes amadeus and vendor directories (documentation/knowledge graph utilities only)
 lint-safe:
-	@echo "Running Go linter checks (excluding amadeus directory)..."
-	@golangci-lint run ./cmd/... ./internal/... ./pkg/...
-	@echo "Checking Markdown documentation formatting (excluding amadeus)..."
+	@echo "Running Go linter checks (excluding amadeus and vendor directories)..."
+	@golangci-lint run ./cmd/... ./internal/... ./pkg/... --skip-dirs amadeus --skip-dirs vendor
+	@echo "Checking Markdown documentation formatting (excluding amadeus and vendor)..."
 	@yarn format:check -- --ignore-path='{.prettierignore,vendor/**,.venv/**,amadeus/**}'
 	@echo "Linting checks completed."
 
