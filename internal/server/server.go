@@ -18,7 +18,6 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 
-	babelpb "github.com/nmxmxh/master-ovasabi/api/protos/babel/v0"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -222,7 +221,6 @@ func Run() {
 
 	// Register all gRPC services
 	RegisterAllServices(grpcServer, provider)
-	babelpb.RegisterBabelServiceServer(grpcServer, provider.Babel())
 
 	// Metrics server
 	metricsServer := createMetricsServer()
