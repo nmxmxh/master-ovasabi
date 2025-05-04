@@ -56,6 +56,7 @@ for _, update := range amadeusKG.ListServiceUpdates(since) {
 ## Diagrams & Future Directions
 
 ### AI & Observability Integration
+
 ```mermaid
 graph TD
     ServiceEvents --> AmadeusKG
@@ -67,6 +68,7 @@ graph TD
 ```
 
 ### Observability Data Flow
+
 ```mermaid
 graph LR
     ServiceHealth --> MetricsCollector --> AmadeusKG
@@ -88,4 +90,4 @@ The future of backend platforms lies in self-documenting, observable, and AI-aug
 
 ---
 
-*This is a living document. Contributions and updates are welcome.* 
+*This is a living document. Contributions and updates are welcome.*

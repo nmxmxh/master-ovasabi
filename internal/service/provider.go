@@ -476,3 +476,13 @@ func (p *Provider) Babel() babelpb.BabelServiceServer {
 	}
 	return p.babelService
 }
+
+// RedisClient returns the underlying Redis client.
+func (p *Provider) RedisClient() *redis.Client {
+	return p.redisClient
+}
+
+// Container returns the DI container.
+func (p *Provider) Container() *di.Container {
+	return p.container
+}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	kg "github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -22,6 +23,7 @@ type KGService struct {
 	redis    *redis.Client
 	logger   *zap.Logger
 	degraded atomic.Bool
+	kg       *kg.KnowledgeGraph // in-memory knowledge graph
 }
 
 // NewKGService creates a new KGService instance
@@ -30,6 +32,7 @@ func NewKGService(redisClient *redis.Client, logger *zap.Logger) *KGService {
 		hooks:  NewKGHooks(redisClient, logger),
 		redis:  redisClient,
 		logger: logger,
+		kg:     kg.DefaultKnowledgeGraph(),
 	}
 }
 
@@ -70,6 +73,10 @@ func (s *KGService) IsDegraded() bool {
 // Stop gracefully shuts down the service
 func (s *KGService) Stop() {
 	s.hooks.Stop()
+	err := s.kg.Save("amadeus/knowledge_graph.json")
+	if err != nil {
+		s.logger.Error("Failed to persist knowledge graph on shutdown", zap.Error(err))
+	}
 	s.logger.Info("Knowledge graph service stopped")
 }
 
@@ -170,7 +177,13 @@ func (s *KGService) RegisterService(ctx context.Context, serviceID string, capab
 		Version:   "1.0",
 	}
 
-	return s.PublishUpdate(ctx, update)
+	err := s.PublishUpdate(ctx, update)
+	if err != nil {
+		return err
+	}
+	// Persist and backup after update
+	s.persistAndBackup("RegisterService")
+	return nil
 }
 
 // UpdateSchema updates the schema for a service
@@ -184,7 +197,12 @@ func (s *KGService) UpdateSchema(ctx context.Context, serviceID string, schema i
 		Version:   "1.0",
 	}
 
-	return s.PublishUpdate(ctx, update)
+	err := s.PublishUpdate(ctx, update)
+	if err != nil {
+		return err
+	}
+	s.persistAndBackup("UpdateSchema")
+	return nil
 }
 
 // UpdateRelation updates a relation in the knowledge graph
@@ -198,7 +216,24 @@ func (s *KGService) UpdateRelation(ctx context.Context, serviceID string, relati
 		Version:   "1.0",
 	}
 
-	return s.PublishUpdate(ctx, update)
+	err := s.PublishUpdate(ctx, update)
+	if err != nil {
+		return err
+	}
+	s.persistAndBackup("UpdateRelation")
+	return nil
+}
+
+// persistAndBackup persists the knowledge graph to disk and creates a backup
+func (s *KGService) persistAndBackup(reason string) {
+	err := s.kg.Save("amadeus/knowledge_graph.json")
+	if err != nil {
+		s.logger.Error("Failed to persist knowledge graph", zap.Error(err))
+	}
+	_, err = s.kg.Backup("Auto-backup: " + reason)
+	if err != nil {
+		s.logger.Error("Failed to backup knowledge graph", zap.Error(err))
+	}
 }
 
 // RecoverFromDegradedMode attempts to recover the service from degraded mode

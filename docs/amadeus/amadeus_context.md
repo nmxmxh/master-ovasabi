@@ -481,6 +481,7 @@ quote.Price = basePrice * pricingRule.Multiplier
 ```
 
 ## 2. Edge Cases & Gotchas
+
 - **Do NOT register a service twice in the DI container**: This will cause fatal errors at runtime.
 - **Always resolve dependencies via the Provider/DI**: Manual instantiation can break dependency chains and caching.
 - **Health and metrics endpoints must be unique per service**: Avoid port conflicts.
@@ -490,6 +491,7 @@ quote.Price = basePrice * pricingRule.Multiplier
 ## 3. Explicit Relationship Diagrams
 
 ### Service-to-Service & Babel Integration
+
 ```mermaid
 graph TD
     QuotesService -->|uses| BabelService
@@ -504,6 +506,7 @@ graph TD
 ```
 
 ### Data Flow: Quote Generation
+
 ```mermaid
 graph LR
     UserRequest --> QuotesService --> BabelService --> PricingRule
@@ -511,6 +514,7 @@ graph LR
 ```
 
 ## 4. API/Proto Reference Links
+
 - [Quotes Proto](../../api/protos/quotes/v0/quotes.proto)
 - [Finance Proto](../../api/protos/finance/v0/finance.proto)
 - [Babel Proto](../../api/protos/babel/v0/babel.proto)
@@ -521,6 +525,7 @@ graph LR
 ## 5. Data Flow Walkthroughs
 
 ### Example: Quote Generation with Location-Based Pricing
+
 1. **User requests a quote** via the QuotesService gRPC endpoint.
 2. QuotesService **calls BabelService** with the user's location (country, region, city).
 3. BabelService **returns the best pricing rule** for that location.
@@ -528,12 +533,14 @@ graph LR
 5. The **quote is returned** to the user.
 
 ### Example: Campaign Orchestration
+
 1. User signs up for a campaign.
 2. CampaignService checks eligibility and audience targeting (may use Babel for locale).
 3. CampaignService triggers notifications and broadcasts as needed.
 4. Campaign metrics are updated and tracked in Amadeus.
 
 ## 6. Testing & CI/CD Practices
+
 - **Unit tests**: All business logic must be covered by unit tests.
 - **Integration tests**: Test service-to-service and DB/Redis interactions.
 - **Repository tests**: Use test containers for DB/Redis.
@@ -541,6 +548,7 @@ graph LR
 - **Pre-commit hooks**: Run `make lint-safe` and `make test-unit` before every commit.
 
 ## 7. Glossary
+
 - **Provider/DI**: The central dependency injection container and service registry.
 - **Babel**: The unified service for i18n and location-based pricing.
 - **Amadeus**: The knowledge graph and system documentation engine.
@@ -552,5 +560,6 @@ graph LR
 
 ---
 
-# Changelog / What's New
+## Changelog / What's New
+
 - 2024-05-04: Added explicit DI/Provider, Babel, and health/metrics documentation. Added code examples, diagrams, and glossary for AI and human onboarding.

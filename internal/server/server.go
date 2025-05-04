@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 
@@ -196,6 +197,21 @@ func Run() {
 			log.Error("Failed to close provider", zap.Error(err))
 		}
 	}()
+
+	// Initialize KGService (Knowledge Graph Service)
+	kgService := NewKGService(provider.RedisClient().Client, log)
+	if err := kgService.Start(); err != nil {
+		log.Error("Failed to start KGService", zap.Error(err))
+		// Optionally: handle degraded mode or fail startup
+	}
+
+	// Register KGService in the DI provider for other services to use
+	if err := provider.Container().Register((*KGService)(nil), func(_ *di.Container) (interface{}, error) {
+		return kgService, nil
+	}); err != nil {
+		log.Error("Failed to register KGService in DI container", zap.Error(err))
+		// Optionally: handle error
+	}
 
 	// Initialize gRPC server
 	grpcServer := grpc.NewServer(

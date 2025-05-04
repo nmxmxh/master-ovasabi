@@ -69,4 +69,4 @@ Babel demonstrates the power of unified platform services for i18n and pricing, 
 
 ---
 
-*This is a living document. Contributions and updates are welcome.* 
+*This is a living document. Contributions and updates are welcome.*
