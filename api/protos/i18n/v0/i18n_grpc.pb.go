@@ -22,6 +22,7 @@ const (
 	I18NService_CreateTranslation_FullMethodName = "/i18n.I18nService/CreateTranslation"
 	I18NService_GetTranslation_FullMethodName    = "/i18n.I18nService/GetTranslation"
 	I18NService_ListTranslations_FullMethodName  = "/i18n.I18nService/ListTranslations"
+	I18NService_TranslateSite_FullMethodName     = "/i18n.I18nService/TranslateSite"
 )
 
 // I18NServiceClient is the client API for I18NService service.
@@ -31,6 +32,7 @@ type I18NServiceClient interface {
 	CreateTranslation(ctx context.Context, in *CreateTranslationRequest, opts ...grpc.CallOption) (*CreateTranslationResponse, error)
 	GetTranslation(ctx context.Context, in *GetTranslationRequest, opts ...grpc.CallOption) (*GetTranslationResponse, error)
 	ListTranslations(ctx context.Context, in *ListTranslationsRequest, opts ...grpc.CallOption) (*ListTranslationsResponse, error)
+	TranslateSite(ctx context.Context, in *TranslateSiteRequest, opts ...grpc.CallOption) (*TranslateSiteResponse, error)
 }
 
 type i18NServiceClient struct {
@@ -68,6 +70,15 @@ func (c *i18NServiceClient) ListTranslations(ctx context.Context, in *ListTransl
 	return out, nil
 }
 
+func (c *i18NServiceClient) TranslateSite(ctx context.Context, in *TranslateSiteRequest, opts ...grpc.CallOption) (*TranslateSiteResponse, error) {
+	out := new(TranslateSiteResponse)
+	err := c.cc.Invoke(ctx, I18NService_TranslateSite_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // I18NServiceServer is the server API for I18NService service.
 // All implementations must embed UnimplementedI18NServiceServer
 // for forward compatibility
@@ -75,6 +86,7 @@ type I18NServiceServer interface {
 	CreateTranslation(context.Context, *CreateTranslationRequest) (*CreateTranslationResponse, error)
 	GetTranslation(context.Context, *GetTranslationRequest) (*GetTranslationResponse, error)
 	ListTranslations(context.Context, *ListTranslationsRequest) (*ListTranslationsResponse, error)
+	TranslateSite(context.Context, *TranslateSiteRequest) (*TranslateSiteResponse, error)
 	mustEmbedUnimplementedI18NServiceServer()
 }
 
@@ -90,6 +102,9 @@ func (UnimplementedI18NServiceServer) GetTranslation(context.Context, *GetTransl
 }
 func (UnimplementedI18NServiceServer) ListTranslations(context.Context, *ListTranslationsRequest) (*ListTranslationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListTranslations not implemented")
+}
+func (UnimplementedI18NServiceServer) TranslateSite(context.Context, *TranslateSiteRequest) (*TranslateSiteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TranslateSite not implemented")
 }
 func (UnimplementedI18NServiceServer) mustEmbedUnimplementedI18NServiceServer() {}
 
@@ -158,6 +173,24 @@ func _I18NService_ListTranslations_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _I18NService_TranslateSite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TranslateSiteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(I18NServiceServer).TranslateSite(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: I18NService_TranslateSite_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(I18NServiceServer).TranslateSite(ctx, req.(*TranslateSiteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // I18NService_ServiceDesc is the grpc.ServiceDesc for I18NService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -176,6 +209,10 @@ var I18NService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTranslations",
 			Handler:    _I18NService_ListTranslations_Handler,
+		},
+		{
+			MethodName: "TranslateSite",
+			Handler:    _I18NService_TranslateSite_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -482,6 +482,110 @@ func (x *ListTranslationsResponse) GetTotalPages() int32 {
 	return 0
 }
 
+type TranslateSiteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Texts         []string               `protobuf:"bytes,1,rep,name=texts,proto3" json:"texts,omitempty"`
+	SourceLang    string                 `protobuf:"bytes,2,opt,name=source_lang,json=sourceLang,proto3" json:"source_lang,omitempty"`
+	TargetLang    string                 `protobuf:"bytes,3,opt,name=target_lang,json=targetLang,proto3" json:"target_lang,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TranslateSiteRequest) Reset() {
+	*x = TranslateSiteRequest{}
+	mi := &file_api_protos_i18n_v0_i18n_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TranslateSiteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TranslateSiteRequest) ProtoMessage() {}
+
+func (x *TranslateSiteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_protos_i18n_v0_i18n_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TranslateSiteRequest.ProtoReflect.Descriptor instead.
+func (*TranslateSiteRequest) Descriptor() ([]byte, []int) {
+	return file_api_protos_i18n_v0_i18n_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *TranslateSiteRequest) GetTexts() []string {
+	if x != nil {
+		return x.Texts
+	}
+	return nil
+}
+
+func (x *TranslateSiteRequest) GetSourceLang() string {
+	if x != nil {
+		return x.SourceLang
+	}
+	return ""
+}
+
+func (x *TranslateSiteRequest) GetTargetLang() string {
+	if x != nil {
+		return x.TargetLang
+	}
+	return ""
+}
+
+type TranslateSiteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Translations  []string               `protobuf:"bytes,1,rep,name=translations,proto3" json:"translations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TranslateSiteResponse) Reset() {
+	*x = TranslateSiteResponse{}
+	mi := &file_api_protos_i18n_v0_i18n_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TranslateSiteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TranslateSiteResponse) ProtoMessage() {}
+
+func (x *TranslateSiteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_protos_i18n_v0_i18n_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TranslateSiteResponse.ProtoReflect.Descriptor instead.
+func (*TranslateSiteResponse) Descriptor() ([]byte, []int) {
+	return file_api_protos_i18n_v0_i18n_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *TranslateSiteResponse) GetTranslations() []string {
+	if x != nil {
+		return x.Translations
+	}
+	return nil
+}
+
 var File_api_protos_i18n_v0_i18n_proto protoreflect.FileDescriptor
 
 const file_api_protos_i18n_v0_i18n_proto_rawDesc = "" +
@@ -531,11 +635,20 @@ const file_api_protos_i18n_v0_i18n_proto_rawDesc = "" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages2\x89\x02\n" +
+	"totalPages\"n\n" +
+	"\x14TranslateSiteRequest\x12\x14\n" +
+	"\x05texts\x18\x01 \x03(\tR\x05texts\x12\x1f\n" +
+	"\vsource_lang\x18\x02 \x01(\tR\n" +
+	"sourceLang\x12\x1f\n" +
+	"\vtarget_lang\x18\x03 \x01(\tR\n" +
+	"targetLang\";\n" +
+	"\x15TranslateSiteResponse\x12\"\n" +
+	"\ftranslations\x18\x01 \x03(\tR\ftranslations2\xd5\x02\n" +
 	"\vI18nService\x12V\n" +
 	"\x11CreateTranslation\x12\x1e.i18n.CreateTranslationRequest\x1a\x1f.i18n.CreateTranslationResponse\"\x00\x12M\n" +
 	"\x0eGetTranslation\x12\x1b.i18n.GetTranslationRequest\x1a\x1c.i18n.GetTranslationResponse\"\x00\x12S\n" +
-	"\x10ListTranslations\x12\x1d.i18n.ListTranslationsRequest\x1a\x1e.i18n.ListTranslationsResponse\"\x00B2Z0github.com/nmxmxh/master-ovasabi/api/protos/i18nb\x06proto3"
+	"\x10ListTranslations\x12\x1d.i18n.ListTranslationsRequest\x1a\x1e.i18n.ListTranslationsResponse\"\x00\x12J\n" +
+	"\rTranslateSite\x12\x1a.i18n.TranslateSiteRequest\x1a\x1b.i18n.TranslateSiteResponse\"\x00B2Z0github.com/nmxmxh/master-ovasabi/api/protos/i18nb\x06proto3"
 
 var (
 	file_api_protos_i18n_v0_i18n_proto_rawDescOnce sync.Once
@@ -549,7 +662,7 @@ func file_api_protos_i18n_v0_i18n_proto_rawDescGZIP() []byte {
 	return file_api_protos_i18n_v0_i18n_proto_rawDescData
 }
 
-var file_api_protos_i18n_v0_i18n_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_api_protos_i18n_v0_i18n_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_api_protos_i18n_v0_i18n_proto_goTypes = []any{
 	(*Translation)(nil),               // 0: i18n.Translation
 	(*CreateTranslationRequest)(nil),  // 1: i18n.CreateTranslationRequest
@@ -558,28 +671,32 @@ var file_api_protos_i18n_v0_i18n_proto_goTypes = []any{
 	(*GetTranslationResponse)(nil),    // 4: i18n.GetTranslationResponse
 	(*ListTranslationsRequest)(nil),   // 5: i18n.ListTranslationsRequest
 	(*ListTranslationsResponse)(nil),  // 6: i18n.ListTranslationsResponse
-	nil,                               // 7: i18n.Translation.MetadataEntry
-	nil,                               // 8: i18n.CreateTranslationRequest.MetadataEntry
-	(*timestamppb.Timestamp)(nil),     // 9: google.protobuf.Timestamp
+	(*TranslateSiteRequest)(nil),      // 7: i18n.TranslateSiteRequest
+	(*TranslateSiteResponse)(nil),     // 8: i18n.TranslateSiteResponse
+	nil,                               // 9: i18n.Translation.MetadataEntry
+	nil,                               // 10: i18n.CreateTranslationRequest.MetadataEntry
+	(*timestamppb.Timestamp)(nil),     // 11: google.protobuf.Timestamp
 }
 var file_api_protos_i18n_v0_i18n_proto_depIdxs = []int32{
-	7, // 0: i18n.Translation.metadata:type_name -> i18n.Translation.MetadataEntry
-	9, // 1: i18n.Translation.created_at:type_name -> google.protobuf.Timestamp
-	8, // 2: i18n.CreateTranslationRequest.metadata:type_name -> i18n.CreateTranslationRequest.MetadataEntry
-	0, // 3: i18n.CreateTranslationResponse.translation:type_name -> i18n.Translation
-	0, // 4: i18n.GetTranslationResponse.translation:type_name -> i18n.Translation
-	0, // 5: i18n.ListTranslationsResponse.translations:type_name -> i18n.Translation
-	1, // 6: i18n.I18nService.CreateTranslation:input_type -> i18n.CreateTranslationRequest
-	3, // 7: i18n.I18nService.GetTranslation:input_type -> i18n.GetTranslationRequest
-	5, // 8: i18n.I18nService.ListTranslations:input_type -> i18n.ListTranslationsRequest
-	2, // 9: i18n.I18nService.CreateTranslation:output_type -> i18n.CreateTranslationResponse
-	4, // 10: i18n.I18nService.GetTranslation:output_type -> i18n.GetTranslationResponse
-	6, // 11: i18n.I18nService.ListTranslations:output_type -> i18n.ListTranslationsResponse
-	9, // [9:12] is the sub-list for method output_type
-	6, // [6:9] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	9,  // 0: i18n.Translation.metadata:type_name -> i18n.Translation.MetadataEntry
+	11, // 1: i18n.Translation.created_at:type_name -> google.protobuf.Timestamp
+	10, // 2: i18n.CreateTranslationRequest.metadata:type_name -> i18n.CreateTranslationRequest.MetadataEntry
+	0,  // 3: i18n.CreateTranslationResponse.translation:type_name -> i18n.Translation
+	0,  // 4: i18n.GetTranslationResponse.translation:type_name -> i18n.Translation
+	0,  // 5: i18n.ListTranslationsResponse.translations:type_name -> i18n.Translation
+	1,  // 6: i18n.I18nService.CreateTranslation:input_type -> i18n.CreateTranslationRequest
+	3,  // 7: i18n.I18nService.GetTranslation:input_type -> i18n.GetTranslationRequest
+	5,  // 8: i18n.I18nService.ListTranslations:input_type -> i18n.ListTranslationsRequest
+	7,  // 9: i18n.I18nService.TranslateSite:input_type -> i18n.TranslateSiteRequest
+	2,  // 10: i18n.I18nService.CreateTranslation:output_type -> i18n.CreateTranslationResponse
+	4,  // 11: i18n.I18nService.GetTranslation:output_type -> i18n.GetTranslationResponse
+	6,  // 12: i18n.I18nService.ListTranslations:output_type -> i18n.ListTranslationsResponse
+	8,  // 13: i18n.I18nService.TranslateSite:output_type -> i18n.TranslateSiteResponse
+	10, // [10:14] is the sub-list for method output_type
+	6,  // [6:10] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_api_protos_i18n_v0_i18n_proto_init() }
@@ -593,7 +710,7 @@ func file_api_protos_i18n_v0_i18n_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_protos_i18n_v0_i18n_proto_rawDesc), len(file_api_protos_i18n_v0_i18n_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

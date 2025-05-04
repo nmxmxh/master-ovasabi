@@ -40,6 +40,10 @@ RUN apk add --no-cache curl
 COPY --from=builder /app/master-ovasabi /
 COPY --from=builder /app/config/config.yaml /config/
 
+# Add grpc_health_probe for gRPC health checks
+ADD https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.19/grpc_health_probe-linux-amd64 /usr/local/bin/grpc_health_probe
+RUN chmod +x /usr/local/bin/grpc_health_probe
+
 # Expose application port
 EXPOSE 50051 9090
 

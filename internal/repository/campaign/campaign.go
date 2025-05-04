@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
@@ -185,10 +188,8 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		return nil, err
 	}
 	defer func() {
-		if cerr := rows.Close(); cerr != nil {
-			if log != nil {
-				log.Error("error closing rows", zap.Error(cerr))
-			}
+		if err := rows.Close(); err != nil {
+			fmt.Printf("error closing rows: %v\n", err)
 		}
 	}()
 
@@ -236,4 +237,109 @@ type Campaign struct {
 	EndDate        time.Time `db:"end_date"`
 	CreatedAt      time.Time `db:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at"`
+}
+
+// LeaderboardEntry represents a leaderboard row
+// (move to a shared types file if needed)
+type LeaderboardEntry struct {
+	Username      string
+	ReferralCount int
+}
+
+// RankingFormula represents a parsed and validated ranking formula
+// Supports multiple columns and directions, and can be extended for expressions
+// Example: "referral_count DESC, username ASC"
+type RankingFormula struct {
+	Columns []RankingColumn
+}
+
+type RankingColumn struct {
+	Name      string
+	Direction string // "ASC" or "DESC"
+}
+
+var allowedColumns = map[string]bool{
+	"referral_count": true,
+	"username":       true,
+}
+var allowedDirections = map[string]bool{
+	"ASC":  true,
+	"DESC": true,
+}
+
+// validateRankingFormula parses and validates a ranking formula string for safety
+func validateRankingFormula(formula string) (*RankingFormula, error) {
+	formula = strings.TrimSpace(formula)
+	if formula == "" {
+		return nil, errors.New("empty ranking formula")
+	}
+	columns := strings.Split(formula, ",")
+	var parsed []RankingColumn
+	for _, col := range columns {
+		col = strings.TrimSpace(col)
+		// Use regex to match: column_name [ASC|DESC]
+		re := regexp.MustCompile(`^([a-zA-Z0-9_]+)(?:\s+(ASC|DESC))?$`)
+		matches := re.FindStringSubmatch(col)
+		if len(matches) == 0 {
+			return nil, errors.New("invalid ranking formula syntax")
+		}
+		name := matches[1]
+		dir := "DESC" // Default direction
+		if len(matches) > 2 && matches[2] != "" {
+			dir = strings.ToUpper(matches[2])
+		}
+		if !allowedColumns[name] {
+			return nil, errors.New("column " + name + " not allowed in ranking formula")
+		}
+		if !allowedDirections[dir] {
+			return nil, errors.New("direction " + dir + " not allowed in ranking formula")
+		}
+		parsed = append(parsed, RankingColumn{Name: name, Direction: dir})
+	}
+	return &RankingFormula{Columns: parsed}, nil
+}
+
+// ToSQL returns the SQL ORDER BY clause for the validated formula
+func (rf *RankingFormula) ToSQL() string {
+	var parts []string
+	for _, col := range rf.Columns {
+		parts = append(parts, col.Name+" "+col.Direction)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// GetLeaderboard returns the leaderboard for a campaign, applying the ranking formula.
+func (r *Repository) GetLeaderboard(ctx context.Context, campaignSlug, rankingFormula string, limit int) ([]LeaderboardEntry, error) {
+	rf, err := validateRankingFormula(rankingFormula)
+	if err != nil {
+		return nil, err
+	}
+	orderBy := rf.ToSQL()
+	query := `
+		SELECT u.username, COUNT(r.id) AS referral_count
+		FROM users u
+		LEFT JOIN referrals r ON u.id = r.referrer_id AND r.campaign_slug = $1
+		GROUP BY u.id
+		ORDER BY ` + orderBy + `
+		LIMIT $2
+	`
+	rows, err := r.GetDB().QueryContext(ctx, query, campaignSlug, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("error closing rows: %v\n", err)
+		}
+	}()
+
+	var leaderboard []LeaderboardEntry
+	for rows.Next() {
+		var entry LeaderboardEntry
+		if err := rows.Scan(&entry.Username, &entry.ReferralCount); err != nil {
+			return nil, err
+		}
+		leaderboard = append(leaderboard, entry)
+	}
+	return leaderboard, nil
 }

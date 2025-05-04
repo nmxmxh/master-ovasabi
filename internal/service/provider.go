@@ -6,6 +6,7 @@ import (
 
 	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v0"
 	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
+	babelpb "github.com/nmxmxh/master-ovasabi/api/protos/babel/v0"
 	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
 	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v0"
 	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
@@ -16,6 +17,7 @@ import (
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	assetrepo "github.com/nmxmxh/master-ovasabi/internal/repository/asset"
+	babel "github.com/nmxmxh/master-ovasabi/internal/repository/babel"
 	broadcastrepo "github.com/nmxmxh/master-ovasabi/internal/repository/broadcast"
 	financerepo "github.com/nmxmxh/master-ovasabi/internal/repository/finance"
 	i18nrepo "github.com/nmxmxh/master-ovasabi/internal/repository/i18n"
@@ -25,6 +27,7 @@ import (
 	userrepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
 	"github.com/nmxmxh/master-ovasabi/internal/service/asset"
 	"github.com/nmxmxh/master-ovasabi/internal/service/auth"
+	babelsvc "github.com/nmxmxh/master-ovasabi/internal/service/babel"
 	"github.com/nmxmxh/master-ovasabi/internal/service/broadcast"
 	financeservice "github.com/nmxmxh/master-ovasabi/internal/service/finance"
 	"github.com/nmxmxh/master-ovasabi/internal/service/i18n"
@@ -56,6 +59,7 @@ type Provider struct {
 	assetService        assetpb.AssetServiceServer
 	financeService      financepb.FinanceServiceServer
 	nexusService        nexuspb.NexusServiceServer
+	babelService        babelpb.BabelServiceServer
 }
 
 // NewProvider creates a new service provider.
@@ -142,6 +146,13 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisConfig redis.Config) (*Provid
 	redisProvider.RegisterCache("nexus", &redis.Options{
 		Namespace: redis.NamespaceCache,
 		Context:   redis.ContextNexus,
+		Addr:      redisAddr,
+		Password:  redisConfig.Password,
+		DB:        redisConfig.DB,
+	})
+	redisProvider.RegisterCache("babel", &redis.Options{
+		Namespace: redis.NamespaceCache,
+		Context:   "babel",
 		Addr:      redisAddr,
 		Password:  redisConfig.Password,
 		DB:        redisConfig.DB,
@@ -332,6 +343,16 @@ func (p *Provider) registerServices() error {
 		return err
 	}
 
+	p.log.Info("Registering BabelService")
+	if err := p.container.Register((*babelpb.BabelServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		repo := &babel.Repository{DB: p.db}
+		cache, _ := p.redisProvider.GetCache("babel")
+		return babelsvc.NewService(repo, cache, p.log), nil
+	}); err != nil {
+		p.log.Error("Failed to register BabelService", zap.Error(err))
+		return err
+	}
+
 	return nil
 }
 
@@ -444,4 +465,14 @@ func (p *Provider) Nexus() nexuspb.NexusServiceServer {
 		}
 	}
 	return p.nexusService
+}
+
+// Babel returns the BabelService instance.
+func (p *Provider) Babel() babelpb.BabelServiceServer {
+	if p.babelService == nil {
+		repo := &babel.Repository{DB: p.db}
+		cache, _ := p.redisProvider.GetCache("babel")
+		p.babelService = babelsvc.NewService(repo, cache, p.log)
+	}
+	return p.babelService
 }

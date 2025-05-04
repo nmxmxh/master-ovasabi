@@ -367,3 +367,12 @@ func (s *Service) ListCampaigns(ctx context.Context, req *campaignpb.ListCampaig
 
 	return resp, nil
 }
+
+// GetLeaderboard returns the leaderboard for a campaign, applying the ranking formula.
+func (s *Service) GetLeaderboard(ctx context.Context, campaignSlug string, limit int) ([]campaignrepo.LeaderboardEntry, error) {
+	campaign, err := s.repo.GetBySlug(ctx, campaignSlug)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetLeaderboard(ctx, campaignSlug, campaign.RankingFormula, limit)
+}
