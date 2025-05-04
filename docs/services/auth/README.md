@@ -327,3 +327,15 @@ AUTH_LOG_LEVEL=info
 AUTH_API_PORT=50053
 AUTH_JWT_SECRET=your-secret-key
 ```
+
+## Dependency Injection & Provider Pattern
+
+- The Auth service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- Modular registration ensures the service is only registered once.
+- Health and metrics are managed centrally and exposed for observability.
+- Amadeus registration is performed at service startup for capability tracking.
+
+## Amadeus Integration & Observability
+
+- The service registers its capabilities and dependencies with Amadeus at startup.
+- Health checks and metrics are exposed and tracked centrally.

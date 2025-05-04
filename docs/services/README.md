@@ -29,6 +29,7 @@ graph TD
    - Business logic implementation
    - gRPC service handlers
    - Internal service interfaces
+   - Registered with Provider/DI container
 
 3. **Repository Layer** (`internal/repository/{service}`)
 
@@ -40,6 +41,16 @@ graph TD
    - Service capability registration
    - Dependency tracking
    - Evolution history
+   - Amadeus registration at startup
+
+5. **Dependency Injection & Provider Pattern**
+   - All services are registered and resolved via a central Provider using a DI container (`internal/service/provider.go`).
+   - Modular registration ensures each service is only registered once.
+   - Health and metrics are managed centrally and exposed for observability.
+
+6. **Babel & Location-Based Pricing**
+   - The Babel service provides i18n and dynamic, location-based pricing rules.
+   - Quotes, Finance, and Campaign services integrate with Babel for pricing and localization.
 
 ## Directory Structure
 
@@ -60,7 +71,8 @@ graph TD
 ## Best Practices
 
 - Follow the established implementation pattern
-- Document all service capabilities in Amadeus
+- Register all service capabilities in Amadeus at startup
 - Maintain service evolution history
 - Use consistent error handling
-- Implement proper logging and tracing
+- Implement proper logging, tracing, health, and metrics
+- Integrate with Babel for i18n and pricing where relevant

@@ -19,6 +19,9 @@ system.
 - **Architectural compliance**: Enforces architectural principles
 - **Visualization generation**: Auto-generates visual representations from system knowledge
 - **Decision intelligence**: Provides insights for architectural decisions
+- **Centralized service registration**: All services are registered and resolved via a central Provider using a DI container, ensuring modular, single registration and easy dependency management.
+- **Health and metrics**: All services expose health and metrics endpoints, managed centrally for observability and monitoring.
+- **Babel service integration**: The Babel service provides i18n and dynamic, location-based pricing rules, and is integrated with Quotes, Finance, and Campaign services.
 
 ## System Components
 
@@ -27,6 +30,8 @@ system.
 - **CLI Tool** (`amadeus/cmd/kgcli`): Command-line interface for knowledge graph access
 - **Nexus Pattern** (`amadeus/nexus/pattern`): Integration with Nexus orchestration
 - **Service Hooks** (`amadeus/examples`): Integration points for services
+- **Provider/DI Container** (`internal/service/provider.go`): Centralized service registration and dependency injection
+- **Babel Service** (`internal/service/babel`): Unified i18n and location-based pricing logic
 
 ## Knowledge Graph Structure
 
@@ -40,6 +45,8 @@ The knowledge graph is structured with these main sections:
 - `database_practices`: Database usage patterns and schema information
 - `redis_practices`: Redis usage patterns and data structures
 - `amadeus_integration`: Self-description of the knowledge graph system
+- `service_registration`: Tracks all service registrations, DI relationships, and health/metrics endpoints
+- `babel_integration`: Tracks Babel service integration points and pricing/i18n relationships
 
 For advanced configuration and implementation details, see the
 [Super Knowledge Graph Configuration](super_knowledge_graph.md) and
@@ -57,6 +64,8 @@ graph TD
     C -->|Caches| E[Redis]
     F[Amadeus KG] -->|Tracks| B
     F -->|Monitors| C
+    G[Provider/DI] -->|Resolves| B
+    H[Babel Service] -->|Provides Pricing/i18n| B
 ```
 
 ### Layer Components
@@ -75,6 +84,7 @@ graph TD
    - Internal service interfaces
    - Error mapping
    - Logging and tracing
+   - Registered with Provider/DI container
 
 3. **Repository Layer** (`internal/repository/{service}`)
    - Data access abstraction
@@ -85,7 +95,7 @@ graph TD
 
 ### Service Registration
 
-Services must register with Amadeus:
+Services must register with Amadeus and the Provider/DI container:
 
 ```go
 type ServiceRegistration struct {
@@ -96,6 +106,8 @@ type ServiceRegistration struct {
     Schema       *ServiceSchema   `json:"schema"`
     Endpoints    []EndpointInfo   `json:"endpoints"`
     Models       []ModelInfo      `json:"models"`
+    HealthCheck  string           `json:"health_check"`
+    Metrics      string           `json:"metrics"`
 }
 ```
 
@@ -117,12 +129,15 @@ Services can integrate with Amadeus via:
 2. **Nexus Patterns**: For system-wide knowledge operations
 3. **CLI Tools**: For manual and CI/CD operations
 4. **Webhook API**: For external system integration
+5. **Provider/DI Container**: For runtime dependency resolution and modular registration
+6. **Babel Service**: For i18n and location-based pricing
 
 ## Update Mechanisms
 
 The knowledge graph is kept up-to-date through:
 
 - **Service lifecycle hooks**: Updates during service startup/runtime
+- **Provider/DI registration**: Ensures all services are registered and resolved centrally
 - **CI/CD integration**: Automated updates during deployments
 - **Webhook-based updates**: External system integration
 - **Scheduled jobs**: Regular validation and scanning
@@ -142,7 +157,7 @@ Amadeus enables:
 ## Development State
 
 - **Core Components**: Knowledge Graph Store, API, and CLI tool implemented
-- **Integration Points**: Service Hooks and Nexus Pattern available
+- **Integration Points**: Service Hooks, Provider/DI, Babel, and Nexus Pattern available
 - **Documentation**: Implementation guide, integration examples, and architecture docs complete
 - **Visualization**: Mermaid-based diagram generation implemented
 - **Service Pattern**: Standardized implementation pattern established
@@ -155,25 +170,30 @@ The knowledge graph maintains its own evolution history:
 - **Last updated timestamp**: When the graph was last modified
 - **Backups**: Historical versions stored in `amadeus/backups`
 - **Service implementations**: Tracks service implementation patterns
+- **Provider/DI registration**: Tracks all service registrations and relationships
+- **Babel integration**: Tracks all pricing/i18n relationships
 
 ## Implementation Status
 
 - Basic implementation complete
 - Service hooks functional
 - CLI tool available
-- Nexus integration established
+- Nexus and Provider/DI integration established
+- Babel service integrated
 - Documentation published
 - Backup system set up
 - Service pattern documented
 
 ## Usage Guidelines
 
-1. Services should register with Amadeus at startup
+1. Services should register with Amadeus and the Provider/DI container at startup
 2. Service capabilities and dependencies should be tracked
 3. CI/CD pipelines should validate knowledge graph consistency
 4. Pattern implementations should be documented in the graph
 5. Impact analysis should be performed before major changes
 6. Follow standardized service implementation pattern
+7. Integrate with Babel for i18n and pricing where relevant
+8. Expose health and metrics endpoints for observability
 
 ## Future Development
 
@@ -183,6 +203,7 @@ The knowledge graph maintains its own evolution history:
 - Advanced visualization capabilities
 - System evolution tracking and prediction
 - Automated service pattern compliance checking
+- Deeper Babel integration for global pricing and localization
 
 ## Continuous Knowledge Graph Updates
 
@@ -192,6 +213,7 @@ accurate and valuable:
 1. **Real-time Updates**
 
    - Service registration hooks trigger immediate graph updates
+   - Provider/DI registration ensures all services are tracked
    - Event-driven updates based on system changes
    - Automatic schema and capability detection
 
@@ -210,6 +232,8 @@ accurate and valuable:
        D[Code Analysis] -->|Pattern Detection| B
        E[Manual Updates] -->|Curator API| B
        F[External Systems] -->|Webhook API| B
+       G[Provider/DI] -->|Service Registration| B
+       H[Babel Service] -->|Pricing/i18n| B
    ```
 
 4. **Update Validation**
@@ -420,3 +444,113 @@ Environment variables are loaded from `.env` file and include:
 
 For detailed implementation of specific commands, refer to the [`Makefile`](../../Makefile) in the
 project root.
+
+---
+
+# Practical Reference & Knowledge Base
+
+## 1. Concrete Code Examples
+
+### Service Registration (Provider/DI)
+```go
+// Registering a new service in internal/service/provider.go
+if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+    cache, err := p.redisProvider.GetCache("quotes")
+    if err != nil {
+        return nil, fmt.Errorf("failed to get quotes cache: %w", err)
+    }
+    return quotesservice.NewQuotesService(p.log, quotesRepo, cache), nil
+}); err != nil {
+    p.log.Error("Failed to register QuotesService", zap.Error(err))
+    return err
+}
+```
+
+### Babel Integration in a Service
+```go
+// Example: Using Babel for location-based pricing in QuotesService
+pricingRule, err := babelClient.GetLocationContext(ctx, &babelpb.LocationContextRequest{
+    Country: user.Country,
+    Region: user.Region,
+    City: user.City,
+})
+if err != nil {
+    // fallback or error handling
+}
+quote.Price = basePrice * pricingRule.Multiplier
+```
+
+## 2. Edge Cases & Gotchas
+- **Do NOT register a service twice in the DI container**: This will cause fatal errors at runtime.
+- **Always resolve dependencies via the Provider/DI**: Manual instantiation can break dependency chains and caching.
+- **Health and metrics endpoints must be unique per service**: Avoid port conflicts.
+- **Babel integration**: Ensure the pricing rules table is seeded and kept up to date for all supported locales.
+- **Proto versioning**: Always increment proto versions for breaking changes.
+
+## 3. Explicit Relationship Diagrams
+
+### Service-to-Service & Babel Integration
+```mermaid
+graph TD
+    QuotesService -->|uses| BabelService
+    FinanceService -->|uses| BabelService
+    CampaignService -->|uses| BabelService
+    NotificationService -->|notifies| UserService
+    BroadcastService -->|publishes| NotificationService
+    AssetService -->|references| UserService
+    AuthService -->|validates| UserService
+    ReferralService -->|uses| CampaignService
+    ReferralService -->|rewards| FinanceService
+```
+
+### Data Flow: Quote Generation
+```mermaid
+graph LR
+    UserRequest --> QuotesService --> BabelService --> PricingRule
+    PricingRule --> QuotesService --> QuoteResponse --> User
+```
+
+## 4. API/Proto Reference Links
+- [Quotes Proto](../../api/protos/quotes/v0/quotes.proto)
+- [Finance Proto](../../api/protos/finance/v0/finance.proto)
+- [Babel Proto](../../api/protos/babel/v0/babel.proto)
+- [Campaign Proto](../../api/protos/campaign/v0/campaign.proto)
+- [User Proto](../../api/protos/user/v0/user.proto)
+- [Auth Proto](../../api/protos/auth/v0/auth.proto)
+
+## 5. Data Flow Walkthroughs
+
+### Example: Quote Generation with Location-Based Pricing
+1. **User requests a quote** via the QuotesService gRPC endpoint.
+2. QuotesService **calls BabelService** with the user's location (country, region, city).
+3. BabelService **returns the best pricing rule** for that location.
+4. QuotesService **applies the pricing rule** to generate the quote.
+5. The **quote is returned** to the user.
+
+### Example: Campaign Orchestration
+1. User signs up for a campaign.
+2. CampaignService checks eligibility and audience targeting (may use Babel for locale).
+3. CampaignService triggers notifications and broadcasts as needed.
+4. Campaign metrics are updated and tracked in Amadeus.
+
+## 6. Testing & CI/CD Practices
+- **Unit tests**: All business logic must be covered by unit tests.
+- **Integration tests**: Test service-to-service and DB/Redis interactions.
+- **Repository tests**: Use test containers for DB/Redis.
+- **CI/CD**: Lint, test, and coverage checks must pass before merge. Docs are auto-generated and validated.
+- **Pre-commit hooks**: Run `make lint-safe` and `make test-unit` before every commit.
+
+## 7. Glossary
+- **Provider/DI**: The central dependency injection container and service registry.
+- **Babel**: The unified service for i18n and location-based pricing.
+- **Amadeus**: The knowledge graph and system documentation engine.
+- **Nexus**: The orchestration and pattern engine.
+- **Service Registration**: The process of registering a service with both Amadeus and the DI container.
+- **Health/Metrics**: Endpoints for service health and Prometheus metrics.
+- **Master Repository**: Central DB abstraction for cross-service data.
+- **Pattern**: A reusable orchestration or data flow template in Nexus/Amadeus.
+
+---
+
+# Changelog / What's New
+- 2024-05-04: Added explicit DI/Provider, Babel, and health/metrics documentation. Added code examples, diagrams, and glossary for AI and human onboarding.

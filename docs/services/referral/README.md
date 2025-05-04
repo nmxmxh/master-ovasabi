@@ -311,3 +311,15 @@ REFERRAL_REDIS_URL=redis://host:6379
 REFERRAL_LOG_LEVEL=info
 REFERRAL_API_PORT=50060
 ```
+
+## Dependency Injection & Provider Pattern
+
+- The Referral service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- Modular registration ensures the service is only registered once.
+- Health and metrics are managed centrally and exposed for observability.
+- Amadeus registration is performed at service startup for capability tracking.
+
+## Amadeus Integration & Observability
+
+- The service registers its capabilities and dependencies with Amadeus at startup.
+- Health checks and metrics are exposed and tracked centrally.

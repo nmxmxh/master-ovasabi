@@ -253,3 +253,15 @@ Risk(action) = \sum_{p \in Patterns} w_p \cdot Match(action, p) \cdot Severity(p
    - OWASP Top 10 2024
    - CIS Critical Security Controls v8
    - Cloud Security Alliance CCM v4.0
+
+## Dependency Injection & Provider Pattern
+
+- The Security service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- Modular registration ensures the service is only registered once.
+- Health and metrics are managed centrally and exposed for observability.
+- Amadeus registration is performed at service startup for capability tracking.
+
+## Amadeus Integration & Observability
+
+- The service registers its capabilities and dependencies with Amadeus at startup.
+- Health checks and metrics are exposed and tracked centrally.

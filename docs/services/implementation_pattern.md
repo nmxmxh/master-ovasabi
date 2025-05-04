@@ -5,7 +5,7 @@ service as a reference implementation.
 
 ## Overview
 
-Each service follows a three-layer architecture with Amadeus knowledge graph integration:
+Each service follows a three-layer architecture with Amadeus knowledge graph integration and is registered via a central Provider using a DI container:
 
 ```mermaid
 graph TD
@@ -15,6 +15,7 @@ graph TD
     C -->|Caches| E[Redis]
     F[Amadeus KG] -->|Tracks| B
     F -->|Monitors| C
+    G[Provider/DI] -->|Resolves| B
 ```
 
 ## Layer Details
@@ -202,6 +203,18 @@ logger := logger.With(
 )
 ```
 
+## Dependency Injection & Provider Pattern
+
+- All services are registered and resolved via a central Provider (`internal/service/provider.go`) using a DI container.
+- Modular registration ensures each service is only registered once.
+- Health and metrics are managed centrally and exposed for observability.
+- Amadeus registration is performed at service startup for capability tracking.
+
+## Babel & Location-Based Pricing
+
+- The Babel service provides i18n and dynamic, location-based pricing rules.
+- Quotes, Finance, and Campaign services integrate with Babel for pricing and localization.
+
 ## Best Practices
 
 1. **Clean Interface Segregation**
@@ -243,3 +256,7 @@ logger := logger.With(
    - Validate all inputs
    - Use proper authentication
    - Follow least privilege principle
+
+- Register all service capabilities in Amadeus at startup
+- Integrate with Babel for i18n and pricing where relevant
+- Use the Provider/DI pattern for all service registration and resolution

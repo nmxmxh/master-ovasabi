@@ -338,3 +338,20 @@ FINANCE_LOG_LEVEL=info
 FINANCE_API_PORT=50054
 FINANCE_PAYMENT_KEY=your-payment-key
 ```
+
+## Dependency Injection & Provider Pattern
+
+- The Finance service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- Modular registration ensures the service is only registered once.
+- Health and metrics are managed centrally and exposed for observability.
+- Amadeus registration is performed at service startup for capability tracking.
+
+## Babel & Location-Based Pricing
+
+- The Finance service integrates with the Babel service for dynamic, location-based pricing rules and i18n support.
+- Pricing logic is driven by metadata and can be updated via the knowledge graph.
+
+## Amadeus Integration & Observability
+
+- The service registers its capabilities and dependencies with Amadeus at startup.
+- Health checks and metrics are exposed and tracked centrally.
