@@ -24,13 +24,16 @@ type AssetModel struct {
 	Name      string      `db:"name"`
 	MimeType  string      `db:"mime_type"`
 	Size      int64       `db:"size"`
-	Data      []byte      `db:"data"`
 	URL       string      `db:"url"`
 	IsSystem  bool        `db:"is_system"`
 	Checksum  string      `db:"checksum"`
 	CreatedAt time.Time   `db:"created_at"`
 	UpdatedAt time.Time   `db:"updated_at"`
 	DeletedAt *time.Time  `db:"deleted_at"`
+	// NFT/Authenticity fields
+	AuthenticityHash string `db:"authenticity_hash"`
+	R2Key            string `db:"r2_key"`
+	Signature        string `db:"signature"`
 }
 
 // AssetRepository defines the interface for asset operations
@@ -60,13 +63,14 @@ func InitRepository(db *sql.DB, log *zap.Logger) *Repository {
 // CreateAsset creates a new asset
 func (r *Repository) CreateAsset(ctx context.Context, asset *AssetModel) error {
 	query := `
-		INSERT INTO assets (id, user_id, type, name, mime_type, size, data, url, checksum, is_system, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO assets (id, user_id, type, name, mime_type, size, url, checksum, is_system, created_at, updated_at, authenticity_hash, r2_key, signature)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		asset.ID, asset.UserID, asset.Type, asset.Name, asset.MimeType,
-		asset.Size, asset.Data, asset.URL, asset.Checksum, asset.IsSystem,
+		asset.Size, asset.URL, asset.Checksum, asset.IsSystem,
 		asset.CreatedAt, asset.UpdatedAt,
+		asset.AuthenticityHash, asset.R2Key, asset.Signature,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create asset: %w", err)
@@ -77,16 +81,17 @@ func (r *Repository) CreateAsset(ctx context.Context, asset *AssetModel) error {
 // GetAsset retrieves an asset by ID
 func (r *Repository) GetAsset(ctx context.Context, id uuid.UUID) (*AssetModel, error) {
 	query := `
-		SELECT id, user_id, type, name, mime_type, size, data, url, checksum, is_system,
-			   created_at, updated_at, deleted_at
+		SELECT id, user_id, type, name, mime_type, size, url, checksum, is_system,
+			   created_at, updated_at, deleted_at, authenticity_hash, r2_key, signature
 		FROM assets
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 	asset := &AssetModel{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&asset.ID, &asset.UserID, &asset.Type, &asset.Name, &asset.MimeType,
-		&asset.Size, &asset.Data, &asset.URL, &asset.Checksum, &asset.IsSystem,
+		&asset.Size, &asset.URL, &asset.Checksum, &asset.IsSystem,
 		&asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt,
+		&asset.AuthenticityHash, &asset.R2Key, &asset.Signature,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -100,7 +105,7 @@ func (r *Repository) GetAsset(ctx context.Context, id uuid.UUID) (*AssetModel, e
 // ListUserAssets retrieves assets for a user with pagination
 func (r *Repository) ListUserAssets(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*AssetModel, error) {
 	query := `
-		SELECT id, user_id, type, name, mime_type, size, data, url, checksum, is_system, created_at, updated_at, deleted_at
+		SELECT id, user_id, type, name, mime_type, size, url, checksum, is_system, created_at, updated_at, deleted_at, authenticity_hash, r2_key, signature
 		FROM assets
 		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -122,8 +127,9 @@ func (r *Repository) ListUserAssets(ctx context.Context, userID uuid.UUID, limit
 		asset := &AssetModel{}
 		err := rows.Scan(
 			&asset.ID, &asset.UserID, &asset.Type, &asset.Name, &asset.MimeType,
-			&asset.Size, &asset.Data, &asset.URL, &asset.Checksum, &asset.IsSystem,
+			&asset.Size, &asset.URL, &asset.Checksum, &asset.IsSystem,
 			&asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt,
+			&asset.AuthenticityHash, &asset.R2Key, &asset.Signature,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan asset: %w", err)
@@ -139,8 +145,8 @@ func (r *Repository) ListUserAssets(ctx context.Context, userID uuid.UUID, limit
 // ListSystemAssets retrieves system assets with pagination
 func (r *Repository) ListSystemAssets(ctx context.Context, limit, offset int) ([]*AssetModel, error) {
 	query := `
-		SELECT id, user_id, type, name, mime_type, size, data, url, checksum, is_system,
-			   created_at, updated_at, deleted_at
+		SELECT id, user_id, type, name, mime_type, size, url, checksum, is_system,
+			   created_at, updated_at, deleted_at, authenticity_hash, r2_key, signature
 		FROM assets
 		WHERE is_system = true AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -162,8 +168,9 @@ func (r *Repository) ListSystemAssets(ctx context.Context, limit, offset int) ([
 		asset := &AssetModel{}
 		err := rows.Scan(
 			&asset.ID, &asset.UserID, &asset.Type, &asset.Name, &asset.MimeType,
-			&asset.Size, &asset.Data, &asset.URL, &asset.Checksum, &asset.IsSystem,
+			&asset.Size, &asset.URL, &asset.Checksum, &asset.IsSystem,
 			&asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt,
+			&asset.AuthenticityHash, &asset.R2Key, &asset.Signature,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan system asset: %w", err)
@@ -180,13 +187,14 @@ func (r *Repository) ListSystemAssets(ctx context.Context, limit, offset int) ([
 func (r *Repository) UpdateAsset(ctx context.Context, asset *AssetModel) error {
 	query := `
 		UPDATE assets
-		SET type = $1, name = $2, mime_type = $3, size = $4, data = $5,
-			url = $6, checksum = $7, is_system = $8, updated_at = $9
-		WHERE id = $10 AND deleted_at IS NULL
+		SET type = $1, name = $2, mime_type = $3, size = $4, url = $5, checksum = $6, is_system = $7, updated_at = $8, authenticity_hash = $9, r2_key = $10, signature = $11
+		WHERE id = $12 AND deleted_at IS NULL
 	`
 	result, err := r.db.ExecContext(ctx, query,
-		asset.Type, asset.Name, asset.MimeType, asset.Size, asset.Data,
-		asset.URL, asset.Checksum, asset.IsSystem, time.Now(), asset.ID,
+		asset.Type, asset.Name, asset.MimeType, asset.Size, asset.URL,
+		asset.Checksum, asset.IsSystem, time.Now(),
+		asset.AuthenticityHash, asset.R2Key, asset.Signature,
+		asset.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update asset: %w", err)

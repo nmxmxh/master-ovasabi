@@ -4,11 +4,15 @@
 
 ## Abstract
 
-This article explores the DI/Provider pattern in Go, showing how it enables modular, extensible, and testable service architectures. Using OVASABI/Amadeus as a case study, we demonstrate best practices for dependency injection, service registration, and testing.
+This article explores the DI/Provider pattern in Go, showing how it enables modular, extensible, and
+testable service architectures. Using OVASABI/Amadeus as a case study, we demonstrate best practices
+for dependency injection, service registration, and testing.
 
 ## Introduction
 
-Go's simplicity and static typing make it ideal for building robust backends, but managing dependencies can become complex as systems grow. The DI/Provider pattern centralizes service registration and resolution, improving maintainability and testability.
+Go's simplicity and static typing make it ideal for building robust backends, but managing
+dependencies can become complex as systems grow. The DI/Provider pattern centralizes service
+registration and resolution, improving maintainability and testability.
 
 ## Why Dependency Injection?
 
@@ -70,8 +74,9 @@ graph TD
 
 ## Conclusion
 
-The DI/Provider pattern in Go is a proven approach for building scalable, maintainable, and testable backends. OVASABI/Amadeus demonstrates its effectiveness at scale.
+The DI/Provider pattern in Go is a proven approach for building scalable, maintainable, and testable
+backends. OVASABI/Amadeus demonstrates its effectiveness at scale.
 
 ---
 
-*This is a living document. Contributions and updates are welcome.* 
+_This is a living document. Contributions and updates are welcome._

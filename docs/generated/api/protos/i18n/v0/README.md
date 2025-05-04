@@ -159,6 +159,46 @@ Deprecated: Use ListTranslationsResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### TranslateSiteRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use TranslateSiteRequest.ProtoReflect.Descriptor instead.
+
+##### GetSourceLang
+
+##### GetTargetLang
+
+##### GetTexts
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### TranslateSiteResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use TranslateSiteResponse.ProtoReflect.Descriptor instead.
+
+##### GetTranslations
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### Translation
 
 #### Methods
@@ -202,6 +242,8 @@ UnimplementedI18NServiceServer must be embedded to have forward compatible imple
 ##### GetTranslation
 
 ##### ListTranslations
+
+##### TranslateSite
 
 ### UnsafeI18NServiceServer
 

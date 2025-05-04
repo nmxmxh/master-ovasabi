@@ -44,6 +44,30 @@ Deprecated: Use ActionSummary.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### AssetChunk
+
+Add for live asset streaming
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use AssetChunk.ProtoReflect.Descriptor instead.
+
+##### GetData
+
+##### GetSequence
+
+##### GetUploadId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### Broadcast
 
 Broadcast message for campaigns or services
@@ -143,6 +167,10 @@ embed UnimplementedBroadcastServiceServer for forward compatibility
 ### BroadcastService_SubscribeToActionsClient
 
 ### BroadcastService_SubscribeToActionsServer
+
+### BroadcastService_SubscribeToLiveAssetChunksClient
+
+### BroadcastService_SubscribeToLiveAssetChunksServer
 
 ### CreateBroadcastRequest
 
@@ -298,6 +326,24 @@ Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### SubscribeToLiveAssetChunksRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SubscribeToLiveAssetChunksRequest.ProtoReflect.Descriptor instead.
+
+##### GetAssetId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### UnimplementedBroadcastServiceServer
 
 UnimplementedBroadcastServiceServer must be embedded to have forward compatible implementations.
@@ -312,7 +358,11 @@ UnimplementedBroadcastServiceServer must be embedded to have forward compatible 
 
 ##### ListBroadcasts
 
+##### PublishLiveAssetChunk
+
 ##### SubscribeToActions
+
+##### SubscribeToLiveAssetChunks
 
 ### UnsafeBroadcastServiceServer
 

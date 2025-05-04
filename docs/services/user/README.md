@@ -326,7 +326,8 @@ USER_STORAGE_URL=s3://bucket/profiles
 
 ## Dependency Injection & Provider Pattern
 
-- The User service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- The User service is registered and resolved via the central Provider using a DI container
+  (`internal/service/provider.go`).
 - Modular registration ensures the service is only registered once.
 - Health and metrics are managed centrally and exposed for observability.
 - Amadeus registration is performed at service startup for capability tracking.

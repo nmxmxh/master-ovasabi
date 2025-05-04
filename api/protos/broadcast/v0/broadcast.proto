@@ -5,6 +5,7 @@ package broadcast;
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/broadcast";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
 // Broadcast message for campaigns or services
 message Broadcast {
@@ -55,6 +56,17 @@ message ListBroadcastsResponse {
   int32 total_pages = 4;
 }
 
+// Add for live asset streaming
+message AssetChunk {
+  string upload_id = 1;
+  bytes data = 2;
+  uint32 sequence = 3;
+}
+
+message SubscribeToLiveAssetChunksRequest {
+  string asset_id = 1;
+}
+
 // BroadcastService provides concurrent broadcasting of user actions
 service BroadcastService {
   // BroadcastAction broadcasts a user action to subscribed clients
@@ -64,6 +76,9 @@ service BroadcastService {
   rpc CreateBroadcast(CreateBroadcastRequest) returns (CreateBroadcastResponse);
   rpc GetBroadcast(GetBroadcastRequest) returns (GetBroadcastResponse);
   rpc ListBroadcasts(ListBroadcastsRequest) returns (ListBroadcastsResponse);
+  // Real-time asset chunk streaming
+  rpc SubscribeToLiveAssetChunks(SubscribeToLiveAssetChunksRequest) returns (stream AssetChunk);
+  rpc PublishLiveAssetChunk(AssetChunk) returns (.google.protobuf.Empty);
 }
 
 // BroadcastActionRequest contains the action to broadcast

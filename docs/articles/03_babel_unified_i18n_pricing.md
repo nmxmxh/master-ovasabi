@@ -4,11 +4,15 @@
 
 ## Abstract
 
-This article details how Babel unifies internationalization (i18n) and location-based pricing as a platform service, enabling consistent, dynamic experiences across products. We show how Babel integrates with Quotes, Finance, and Campaign services in OVASABI, and provide code examples and data flow diagrams.
+This article details how Babel unifies internationalization (i18n) and location-based pricing as a
+platform service, enabling consistent, dynamic experiences across products. We show how Babel
+integrates with Quotes, Finance, and Campaign services in OVASABI, and provide code examples and
+data flow diagrams.
 
 ## Introduction
 
-Global products require both localization and dynamic pricing. Babel abstracts these concerns into a single, reusable service, reducing duplication and enabling rapid expansion into new markets.
+Global products require both localization and dynamic pricing. Babel abstracts these concerns into a
+single, reusable service, reducing duplication and enabling rapid expansion into new markets.
 
 ## The Need for Unified i18n & Pricing
 
@@ -65,8 +69,9 @@ graph LR
 
 ## Conclusion
 
-Babel demonstrates the power of unified platform services for i18n and pricing, enabling global scale and consistency.
+Babel demonstrates the power of unified platform services for i18n and pricing, enabling global
+scale and consistency.
 
 ---
 
-*This is a living document. Contributions and updates are welcome.*
+_This is a living document. Contributions and updates are welcome._

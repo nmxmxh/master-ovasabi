@@ -4,11 +4,17 @@
 
 ## Abstract
 
-This article explores how knowledge graph-driven architecture transforms backend platforms, enabling modularity, observability, and AI-readiness. Using OVASABI/Amadeus as a case study, we demonstrate how a persistent, self-documenting knowledge graph can orchestrate and document all services, relationships, and system evolution.
+This article explores how knowledge graph-driven architecture transforms backend platforms, enabling
+modularity, observability, and AI-readiness. Using OVASABI/Amadeus as a case study, we demonstrate
+how a persistent, self-documenting knowledge graph can orchestrate and document all services,
+relationships, and system evolution.
 
 ## Introduction
 
-Traditional backend architectures struggle with complexity, service sprawl, and lack of systemic insight. By adopting a knowledge graph as the architectural backbone, platforms gain a living map of all components, dependencies, and data flows—empowering both humans and AI to reason about the system.
+Traditional backend architectures struggle with complexity, service sprawl, and lack of systemic
+insight. By adopting a knowledge graph as the architectural backbone, platforms gain a living map of
+all components, dependencies, and data flows—empowering both humans and AI to reason about the
+system.
 
 ## Why Knowledge Graphs?
 
@@ -20,7 +26,10 @@ Traditional backend architectures struggle with complexity, service sprawl, and 
 
 ## System Overview
 
-The OVASABI platform uses Amadeus, a knowledge graph that tracks all services, their registrations, dependencies, and capabilities. All services are registered via a Provider/DI container, ensuring modularity and single registration. The knowledge graph is stored in a JSON file and accessed via a Go API.
+The OVASABI platform uses Amadeus, a knowledge graph that tracks all services, their registrations,
+dependencies, and capabilities. All services are registered via a Provider/DI container, ensuring
+modularity and single registration. The knowledge graph is stored in a JSON file and accessed via a
+Go API.
 
 ## Implementation Patterns
 
@@ -39,7 +48,9 @@ The OVASABI platform uses Amadeus, a knowledge graph that tracks all services, t
 
 ## Case Study: OVASABI/Amadeus
 
-Amadeus maintains a JSON-based knowledge graph, updated via service hooks, CI/CD, and manual tools. It powers documentation, diagrams, and impact analysis. The system supports versioning, backups, and rollback.
+Amadeus maintains a JSON-based knowledge graph, updated via service hooks, CI/CD, and manual tools.
+It powers documentation, diagrams, and impact analysis. The system supports versioning, backups, and
+rollback.
 
 ### Example: Service Registration in the Knowledge Graph
 
@@ -65,6 +76,7 @@ amadeusKG.RegisterService(ServiceRegistration{
 ## Diagrams & Data Flows
 
 ### Layered Architecture
+
 ```mermaid
 graph TD
     A[Proto Layer] -->|Defines Contract| B[Service Layer]
@@ -78,6 +90,7 @@ graph TD
 ```
 
 ### Service Relationships
+
 ```mermaid
 graph TD
     QuotesService -->|uses| BabelService
@@ -100,8 +113,9 @@ graph TD
 
 ## Conclusion
 
-Knowledge graph-driven architecture is a powerful pattern for modern, extensible, and observable backends. OVASABI/Amadeus demonstrates its real-world value.
+Knowledge graph-driven architecture is a powerful pattern for modern, extensible, and observable
+backends. OVASABI/Amadeus demonstrates its real-world value.
 
 ---
 
-*This is a living document. Contributions and updates are welcome.* 
+_This is a living document. Contributions and updates are welcome._

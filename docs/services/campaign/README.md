@@ -407,15 +407,18 @@ CAMPAIGN_QUEUE_URL=amqp://user:pass@host:5672
 
 ## Dependency Injection & Provider Pattern
 
-- The Campaign service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- The Campaign service is registered and resolved via the central Provider using a DI container
+  (`internal/service/provider.go`).
 - Modular registration ensures the service is only registered once.
 - Health and metrics are managed centrally and exposed for observability.
 - Amadeus registration is performed at service startup for capability tracking.
 
 ## Babel & Location-Based Pricing
 
-- The Campaign service integrates with the Babel service for dynamic, location-based pricing rules and i18n support.
-- Campaign targeting and pricing logic can leverage Babel for advanced segmentation and localization.
+- The Campaign service integrates with the Babel service for dynamic, location-based pricing rules
+  and i18n support.
+- Campaign targeting and pricing logic can leverage Babel for advanced segmentation and
+  localization.
 
 ## Amadeus Integration & Observability
 

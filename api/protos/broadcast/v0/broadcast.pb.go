@@ -9,6 +9,7 @@ package broadcast
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -491,6 +492,111 @@ func (x *ListBroadcastsResponse) GetTotalPages() int32 {
 	return 0
 }
 
+// Add for live asset streaming
+type AssetChunk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UploadId      string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Sequence      uint32                 `protobuf:"varint,3,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AssetChunk) Reset() {
+	*x = AssetChunk{}
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssetChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssetChunk) ProtoMessage() {}
+
+func (x *AssetChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssetChunk.ProtoReflect.Descriptor instead.
+func (*AssetChunk) Descriptor() ([]byte, []int) {
+	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *AssetChunk) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+func (x *AssetChunk) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *AssetChunk) GetSequence() uint32 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+type SubscribeToLiveAssetChunksRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubscribeToLiveAssetChunksRequest) Reset() {
+	*x = SubscribeToLiveAssetChunksRequest{}
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubscribeToLiveAssetChunksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubscribeToLiveAssetChunksRequest) ProtoMessage() {}
+
+func (x *SubscribeToLiveAssetChunksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubscribeToLiveAssetChunksRequest.ProtoReflect.Descriptor instead.
+func (*SubscribeToLiveAssetChunksRequest) Descriptor() ([]byte, []int) {
+	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SubscribeToLiveAssetChunksRequest) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
 // BroadcastActionRequest contains the action to broadcast
 type BroadcastActionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -504,7 +610,7 @@ type BroadcastActionRequest struct {
 
 func (x *BroadcastActionRequest) Reset() {
 	*x = BroadcastActionRequest{}
-	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[7]
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -516,7 +622,7 @@ func (x *BroadcastActionRequest) String() string {
 func (*BroadcastActionRequest) ProtoMessage() {}
 
 func (x *BroadcastActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[7]
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -529,7 +635,7 @@ func (x *BroadcastActionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BroadcastActionRequest.ProtoReflect.Descriptor instead.
 func (*BroadcastActionRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{7}
+	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *BroadcastActionRequest) GetUserId() string {
@@ -571,7 +677,7 @@ type BroadcastActionResponse struct {
 
 func (x *BroadcastActionResponse) Reset() {
 	*x = BroadcastActionResponse{}
-	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[8]
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -583,7 +689,7 @@ func (x *BroadcastActionResponse) String() string {
 func (*BroadcastActionResponse) ProtoMessage() {}
 
 func (x *BroadcastActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[8]
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -596,7 +702,7 @@ func (x *BroadcastActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BroadcastActionResponse.ProtoReflect.Descriptor instead.
 func (*BroadcastActionResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{8}
+	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *BroadcastActionResponse) GetSuccess() bool {
@@ -624,7 +730,7 @@ type SubscribeRequest struct {
 
 func (x *SubscribeRequest) Reset() {
 	*x = SubscribeRequest{}
-	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[9]
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +742,7 @@ func (x *SubscribeRequest) String() string {
 func (*SubscribeRequest) ProtoMessage() {}
 
 func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[9]
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +755,7 @@ func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
 func (*SubscribeRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{9}
+	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SubscribeRequest) GetApplicationId() string {
@@ -680,7 +786,7 @@ type ActionSummary struct {
 
 func (x *ActionSummary) Reset() {
 	*x = ActionSummary{}
-	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[10]
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -692,7 +798,7 @@ func (x *ActionSummary) String() string {
 func (*ActionSummary) ProtoMessage() {}
 
 func (x *ActionSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[10]
+	mi := &file_api_protos_broadcast_v0_broadcast_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -705,7 +811,7 @@ func (x *ActionSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionSummary.ProtoReflect.Descriptor instead.
 func (*ActionSummary) Descriptor() ([]byte, []int) {
-	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{10}
+	return file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ActionSummary) GetUserId() string {
@@ -747,7 +853,7 @@ var File_api_protos_broadcast_v0_broadcast_proto protoreflect.FileDescriptor
 
 const file_api_protos_broadcast_v0_broadcast_proto_rawDesc = "" +
 	"\n" +
-	"'api/protos/broadcast/v0/broadcast.proto\x12\tbroadcast\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9a\x03\n" +
+	"'api/protos/broadcast/v0/broadcast.proto\x12\tbroadcast\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\x9a\x03\n" +
 	"\tBroadcast\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\x02 \x01(\x05R\bmasterId\x12\x1f\n" +
@@ -795,7 +901,14 @@ const file_api_protos_broadcast_v0_broadcast_proto_rawDesc = "" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\x83\x02\n" +
+	"totalPages\"Y\n" +
+	"\n" +
+	"AssetChunk\x12\x1b\n" +
+	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\x12\x1a\n" +
+	"\bsequence\x18\x03 \x01(\rR\bsequence\">\n" +
+	"!SubscribeToLiveAssetChunksRequest\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\"\x83\x02\n" +
 	"\x16BroadcastActionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1f\n" +
 	"\vaction_type\x18\x02 \x01(\tR\n" +
@@ -820,13 +933,15 @@ const file_api_protos_broadcast_v0_broadcast_proto_rawDesc = "" +
 	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xc1\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xee\x04\n" +
 	"\x10BroadcastService\x12Z\n" +
 	"\x0fBroadcastAction\x12!.broadcast.BroadcastActionRequest\x1a\".broadcast.BroadcastActionResponse\"\x00\x12O\n" +
 	"\x12SubscribeToActions\x12\x1b.broadcast.SubscribeRequest\x1a\x18.broadcast.ActionSummary\"\x000\x01\x12X\n" +
 	"\x0fCreateBroadcast\x12!.broadcast.CreateBroadcastRequest\x1a\".broadcast.CreateBroadcastResponse\x12O\n" +
 	"\fGetBroadcast\x12\x1e.broadcast.GetBroadcastRequest\x1a\x1f.broadcast.GetBroadcastResponse\x12U\n" +
-	"\x0eListBroadcasts\x12 .broadcast.ListBroadcastsRequest\x1a!.broadcast.ListBroadcastsResponseB7Z5github.com/nmxmxh/master-ovasabi/api/protos/broadcastb\x06proto3"
+	"\x0eListBroadcasts\x12 .broadcast.ListBroadcastsRequest\x1a!.broadcast.ListBroadcastsResponse\x12c\n" +
+	"\x1aSubscribeToLiveAssetChunks\x12,.broadcast.SubscribeToLiveAssetChunksRequest\x1a\x15.broadcast.AssetChunk0\x01\x12F\n" +
+	"\x15PublishLiveAssetChunk\x12\x15.broadcast.AssetChunk\x1a\x16.google.protobuf.EmptyB7Z5github.com/nmxmxh/master-ovasabi/api/protos/broadcastb\x06proto3"
 
 var (
 	file_api_protos_broadcast_v0_broadcast_proto_rawDescOnce sync.Once
@@ -840,48 +955,55 @@ func file_api_protos_broadcast_v0_broadcast_proto_rawDescGZIP() []byte {
 	return file_api_protos_broadcast_v0_broadcast_proto_rawDescData
 }
 
-var file_api_protos_broadcast_v0_broadcast_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_api_protos_broadcast_v0_broadcast_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_api_protos_broadcast_v0_broadcast_proto_goTypes = []any{
-	(*Broadcast)(nil),               // 0: broadcast.Broadcast
-	(*CreateBroadcastRequest)(nil),  // 1: broadcast.CreateBroadcastRequest
-	(*CreateBroadcastResponse)(nil), // 2: broadcast.CreateBroadcastResponse
-	(*GetBroadcastRequest)(nil),     // 3: broadcast.GetBroadcastRequest
-	(*GetBroadcastResponse)(nil),    // 4: broadcast.GetBroadcastResponse
-	(*ListBroadcastsRequest)(nil),   // 5: broadcast.ListBroadcastsRequest
-	(*ListBroadcastsResponse)(nil),  // 6: broadcast.ListBroadcastsResponse
-	(*BroadcastActionRequest)(nil),  // 7: broadcast.BroadcastActionRequest
-	(*BroadcastActionResponse)(nil), // 8: broadcast.BroadcastActionResponse
-	(*SubscribeRequest)(nil),        // 9: broadcast.SubscribeRequest
-	(*ActionSummary)(nil),           // 10: broadcast.ActionSummary
-	nil,                             // 11: broadcast.Broadcast.PayloadEntry
-	nil,                             // 12: broadcast.CreateBroadcastRequest.PayloadEntry
-	nil,                             // 13: broadcast.BroadcastActionRequest.MetadataEntry
-	nil,                             // 14: broadcast.ActionSummary.MetadataEntry
-	(*timestamppb.Timestamp)(nil),   // 15: google.protobuf.Timestamp
+	(*Broadcast)(nil),                         // 0: broadcast.Broadcast
+	(*CreateBroadcastRequest)(nil),            // 1: broadcast.CreateBroadcastRequest
+	(*CreateBroadcastResponse)(nil),           // 2: broadcast.CreateBroadcastResponse
+	(*GetBroadcastRequest)(nil),               // 3: broadcast.GetBroadcastRequest
+	(*GetBroadcastResponse)(nil),              // 4: broadcast.GetBroadcastResponse
+	(*ListBroadcastsRequest)(nil),             // 5: broadcast.ListBroadcastsRequest
+	(*ListBroadcastsResponse)(nil),            // 6: broadcast.ListBroadcastsResponse
+	(*AssetChunk)(nil),                        // 7: broadcast.AssetChunk
+	(*SubscribeToLiveAssetChunksRequest)(nil), // 8: broadcast.SubscribeToLiveAssetChunksRequest
+	(*BroadcastActionRequest)(nil),            // 9: broadcast.BroadcastActionRequest
+	(*BroadcastActionResponse)(nil),           // 10: broadcast.BroadcastActionResponse
+	(*SubscribeRequest)(nil),                  // 11: broadcast.SubscribeRequest
+	(*ActionSummary)(nil),                     // 12: broadcast.ActionSummary
+	nil,                                       // 13: broadcast.Broadcast.PayloadEntry
+	nil,                                       // 14: broadcast.CreateBroadcastRequest.PayloadEntry
+	nil,                                       // 15: broadcast.BroadcastActionRequest.MetadataEntry
+	nil,                                       // 16: broadcast.ActionSummary.MetadataEntry
+	(*timestamppb.Timestamp)(nil),             // 17: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                     // 18: google.protobuf.Empty
 }
 var file_api_protos_broadcast_v0_broadcast_proto_depIdxs = []int32{
-	11, // 0: broadcast.Broadcast.payload:type_name -> broadcast.Broadcast.PayloadEntry
-	15, // 1: broadcast.Broadcast.created_at:type_name -> google.protobuf.Timestamp
-	15, // 2: broadcast.Broadcast.scheduled_at:type_name -> google.protobuf.Timestamp
-	12, // 3: broadcast.CreateBroadcastRequest.payload:type_name -> broadcast.CreateBroadcastRequest.PayloadEntry
-	15, // 4: broadcast.CreateBroadcastRequest.scheduled_at:type_name -> google.protobuf.Timestamp
+	13, // 0: broadcast.Broadcast.payload:type_name -> broadcast.Broadcast.PayloadEntry
+	17, // 1: broadcast.Broadcast.created_at:type_name -> google.protobuf.Timestamp
+	17, // 2: broadcast.Broadcast.scheduled_at:type_name -> google.protobuf.Timestamp
+	14, // 3: broadcast.CreateBroadcastRequest.payload:type_name -> broadcast.CreateBroadcastRequest.PayloadEntry
+	17, // 4: broadcast.CreateBroadcastRequest.scheduled_at:type_name -> google.protobuf.Timestamp
 	0,  // 5: broadcast.CreateBroadcastResponse.broadcast:type_name -> broadcast.Broadcast
 	0,  // 6: broadcast.GetBroadcastResponse.broadcast:type_name -> broadcast.Broadcast
 	0,  // 7: broadcast.ListBroadcastsResponse.broadcasts:type_name -> broadcast.Broadcast
-	13, // 8: broadcast.BroadcastActionRequest.metadata:type_name -> broadcast.BroadcastActionRequest.MetadataEntry
-	14, // 9: broadcast.ActionSummary.metadata:type_name -> broadcast.ActionSummary.MetadataEntry
-	7,  // 10: broadcast.BroadcastService.BroadcastAction:input_type -> broadcast.BroadcastActionRequest
-	9,  // 11: broadcast.BroadcastService.SubscribeToActions:input_type -> broadcast.SubscribeRequest
+	15, // 8: broadcast.BroadcastActionRequest.metadata:type_name -> broadcast.BroadcastActionRequest.MetadataEntry
+	16, // 9: broadcast.ActionSummary.metadata:type_name -> broadcast.ActionSummary.MetadataEntry
+	9,  // 10: broadcast.BroadcastService.BroadcastAction:input_type -> broadcast.BroadcastActionRequest
+	11, // 11: broadcast.BroadcastService.SubscribeToActions:input_type -> broadcast.SubscribeRequest
 	1,  // 12: broadcast.BroadcastService.CreateBroadcast:input_type -> broadcast.CreateBroadcastRequest
 	3,  // 13: broadcast.BroadcastService.GetBroadcast:input_type -> broadcast.GetBroadcastRequest
 	5,  // 14: broadcast.BroadcastService.ListBroadcasts:input_type -> broadcast.ListBroadcastsRequest
-	8,  // 15: broadcast.BroadcastService.BroadcastAction:output_type -> broadcast.BroadcastActionResponse
-	10, // 16: broadcast.BroadcastService.SubscribeToActions:output_type -> broadcast.ActionSummary
-	2,  // 17: broadcast.BroadcastService.CreateBroadcast:output_type -> broadcast.CreateBroadcastResponse
-	4,  // 18: broadcast.BroadcastService.GetBroadcast:output_type -> broadcast.GetBroadcastResponse
-	6,  // 19: broadcast.BroadcastService.ListBroadcasts:output_type -> broadcast.ListBroadcastsResponse
-	15, // [15:20] is the sub-list for method output_type
-	10, // [10:15] is the sub-list for method input_type
+	8,  // 15: broadcast.BroadcastService.SubscribeToLiveAssetChunks:input_type -> broadcast.SubscribeToLiveAssetChunksRequest
+	7,  // 16: broadcast.BroadcastService.PublishLiveAssetChunk:input_type -> broadcast.AssetChunk
+	10, // 17: broadcast.BroadcastService.BroadcastAction:output_type -> broadcast.BroadcastActionResponse
+	12, // 18: broadcast.BroadcastService.SubscribeToActions:output_type -> broadcast.ActionSummary
+	2,  // 19: broadcast.BroadcastService.CreateBroadcast:output_type -> broadcast.CreateBroadcastResponse
+	4,  // 20: broadcast.BroadcastService.GetBroadcast:output_type -> broadcast.GetBroadcastResponse
+	6,  // 21: broadcast.BroadcastService.ListBroadcasts:output_type -> broadcast.ListBroadcastsResponse
+	7,  // 22: broadcast.BroadcastService.SubscribeToLiveAssetChunks:output_type -> broadcast.AssetChunk
+	18, // 23: broadcast.BroadcastService.PublishLiveAssetChunk:output_type -> google.protobuf.Empty
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -898,7 +1020,7 @@ func file_api_protos_broadcast_v0_broadcast_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_protos_broadcast_v0_broadcast_proto_rawDesc), len(file_api_protos_broadcast_v0_broadcast_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

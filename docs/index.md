@@ -1,6 +1,7 @@
 # OVASABI Documentation Index
 
-Welcome to the OVASABI documentation. Below you'll find links to architecture, API, service, and advanced articles.
+Welcome to the OVASABI documentation. Below you'll find links to architecture, API, service, and
+advanced articles.
 
 ## Quick Links
 
@@ -8,8 +9,9 @@ Welcome to the OVASABI documentation. Below you'll find links to architecture, A
 - [API Reference](api/)
 - [Service List](services/service_list.md)
 - [Advanced Architecture Articles](articles/index.md)  
-  *Explore thesis-level articles on knowledge graph-driven architecture, metadata-driven orchestration, Babel, DI/Provider patterns, and AI/observability.*
+  _Explore thesis-level articles on knowledge graph-driven architecture, metadata-driven
+  orchestration, Babel, DI/Provider patterns, and AI/observability._
 
 ---
 
-*For contributions, see the README or contact the core team.*
+_For contributions, see the README or contact the core team._

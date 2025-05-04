@@ -304,14 +304,16 @@ QUOTES_API_PORT=50059
 
 ## Dependency Injection & Provider Pattern
 
-- The Quotes service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- The Quotes service is registered and resolved via the central Provider using a DI container
+  (`internal/service/provider.go`).
 - Modular registration ensures the service is only registered once.
 - Health and metrics are managed centrally and exposed for observability.
 - Amadeus registration is performed at service startup for capability tracking.
 
 ## Babel & Location-Based Pricing
 
-- The Quotes service integrates with the Babel service for dynamic, location-based pricing rules and i18n support.
+- The Quotes service integrates with the Babel service for dynamic, location-based pricing rules and
+  i18n support.
 - Quote generation uses Babel to determine the best pricing rule for a user's location and context.
 
 ## Amadeus Integration & Observability

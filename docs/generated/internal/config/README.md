@@ -1,0 +1,5 @@
+# Package config
+
+## Types
+
+### Config

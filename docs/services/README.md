@@ -38,13 +38,16 @@ graph TD
    - Transaction management
 
 4. **Knowledge Graph Integration**
+
    - Service capability registration
    - Dependency tracking
    - Evolution history
    - Amadeus registration at startup
 
 5. **Dependency Injection & Provider Pattern**
-   - All services are registered and resolved via a central Provider using a DI container (`internal/service/provider.go`).
+
+   - All services are registered and resolved via a central Provider using a DI container
+     (`internal/service/provider.go`).
    - Modular registration ensures each service is only registered once.
    - Health and metrics are managed centrally and exposed for observability.
 

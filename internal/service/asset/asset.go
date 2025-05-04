@@ -6,10 +6,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
+	"sync"
 	"time"
 
 	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v0"
 	assetrepo "github.com/nmxmxh/master-ovasabi/internal/repository/asset"
+	"github.com/nmxmxh/master-ovasabi/pkg/cdn/r2"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -17,6 +20,10 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/google/uuid"
 )
 
@@ -71,6 +78,61 @@ type UploadMetadata struct {
 	LastUpdate     time.Time
 }
 
+// nanoQ-style broadcaster for live asset chunks
+// Subscribers receive []byte chunks; slow subscribers are dropped
+// This can be moved to a shared package if needed
+
+type AssetBroadcaster struct {
+	subs map[string]chan []byte
+	lock sync.RWMutex
+}
+
+func NewAssetBroadcaster() *AssetBroadcaster {
+	return &AssetBroadcaster{
+		subs: make(map[string]chan []byte),
+	}
+}
+
+func (b *AssetBroadcaster) Subscribe(id string) <-chan []byte {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	ch := make(chan []byte, 8) // buffer for burst
+	b.subs[id] = ch
+	return ch
+}
+
+func (b *AssetBroadcaster) Unsubscribe(id string) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	if ch, ok := b.subs[id]; ok {
+		close(ch)
+		delete(b.subs, id)
+	}
+}
+
+func (b *AssetBroadcaster) Publish(chunk []byte) {
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+	for id, ch := range b.subs {
+		select {
+		case ch <- chunk:
+			// delivered
+		default:
+			// drop if slow (nanoQ pattern)
+			go b.Unsubscribe(id)
+		}
+	}
+}
+
+// Global broadcaster instance (could be per-asset or per-session)
+var liveAssetBroadcaster = NewAssetBroadcaster()
+
+// BroadcastAssetChunk allows publishing a live asset chunk to all subscribers (for live streaming)
+func (s *ServiceImpl) BroadcastAssetChunk(ctx context.Context, chunk []byte) {
+	liveAssetBroadcaster.Publish(chunk)
+	// Optionally, notify the broadcast service here
+}
+
 // InitService creates a new instance of AssetService
 func InitService(log *zap.Logger, repo assetrepo.AssetRepository, cache *redis.Cache) *ServiceImpl {
 	return &ServiceImpl{
@@ -105,7 +167,7 @@ func (s *ServiceImpl) validateUploadSize(size int64) error {
 	return nil
 }
 
-// UploadLightAsset handles small asset uploads (< 500KB) stored directly in DB
+// UploadLightAsset handles small asset uploads (< 500KB) and stores them in R2 CDN
 func (s *ServiceImpl) UploadLightAsset(ctx context.Context, req *assetpb.UploadLightAssetRequest) (*assetpb.Asset, error) {
 	// Validate request
 	if !s.validateMimeType(req.MimeType) {
@@ -130,17 +192,28 @@ func (s *ServiceImpl) UploadLightAsset(ctx context.Context, req *assetpb.UploadL
 	checksum := sha256.Sum256(req.Data)
 	checksumHex := hex.EncodeToString(checksum[:])
 
+	// In UploadLightAsset, use strict folder structure and store authenticity fields
+	folderPrefix := fmt.Sprintf("nfts/%s/%s", req.UserId, "default") // Replace "default" with collectionID if available
+	publicURL, authenticityHash, r2Key, err := r2.UploadFile(ctx, req.Data, req.Name, req.MimeType, folderPrefix)
+	if err != nil {
+		s.log.Error("failed to upload to R2 CDN", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to upload to CDN")
+	}
+
 	asset := &assetrepo.AssetModel{
-		ID:        uuid.New(),
-		UserID:    userID,
-		Type:      assetrepo.StorageTypeLight,
-		Name:      req.Name,
-		MimeType:  req.MimeType,
-		Size:      size,
-		Data:      req.Data,
-		Checksum:  checksumHex,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:               uuid.New(),
+		UserID:           userID,
+		Type:             assetrepo.StorageTypeLight,
+		Name:             req.Name,
+		MimeType:         req.MimeType,
+		Size:             size,
+		URL:              publicURL,
+		Checksum:         checksumHex,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+		AuthenticityHash: authenticityHash,
+		R2Key:            r2Key,
+		// Signature:   ... (optional, sign authenticityHash with server key)
 	}
 
 	if err := s.repo.CreateAsset(ctx, asset); err != nil {
@@ -297,7 +370,6 @@ func (s *ServiceImpl) StreamAssetChunk(stream assetpb.AssetService_StreamAssetCh
 
 		// Process accumulated chunks
 		if len(buffer) >= largeChunkSize || metadata.ChunksReceived == metadata.ChunksTotal {
-			currentAsset.Data = buffer
 			currentAsset.Checksum = hex.EncodeToString(hasher.Sum(nil))
 			currentAsset.UpdatedAt = time.Now()
 
@@ -349,16 +421,22 @@ func (s *ServiceImpl) CompleteAssetUpload(ctx context.Context, req *assetpb.Comp
 		return nil, status.Error(codes.FailedPrecondition, "incomplete upload: missing chunks")
 	}
 
-	if int64(len(asset.Data)) != metadata.Size {
-		return nil, status.Error(codes.FailedPrecondition, "incomplete upload: size mismatch")
-	}
-
 	// Clean up upload metadata
 	if err := s.cache.Delete(ctx, "upload_metadata", uploadID.String()); err != nil {
 		s.log.Warn("failed to clean up upload metadata",
 			zap.Error(err),
 			zap.String("uploadId", uploadID.String()),
 		)
+	}
+
+	// Update asset metadata from metadata
+	asset.AuthenticityHash = metadata.Checksum
+	asset.R2Key = metadata.Checksum
+	asset.UpdatedAt = time.Now()
+
+	if err := s.repo.UpdateAsset(ctx, asset); err != nil {
+		s.log.Error("failed to update asset", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to update asset")
 	}
 
 	return s.assetToProto(asset), nil
@@ -392,10 +470,17 @@ func (s *ServiceImpl) GetAsset(ctx context.Context, req *assetpb.GetAssetRequest
 		s.log.Warn("failed to cache asset", zap.Error(err))
 	}
 
+	// In GetAsset, if asset is NFT/private, generate signed URL
+	// Example:
+	// if asset.IsNFT || asset.IsPrivate {
+	//   signedURL, err := r2.GenerateSignedURL(asset.R2Key, 15*time.Minute)
+	//   asset.URL = signedURL
+	// }
+
 	return result, nil
 }
 
-// StreamAssetContent streams the content of an asset
+// StreamAssetContent streams the content of a stored asset from R2 in chunks via gRPC
 func (s *ServiceImpl) StreamAssetContent(req *assetpb.GetAssetRequest, stream assetpb.AssetService_StreamAssetContentServer) error {
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
@@ -409,30 +494,63 @@ func (s *ServiceImpl) StreamAssetContent(req *assetpb.GetAssetRequest, stream as
 	if asset == nil {
 		return status.Error(codes.NotFound, "asset not found")
 	}
-
-	data := asset.Data
-	sequence := uint32(0)
-
-	for len(data) > 0 {
-		size := defaultChunkSize
-		if len(data) < size {
-			size = len(data)
-		}
-
-		chunk := &assetpb.AssetChunk{
-			UploadId: asset.ID.String(),
-			Data:     data[:size],
-			Sequence: sequence,
-		}
-
-		if err := stream.Send(chunk); err != nil {
-			return status.Error(codes.Internal, "failed to send chunk")
-		}
-
-		data = data[size:]
-		sequence++
+	if asset.R2Key == "" {
+		return status.Error(codes.NotFound, "asset R2 key not found")
 	}
 
+	// Stream from R2 using the asset's R2Key
+	accessKey := os.Getenv("R2_ACCESS_KEY_ID")
+	secretKey := os.Getenv("R2_SECRET_ACCESS_KEY")
+	bucket := os.Getenv("R2_BUCKET")
+	endpoint := os.Getenv("R2_ENDPOINT")
+	region := os.Getenv("R2_REGION")
+	if region == "" {
+		region = "auto"
+	}
+
+	sess, err := session.NewSession(&aws.Config{
+		Region:           aws.String(region),
+		Endpoint:         aws.String(endpoint),
+		S3ForcePathStyle: aws.Bool(true),
+		Credentials:      credentials.NewStaticCredentials(accessKey, secretKey, ""),
+	})
+	if err != nil {
+		return status.Error(codes.Internal, "failed to create AWS session")
+	}
+
+	svc := s3.New(sess)
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(asset.R2Key),
+	}
+	obj, err := svc.GetObjectWithContext(stream.Context(), input)
+	if err != nil {
+		return status.Error(codes.Internal, "failed to fetch from R2")
+	}
+	defer obj.Body.Close()
+
+	buf := make([]byte, 512*1024) // 512KB chunks
+	sequence := uint32(0)
+	for {
+		n, err := obj.Body.Read(buf)
+		if n > 0 {
+			chunk := &assetpb.AssetChunk{
+				UploadId: asset.ID.String(),
+				Data:     buf[:n],
+				Sequence: sequence,
+			}
+			if err := stream.Send(chunk); err != nil {
+				return status.Error(codes.Internal, "failed to send chunk")
+			}
+			sequence++
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return status.Error(codes.Internal, "stream read error")
+		}
+	}
 	return nil
 }
 
@@ -605,10 +723,9 @@ func (s *ServiceImpl) assetToProto(a *assetrepo.AssetModel) *assetpb.Asset {
 	// Set type and data/url based on asset type
 	if a.Type == assetrepo.StorageTypeLight {
 		asset.Type = assetpb.AssetType_ASSET_TYPE_LIGHT
-		asset.Data = a.Data
+		asset.Url = a.URL
 	} else {
 		asset.Type = assetpb.AssetType_ASSET_TYPE_HEAVY
-		asset.Url = a.URL
 	}
 
 	return asset

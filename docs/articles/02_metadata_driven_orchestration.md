@@ -4,11 +4,15 @@
 
 ## Abstract
 
-This article examines how metadata-driven orchestration enables self-documenting, adaptive backend systems. We show how OVASABI/Amadeus leverages metadata to automate service registration, relationship mapping, and documentation, reducing manual effort and increasing system transparency.
+This article examines how metadata-driven orchestration enables self-documenting, adaptive backend
+systems. We show how OVASABI/Amadeus leverages metadata to automate service registration,
+relationship mapping, and documentation, reducing manual effort and increasing system transparency.
 
 ## Introduction
 
-Modern distributed systems are complex and ever-changing. By treating metadata as a first-class citizen, platforms can automate orchestration, documentation, and compliance, making the system easier to reason about and evolve.
+Modern distributed systems are complex and ever-changing. By treating metadata as a first-class
+citizen, platforms can automate orchestration, documentation, and compliance, making the system
+easier to reason about and evolve.
 
 ## Metadata as a First-Class Citizen
 
@@ -71,6 +75,7 @@ for _, svc := range amadeusKG.ListServices() {
 ## Diagrams & Examples
 
 ### Metadata Flow
+
 ```mermaid
 graph TD
     ServiceA --metadata--> AmadeusKG
@@ -80,6 +85,7 @@ graph TD
 ```
 
 ### Orchestration Pattern
+
 ```mermaid
 graph TD
     ProviderDI --registers--> ServiceA
@@ -97,8 +103,9 @@ graph TD
 
 ## Conclusion
 
-Metadata-driven orchestration is key to building adaptive, self-documenting systems. OVASABI/Amadeus demonstrates how this approach reduces manual work and increases system clarity.
+Metadata-driven orchestration is key to building adaptive, self-documenting systems. OVASABI/Amadeus
+demonstrates how this approach reduces manual work and increases system clarity.
 
 ---
 
-*This is a living document. Contributions and updates are welcome.* 
+_This is a living document. Contributions and updates are welcome._

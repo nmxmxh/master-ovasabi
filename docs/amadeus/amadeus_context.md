@@ -19,9 +19,13 @@ system.
 - **Architectural compliance**: Enforces architectural principles
 - **Visualization generation**: Auto-generates visual representations from system knowledge
 - **Decision intelligence**: Provides insights for architectural decisions
-- **Centralized service registration**: All services are registered and resolved via a central Provider using a DI container, ensuring modular, single registration and easy dependency management.
-- **Health and metrics**: All services expose health and metrics endpoints, managed centrally for observability and monitoring.
-- **Babel service integration**: The Babel service provides i18n and dynamic, location-based pricing rules, and is integrated with Quotes, Finance, and Campaign services.
+- **Centralized service registration**: All services are registered and resolved via a central
+  Provider using a DI container, ensuring modular, single registration and easy dependency
+  management.
+- **Health and metrics**: All services expose health and metrics endpoints, managed centrally for
+  observability and monitoring.
+- **Babel service integration**: The Babel service provides i18n and dynamic, location-based pricing
+  rules, and is integrated with Quotes, Finance, and Campaign services.
 
 ## System Components
 
@@ -30,7 +34,8 @@ system.
 - **CLI Tool** (`amadeus/cmd/kgcli`): Command-line interface for knowledge graph access
 - **Nexus Pattern** (`amadeus/nexus/pattern`): Integration with Nexus orchestration
 - **Service Hooks** (`amadeus/examples`): Integration points for services
-- **Provider/DI Container** (`internal/service/provider.go`): Centralized service registration and dependency injection
+- **Provider/DI Container** (`internal/service/provider.go`): Centralized service registration and
+  dependency injection
 - **Babel Service** (`internal/service/babel`): Unified i18n and location-based pricing logic
 
 ## Knowledge Graph Structure
@@ -45,7 +50,8 @@ The knowledge graph is structured with these main sections:
 - `database_practices`: Database usage patterns and schema information
 - `redis_practices`: Redis usage patterns and data structures
 - `amadeus_integration`: Self-description of the knowledge graph system
-- `service_registration`: Tracks all service registrations, DI relationships, and health/metrics endpoints
+- `service_registration`: Tracks all service registrations, DI relationships, and health/metrics
+  endpoints
 - `babel_integration`: Tracks Babel service integration points and pricing/i18n relationships
 
 For advanced configuration and implementation details, see the
@@ -452,6 +458,7 @@ project root.
 ## 1. Concrete Code Examples
 
 ### Service Registration (Provider/DI)
+
 ```go
 // Registering a new service in internal/service/provider.go
 if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
@@ -467,6 +474,7 @@ if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(_ *di.
 ```
 
 ### Babel Integration in a Service
+
 ```go
 // Example: Using Babel for location-based pricing in QuotesService
 pricingRule, err := babelClient.GetLocationContext(ctx, &babelpb.LocationContextRequest{
@@ -483,9 +491,11 @@ quote.Price = basePrice * pricingRule.Multiplier
 ## 2. Edge Cases & Gotchas
 
 - **Do NOT register a service twice in the DI container**: This will cause fatal errors at runtime.
-- **Always resolve dependencies via the Provider/DI**: Manual instantiation can break dependency chains and caching.
+- **Always resolve dependencies via the Provider/DI**: Manual instantiation can break dependency
+  chains and caching.
 - **Health and metrics endpoints must be unique per service**: Avoid port conflicts.
-- **Babel integration**: Ensure the pricing rules table is seeded and kept up to date for all supported locales.
+- **Babel integration**: Ensure the pricing rules table is seeded and kept up to date for all
+  supported locales.
 - **Proto versioning**: Always increment proto versions for breaking changes.
 
 ## 3. Explicit Relationship Diagrams
@@ -544,7 +554,8 @@ graph LR
 - **Unit tests**: All business logic must be covered by unit tests.
 - **Integration tests**: Test service-to-service and DB/Redis interactions.
 - **Repository tests**: Use test containers for DB/Redis.
-- **CI/CD**: Lint, test, and coverage checks must pass before merge. Docs are auto-generated and validated.
+- **CI/CD**: Lint, test, and coverage checks must pass before merge. Docs are auto-generated and
+  validated.
 - **Pre-commit hooks**: Run `make lint-safe` and `make test-unit` before every commit.
 
 ## 7. Glossary
@@ -553,7 +564,8 @@ graph LR
 - **Babel**: The unified service for i18n and location-based pricing.
 - **Amadeus**: The knowledge graph and system documentation engine.
 - **Nexus**: The orchestration and pattern engine.
-- **Service Registration**: The process of registering a service with both Amadeus and the DI container.
+- **Service Registration**: The process of registering a service with both Amadeus and the DI
+  container.
 - **Health/Metrics**: Endpoints for service health and Prometheus metrics.
 - **Master Repository**: Central DB abstraction for cross-service data.
 - **Pattern**: A reusable orchestration or data flow template in Nexus/Amadeus.
@@ -562,4 +574,65 @@ graph LR
 
 ## Changelog / What's New
 
-- 2024-05-04: Added explicit DI/Provider, Babel, and health/metrics documentation. Added code examples, diagrams, and glossary for AI and human onboarding.
+- 2024-05-04: Added explicit DI/Provider, Babel, and health/metrics documentation. Added code
+  examples, diagrams, and glossary for AI and human onboarding.
+
+## Real-Time Asset Streaming & Broadcasting (2024-05)
+
+### Overview
+
+The platform now supports real-time asset streaming and broadcasting using gRPC and a nanoQ-style
+in-memory broadcaster. This enables:
+
+- Live video/3D asset streaming
+- Real-time collaborative editing
+- Live NFT minting and reveal events
+- Scalable, low-latency delivery to many clients
+
+### Key Features
+
+- **gRPC Endpoints (in BroadcastService):**
+  - `SubscribeToLiveAssetChunks`: Server streaming endpoint for real-time asset chunk delivery
+  - `PublishLiveAssetChunk`: Pushes a chunk to all subscribers of a given asset
+- **AssetChunk message:** Binary chunk with upload_id, data, and sequence number
+- **nanoQ-style broadcaster:** In-memory, per-asset, drops slow clients for scalability
+
+### Proto Changes (api/protos/broadcast/v0/broadcast.proto)
+
+```proto
+message AssetChunk {
+  string upload_id = 1;
+  bytes data = 2;
+  uint32 sequence = 3;
+}
+message SubscribeToLiveAssetChunksRequest {
+  string asset_id = 1;
+}
+service BroadcastService {
+  rpc SubscribeToLiveAssetChunks(SubscribeToLiveAssetChunksRequest) returns (stream AssetChunk);
+  rpc PublishLiveAssetChunk(AssetChunk) returns (.google.protobuf.Empty);
+}
+```
+
+### Service Implementation (internal/service/broadcast/broadcast.go)
+
+- Per-asset broadcaster using Go channels and sync.RWMutex
+- Drops slow subscribers automatically (nanoQ pattern)
+- Thread-safe, supports many concurrent subscribers
+- See `SubscribeToLiveAssetChunks` and `PublishLiveAssetChunk` methods
+
+### Usage
+
+- **Live asset streaming:**
+  - Service pushes chunks via `PublishLiveAssetChunk`
+  - Clients subscribe via `SubscribeToLiveAssetChunks` and receive chunks in real time
+- **Scalability:**
+  - In-memory for now; can be extended to Redis pub/sub for cross-instance scaling
+
+### References
+
+- [Master Video Streaming in Golang](https://medium.com/coding-compass/master-video-streaming-in-golang-build-your-own-high-performance-server-415849d3284a)
+- [nanoQ: High-Performance Brokerless Pub/Sub](https://medium.com/aigent/meet-nanoq-high-performance-brokerless-pub-sub-for-streaming-real-time-data-with-golang-6630d3067f4e)
+- [Cloudflare R2 API Docs](https://developers.cloudflare.com/api/)
+
+---

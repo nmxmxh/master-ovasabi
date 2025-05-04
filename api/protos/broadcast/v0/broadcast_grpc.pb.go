@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,11 +20,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	BroadcastService_BroadcastAction_FullMethodName    = "/broadcast.BroadcastService/BroadcastAction"
-	BroadcastService_SubscribeToActions_FullMethodName = "/broadcast.BroadcastService/SubscribeToActions"
-	BroadcastService_CreateBroadcast_FullMethodName    = "/broadcast.BroadcastService/CreateBroadcast"
-	BroadcastService_GetBroadcast_FullMethodName       = "/broadcast.BroadcastService/GetBroadcast"
-	BroadcastService_ListBroadcasts_FullMethodName     = "/broadcast.BroadcastService/ListBroadcasts"
+	BroadcastService_BroadcastAction_FullMethodName            = "/broadcast.BroadcastService/BroadcastAction"
+	BroadcastService_SubscribeToActions_FullMethodName         = "/broadcast.BroadcastService/SubscribeToActions"
+	BroadcastService_CreateBroadcast_FullMethodName            = "/broadcast.BroadcastService/CreateBroadcast"
+	BroadcastService_GetBroadcast_FullMethodName               = "/broadcast.BroadcastService/GetBroadcast"
+	BroadcastService_ListBroadcasts_FullMethodName             = "/broadcast.BroadcastService/ListBroadcasts"
+	BroadcastService_SubscribeToLiveAssetChunks_FullMethodName = "/broadcast.BroadcastService/SubscribeToLiveAssetChunks"
+	BroadcastService_PublishLiveAssetChunk_FullMethodName      = "/broadcast.BroadcastService/PublishLiveAssetChunk"
 )
 
 // BroadcastServiceClient is the client API for BroadcastService service.
@@ -37,6 +40,9 @@ type BroadcastServiceClient interface {
 	CreateBroadcast(ctx context.Context, in *CreateBroadcastRequest, opts ...grpc.CallOption) (*CreateBroadcastResponse, error)
 	GetBroadcast(ctx context.Context, in *GetBroadcastRequest, opts ...grpc.CallOption) (*GetBroadcastResponse, error)
 	ListBroadcasts(ctx context.Context, in *ListBroadcastsRequest, opts ...grpc.CallOption) (*ListBroadcastsResponse, error)
+	// Real-time asset chunk streaming
+	SubscribeToLiveAssetChunks(ctx context.Context, in *SubscribeToLiveAssetChunksRequest, opts ...grpc.CallOption) (BroadcastService_SubscribeToLiveAssetChunksClient, error)
+	PublishLiveAssetChunk(ctx context.Context, in *AssetChunk, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type broadcastServiceClient struct {
@@ -115,6 +121,47 @@ func (c *broadcastServiceClient) ListBroadcasts(ctx context.Context, in *ListBro
 	return out, nil
 }
 
+func (c *broadcastServiceClient) SubscribeToLiveAssetChunks(ctx context.Context, in *SubscribeToLiveAssetChunksRequest, opts ...grpc.CallOption) (BroadcastService_SubscribeToLiveAssetChunksClient, error) {
+	stream, err := c.cc.NewStream(ctx, &BroadcastService_ServiceDesc.Streams[1], BroadcastService_SubscribeToLiveAssetChunks_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &broadcastServiceSubscribeToLiveAssetChunksClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type BroadcastService_SubscribeToLiveAssetChunksClient interface {
+	Recv() (*AssetChunk, error)
+	grpc.ClientStream
+}
+
+type broadcastServiceSubscribeToLiveAssetChunksClient struct {
+	grpc.ClientStream
+}
+
+func (x *broadcastServiceSubscribeToLiveAssetChunksClient) Recv() (*AssetChunk, error) {
+	m := new(AssetChunk)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *broadcastServiceClient) PublishLiveAssetChunk(ctx context.Context, in *AssetChunk, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, BroadcastService_PublishLiveAssetChunk_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BroadcastServiceServer is the server API for BroadcastService service.
 // All implementations must embed UnimplementedBroadcastServiceServer
 // for forward compatibility
@@ -126,6 +173,9 @@ type BroadcastServiceServer interface {
 	CreateBroadcast(context.Context, *CreateBroadcastRequest) (*CreateBroadcastResponse, error)
 	GetBroadcast(context.Context, *GetBroadcastRequest) (*GetBroadcastResponse, error)
 	ListBroadcasts(context.Context, *ListBroadcastsRequest) (*ListBroadcastsResponse, error)
+	// Real-time asset chunk streaming
+	SubscribeToLiveAssetChunks(*SubscribeToLiveAssetChunksRequest, BroadcastService_SubscribeToLiveAssetChunksServer) error
+	PublishLiveAssetChunk(context.Context, *AssetChunk) (*emptypb.Empty, error)
 	mustEmbedUnimplementedBroadcastServiceServer()
 }
 
@@ -147,6 +197,12 @@ func (UnimplementedBroadcastServiceServer) GetBroadcast(context.Context, *GetBro
 }
 func (UnimplementedBroadcastServiceServer) ListBroadcasts(context.Context, *ListBroadcastsRequest) (*ListBroadcastsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListBroadcasts not implemented")
+}
+func (UnimplementedBroadcastServiceServer) SubscribeToLiveAssetChunks(*SubscribeToLiveAssetChunksRequest, BroadcastService_SubscribeToLiveAssetChunksServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToLiveAssetChunks not implemented")
+}
+func (UnimplementedBroadcastServiceServer) PublishLiveAssetChunk(context.Context, *AssetChunk) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PublishLiveAssetChunk not implemented")
 }
 func (UnimplementedBroadcastServiceServer) mustEmbedUnimplementedBroadcastServiceServer() {}
 
@@ -254,6 +310,45 @@ func _BroadcastService_ListBroadcasts_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BroadcastService_SubscribeToLiveAssetChunks_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToLiveAssetChunksRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(BroadcastServiceServer).SubscribeToLiveAssetChunks(m, &broadcastServiceSubscribeToLiveAssetChunksServer{stream})
+}
+
+type BroadcastService_SubscribeToLiveAssetChunksServer interface {
+	Send(*AssetChunk) error
+	grpc.ServerStream
+}
+
+type broadcastServiceSubscribeToLiveAssetChunksServer struct {
+	grpc.ServerStream
+}
+
+func (x *broadcastServiceSubscribeToLiveAssetChunksServer) Send(m *AssetChunk) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _BroadcastService_PublishLiveAssetChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AssetChunk)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BroadcastServiceServer).PublishLiveAssetChunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BroadcastService_PublishLiveAssetChunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BroadcastServiceServer).PublishLiveAssetChunk(ctx, req.(*AssetChunk))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BroadcastService_ServiceDesc is the grpc.ServiceDesc for BroadcastService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -277,11 +372,20 @@ var BroadcastService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListBroadcasts",
 			Handler:    _BroadcastService_ListBroadcasts_Handler,
 		},
+		{
+			MethodName: "PublishLiveAssetChunk",
+			Handler:    _BroadcastService_PublishLiveAssetChunk_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "SubscribeToActions",
 			Handler:       _BroadcastService_SubscribeToActions_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "SubscribeToLiveAssetChunks",
+			Handler:       _BroadcastService_SubscribeToLiveAssetChunks_Handler,
 			ServerStreams: true,
 		},
 	},

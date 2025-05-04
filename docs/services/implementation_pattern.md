@@ -5,7 +5,8 @@ service as a reference implementation.
 
 ## Overview
 
-Each service follows a three-layer architecture with Amadeus knowledge graph integration and is registered via a central Provider using a DI container:
+Each service follows a three-layer architecture with Amadeus knowledge graph integration and is
+registered via a central Provider using a DI container:
 
 ```mermaid
 graph TD
@@ -205,7 +206,8 @@ logger := logger.With(
 
 ## Dependency Injection & Provider Pattern
 
-- All services are registered and resolved via a central Provider (`internal/service/provider.go`) using a DI container.
+- All services are registered and resolved via a central Provider (`internal/service/provider.go`)
+  using a DI container.
 - Modular registration ensures each service is only registered once.
 - Health and metrics are managed centrally and exposed for observability.
 - Amadeus registration is performed at service startup for capability tracking.

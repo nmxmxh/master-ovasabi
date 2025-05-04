@@ -256,7 +256,8 @@ Risk(action) = \sum_{p \in Patterns} w_p \cdot Match(action, p) \cdot Severity(p
 
 ## Dependency Injection & Provider Pattern
 
-- The Security service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- The Security service is registered and resolved via the central Provider using a DI container
+  (`internal/service/provider.go`).
 - Modular registration ensures the service is only registered once.
 - Health and metrics are managed centrally and exposed for observability.
 - Amadeus registration is performed at service startup for capability tracking.

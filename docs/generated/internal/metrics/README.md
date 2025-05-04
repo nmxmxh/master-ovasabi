@@ -1,0 +1,5 @@
+# Package metrics
+
+## Functions
+
+### NewServer

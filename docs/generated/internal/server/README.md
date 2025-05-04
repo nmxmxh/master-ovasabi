@@ -71,11 +71,21 @@ KGUpdate represents a knowledge graph update event
 
 KGUpdateType represents the type of knowledge graph update
 
+### Server
+
+#### Methods
+
+##### Start
+
+##### Stop
+
 ## Functions
 
-### RegisterServices
+### RegisterAllServices
 
-RegisterServices registers all gRPC services with the server.
+### Run
+
+Run starts the main server, including gRPC, health, and metrics endpoints.
 
 ### StreamServerInterceptor
 
@@ -84,3 +94,5 @@ StreamServerInterceptor creates a new stream server interceptor that logs stream
 ### UnaryServerInterceptor
 
 UnaryServerInterceptor creates a new unary server interceptor that logs request details.
+
+### WaitForShutdown

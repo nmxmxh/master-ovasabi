@@ -58,6 +58,10 @@ Asset returns the AssetService instance.
 
 Auth returns the AuthService instance.
 
+##### Babel
+
+Babel returns the BabelService instance.
+
 ##### Broadcast
 
 Broadcast returns the BroadcastService instance.
@@ -65,6 +69,10 @@ Broadcast returns the BroadcastService instance.
 ##### Close
 
 Close closes all resources.
+
+##### Container
+
+Container returns the DI container.
 
 ##### Finance
 
@@ -74,6 +82,10 @@ Finance returns the FinanceService instance.
 
 I18n returns the I18nService instance.
 
+##### Nexus
+
+Nexus returns the NexusServiceServer instance.
+
 ##### Notification
 
 Notification returns the NotificationService instance.
@@ -81,6 +93,10 @@ Notification returns the NotificationService instance.
 ##### Quotes
 
 Quotes returns the QuotesService instance.
+
+##### RedisClient
+
+RedisClient returns the underlying Redis client.
 
 ##### Referrals
 

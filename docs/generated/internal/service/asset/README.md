@@ -2,6 +2,16 @@
 
 ## Types
 
+### AssetBroadcaster
+
+#### Methods
+
+##### Publish
+
+##### Subscribe
+
+##### Unsubscribe
+
 ### AssetService
 
 AssetService defines the interface for asset operations
@@ -11,6 +21,10 @@ AssetService defines the interface for asset operations
 ServiceImpl implements the AssetService interface
 
 #### Methods
+
+##### BroadcastAssetChunk
+
+BroadcastAssetChunk allows publishing a live asset chunk to all subscribers (for live streaming)
 
 ##### CompleteAssetUpload
 
@@ -42,11 +56,11 @@ StreamAssetChunk handles streaming chunks for heavy asset uploads
 
 ##### StreamAssetContent
 
-StreamAssetContent streams the content of an asset
+StreamAssetContent streams the content of a stored asset from R2 in chunks via gRPC
 
 ##### UploadLightAsset
 
-UploadLightAsset handles small asset uploads (< 500KB) stored directly in DB
+UploadLightAsset handles small asset uploads (< 500KB) and stores them in R2 CDN
 
 ### UploadMetadata
 

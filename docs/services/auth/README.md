@@ -330,7 +330,8 @@ AUTH_JWT_SECRET=your-secret-key
 
 ## Dependency Injection & Provider Pattern
 
-- The Auth service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- The Auth service is registered and resolved via the central Provider using a DI container
+  (`internal/service/provider.go`).
 - Modular registration ensures the service is only registered once.
 - Health and metrics are managed centrally and exposed for observability.
 - Amadeus registration is performed at service startup for capability tracking.

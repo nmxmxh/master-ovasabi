@@ -1,3 +1,3 @@
 # Package main
 
-main.go
+main.go (refactored entrypoint)

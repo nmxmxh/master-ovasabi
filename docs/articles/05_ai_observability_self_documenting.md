@@ -4,11 +4,15 @@
 
 ## Abstract
 
-This article explores how AI and observability are converging to create self-documenting, adaptive backend systems. Using OVASABI/Amadeus as a reference, we show how knowledge graphs, metrics, and automated documentation enable rapid evolution and AI-driven insights.
+This article explores how AI and observability are converging to create self-documenting, adaptive
+backend systems. Using OVASABI/Amadeus as a reference, we show how knowledge graphs, metrics, and
+automated documentation enable rapid evolution and AI-driven insights.
 
 ## Introduction
 
-As systems grow in complexity, traditional documentation and monitoring approaches fall short. By integrating observability, knowledge graphs, and AI, platforms can become self-documenting and self-improving.
+As systems grow in complexity, traditional documentation and monitoring approaches fall short. By
+integrating observability, knowledge graphs, and AI, platforms can become self-documenting and
+self-improving.
 
 ## The Role of AI in Modern Backends
 
@@ -86,8 +90,9 @@ graph LR
 
 ## Conclusion
 
-The future of backend platforms lies in self-documenting, observable, and AI-augmented systems. OVASABI/Amadeus is a blueprint for this new paradigm.
+The future of backend platforms lies in self-documenting, observable, and AI-augmented systems.
+OVASABI/Amadeus is a blueprint for this new paradigm.
 
 ---
 
-*This is a living document. Contributions and updates are welcome.*
+_This is a living document. Contributions and updates are welcome._

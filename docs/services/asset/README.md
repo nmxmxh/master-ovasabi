@@ -381,7 +381,8 @@ ASSET_CDN_KEY=your-cdn-key
 
 ## Dependency Injection & Provider Pattern
 
-- The Asset service is registered and resolved via the central Provider using a DI container (`internal/service/provider.go`).
+- The Asset service is registered and resolved via the central Provider using a DI container
+  (`internal/service/provider.go`).
 - Modular registration ensures the service is only registered once.
 - Health and metrics are managed centrally and exposed for observability.
 - Amadeus registration is performed at service startup for capability tracking.

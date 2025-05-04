@@ -212,6 +212,10 @@ Each service maintains its own documentation:
 
 Documentation is automatically generated and updated through Amadeus.
 
-**All services are registered and resolved via a central Provider using a DI container. Modular registration ensures each service is only registered once. Health and metrics are managed centrally and exposed for observability. Amadeus registration is performed at service startup for capability tracking.**
+**All services are registered and resolved via a central Provider using a DI container. Modular
+registration ensures each service is only registered once. Health and metrics are managed centrally
+and exposed for observability. Amadeus registration is performed at service startup for capability
+tracking.**
 
-**The Babel service provides i18n and dynamic, location-based pricing rules. Quotes, Finance, and Campaign services integrate with Babel for pricing and localization.**
+**The Babel service provides i18n and dynamic, location-based pricing rules. Quotes, Finance, and
+Campaign services integrate with Babel for pricing and localization.**

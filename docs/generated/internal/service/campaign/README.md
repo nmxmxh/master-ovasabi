@@ -18,6 +18,10 @@ Service implements the CampaignService gRPC interface
 
 ##### GetCampaign
 
+##### GetLeaderboard
+
+GetLeaderboard returns the leaderboard for a campaign, applying the ranking formula.
+
 ##### ListCampaigns
 
 ##### UpdateCampaign
