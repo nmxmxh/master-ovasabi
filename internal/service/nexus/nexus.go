@@ -3,6 +3,7 @@ package nexus
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/nmxmxh/master-ovasabi/amadeus/nexus/pattern"
 	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
@@ -45,46 +46,28 @@ func NewService(
 	}
 }
 
-// PatternDefinition and PatternStep for in-memory storage
+// PatternDefinition for in-memory storage
 // (You may want to persist this in the knowledge graph or DB)
-type PatternStep struct {
-	Service      string
-	Action       string
-	RequiredArgs []string
-	OptionalArgs []string
-	Params       map[string]string
-}
-
 type PatternDefinition struct {
-	PatternName string
-	Steps       []PatternStep
+	PatternName   string
+	PatternType   string
+	PatternConfig map[string]string
 }
 
 // Add a map to store registered patterns
 var patternRegistry = make(map[string]PatternDefinition)
 
-// RegisterPattern registers a new pattern with structured steps and requirements
+// RegisterPattern registers a new pattern with config
 func (s *Service) RegisterPattern(ctx context.Context, req *nexuspb.RegisterPatternRequest) (*nexuspb.RegisterPatternResponse, error) {
 	s.logger.Info("Registering pattern (structured)",
 		zap.String("pattern_name", req.PatternName),
 		zap.String("pattern_type", req.PatternType),
 	)
 
-	// Convert proto steps to Go struct
-	steps := make([]PatternStep, 0, len(req.Steps))
-	for _, step := range req.Steps {
-		ps := PatternStep{
-			Service:      step.Service,
-			Action:       step.Action,
-			RequiredArgs: step.RequiredArgs,
-			OptionalArgs: step.OptionalArgs,
-			Params:       step.Params,
-		}
-		steps = append(steps, ps)
-	}
 	patternRegistry[req.PatternName] = PatternDefinition{
-		PatternName: req.PatternName,
-		Steps:       steps,
+		PatternName:   req.PatternName,
+		PatternType:   req.PatternType,
+		PatternConfig: req.PatternConfig,
 	}
 
 	return &nexuspb.RegisterPatternResponse{
@@ -93,7 +76,7 @@ func (s *Service) RegisterPattern(ctx context.Context, req *nexuspb.RegisterPatt
 	}, nil
 }
 
-// ExecutePattern aggregates requirements and validates provided arguments
+// ExecutePattern validates provided arguments against required config keys
 func (s *Service) ExecutePattern(ctx context.Context, req *nexuspb.ExecutePatternRequest) (*nexuspb.ExecutePatternResponse, error) {
 	pattern, ok := patternRegistry[req.PatternName]
 	if !ok {
@@ -103,12 +86,10 @@ func (s *Service) ExecutePattern(ctx context.Context, req *nexuspb.ExecutePatter
 		}, nil
 	}
 
-	// Aggregate all required arguments
+	// Aggregate all required arguments from PatternConfig keys
 	required := map[string]bool{}
-	for _, step := range pattern.Steps {
-		for _, arg := range step.RequiredArgs {
-			required[arg] = true
-		}
+	for arg := range pattern.PatternConfig {
+		required[arg] = true
 	}
 
 	// Check which arguments are missing
@@ -121,9 +102,11 @@ func (s *Service) ExecutePattern(ctx context.Context, req *nexuspb.ExecutePatter
 
 	if len(missing) > 0 {
 		return &nexuspb.ExecutePatternResponse{
-			Status:           "missing_arguments",
-			Result:           map[string]string{"error": "Missing required arguments"},
-			MissingArguments: missing,
+			Status: "missing_arguments",
+			Result: map[string]string{
+				"error":   "Missing required arguments",
+				"missing": strings.Join(missing, ", "),
+			},
 		}, nil
 	}
 
