@@ -11,7 +11,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/google/uuid"
 )
@@ -27,6 +26,9 @@ type AssetService interface {
 	DeleteAsset(ctx context.Context, req *assetpb.DeleteAssetRequest) (*assetpb.DeleteAssetResponse, error)
 	ListUserAssets(ctx context.Context, req *assetpb.ListUserAssetsRequest) (*assetpb.ListUserAssetsResponse, error)
 	ListSystemAssets(ctx context.Context, req *assetpb.ListSystemAssetsRequest) (*assetpb.ListSystemAssetsResponse, error)
+	SubscribeToUserAssets(ctx context.Context, req *assetpb.SubscribeToUserAssetsRequest) (*assetpb.SubscribeToUserAssetsResponse, error)
+	SubscribeToSystemAssets(ctx context.Context, req *assetpb.SubscribeToSystemAssetsRequest) (*assetpb.SubscribeToSystemAssetsResponse, error)
+	BroadcastSystemAsset(ctx context.Context, req *assetpb.BroadcastSystemAssetRequest) (*assetpb.BroadcastSystemAssetResponse, error)
 }
 
 const (
@@ -244,13 +246,13 @@ func (s *ServiceImpl) StreamAssetChunk(ctx context.Context, req *assetpb.StreamA
 }
 
 // CompleteAssetUpload finalizes a heavy asset upload
-func (s *ServiceImpl) CompleteAssetUpload(ctx context.Context, req *assetpb.CompleteAssetUploadRequest) (*assetpb.Asset, error) {
+func (s *ServiceImpl) CompleteAssetUpload(ctx context.Context, req *assetpb.CompleteAssetUploadRequest) (*assetpb.CompleteAssetUploadResponse, error) {
 	// This method is removed as per the instructions
 	return nil, nil
 }
 
 // GetAsset retrieves an asset by ID
-func (s *ServiceImpl) GetAsset(ctx context.Context, req *assetpb.GetAssetRequest) (*assetpb.Asset, error) {
+func (s *ServiceImpl) GetAsset(ctx context.Context, req *assetpb.GetAssetRequest) (*assetpb.GetAssetResponse, error) {
 	// This method is removed as per the instructions
 	return nil, nil
 }
@@ -262,9 +264,9 @@ func (s *ServiceImpl) StreamAssetContent(ctx context.Context, req *assetpb.Strea
 	return &assetpb.StreamAssetContentResponse{}, nil
 }
 
-// DeleteAsset deletes an asset by ID
-func (s *ServiceImpl) DeleteAsset(ctx context.Context, req *assetpb.DeleteAssetRequest) (*emptypb.Empty, error) {
-	// This method is removed as per the instructions
+// DeleteAsset deletes an asset
+func (s *ServiceImpl) DeleteAsset(ctx context.Context, req *assetpb.DeleteAssetRequest) (*assetpb.DeleteAssetResponse, error) {
+	// Implementation needed
 	return nil, nil
 }
 
@@ -279,3 +281,24 @@ func (s *ServiceImpl) ListSystemAssets(ctx context.Context, req *assetpb.ListSys
 	// This method is removed as per the instructions
 	return nil, nil
 }
+
+// SubscribeToUserAssets subscribes to user assets
+func (s *ServiceImpl) SubscribeToUserAssets(ctx context.Context, req *assetpb.SubscribeToUserAssetsRequest) (*assetpb.SubscribeToUserAssetsResponse, error) {
+	// Implementation needed
+	return nil, nil
+}
+
+// SubscribeToSystemAssets subscribes to system assets
+func (s *ServiceImpl) SubscribeToSystemAssets(ctx context.Context, req *assetpb.SubscribeToSystemAssetsRequest) (*assetpb.SubscribeToSystemAssetsResponse, error) {
+	// Implementation needed
+	return nil, nil
+}
+
+// BroadcastSystemAsset broadcasts a system asset
+func (s *ServiceImpl) BroadcastSystemAsset(ctx context.Context, req *assetpb.BroadcastSystemAssetRequest) (*assetpb.BroadcastSystemAssetResponse, error) {
+	// Implementation needed
+	return nil, nil
+}
+
+// Compile-time check
+var _ assetpb.AssetServiceServer = (*ServiceImpl)(nil)

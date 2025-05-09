@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -47,6 +48,7 @@ type KGHooks struct {
 	updateChan chan *KGUpdate
 	ctx        context.Context
 	cancel     context.CancelFunc
+	startOnce  sync.Once
 }
 
 // NewKGHooks creates a new KGHooks instance
@@ -63,40 +65,70 @@ func NewKGHooks(redisClient *redis.Client, logger *zap.Logger) *KGHooks {
 
 // Start begins processing knowledge graph updates
 func (h *KGHooks) Start() error {
-	// Start the update processor
-	go h.processUpdates()
-
-	// Subscribe to Redis update channel in a goroutine
-	go func() {
-		pubsub := h.redis.Subscribe(h.ctx, kgUpdateChannel)
-		defer func() {
-			if err := pubsub.Close(); err != nil {
-				h.logger.Error("Failed to close Redis pubsub", zap.Error(err))
+	h.startOnce.Do(func() {
+		h.logger.Info("KGHooks starting...")
+		go h.processUpdates()
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					h.logger.Error("Recovered from panic in PubSub goroutine", zap.Any("recover", r))
+				}
+			}()
+			var reconnectAttempts int
+			for {
+				h.logger.Info("Subscribing to Redis PubSub channel", zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
+				pubsub := h.redis.Subscribe(h.ctx, kgUpdateChannel)
+				ch := pubsub.Channel()
+				for {
+					select {
+					case msg, ok := <-ch:
+						if !ok || msg == nil {
+							h.logger.Error("Redis pubsub channel closed or nil message received, reconnecting...", zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
+							if err := pubsub.Unsubscribe(h.ctx, kgUpdateChannel); err != nil {
+								h.logger.Warn("Failed to unsubscribe before close", zap.Error(err))
+							}
+							if err := pubsub.Close(); err != nil {
+								h.logger.Error("Failed to close Redis pubsub on reconnect", zap.Error(err), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
+							}
+							reconnectAttempts++
+							backoff := time.Second * time.Duration(1<<reconnectAttempts)
+							if backoff > 30*time.Second {
+								backoff = 30 * time.Second
+							}
+							jitter := time.Duration(rand.Intn(1000)) * time.Millisecond
+							totalSleep := backoff + jitter
+							h.logger.Info("Sleeping before resubscribe", zap.Duration("sleep", totalSleep), zap.Int("attempt", reconnectAttempts), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
+							time.Sleep(totalSleep)
+							h.logger.Info("Attempting to resubscribe to Redis PubSub channel", zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
+							break
+						}
+						var update KGUpdate
+						if err := json.Unmarshal([]byte(msg.Payload), &update); err != nil {
+							h.logger.Error("Failed to unmarshal update", zap.Error(err), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
+							continue
+						}
+						h.updateChan <- &update
+						reconnectAttempts = 0
+					case <-h.ctx.Done():
+						h.logger.Info("KGHooks PubSub goroutine received shutdown signal")
+						if err := pubsub.Unsubscribe(h.ctx, kgUpdateChannel); err != nil {
+							h.logger.Warn("Failed to unsubscribe before close on shutdown", zap.Error(err))
+						}
+						if err := pubsub.Close(); err != nil {
+							h.logger.Error("Failed to close Redis pubsub on shutdown", zap.Error(err), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
+						}
+						return
+					}
+				}
 			}
 		}()
-
-		ch := pubsub.Channel()
-		for {
-			select {
-			case msg := <-ch:
-				var update KGUpdate
-				if err := json.Unmarshal([]byte(msg.Payload), &update); err != nil {
-					h.logger.Error("Failed to unmarshal update", zap.Error(err))
-					continue
-				}
-				h.updateChan <- &update
-
-			case <-h.ctx.Done():
-				return
-			}
-		}
-	}()
-
+	})
 	return nil
 }
 
 // Stop gracefully shuts down the hooks
 func (h *KGHooks) Stop() {
+	h.logger.Info("KGHooks stopping, cancelling context...")
 	h.cancel()
 }
 

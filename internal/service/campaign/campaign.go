@@ -23,6 +23,9 @@ var (
 	ErrCampaignExists   = errors.New("campaign already exists")
 )
 
+// Compile-time check
+var _ campaignpb.CampaignServiceServer = (*Service)(nil)
+
 // Service implements the CampaignService gRPC interface
 type Service struct {
 	campaignpb.UnimplementedCampaignServiceServer

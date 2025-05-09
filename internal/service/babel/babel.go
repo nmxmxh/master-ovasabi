@@ -40,7 +40,7 @@ func NewService(repo *babel.Repository, cache *redis.Cache, log *zap.Logger) *Se
 	return &Service{repo: repo, cache: cache, log: log}
 }
 
-// Ensure Service implements babelpb.BabelServiceServer
+// Compile-time check
 var _ babelpb.BabelServiceServer = (*Service)(nil)
 
 // GetLocationContext implements the gRPC method for BabelService

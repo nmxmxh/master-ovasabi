@@ -130,4 +130,7 @@ ENV/
 *.pyc
 __pycache__/
 site/
-docs-site.tar.gz 
+docs-site.tar.gz
+
+# Vendor directory
+vendor/ 

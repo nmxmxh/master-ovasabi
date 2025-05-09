@@ -44,6 +44,9 @@ type ServiceImpl struct {
 	cache      *redis.Cache
 }
 
+// Compile-time check
+var _ authpb.AuthServiceServer = (*ServiceImpl)(nil)
+
 // NewService creates a new auth service instance
 func NewService(log *zap.Logger, userSvc userpb.UserServiceServer, cache *redis.Cache) *ServiceImpl {
 	return &ServiceImpl{

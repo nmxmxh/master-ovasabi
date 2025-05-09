@@ -47,6 +47,9 @@ type service struct {
 	logger *zap.Logger
 }
 
+// Compile-time check
+var _ financepb.FinanceServiceServer = (*service)(nil)
+
 // New creates a new finance service instance
 func New(repo finance.Repository, master repository.MasterRepository, cache *redis.Cache, logger *zap.Logger) *service {
 	return &service{
@@ -255,39 +258,38 @@ func (s *service) GetBalance(ctx context.Context, req *financepb.GetBalanceReque
 	}, nil
 }
 
-func (s *service) Deposit(ctx context.Context, req *financepb.DepositRequest) (*financepb.TransactionResponse, error) {
+// Deposit adds funds to a user's account
+func (s *service) Deposit(ctx context.Context, req *financepb.DepositRequest) (*financepb.DepositResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	tx, err := s.DepositInternal(ctx, userID, req.Amount)
+	_, err = s.DepositInternal(ctx, userID, req.Amount)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to process deposit: %v", err)
 	}
 
-	return &financepb.TransactionResponse{
-		Transaction: convertTransactionToProto(tx),
-	}, nil
+	return &financepb.DepositResponse{}, nil
 }
 
-func (s *service) Withdraw(ctx context.Context, req *financepb.WithdrawRequest) (*financepb.TransactionResponse, error) {
+// Withdraw removes funds from a user's account
+func (s *service) Withdraw(ctx context.Context, req *financepb.WithdrawRequest) (*financepb.WithdrawResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid user ID: %v", err)
 	}
 
-	tx, err := s.WithdrawInternal(ctx, userID, req.Amount)
+	_, err = s.WithdrawInternal(ctx, userID, req.Amount)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to process withdrawal: %v", err)
 	}
 
-	return &financepb.TransactionResponse{
-		Transaction: convertTransactionToProto(tx),
-	}, nil
+	return &financepb.WithdrawResponse{}, nil
 }
 
-func (s *service) Transfer(ctx context.Context, req *financepb.TransferRequest) (*financepb.TransactionResponse, error) {
+// Transfer moves funds between two user accounts
+func (s *service) Transfer(ctx context.Context, req *financepb.TransferRequest) (*financepb.TransferResponse, error) {
 	fromUserID, err := uuid.Parse(req.FromUserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid from_user_id: %v", err)
@@ -298,34 +300,27 @@ func (s *service) Transfer(ctx context.Context, req *financepb.TransferRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "invalid to_user_id: %v", err)
 	}
 
-	tx, err := s.TransferInternal(ctx, fromUserID, toUserID, req.Amount)
+	_, err = s.TransferInternal(ctx, fromUserID, toUserID, req.Amount)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to process transfer: %v", err)
 	}
 
-	return &financepb.TransactionResponse{
-		Transaction: convertTransactionToProto(tx),
-	}, nil
+	return &financepb.TransferResponse{}, nil
 }
 
-func (s *service) GetTransaction(ctx context.Context, req *financepb.GetTransactionRequest) (*financepb.TransactionResponse, error) {
+// GetTransaction retrieves a transaction
+func (s *service) GetTransaction(ctx context.Context, req *financepb.GetTransactionRequest) (*financepb.GetTransactionResponse, error) {
 	txID, err := uuid.Parse(req.TransactionId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid transaction ID: %v", err)
 	}
 
-	tx, err := s.GetTransactionInternal(ctx, txID)
+	_, err = s.GetTransactionInternal(ctx, txID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get transaction: %v", err)
 	}
 
-	if tx == nil {
-		return nil, status.Error(codes.NotFound, "transaction not found")
-	}
-
-	return &financepb.TransactionResponse{
-		Transaction: convertTransactionToProto(tx),
-	}, nil
+	return &financepb.GetTransactionResponse{}, nil
 }
 
 func (s *service) ListTransactions(ctx context.Context, req *financepb.ListTransactionsRequest) (*financepb.ListTransactionsResponse, error) {

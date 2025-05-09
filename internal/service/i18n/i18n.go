@@ -27,6 +27,9 @@ type ServiceImpl struct {
 	defaultLocale    string
 }
 
+// Compile-time check
+var _ i18npb.I18NServiceServer = (*ServiceImpl)(nil)
+
 // NewService creates a new instance of I18nService.
 func NewService(log *zap.Logger, repo *i18nrepo.Repository, cache *redis.Cache) *ServiceImpl {
 	return &ServiceImpl{

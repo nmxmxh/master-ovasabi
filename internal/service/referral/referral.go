@@ -19,6 +19,9 @@ type ServiceImpl struct {
 	repo  *referralrepo.ReferralRepository
 }
 
+// Compile-time check
+var _ referralpb.ReferralServiceServer = (*ServiceImpl)(nil)
+
 // NewReferralService creates a new instance of ReferralService.
 func NewReferralService(log *zap.Logger, repo *referralrepo.ReferralRepository, cache *redis.Cache) referralpb.ReferralServiceServer {
 	return &ServiceImpl{

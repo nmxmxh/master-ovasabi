@@ -27,6 +27,9 @@ type Service struct {
 	repo  *userrepo.UserRepository
 }
 
+// Compile-time check
+var _ userpb.UserServiceServer = (*Service)(nil)
+
 // NewUserService creates a new instance of UserService.
 func NewUserService(log *zap.Logger, repo *userrepo.UserRepository, cache *redis.Cache) userpb.UserServiceServer {
 	return &Service{

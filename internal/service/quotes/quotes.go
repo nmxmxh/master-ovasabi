@@ -39,6 +39,9 @@ func SafeInt32(i int) (int32, error) {
 	return int32(i), nil
 }
 
+// Compile-time check
+var _ quotespb.QuotesServiceServer = (*ServiceImpl)(nil)
+
 // ServiceImpl implements the QuotesService interface.
 type ServiceImpl struct {
 	quotespb.UnimplementedQuotesServiceServer

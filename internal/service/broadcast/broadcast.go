@@ -5,14 +5,12 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/google/uuid"
 	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v1"
 	broadcastrepo "github.com/nmxmxh/master-ovasabi/internal/repository/broadcast"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // ServiceImpl implements the BroadcastService interface.
@@ -38,10 +36,10 @@ func (s *ServiceImpl) BroadcastAction(ctx context.Context, req *broadcastpb.Broa
 	return nil, status.Error(codes.Unimplemented, "BroadcastAction repository integration not yet implemented")
 }
 
-// SubscribeToActions implements the SubscribeToActions streaming RPC method.
-func (s *ServiceImpl) SubscribeToActions(req *broadcastpb.SubscribeRequest, stream broadcastpb.BroadcastService_SubscribeToActionsServer) error {
+// SubscribeToActions implements the BroadcastAction streaming RPC method.
+func (s *ServiceImpl) SubscribeToActions(req *broadcastpb.SubscribeToActionsRequest, stream broadcastpb.BroadcastService_SubscribeToActionsServer) error {
 	// TODO: Implement repository method for listing recent actions
-	return status.Error(codes.Unimplemented, "SubscribeToActions repository integration not yet implemented")
+	return status.Error(codes.Unimplemented, "BroadcastAction repository integration not yet implemented")
 }
 
 // GetBroadcast retrieves a specific broadcast by ID.
@@ -148,24 +146,21 @@ func getBroadcaster(assetID string) *AssetBroadcaster {
 
 // SubscribeToLiveAssetChunks streams live asset chunks to the client
 func (s *ServiceImpl) SubscribeToLiveAssetChunks(req *broadcastpb.SubscribeToLiveAssetChunksRequest, stream broadcastpb.BroadcastService_SubscribeToLiveAssetChunksServer) error {
-	b := getBroadcaster(req.AssetId)
-	clientID := uuid.New().String()
-	ch := b.Subscribe(clientID)
-	defer b.Unsubscribe(clientID)
-	sequence := uint32(0)
-	for range ch {
-		resp := &broadcastpb.SubscribeToLiveAssetChunksResponse{}
-		if err := stream.Send(resp); err != nil {
-			return err
-		}
-		sequence++
-	}
-	return nil
+	// TODO: Implement asset chunk streaming
+	return status.Error(codes.Unimplemented, "SubscribeToLiveAssetChunks not yet implemented")
 }
 
 // PublishLiveAssetChunk pushes a live asset chunk to all subscribers
-func (s *ServiceImpl) PublishLiveAssetChunk(ctx context.Context, chunk *broadcastpb.AssetChunk) (*emptypb.Empty, error) {
-	b := getBroadcaster(chunk.UploadId)
-	b.Publish(chunk.Data)
-	return &emptypb.Empty{}, nil
+func (s *ServiceImpl) PublishLiveAssetChunk(ctx context.Context, req *broadcastpb.PublishLiveAssetChunkRequest) (*broadcastpb.PublishLiveAssetChunkResponse, error) {
+	// TODO: Implement logic using req fields
+	return &broadcastpb.PublishLiveAssetChunkResponse{}, nil
 }
+
+// CreateBroadcast implements the CreateBroadcast RPC method.
+func (s *ServiceImpl) CreateBroadcast(ctx context.Context, req *broadcastpb.CreateBroadcastRequest) (*broadcastpb.CreateBroadcastResponse, error) {
+	// TODO: Implement create broadcast logic
+	return nil, status.Error(codes.Unimplemented, "CreateBroadcast not yet implemented")
+}
+
+// Compile-time check to ensure ServiceImpl implements BroadcastServiceServer
+var _ broadcastpb.BroadcastServiceServer = (*ServiceImpl)(nil)

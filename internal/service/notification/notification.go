@@ -39,6 +39,9 @@ type Service struct {
 	repo  *notificationrepo.NotificationRepository
 }
 
+// Compile-time check
+var _ notificationpb.NotificationServiceServer = (*Service)(nil)
+
 // NewNotificationService creates a new instance of NotificationService.
 func NewNotificationService(log *zap.Logger, repo *notificationrepo.NotificationRepository, cache *redis.Cache) notificationpb.NotificationServiceServer {
 	return &Service{
