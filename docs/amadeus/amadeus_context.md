@@ -636,3 +636,20 @@ service BroadcastService {
 - [Cloudflare R2 API Docs](https://developers.cloudflare.com/api/)
 
 ---
+
+## Proto Generation Strategy
+
+To keep generated Go code up-to-date and avoid redundancy, the build system only generates Go code for the latest version (v*) directory in each service directory under `api/protos`.
+
+- For each service (e.g., `api/protos/quotes/`), only the latest version subdirectory (e.g., `v2/`) is processed.
+- All `.proto` files in that latest version directory are used to generate Go code.
+- Older version directories are ignored during code generation.
+
+**Why:**
+- This avoids generating code for old/unused proto versions, reducing clutter and potential confusion.
+- Ensures that only the most current API contracts are reflected in the generated Go code.
+- Keeps the codebase clean and easier to maintain, especially in multi-service, multi-version environments.
+
+**How:**
+- Both the Makefile and Dockerfile use logic to find the latest version directory for each service and only run `protoc` on those files.
+- This is documented in the Makefile and enforced in CI/CD builds.
