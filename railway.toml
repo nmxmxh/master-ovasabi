@@ -1,0 +1,3 @@
+[build]
+  context = "."
+  dockerfile = "deployments/docker/Dockerfile" 

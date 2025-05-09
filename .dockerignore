@@ -1,0 +1,17 @@
+.git
+.vscode
+.venv
+node_modules
+*.log
+*.md
+docs/
+site/
+.DS_Store
+*.tar.gz
+*.swp
+*.swo
+*.bak
+*.tmp
+*.env
+.yarn/
+.yarnrc.yml 
