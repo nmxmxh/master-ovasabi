@@ -20,21 +20,8 @@ RUN go mod download
 COPY . .
 
 # Generate protobuf code and build
-# Only generate for the latest version (v*) directory in each service under api/protos
 RUN export PATH="$PATH:$(go env GOPATH)/bin" && \
-  for service_dir in $(find api/protos -mindepth 1 -maxdepth 1 -type d); do \
-  latest_version_dir=$(ls -d $$service_dir/v*/ | sort -V | tail -n 1); \
-  if [ -d "$$latest_version_dir" ]; then \
-  echo "Processing protos in $$latest_version_dir..."; \
-  protoc \
-  --proto_path=. \
-  --go_out=. \
-  --go_opt=paths=source_relative \
-  --go-grpc_out=. \
-  --go-grpc_opt=paths=source_relative \
-  $$latest_version_dir/*.proto; \
-  fi; \
-  done && \
+  make proto && \
   CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/master-ovasabi ./cmd/server
 
 # ----------- Final Stage -----------

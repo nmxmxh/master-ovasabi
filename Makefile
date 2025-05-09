@@ -9,7 +9,7 @@ KUBECTL=kubectl
 K8S_NAMESPACE=ovasabi
 K8S_CONTEXT=docker-desktop
 
-include .env
+-include .env
 export $(shell sed 's/=.*//' .env)
 
 
