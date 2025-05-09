@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v0"
+	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/repository/finance"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"

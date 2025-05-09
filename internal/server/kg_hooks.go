@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -66,29 +66,33 @@ func (h *KGHooks) Start() error {
 	// Start the update processor
 	go h.processUpdates()
 
-	// Subscribe to Redis update channel
-	pubsub := h.redis.Subscribe(h.ctx, kgUpdateChannel)
-	defer func() {
-		if err := pubsub.Close(); err != nil {
-			h.logger.Error("Failed to close Redis pubsub", zap.Error(err))
+	// Subscribe to Redis update channel in a goroutine
+	go func() {
+		pubsub := h.redis.Subscribe(h.ctx, kgUpdateChannel)
+		defer func() {
+			if err := pubsub.Close(); err != nil {
+				h.logger.Error("Failed to close Redis pubsub", zap.Error(err))
+			}
+		}()
+
+		ch := pubsub.Channel()
+		for {
+			select {
+			case msg := <-ch:
+				var update KGUpdate
+				if err := json.Unmarshal([]byte(msg.Payload), &update); err != nil {
+					h.logger.Error("Failed to unmarshal update", zap.Error(err))
+					continue
+				}
+				h.updateChan <- &update
+
+			case <-h.ctx.Done():
+				return
+			}
 		}
 	}()
 
-	ch := pubsub.Channel()
-	for {
-		select {
-		case msg := <-ch:
-			var update KGUpdate
-			if err := json.Unmarshal([]byte(msg.Payload), &update); err != nil {
-				h.logger.Error("Failed to unmarshal update", zap.Error(err))
-				continue
-			}
-			h.updateChan <- &update
-
-		case <-h.ctx.Done():
-			return nil
-		}
-	}
+	return nil
 }
 
 // Stop gracefully shuts down the hooks
@@ -207,8 +211,12 @@ func (h *KGHooks) createBackup(backupKey string) error {
 
 	backup := make(map[string]string)
 	for _, pattern := range patterns {
-		keys, err := h.redis.Keys(h.ctx, pattern).Result()
-		if err != nil {
+		var keys []string
+		iter := h.redis.Scan(h.ctx, 0, pattern, 0).Iterator()
+		for iter.Next(h.ctx) {
+			keys = append(keys, iter.Val())
+		}
+		if err := iter.Err(); err != nil {
 			return fmt.Errorf("failed to get keys for pattern %s: %w", pattern, err)
 		}
 
@@ -262,8 +270,12 @@ func (h *KGHooks) rollbackToBackup(backupKey string) error {
 		"kg:relation:*",
 	}
 	for _, pattern := range patterns {
-		keys, err := h.redis.Keys(h.ctx, pattern).Result()
-		if err != nil {
+		var keys []string
+		iter := h.redis.Scan(h.ctx, 0, pattern, 0).Iterator()
+		for iter.Next(h.ctx) {
+			keys = append(keys, iter.Val())
+		}
+		if err := iter.Err(); err != nil {
 			return fmt.Errorf("failed to get keys for pattern %s: %w", pattern, err)
 		}
 		if len(keys) > 0 {

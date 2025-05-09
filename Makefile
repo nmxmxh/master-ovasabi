@@ -79,23 +79,23 @@ lint:
 	@echo "Running Go linter checks (excluding amadeus directory)..."
 	golangci-lint run ./cmd/... ./internal/... ./pkg/...
 	@echo "Checking Markdown documentation formatting..."
-	@yarn format:check -- --ignore-path='{.prettierignore,vendor/**,.venv/**}'
+	@yarn format:check -- --ignore-path .prettierignore
 	@echo "Linting checks completed."
 
 # Focused linting (excludes backups and amadeus knowledge graph)
 lint-focused:
 	@echo "Running Go linter checks (excluding backup files and amadeus utilities)..."
-	@golangci-lint run ./cmd/... ./internal/... ./pkg/...
+	golangci-lint run ./cmd/... ./internal/... ./pkg/...
 	@echo "Checking Markdown documentation formatting..."
-	@yarn format:check -- --ignore-path='{.prettierignore,vendor/**,.venv/**}'
+	@yarn format:check -- --ignore-path .prettierignore
 	@echo "Linting checks completed."
 
 # Lint-safe command that completely excludes amadeus and vendor directories (documentation/knowledge graph utilities only)
 lint-safe:
 	@echo "Running Go linter checks (excluding amadeus and vendor directories)..."
-	@golangci-lint run ./cmd/... ./internal/... ./pkg/... --skip-dirs amadeus --skip-dirs vendor
+	golangci-lint run ./cmd/... ./internal/... ./pkg/... --skip-dirs amadeus --skip-dirs vendor
 	@echo "Checking Markdown documentation formatting (excluding amadeus and vendor)..."
-	@yarn format:check -- --ignore-path='{.prettierignore,vendor/**,.venv/**,amadeus/**}'
+	@yarn format:check -- --ignore-path .prettierignore
 	@echo "Linting checks completed."
 
 # Run in development mode
@@ -146,24 +146,16 @@ docker-build-scan: docker-build trivy-scan
 # Build and scan Docker image (CI mode)
 docker-build-scan-ci: docker-build trivy-scan-ci
 
-# Generate protobuf code
+# Generate protobuf code using protoc
 proto:
-	@echo "Generating protobuf code..."
-	@for service_dir in $(shell find $(PROTO_PATH) -mindepth 1 -maxdepth 1 -type d); do \
-		latest_version_dir=$$(ls -d $$service_dir/v*/ | sort -V | tail -n 1); \
-		if [ -d "$$latest_version_dir" ]; then \
-			echo "Processing protos in $$latest_version_dir..."; \
-			protoc \
-				--proto_path=. \
-				--go_out=$(PROTO_GO_OUT) \
-				--go_opt=$(PROTO_GO_OPT) \
-				--go-grpc_out=$(PROTO_GRPC_OUT) \
-				--go-grpc_opt=$(PROTO_GRPC_OPT) \
-				$$latest_version_dir/*.proto; \
-		fi \
-	done
-	@echo "Protobuf code generation complete"
+	@echo "Generating protobuf code with protoc..."
+	protoc -I api/protos --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative $(shell find api/protos -name '*.proto')
 
+# Lint protobuf files using Buf
+buf-lint:
+	@echo "Linting protobuf files with Buf..."
+	cd api/protos && buf lint
+	@echo "Buf linting complete"
 
 # Generate swagger documentation
 swagger:
@@ -227,6 +219,8 @@ backup:
 	@echo "Creating comprehensive backup using backup script..."
 	@chmod +x amadeus/backup_script.sh
 	@./amadeus/backup_script.sh
+	@echo "Renaming .go files in backups to .go.backup to avoid Go toolchain errors..."
+	@find amadeus/backups -type f -name '*.go' -exec mv {} {}.backup \;
 	@echo "Backup process completed successfully."
 
 # Linting Fix Commands
@@ -234,7 +228,7 @@ lint-fix:
 	@echo "Applying linting fixes to Go code..."
 	golangci-lint run --fix
 	@echo "Formatting Markdown documentation files..."
-	@yarn format:docs
+	@yarn format:docs --ignore-path .prettierignore
 	@echo "Checking for broken links in Markdown files..."
 	@find docs -name "*.md" -exec yarn markdown-link-check {} \; || echo "Some links might be broken. Please check the output above."
 	@echo "Lint fixes applied successfully."

@@ -9,7 +9,7 @@ import (
 	"math"
 	"time"
 
-	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
+	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v1"
 	quotesrepo "github.com/nmxmxh/master-ovasabi/internal/repository/quotes"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"

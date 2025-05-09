@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -100,20 +100,18 @@ func (ps *PatternStore) GetPattern(ctx context.Context, patternID string) (*Stor
 // ListPatterns lists patterns based on filters
 func (ps *PatternStore) ListPatterns(ctx context.Context, filters map[string]interface{}) ([]*StoredPattern, error) {
 	pattern := ps.kb.BuildPattern("pattern", "*")
-	keys, err := ps.cache.client.Keys(ctx, pattern).Result()
-	if err != nil {
+	var keys []string
+	iter := ps.cache.client.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
 		ps.log.Error("failed to list patterns", zap.Error(err))
 		return nil, fmt.Errorf("failed to list patterns: %w", err)
 	}
 
 	var patterns []*StoredPattern
 	pipe := ps.cache.client.Pipeline()
-	defer func() {
-		if err := pipe.Close(); err != nil {
-			ps.log.Error("failed to close pipeline", zap.Error(err))
-			// We don't return this error since we may already have patterns to return
-		}
-	}()
 
 	for _, key := range keys {
 		pipe.Get(ctx, key)

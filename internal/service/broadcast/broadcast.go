@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
+	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v1"
 	broadcastrepo "github.com/nmxmxh/master-ovasabi/internal/repository/broadcast"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
@@ -153,13 +153,9 @@ func (s *ServiceImpl) SubscribeToLiveAssetChunks(req *broadcastpb.SubscribeToLiv
 	ch := b.Subscribe(clientID)
 	defer b.Unsubscribe(clientID)
 	sequence := uint32(0)
-	for chunk := range ch {
-		msg := &broadcastpb.AssetChunk{
-			UploadId: req.AssetId,
-			Data:     chunk,
-			Sequence: sequence,
-		}
-		if err := stream.Send(msg); err != nil {
+	for range ch {
+		resp := &broadcastpb.SubscribeToLiveAssetChunksResponse{}
+		if err := stream.Send(resp); err != nil {
 			return err
 		}
 		sequence++

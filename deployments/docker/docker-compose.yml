@@ -28,7 +28,10 @@ services:
       ADMIN_USER: '${ADMIN_USER:-okhai}'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD:-@Osiano1995}'
     volumes:
-      - ../../config:/app/config:ro
+      - ./config:/app/config:ro
+      - ./amadeus/knowledge_graph.json:/app/amadeus/knowledge_graph.json
+      - ./amadeus/backups:/app/amadeus/backups
+      # Proto codegen for Go is now in-place; no need to mount gen/go
     depends_on:
       postgres-init:
         condition: service_completed_successfully
@@ -47,7 +50,7 @@ services:
       - ../../.env
 
   redis:
-    image: redis:7-alpine
+    image: redis:8
     ports:
       - '6379:6379'
     environment:

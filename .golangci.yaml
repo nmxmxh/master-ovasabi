@@ -1,0 +1,15 @@
+version: "2"
+run:
+  concurrency: 8
+  go: ""
+  build-tags:
+    - integration
+  modules-download-mode: readonly
+  issues-exit-code: 1
+  tests: true
+  allow-parallel-runners: false
+
+linters:
+  exclusions:
+    paths:
+      - amadeus/backups/ 

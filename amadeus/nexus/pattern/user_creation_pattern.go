@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
-	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v0"
-	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
+	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v1"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 )
 
 // UserCreationPattern handles the complete user creation flow
@@ -47,19 +47,7 @@ func (p *UserCreationPattern) Execute(ctx context.Context, params map[string]int
 
 	// Step 2: Upload user avatar if provided
 	var assetID string
-	if avatarData, ok := params["avatar"].([]byte); ok {
-		assetReq := &assetpb.UploadLightAssetRequest{
-			UserId:   fmt.Sprintf("%d", userResp.User.Id),
-			Name:     fmt.Sprintf("avatar_%d", userResp.User.Id),
-			MimeType: "image/jpeg",
-			Data:     avatarData,
-		}
-		asset, err := p.assetService.UploadLightAsset(ctx, assetReq)
-		if err != nil {
-			return nil, fmt.Errorf("failed to upload avatar: %w", err)
-		}
-		assetID = asset.Id
-	}
+	// TODO: Implement avatar upload when UploadLightAssetRequest fields are defined in v1 proto
 
 	// Step 3: Send welcome notifications
 	// Email notification

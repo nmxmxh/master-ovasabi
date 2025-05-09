@@ -307,14 +307,6 @@ func (pe *PatternExecutor) executeCacheStep(ctx context.Context, step OperationS
 // executePipelineStep executes a pipeline operation
 func (pe *PatternExecutor) executePipelineStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
 	pipe := pe.cache.Pipeline()
-	defer func() {
-		if err := pipe.Close(); err != nil {
-			pe.log.Error("failed to close pipeline",
-				zap.String("action", step.Action),
-				zap.Error(err),
-			)
-		}
-	}()
 
 	commands, ok := step.Parameters["commands"].([]map[string]interface{})
 	if !ok {
@@ -345,14 +337,6 @@ func (pe *PatternExecutor) executePipelineStep(ctx context.Context, step Operati
 // executeTransactionStep executes a transaction operation
 func (pe *PatternExecutor) executeTransactionStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
 	pipe := pe.cache.TxPipeline()
-	defer func() {
-		if err := pipe.Close(); err != nil {
-			pe.log.Error("failed to close transaction pipeline",
-				zap.String("action", step.Action),
-				zap.Error(err),
-			)
-		}
-	}()
 
 	commands, ok := step.Parameters["commands"].([]map[string]interface{})
 	if !ok {

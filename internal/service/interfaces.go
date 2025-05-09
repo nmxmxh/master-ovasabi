@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
-	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
-	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
-	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
-	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
+	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v1"
+	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v1"
+	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v1"
+	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v1"
+	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/models"
 )
 

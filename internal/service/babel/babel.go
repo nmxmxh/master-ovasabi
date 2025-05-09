@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	babelpb "github.com/nmxmxh/master-ovasabi/api/protos/babel/v0"
+	babelpb "github.com/nmxmxh/master-ovasabi/api/protos/babel/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository/babel"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"

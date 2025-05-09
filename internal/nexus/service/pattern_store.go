@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	redisCache "github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -97,11 +97,6 @@ func (ps *PatternStore) StorePattern(ctx context.Context, pattern *StoredPattern
 
 	// Update indexes using pipeline for atomicity
 	pipe := ps.cache.Pipeline()
-	defer func() {
-		if err := pipe.Close(); err != nil {
-			ps.log.Error("failed to close pipeline in StorePattern", zap.Error(err))
-		}
-	}()
 
 	// Add to category index
 	categoryKey := fmt.Sprintf("pattern:category:%s", pattern.Category)
@@ -173,11 +168,6 @@ func (ps *PatternStore) ListPatterns(ctx context.Context, filters map[string]int
 
 	// Retrieve patterns using pipeline for efficiency
 	pipe := ps.cache.Pipeline()
-	defer func() {
-		if err := pipe.Close(); err != nil {
-			ps.log.Error("failed to close pipeline in ListPatterns", zap.Error(err))
-		}
-	}()
 
 	// Create commands slice
 	cmds := make([]*redis.StringCmd, len(patternIDs))

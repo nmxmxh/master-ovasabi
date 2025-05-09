@@ -10,19 +10,12 @@ import (
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	"go.uber.org/zap"
 )
 
 var (
 	ErrCampaignNotFound = errors.New("campaign not found")
 	ErrCampaignExists   = errors.New("campaign already exists")
 )
-
-var log *zap.Logger
-
-func SetLogger(l *zap.Logger) {
-	log = l
-}
 
 // Repository handles database operations for campaigns
 type Repository struct {

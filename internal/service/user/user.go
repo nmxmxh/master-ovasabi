@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	userrepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"

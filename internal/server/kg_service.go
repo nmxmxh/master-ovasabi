@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	kg "github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -39,29 +39,42 @@ func NewKGService(redisClient *redis.Client, logger *zap.Logger) *KGService {
 // Start initializes the knowledge graph service
 func (s *KGService) Start() error {
 	// Start with degraded mode disabled
+	s.logger.Info("KGService: Starting, setting degraded mode to false")
 	s.degraded.Store(false)
 
 	// Test Redis connection
+	s.logger.Info("KGService: Pinging Redis...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := s.redis.Ping(ctx).Err(); err != nil {
-		s.logger.Error("Failed to connect to Redis on startup",
-			zap.Error(err))
+		s.logger.Error("KGService: Failed to connect to Redis on startup", zap.Error(err))
 		s.degraded.Store(true)
 		// Don't fail startup, continue in degraded mode
+	} else {
+		s.logger.Info("KGService: Redis ping successful")
 	}
 
 	// Start the hooks with error recovery
+	s.logger.Info("KGService: Starting KGHooks...")
 	if err := s.hooks.Start(); err != nil {
-		s.logger.Error("Failed to start KG hooks",
-			zap.Error(err))
+		s.logger.Error("KGService: Failed to start KG hooks", zap.Error(err))
 		s.degraded.Store(true)
 		// Don't fail startup, continue in degraded mode
+	} else {
+		s.logger.Info("KGService: KGHooks started successfully")
 	}
 
-	s.logger.Info("Knowledge graph service started",
-		zap.Bool("degraded_mode", s.degraded.Load()))
+	s.logger.Info("KGService: Knowledge graph service started", zap.Bool("degraded_mode", s.degraded.Load()))
+
+	// Save the knowledge graph on startup for observability
+	err := s.kg.Save("amadeus/knowledge_graph.json")
+	if err != nil {
+		s.logger.Error("KGService: Failed to save knowledge graph on startup", zap.Error(err))
+	} else {
+		s.logger.Info("KGService: Knowledge graph saved on startup")
+	}
+
 	return nil
 }
 
@@ -165,6 +178,7 @@ func (s *KGService) validateUpdate(update *KGUpdate) error {
 
 // RegisterService registers a new service with the knowledge graph
 func (s *KGService) RegisterService(ctx context.Context, serviceID string, capabilities []string, schema interface{}) error {
+	s.logger.Info("Knowledge Graph Event: RegisterService", zap.String("service_id", serviceID), zap.Any("capabilities", capabilities))
 	update := &KGUpdate{
 		ID:        fmt.Sprintf("reg_%s_%d", serviceID, time.Now().Unix()),
 		Type:      ServiceRegistration,
@@ -188,6 +202,7 @@ func (s *KGService) RegisterService(ctx context.Context, serviceID string, capab
 
 // UpdateSchema updates the schema for a service
 func (s *KGService) UpdateSchema(ctx context.Context, serviceID string, schema interface{}) error {
+	s.logger.Info("Knowledge Graph Event: UpdateSchema", zap.String("service_id", serviceID))
 	update := &KGUpdate{
 		ID:        fmt.Sprintf("schema_%s_%d", serviceID, time.Now().Unix()),
 		Type:      SchemaUpdate,
@@ -207,6 +222,7 @@ func (s *KGService) UpdateSchema(ctx context.Context, serviceID string, schema i
 
 // UpdateRelation updates a relation in the knowledge graph
 func (s *KGService) UpdateRelation(ctx context.Context, serviceID string, relation interface{}) error {
+	s.logger.Info("Knowledge Graph Event: UpdateRelation", zap.String("service_id", serviceID), zap.Any("relation", relation))
 	update := &KGUpdate{
 		ID:        fmt.Sprintf("rel_%s_%d", serviceID, time.Now().Unix()),
 		Type:      RelationUpdate,
@@ -226,6 +242,7 @@ func (s *KGService) UpdateRelation(ctx context.Context, serviceID string, relati
 
 // persistAndBackup persists the knowledge graph to disk and creates a backup
 func (s *KGService) persistAndBackup(reason string) {
+	s.logger.Info("Knowledge Graph Event: PersistAndBackup", zap.String("reason", reason))
 	err := s.kg.Save("amadeus/knowledge_graph.json")
 	if err != nil {
 		s.logger.Error("Failed to persist knowledge graph", zap.Error(err))

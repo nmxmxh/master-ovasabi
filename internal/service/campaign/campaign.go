@@ -8,7 +8,7 @@ import (
 	"math"
 	"time"
 
-	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v0"
+	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/repository/campaign"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"

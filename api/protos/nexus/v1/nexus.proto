@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package nexus.v1;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v0;nexuspb";
+
+// NexusService provides pattern-based orchestration and knowledge graph management
+service NexusService {
+  // ExecutePattern executes a registered pattern
+  rpc ExecutePattern(ExecutePatternRequest) returns (ExecutePatternResponse) {}
+  
+  // RegisterPattern registers a new pattern
+  rpc RegisterPattern(RegisterPatternRequest) returns (RegisterPatternResponse) {}
+  
+  // GetKnowledge retrieves knowledge from the graph
+  rpc GetKnowledge(GetKnowledgeRequest) returns (GetKnowledgeResponse) {}
+}
+
+// ExecutePatternRequest represents a request to execute a pattern
+message ExecutePatternRequest {
+  string pattern_name = 1;
+  map<string, string> parameters = 2;
+}
+
+// ExecutePatternResponse represents the response from pattern execution
+message ExecutePatternResponse {
+  string status = 1;
+  map<string, string> result = 2;
+  repeated string missing_arguments = 3;
+}
+
+// RegisterPatternRequest represents a request to register a new pattern
+message RegisterPatternRequest {
+  string pattern_name = 1;
+  string pattern_type = 2;
+  repeated PatternStep steps = 3;
+}
+
+// RegisterPatternResponse represents the response from pattern registration
+message RegisterPatternResponse {
+  string status = 1;
+  string message = 2;
+}
+
+// GetKnowledgeRequest represents a request to get knowledge from the graph
+message GetKnowledgeRequest {
+  string path = 1;
+}
+
+// GetKnowledgeResponse represents the response containing knowledge graph data
+message GetKnowledgeResponse {
+  string status = 1;
+  map<string, string> data = 2;
+}
+
+message PatternStep {
+  string service = 1;
+  string action = 2;
+  repeated string required_args = 3;
+  repeated string optional_args = 4;
+  map<string, string> params = 5;
+}
+
+message PatternDefinition {
+  string pattern_name = 1;
+  repeated PatternStep steps = 2;
+} 

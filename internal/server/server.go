@@ -213,6 +213,40 @@ func Run() {
 		// Optionally: handle error
 	}
 
+	// After registering KGService in the DI container, automatically register all core services and infrastructure in the knowledge graph
+	servicesToRegister := []struct {
+		name         string
+		capabilities []string
+		schema       interface{}
+	}{
+		{"UserService", []string{"user management", "authentication"}, nil},
+		{"AuthService", []string{"authentication", "JWT", "password management"}, nil},
+		{"NotificationService", []string{"email", "sms", "push notifications"}, nil},
+		{"BroadcastService", []string{"real-time messaging", "pub/sub"}, nil},
+		{"I18nService", []string{"internationalization", "localization"}, nil},
+		{"QuotesService", []string{"price quotes", "estimation"}, nil},
+		{"ReferralService", []string{"referral program", "rewards"}, nil},
+		{"AssetService", []string{"digital assets", "NFT", "media management"}, nil},
+		{"FinanceService", []string{"payments", "wallets", "transactions"}, nil},
+		{"NexusService", []string{"orchestration", "patterns"}, nil},
+		{"BabelService", []string{"i18n", "location-based pricing"}, nil},
+		// Infrastructure
+		{"Redis", []string{"cache", "pub/sub", "session management"}, map[string]interface{}{"host": provider.RedisClient().Options().Addr}},
+		{"Postgres", []string{"database", "persistent storage"}, map[string]interface{}{"dsn": "hidden for security"}},
+	}
+	for _, svc := range servicesToRegister {
+		if err := kgService.RegisterService(
+			context.Background(),
+			svc.name,
+			svc.capabilities,
+			svc.schema,
+		); err != nil {
+			log.Error("Failed to register service in knowledge graph", zap.String("service", svc.name), zap.Error(err))
+		} else {
+			log.Info("Registered service in knowledge graph", zap.String("service", svc.name))
+		}
+	}
+
 	// Initialize gRPC server
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(UnaryServerInterceptor(log)),

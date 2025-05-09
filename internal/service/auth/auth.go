@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	auth "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
+	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v1"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -36,7 +36,7 @@ type Claims struct {
 
 // ServiceImpl implements the AuthService interface.
 type ServiceImpl struct {
-	auth.UnimplementedAuthServiceServer
+	authpb.UnimplementedAuthServiceServer
 	log        *zap.Logger
 	userSvc    userpb.UserServiceServer
 	jwtSecret  []byte
@@ -71,7 +71,7 @@ func validatePassword(password string) error {
 }
 
 // Register handles user registration.
-func (s *ServiceImpl) Register(ctx context.Context, req *auth.RegisterRequest) (*auth.RegisterResponse, error) {
+func (s *ServiceImpl) Register(ctx context.Context, req *authpb.RegisterRequest) (*authpb.RegisterResponse, error) {
 	log := s.log.With(
 		zap.String("operation", "register"),
 		zap.String("username", req.Username))
@@ -123,7 +123,7 @@ func (s *ServiceImpl) Register(ctx context.Context, req *auth.RegisterRequest) (
 	log.Info("User registered successfully",
 		zap.Int32("user_id", resp.User.Id))
 
-	return &auth.RegisterResponse{
+	return &authpb.RegisterResponse{
 		UserId:  resp.User.Id,
 		Success: true,
 		Message: "Registration successful",
@@ -131,7 +131,7 @@ func (s *ServiceImpl) Register(ctx context.Context, req *auth.RegisterRequest) (
 }
 
 // Login handles user authentication.
-func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.LoginResponse, error) {
+func (s *ServiceImpl) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.LoginResponse, error) {
 	log := s.log.With(
 		zap.String("operation", "login"),
 		zap.String("username", req.Username))
@@ -204,7 +204,7 @@ func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.
 	log.Info("Login successful",
 		zap.Int32("user_id", user.Id))
 
-	return &auth.LoginResponse{
+	return &authpb.LoginResponse{
 		Token:   tokenString,
 		UserId:  user.Id,
 		Success: true,
@@ -213,7 +213,7 @@ func (s *ServiceImpl) Login(ctx context.Context, req *auth.LoginRequest) (*auth.
 }
 
 // ValidateToken validates a JWT token.
-func (s *ServiceImpl) ValidateToken(ctx context.Context, req *auth.ValidateTokenRequest) (*auth.ValidateTokenResponse, error) {
+func (s *ServiceImpl) ValidateToken(ctx context.Context, req *authpb.ValidateTokenRequest) (*authpb.ValidateTokenResponse, error) {
 	log := s.log.With(zap.String("operation", "validate_token"))
 
 	claims, err := s.parseToken(req.Token)
@@ -230,7 +230,7 @@ func (s *ServiceImpl) ValidateToken(ctx context.Context, req *auth.ValidateToken
 			zap.Error(err))
 	} else if cachedToken == req.Token {
 		// Token found in cache and matches
-		return &auth.ValidateTokenResponse{
+		return &authpb.ValidateTokenResponse{
 			Valid:  true,
 			UserId: claims.UserID,
 		}, nil
@@ -255,7 +255,7 @@ func (s *ServiceImpl) ValidateToken(ctx context.Context, req *auth.ValidateToken
 		// Don't fail validation if caching fails
 	}
 
-	return &auth.ValidateTokenResponse{
+	return &authpb.ValidateTokenResponse{
 		Valid:  true,
 		UserId: claims.UserID,
 	}, nil

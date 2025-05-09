@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
+	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v1"
 	i18nrepo "github.com/nmxmxh/master-ovasabi/internal/repository/i18n"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
@@ -19,7 +19,7 @@ import (
 
 // ServiceImpl implements the I18nService interface.
 type ServiceImpl struct {
-	i18n.UnimplementedI18NServiceServer
+	i18npb.UnimplementedI18NServiceServer
 	log              *zap.Logger
 	cache            *redis.Cache
 	repo             *i18nrepo.Repository
@@ -38,7 +38,7 @@ func NewService(log *zap.Logger, repo *i18nrepo.Repository, cache *redis.Cache) 
 	}
 }
 
-func (s *ServiceImpl) CreateTranslation(ctx context.Context, req *i18n.CreateTranslationRequest) (*i18n.CreateTranslationResponse, error) {
+func (s *ServiceImpl) CreateTranslation(ctx context.Context, req *i18npb.CreateTranslationRequest) (*i18npb.CreateTranslationResponse, error) {
 	description := ""
 	tags := ""
 	if req.Metadata != nil {
@@ -77,8 +77,8 @@ func (s *ServiceImpl) CreateTranslation(ctx context.Context, req *i18n.CreateTra
 		metadata["tags"] = created.Tags
 	}
 
-	return &i18n.CreateTranslationResponse{
-		Translation: &i18n.Translation{
+	return &i18npb.CreateTranslationResponse{
+		Translation: &i18npb.Translation{
 			Id:        int32(created.ID),
 			MasterId:  int32(created.MasterID),
 			Key:       created.Key,
@@ -91,7 +91,7 @@ func (s *ServiceImpl) CreateTranslation(ctx context.Context, req *i18n.CreateTra
 	}, nil
 }
 
-func (s *ServiceImpl) GetTranslation(ctx context.Context, req *i18n.GetTranslationRequest) (*i18n.GetTranslationResponse, error) {
+func (s *ServiceImpl) GetTranslation(ctx context.Context, req *i18npb.GetTranslationRequest) (*i18npb.GetTranslationResponse, error) {
 	translation, err := s.repo.GetByID(ctx, int64(req.TranslationId))
 	if err != nil {
 		if err == i18nrepo.ErrTranslationNotFound {
@@ -100,8 +100,8 @@ func (s *ServiceImpl) GetTranslation(ctx context.Context, req *i18n.GetTranslati
 		return nil, status.Errorf(codes.Internal, "failed to get translation: %v", err)
 	}
 
-	return &i18n.GetTranslationResponse{
-		Translation: &i18n.Translation{
+	return &i18npb.GetTranslationResponse{
+		Translation: &i18npb.Translation{
 			Id:        int32(translation.ID),
 			MasterId:  int32(translation.MasterID),
 			Key:       translation.Key,
@@ -112,7 +112,7 @@ func (s *ServiceImpl) GetTranslation(ctx context.Context, req *i18n.GetTranslati
 	}, nil
 }
 
-func (s *ServiceImpl) ListTranslations(ctx context.Context, req *i18n.ListTranslationsRequest) (*i18n.ListTranslationsResponse, error) {
+func (s *ServiceImpl) ListTranslations(ctx context.Context, req *i18npb.ListTranslationsRequest) (*i18npb.ListTranslationsResponse, error) {
 	limit := int(req.PageSize)
 	if limit <= 0 {
 		limit = 20
@@ -123,14 +123,14 @@ func (s *ServiceImpl) ListTranslations(ctx context.Context, req *i18n.ListTransl
 		return nil, status.Errorf(codes.Internal, "failed to list translations: %v", err)
 	}
 
-	resp := &i18n.ListTranslationsResponse{
-		Translations: make([]*i18n.Translation, 0, len(translations)),
+	resp := &i18npb.ListTranslationsResponse{
+		Translations: make([]*i18npb.Translation, 0, len(translations)),
 		Page:         req.Page,
 		TotalCount:   int32(len(translations)), // Optionally, use a count query for accuracy
 		TotalPages:   1,                        // Optionally, calculate based on total count
 	}
 	for _, t := range translations {
-		resp.Translations = append(resp.Translations, &i18n.Translation{
+		resp.Translations = append(resp.Translations, &i18npb.Translation{
 			Id:        int32(t.ID),
 			MasterId:  int32(t.MasterID),
 			Key:       t.Key,
@@ -177,7 +177,7 @@ func BatchTranslateLibre(texts []string, sourceLang, targetLang, endpoint string
 }
 
 // TranslateSite translates a batch of site texts to a target language using LibreTranslate.
-func (s *ServiceImpl) TranslateSite(ctx context.Context, req *i18n.TranslateSiteRequest) (*i18n.TranslateSiteResponse, error) {
+func (s *ServiceImpl) TranslateSite(ctx context.Context, req *i18npb.TranslateSiteRequest) (*i18npb.TranslateSiteResponse, error) {
 	endpoint := os.Getenv("TRANSLATION_ENDPOINT")
 	if endpoint == "" {
 		endpoint = "http://libretranslate:5000"
@@ -186,5 +186,5 @@ func (s *ServiceImpl) TranslateSite(ctx context.Context, req *i18n.TranslateSite
 	if err != nil {
 		return nil, err
 	}
-	return &i18n.TranslateSiteResponse{Translations: translations}, nil
+	return &i18npb.TranslateSiteResponse{Translations: translations}, nil
 }

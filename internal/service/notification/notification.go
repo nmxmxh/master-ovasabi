@@ -3,7 +3,7 @@ package notification
 import (
 	"context"
 
-	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
 	notificationrepo "github.com/nmxmxh/master-ovasabi/internal/repository/notification"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"

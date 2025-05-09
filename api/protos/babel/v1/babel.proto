@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package babel.v1;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/babel";
+
+import "google/protobuf/timestamp.proto";
+
+service BabelService {
+  rpc GetLocationContext(GetLocationContextRequest) returns (GetLocationContextResponse);
+  rpc Translate(TranslateRequest) returns (TranslateResponse);
+}
+
+message GetLocationContextRequest {
+  string country_code = 1;
+  string region = 2;
+  string city = 3;
+}
+
+message GetLocationContextResponse {
+  PricingRule rule = 1;
+}
+
+message PricingRule {
+  int64 id = 1;
+  string country_code = 2;
+  string region = 3;
+  string city = 4;
+  string currency_code = 5;
+  string affluence_tier = 6;
+  string demand_level = 7;
+  double multiplier = 8;
+  double base_price = 9;
+  google.protobuf.Timestamp effective_from = 10;
+  google.protobuf.Timestamp effective_to = 11;
+  string kg_entity_id = 12;
+  string notes = 13;
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp updated_at = 15;
+}
+
+message TranslateRequest {
+  string key = 1;
+  string locale = 2;
+}
+
+message TranslateResponse {
+  string value = 1;
+} 

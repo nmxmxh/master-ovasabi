@@ -3,16 +3,12 @@ package service
 
 import (
 	"context"
-
-	"github.com/nmxmxh/master-ovasabi/api/protos"
 )
 
 // EchoService implements the EchoService gRPC service.
 // It provides a simple echo functionality that returns the same message
 // that was sent in the request.
-type EchoService struct {
-	protos.UnimplementedEchoServiceServer
-}
+type EchoService struct{}
 
 // NewEchoService creates a new instance of EchoService.
 // Returns:
@@ -28,10 +24,9 @@ func NewEchoService() *EchoService {
 //   - req: The echo request containing the message to echo
 //
 // Returns:
-//   - *protos.EchoResponse: Response containing the echoed message
+//   - interface{}: Response containing the echoed message (placeholder)
 //   - error: Any error that occurred during processing
-func (s *EchoService) Echo(_ context.Context, req *protos.EchoRequest) (*protos.EchoResponse, error) {
-	return &protos.EchoResponse{
-		Message: req.Message,
-	}, nil
+func (s *EchoService) Echo(_ context.Context, req interface{}) (interface{}, error) {
+	// Placeholder implementation
+	return req, nil
 }

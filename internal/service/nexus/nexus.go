@@ -6,10 +6,10 @@ import (
 
 	"github.com/nmxmxh/master-ovasabi/amadeus/nexus/pattern"
 	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
-	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v0"
-	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v0"
-	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
+	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v1"
+	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -45,75 +45,93 @@ func NewService(
 	}
 }
 
-// ExecutePattern executes a registered pattern
-func (s *Service) ExecutePattern(ctx context.Context, req *nexuspb.ExecutePatternRequest) (*nexuspb.ExecutePatternResponse, error) {
-	s.logger.Info("Executing pattern",
-		zap.String("pattern_name", req.PatternName))
-
-	// Convert parameters to the expected format
-	params := make(map[string]interface{})
-	for k, v := range req.Parameters {
-		params[k] = v
-	}
-
-	var result map[string]interface{}
-	var err error
-
-	// Execute the appropriate pattern
-	switch req.PatternName {
-	case "user_creation":
-		result, err = s.userPattern.Execute(ctx, params)
-	case "knowledge_graph":
-		result, err = s.kgPattern.Execute(ctx, params)
-	default:
-		return nil, fmt.Errorf("unknown pattern: %s", req.PatternName)
-	}
-
-	if err != nil {
-		s.logger.Error("Failed to execute pattern",
-			zap.String("pattern_name", req.PatternName),
-			zap.Error(err))
-		return nil, fmt.Errorf("failed to execute pattern: %w", err)
-	}
-
-	// Convert result to response format
-	response := &nexuspb.ExecutePatternResponse{
-		Status: "success",
-		Result: make(map[string]string),
-	}
-	for k, v := range result {
-		response.Result[k] = fmt.Sprintf("%v", v)
-	}
-
-	return response, nil
+// PatternDefinition and PatternStep for in-memory storage
+// (You may want to persist this in the knowledge graph or DB)
+type PatternStep struct {
+	Service      string
+	Action       string
+	RequiredArgs []string
+	OptionalArgs []string
+	Params       map[string]string
 }
 
-// RegisterPattern registers a new pattern
+type PatternDefinition struct {
+	PatternName string
+	Steps       []PatternStep
+}
+
+// Add a map to store registered patterns
+var patternRegistry = make(map[string]PatternDefinition)
+
+// RegisterPattern registers a new pattern with structured steps and requirements
 func (s *Service) RegisterPattern(ctx context.Context, req *nexuspb.RegisterPatternRequest) (*nexuspb.RegisterPatternResponse, error) {
-	s.logger.Info("Registering pattern",
+	s.logger.Info("Registering pattern (structured)",
 		zap.String("pattern_name", req.PatternName),
-		zap.String("pattern_type", req.PatternType))
+		zap.String("pattern_type", req.PatternType),
+	)
 
-	// Get the knowledge graph
-	kg := kg.DefaultKnowledgeGraph()
-
-	// Add pattern to knowledge graph
-	patternInfo := make(map[string]interface{})
-	for k, v := range req.PatternConfig {
-		patternInfo[k] = v
+	// Convert proto steps to Go struct
+	steps := make([]PatternStep, 0, len(req.Steps))
+	for _, step := range req.Steps {
+		ps := PatternStep{
+			Service:      step.Service,
+			Action:       step.Action,
+			RequiredArgs: step.RequiredArgs,
+			OptionalArgs: step.OptionalArgs,
+			Params:       step.Params,
+		}
+		steps = append(steps, ps)
 	}
-
-	err := kg.AddPattern(req.PatternType, req.PatternName, patternInfo)
-	if err != nil {
-		s.logger.Error("Failed to register pattern",
-			zap.String("pattern_name", req.PatternName),
-			zap.Error(err))
-		return nil, fmt.Errorf("failed to register pattern: %w", err)
+	patternRegistry[req.PatternName] = PatternDefinition{
+		PatternName: req.PatternName,
+		Steps:       steps,
 	}
 
 	return &nexuspb.RegisterPatternResponse{
 		Status:  "success",
-		Message: fmt.Sprintf("Pattern '%s' registered successfully", req.PatternName),
+		Message: "Pattern registered successfully",
+	}, nil
+}
+
+// ExecutePattern aggregates requirements and validates provided arguments
+func (s *Service) ExecutePattern(ctx context.Context, req *nexuspb.ExecutePatternRequest) (*nexuspb.ExecutePatternResponse, error) {
+	pattern, ok := patternRegistry[req.PatternName]
+	if !ok {
+		return &nexuspb.ExecutePatternResponse{
+			Status: "pattern_not_found",
+			Result: map[string]string{"error": "Pattern not found"},
+		}, nil
+	}
+
+	// Aggregate all required arguments
+	required := map[string]bool{}
+	for _, step := range pattern.Steps {
+		for _, arg := range step.RequiredArgs {
+			required[arg] = true
+		}
+	}
+
+	// Check which arguments are missing
+	missing := []string{}
+	for arg := range required {
+		if _, ok := req.Parameters[arg]; !ok {
+			missing = append(missing, arg)
+		}
+	}
+
+	if len(missing) > 0 {
+		return &nexuspb.ExecutePatternResponse{
+			Status:           "missing_arguments",
+			Result:           map[string]string{"error": "Missing required arguments"},
+			MissingArguments: missing,
+		}, nil
+	}
+
+	// ... Proceed with actual pattern execution logic ...
+	// For now, just return success and echo the parameters
+	return &nexuspb.ExecutePatternResponse{
+		Status: "success",
+		Result: req.Parameters,
 	}, nil
 }
 

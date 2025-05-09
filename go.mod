@@ -21,8 +21,9 @@ require (
 )
 
 require (
-	github.com/go-redis/redis/v8 v8.11.5
+	github.com/aws/aws-sdk-go v1.55.7
 	github.com/lib/pq v1.10.9
+	github.com/redis/go-redis/v9 v9.8.0
 	golang.org/x/sync v0.13.0
 )
 
@@ -33,7 +34,6 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

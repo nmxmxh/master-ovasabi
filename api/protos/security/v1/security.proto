@@ -1,0 +1,320 @@
+syntax = "proto3";
+
+package security.v1;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/security/v0";
+
+import "google/protobuf/timestamp.proto";
+
+service SecurityService {
+    // Identity and Access Management
+    rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
+    rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
+    rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+    
+    // Threat Detection
+    rpc DetectThreats(DetectThreatsRequest) returns (DetectThreatsResponse);
+    rpc ReportIncident(ReportIncidentRequest) returns (ReportIncidentResponse);
+    
+    // Security Pattern Management
+    rpc RegisterSecurityPattern(RegisterSecurityPatternRequest) returns (RegisterSecurityPatternResponse);
+    rpc ValidatePattern(ValidatePatternRequest) returns (ValidatePatternResponse);
+    
+    // Audit and Compliance
+    rpc RecordAuditEvent(RecordAuditEventRequest) returns (RecordAuditEventResponse);
+    rpc GetAuditLog(GetAuditLogRequest) returns (stream GetAuditLogResponse);
+    
+    // Security Metrics
+    rpc GetSecurityMetrics(GetSecurityMetricsRequest) returns (GetSecurityMetricsResponse);
+}
+
+message AuthenticationRequest {
+    string identity = 1;
+    repeated AuthenticationFactor factors = 2;
+    SecurityContext context = 3;
+}
+
+message AuthenticationFactor {
+    FactorType type = 1;
+    bytes credential = 2;
+    map<string, string> metadata = 3;
+}
+
+enum FactorType {
+    FACTOR_TYPE_UNSPECIFIED = 0;
+    FACTOR_TYPE_PASSWORD = 1;
+    FACTOR_TYPE_TOTP = 2;
+    FACTOR_TYPE_BIOMETRIC = 3;
+    FACTOR_TYPE_HARDWARE_KEY = 4;
+}
+
+message SecurityContext {
+    string request_id = 1;
+    string client_ip = 2;
+    string user_agent = 3;
+    google.protobuf.Timestamp timestamp = 4;
+    map<string, string> attributes = 5;
+}
+
+message AuthenticationResponse {
+    string session_token = 1;
+    google.protobuf.Timestamp expiration = 2;
+    repeated string permissions = 3;
+    SecurityScore security_score = 4;
+}
+
+message SecurityScore {
+    double authentication_score = 1;
+    double threat_score = 2;
+    double privacy_score = 3;
+    map<string, double> factor_scores = 4;
+}
+
+message AuthorizationRequest {
+    string session_token = 1;
+    string resource = 2;
+    string action = 3;
+    SecurityContext context = 4;
+}
+
+message AuthorizationResponse {
+    bool authorized = 1;
+    string reason = 2;
+    repeated string applicable_policies = 3;
+}
+
+message SecurityPattern {
+    string pattern_id = 1;
+    string name = 2;
+    string description = 3;
+    repeated GraphVertex vertices = 4;
+    repeated GraphEdge edges = 5;
+    map<string, string> constraints = 6;
+    RiskAssessment risk = 7;
+}
+
+message GraphVertex {
+    string id = 1;
+    string type = 2;
+    map<string, string> properties = 3;
+}
+
+message GraphEdge {
+    string source = 1;
+    string target = 2;
+    string relationship = 3;
+    map<string, string> properties = 4;
+}
+
+message RiskAssessment {
+    double risk_score = 1;
+    string severity = 2;
+    repeated string mitigations = 3;
+    map<string, double> factor_weights = 4;
+}
+
+message AuditEvent {
+    string event_id = 1;
+    string event_type = 2;
+    string principal = 3;
+    string resource = 4;
+    string action = 5;
+    google.protobuf.Timestamp timestamp = 6;
+    SecurityContext context = 7;
+    map<string, string> metadata = 8;
+}
+
+message SecurityMetricsRequest {
+    google.protobuf.Timestamp start_time = 1;
+    google.protobuf.Timestamp end_time = 2;
+    repeated string metric_types = 3;
+}
+
+message SecurityMetricsResponse {
+    map<string, MetricValue> metrics = 1;
+    SecurityScore overall_score = 2;
+    repeated SecurityIncident incidents = 3;
+}
+
+message MetricValue {
+    oneof value {
+        double numeric_value = 1;
+        string string_value = 2;
+        Distribution distribution = 3;
+    }
+    map<string, string> labels = 4;
+}
+
+message Distribution {
+    double mean = 1;
+    double median = 2;
+    double p95 = 3;
+    double p99 = 4;
+    map<string, double> percentiles = 5;
+}
+
+message TokenValidationRequest {
+    string token = 1;
+    SecurityContext context = 2;
+}
+
+message TokenValidationResponse {
+    bool valid = 1;
+    string reason = 2;
+    google.protobuf.Timestamp expiration = 3;
+    SecurityScore security_score = 4;
+}
+
+message ThreatDetectionRequest {
+    string resource_id = 1;
+    string action = 2;
+    SecurityContext context = 3;
+    map<string, string> attributes = 4;
+}
+
+message ThreatDetectionResponse {
+    double threat_score = 1;
+    repeated SecurityIncident detected_threats = 2;
+    repeated string mitigations = 3;
+}
+
+message IncidentReport {
+    string incident_id = 1;
+    string type = 2;
+    string severity = 3;
+    string description = 4;
+    SecurityContext context = 5;
+    map<string, string> metadata = 6;
+}
+
+message IncidentResponse {
+    string tracking_id = 1;
+    string status = 2;
+    repeated string actions_taken = 3;
+    google.protobuf.Timestamp resolution_time = 4;
+}
+
+message PatternRegistrationResponse {
+    string pattern_id = 1;
+    string status = 2;
+    repeated string validation_messages = 3;
+}
+
+message PatternValidationRequest {
+    string pattern_id = 1;
+    SecurityContext context = 2;
+    map<string, string> validation_params = 3;
+}
+
+message PatternValidationResponse {
+    bool valid = 1;
+    repeated string validation_errors = 2;
+    RiskAssessment risk_assessment = 3;
+}
+
+message SecurityIncident {
+    string incident_id = 1;
+    string type = 2;
+    string severity = 3;
+    string description = 4;
+    google.protobuf.Timestamp detection_time = 5;
+    SecurityContext context = 6;
+    RiskAssessment risk = 7;
+}
+
+message AuditLogRequest {
+    google.protobuf.Timestamp start_time = 1;
+    google.protobuf.Timestamp end_time = 2;
+    string principal = 3;
+    string resource = 4;
+    string event_type = 5;
+    int32 page_size = 6;
+    string page_token = 7;
+}
+
+message AuditLogEntry {
+    AuditEvent event = 1;
+    RiskAssessment risk = 2;
+    repeated string related_incidents = 3;
+    map<string, string> enriched_metadata = 4;
+}
+
+message AuthenticateRequest {
+    // TODO: define fields
+}
+
+message AuthenticateResponse {
+    // TODO: define fields
+}
+
+message AuthorizeRequest {
+    // TODO: define fields
+}
+
+message AuthorizeResponse {
+    // TODO: define fields
+}
+
+message ValidateTokenRequest {
+    // TODO: define fields
+}
+
+message ValidateTokenResponse {
+    // TODO: define fields
+}
+
+message DetectThreatsRequest {
+    // TODO: define fields
+}
+
+message DetectThreatsResponse {
+    // TODO: define fields
+}
+
+message ReportIncidentRequest {
+    // TODO: define fields
+}
+
+message ReportIncidentResponse {
+    // TODO: define fields
+}
+
+message RegisterSecurityPatternRequest {
+    // TODO: define fields
+}
+
+message RegisterSecurityPatternResponse {
+    // TODO: define fields
+}
+
+message ValidatePatternRequest {
+    // TODO: define fields
+}
+
+message ValidatePatternResponse {
+    // TODO: define fields
+}
+
+message GetSecurityMetricsRequest {
+    // TODO: define fields
+}
+
+message GetSecurityMetricsResponse {
+    // TODO: define fields
+}
+
+message RecordAuditEventRequest {
+    // TODO: define fields
+}
+
+message RecordAuditEventResponse {
+    // TODO: define fields
+}
+
+message GetAuditLogRequest {
+    // TODO: define fields
+}
+
+message GetAuditLogResponse {
+    // TODO: define fields
+}

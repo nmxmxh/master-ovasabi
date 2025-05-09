@@ -1,17 +1,17 @@
 package server
 
 import (
-	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v0"
-	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v0"
-	babelpb "github.com/nmxmxh/master-ovasabi/api/protos/babel/v0"
-	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v0"
-	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v0"
-	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v0"
-	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v0"
-	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v0"
-	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v0"
-	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v0"
+	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v1"
+	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v1"
+	babelpb "github.com/nmxmxh/master-ovasabi/api/protos/babel/v1"
+	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v1"
+	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v1"
+	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v1"
+	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
+	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v1"
+	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"google.golang.org/grpc"
 )

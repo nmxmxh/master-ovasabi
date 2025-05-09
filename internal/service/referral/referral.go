@@ -3,7 +3,7 @@ package referral
 import (
 	"context"
 
-	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v0"
+	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
 	referralrepo "github.com/nmxmxh/master-ovasabi/internal/repository/referral"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -370,7 +370,12 @@ func (c *Cache) SIsMember(ctx context.Context, key string, member interface{}) (
 
 // ZAdd adds members to a sorted set
 func (c *Cache) ZAdd(ctx context.Context, key string, members ...*redis.Z) error {
-	if err := c.client.ZAdd(ctx, key, members...).Err(); err != nil {
+	// Convert []*redis.Z to []redis.Z
+	zMembers := make([]redis.Z, len(members))
+	for i, m := range members {
+		zMembers[i] = *m
+	}
+	if err := c.client.ZAdd(ctx, key, zMembers...).Err(); err != nil {
 		c.log.Error("failed to add to sorted set",
 			zap.String("key", key),
 			zap.Error(err),
