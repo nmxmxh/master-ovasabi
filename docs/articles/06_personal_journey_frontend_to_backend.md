@@ -22,5 +22,7 @@ backend, and how this journey shaped a new approach to architecture.
 
 ## System Diagram
 
-> _[Insert a diagram showing the transition from frontend-centric to full-stack/backend-centric > >
-> architecture, e.g., a flow from UI to backend services, highlighting the new backend components.]_
+> \_[Insert a diagram showing the transition from frontend-centric to full-stack/backend-centric > >
+>
+> > architecture, e.g., a flow from UI to backend services, highlighting the new backend
+> > components.]\_

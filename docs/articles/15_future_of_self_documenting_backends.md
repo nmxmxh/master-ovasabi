@@ -21,5 +21,7 @@ predictions for CTOs and technical leaders.
 
 ## System Diagram
 
-> _[Insert a diagram showing the evolution from traditional backend systems to self-documenting, > >
-> AI-augmented architectures, highlighting key transitions and benefits.]_
+> \_[Insert a diagram showing the evolution from traditional backend systems to
+> self-documenting, > >
+>
+> > AI-augmented architectures, highlighting key transitions and benefits.]\_

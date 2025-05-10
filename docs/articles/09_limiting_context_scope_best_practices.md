@@ -21,5 +21,7 @@ lessons from top resources were applied in OVASABI.
 
 ## System Diagram
 
-> _[Insert a diagram illustrating context boundaries, modular service design, and how context is > >
-> managed in the system architecture.]_
+> \_[Insert a diagram illustrating context boundaries, modular service design, and how context
+> is > >
+>
+> > managed in the system architecture.]\_

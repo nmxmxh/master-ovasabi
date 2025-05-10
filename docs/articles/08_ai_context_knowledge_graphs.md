@@ -21,5 +21,7 @@ systems, and practical examples from OVASABI.
 
 ## System Diagram
 
-> _[Insert a diagram showing the knowledge graph as a central node connecting services, enabling > >
-> context-aware queries and AI-driven insights.]_
+> \_[Insert a diagram showing the knowledge graph as a central node connecting services,
+> enabling > >
+>
+> > context-aware queries and AI-driven insights.]\_
