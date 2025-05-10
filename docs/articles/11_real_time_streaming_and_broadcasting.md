@@ -21,5 +21,7 @@ implementation details from OVASABI.
 
 ## System Diagram
 
-> _[Insert a diagram showing the real-time data flow: asset source → broadcaster → multiple clients,
-> > with gRPC streaming and nanoQ pattern highlighted.]_
+> \_[Insert a diagram showing the real-time data flow: asset source → broadcaster → multiple
+> clients,
+>
+> > with gRPC streaming and nanoQ pattern highlighted.]\_
