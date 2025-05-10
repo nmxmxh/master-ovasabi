@@ -3,6 +3,7 @@ package finance
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,18 +18,18 @@ import (
 )
 
 const (
-	// Transaction types
+	// Transaction types.
 	TransactionTypeDeposit  = "deposit"
 	TransactionTypeWithdraw = "withdraw"
 	TransactionTypeTransfer = "transfer"
 
-	// Transaction statuses
+	// Transaction statuses.
 	TransactionStatusPending  = "pending"
 	TransactionStatusComplete = "complete"
 	TransactionStatusFailed   = "failed"
 )
 
-// Service defines the interface for finance operations
+// Service defines the interface for finance operations.
 type Service interface {
 	GetBalanceInternal(ctx context.Context, userID uuid.UUID) (float64, error)
 	DepositInternal(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error)
@@ -38,7 +39,7 @@ type Service interface {
 	ListTransactionsInternal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*finance.TransactionModel, error)
 }
 
-// service implements both the Service interface and gRPC service
+// service implements both the Service interface and gRPC service.
 type service struct {
 	financepb.UnimplementedFinanceServiceServer
 	repo   finance.Repository
@@ -47,11 +48,11 @@ type service struct {
 	logger *zap.Logger
 }
 
-// Compile-time check
+// Compile-time check.
 var _ financepb.FinanceServiceServer = (*service)(nil)
 
-// New creates a new finance service instance
-func New(repo finance.Repository, master repository.MasterRepository, cache *redis.Cache, logger *zap.Logger) *service {
+// New creates a new finance service instance.
+func New(repo finance.Repository, master repository.MasterRepository, cache *redis.Cache, logger *zap.Logger) Service {
 	return &service{
 		repo:   repo,
 		master: master,
@@ -60,7 +61,7 @@ func New(repo finance.Repository, master repository.MasterRepository, cache *red
 	}
 }
 
-// GetBalanceInternal retrieves the current balance for a user
+// GetBalanceInternal retrieves the current balance for a user.
 func (s *service) GetBalanceInternal(ctx context.Context, userID uuid.UUID) (float64, error) {
 	balance, err := s.repo.GetBalance(ctx, userID)
 	if err != nil {
@@ -69,7 +70,7 @@ func (s *service) GetBalanceInternal(ctx context.Context, userID uuid.UUID) (flo
 	return balance, nil
 }
 
-// DepositInternal adds funds to a user's account
+// DepositInternal adds funds to a user's account.
 func (s *service) DepositInternal(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("deposit amount must be positive")
@@ -105,7 +106,7 @@ func (s *service) DepositInternal(ctx context.Context, userID uuid.UUID, amount 
 	return tx, nil
 }
 
-// WithdrawInternal removes funds from a user's account
+// WithdrawInternal removes funds from a user's account.
 func (s *service) WithdrawInternal(ctx context.Context, userID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("withdrawal amount must be positive")
@@ -150,7 +151,7 @@ func (s *service) WithdrawInternal(ctx context.Context, userID uuid.UUID, amount
 	return tx, nil
 }
 
-// TransferInternal moves funds between two user accounts
+// TransferInternal moves funds between two user accounts.
 func (s *service) TransferInternal(ctx context.Context, fromUserID, toUserID uuid.UUID, amount float64) (*finance.TransactionModel, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("transfer amount must be positive")
@@ -212,7 +213,7 @@ func (s *service) TransferInternal(ctx context.Context, fromUserID, toUserID uui
 	return tx, nil
 }
 
-// GetTransactionInternal retrieves a specific transaction
+// GetTransactionInternal retrieves a specific transaction.
 func (s *service) GetTransactionInternal(ctx context.Context, transactionID uuid.UUID) (*finance.TransactionModel, error) {
 	tx, err := s.repo.GetTransaction(ctx, transactionID)
 	if err != nil {
@@ -221,7 +222,7 @@ func (s *service) GetTransactionInternal(ctx context.Context, transactionID uuid
 	return tx, nil
 }
 
-// ListTransactionsInternal retrieves a paginated list of transactions for a user
+// ListTransactionsInternal retrieves a paginated list of transactions for a user.
 func (s *service) ListTransactionsInternal(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*finance.TransactionModel, error) {
 	if limit <= 0 {
 		limit = 10
@@ -237,7 +238,7 @@ func (s *service) ListTransactionsInternal(ctx context.Context, userID uuid.UUID
 	return txs, nil
 }
 
-// gRPC service implementation
+// gRPC service implementation.
 func (s *service) GetBalance(ctx context.Context, req *financepb.GetBalanceRequest) (*financepb.GetBalanceResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
@@ -258,7 +259,7 @@ func (s *service) GetBalance(ctx context.Context, req *financepb.GetBalanceReque
 	}, nil
 }
 
-// Deposit adds funds to a user's account
+// Deposit adds funds to a user's account.
 func (s *service) Deposit(ctx context.Context, req *financepb.DepositRequest) (*financepb.DepositResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
@@ -273,7 +274,7 @@ func (s *service) Deposit(ctx context.Context, req *financepb.DepositRequest) (*
 	return &financepb.DepositResponse{}, nil
 }
 
-// Withdraw removes funds from a user's account
+// Withdraw removes funds from a user's account.
 func (s *service) Withdraw(ctx context.Context, req *financepb.WithdrawRequest) (*financepb.WithdrawResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
@@ -288,7 +289,7 @@ func (s *service) Withdraw(ctx context.Context, req *financepb.WithdrawRequest) 
 	return &financepb.WithdrawResponse{}, nil
 }
 
-// Transfer moves funds between two user accounts
+// Transfer moves funds between two user accounts.
 func (s *service) Transfer(ctx context.Context, req *financepb.TransferRequest) (*financepb.TransferResponse, error) {
 	fromUserID, err := uuid.Parse(req.FromUserId)
 	if err != nil {
@@ -308,7 +309,7 @@ func (s *service) Transfer(ctx context.Context, req *financepb.TransferRequest) 
 	return &financepb.TransferResponse{}, nil
 }
 
-// GetTransaction retrieves a transaction
+// GetTransaction retrieves a transaction.
 func (s *service) GetTransaction(ctx context.Context, req *financepb.GetTransactionRequest) (*financepb.GetTransactionResponse, error) {
 	txID, err := uuid.Parse(req.TransactionId)
 	if err != nil {
@@ -339,14 +340,17 @@ func (s *service) ListTransactions(ctx context.Context, req *financepb.ListTrans
 		protoTxs = append(protoTxs, convertTransactionToProto(tx))
 	}
 
+	if len(txs) > math.MaxInt32 {
+		return nil, status.Error(codes.Internal, "too many transactions to fit in int32")
+	}
 	return &financepb.ListTransactionsResponse{
 		Transactions: protoTxs,
 		HasMore:      len(txs) == int(req.PageSize),
-		TotalCount:   int32(len(txs)),
+		TotalCount:   int32(len(txs)), //nolint:gosec // safe: checked range above
 	}, nil
 }
 
-// convertTransactionToProto converts repository transaction model to proto transaction
+// convertTransactionToProto converts repository transaction model to proto transaction.
 func convertTransactionToProto(tx *finance.TransactionModel) *financepb.Transaction {
 	protoTx := &financepb.Transaction{
 		Id:          tx.ID.String(),

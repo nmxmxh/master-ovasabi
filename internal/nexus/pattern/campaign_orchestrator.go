@@ -1,26 +1,26 @@
-// Package pattern provides the CampaignOrchestrator, a generic orchestrator for campaign workflows.
+// Package pattern provides orchestration logic for campaign patterns.
 //
 // The CampaignOrchestrator enables dynamic campaign logic by reading campaign metadata (JSON) to determine
 // which features to enable (waitlist, referral, leaderboard, i18n, broadcast, etc). This allows the platform
 // to support many campaigns with different behaviors using a single proto/service interface.
 //
 // To add new campaign features (e.g., more translation fields, new gamification, analytics, etc):
-//   1. Extend the campaignMeta struct and update parseCampaignMetadata.
-//   2. Update orchestrator methods to handle new fields/logic as needed.
-//   3. Document new metadata fields and their expected behavior here.
+//  1. Extend the campaignMeta struct and update parseCampaignMetadata.
+//  2. Update orchestrator methods to handle new fields/logic as needed.
+//  3. Document new metadata fields and their expected behavior here.
 //
 // Example campaign metadata (as JSON):
-// {
-//   "waitlist": true,
-//   "referral": true,
-//   "leaderboard": true,
-//   "i18n_keys": ["welcome_banner", "signup_cta", "referral_message", "new_field1", "new_field2"],
-//   "broadcast_enabled": true,
-//   "custom_field": "value"
-// }
+//
+//	{
+//	  "waitlist": true,
+//	  "referral": true,
+//	  "leaderboard": true,
+//	  "i18n_keys": ["welcome_banner", "signup_cta", "referral_message", "new_field1", "new_field2"],
+//	  "broadcast_enabled": true,
+//	  "custom_field": "value"
+//	}
 //
 // This pattern ensures scalability and maintainability as campaign complexity grows.
-
 package pattern
 
 import (
@@ -81,19 +81,37 @@ func (o *CampaignOrchestrator) Signup(ctx context.Context, slug, email, username
 	if err != nil {
 		return fmt.Errorf("user registration failed: %w", err)
 	}
-	userIDField := userIface.(interface{ GetID() int64 })
+	userIDField, ok := userIface.(interface{ GetID() int64 })
+	if !ok {
+		return fmt.Errorf("userIface does not implement GetID() int64")
+	}
 	if meta.Waitlist {
-		_ = o.CampaignService.AddToWaitlist(ctx, userIDField.GetID(), slug)
+		if err := o.CampaignService.AddToWaitlist(ctx, userIDField.GetID(), slug); err != nil {
+			// TODO: handle/log error
+			return fmt.Errorf("service not implemented: %w", err)
+		}
 	}
 	if meta.Referral && referral != "" {
-		_ = o.ReferralService.RecordReferral(ctx, referral, userIDField.GetID(), slug)
-		_ = o.CampaignService.UpdateLeaderboard(ctx, slug)
+		if err := o.ReferralService.RecordReferral(ctx, referral, userIDField.GetID(), slug); err != nil {
+			// TODO: handle/log error
+			return fmt.Errorf("service not implemented: %w", err)
+		}
+		if err := o.CampaignService.UpdateLeaderboard(ctx, slug); err != nil {
+			// TODO: handle/log error
+			return fmt.Errorf("service not implemented: %w", err)
+		}
 	}
 	if len(meta.I18nKeys) > 0 {
-		_ = o.I18nService.EnsureCampaignTranslations(ctx, slug, locale, meta.I18nKeys)
+		if err := o.I18nService.EnsureCampaignTranslations(ctx, slug, locale, meta.I18nKeys); err != nil {
+			// TODO: handle/log error
+			return fmt.Errorf("service not implemented: %w", err)
+		}
 	}
 	if meta.BroadcastEnabled {
-		_ = o.BroadcastService.Broadcast(ctx, slug, fmt.Sprintf("New user joined: %s", username))
+		if err := o.BroadcastService.Broadcast(ctx, slug, fmt.Sprintf("New user joined: %s", username)); err != nil {
+			// TODO: handle/log error
+			return fmt.Errorf("service not implemented: %w", err)
+		}
 	}
 	return nil
 }

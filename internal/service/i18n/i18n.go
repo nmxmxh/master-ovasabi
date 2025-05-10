@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 
@@ -27,7 +29,7 @@ type ServiceImpl struct {
 	defaultLocale    string
 }
 
-// Compile-time check
+// Compile-time check.
 var _ i18npb.I18NServiceServer = (*ServiceImpl)(nil)
 
 // NewService creates a new instance of I18nService.
@@ -80,9 +82,16 @@ func (s *ServiceImpl) CreateTranslation(ctx context.Context, req *i18npb.CreateT
 		metadata["tags"] = created.Tags
 	}
 
+	if created.ID > math.MaxInt32 || created.ID < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "translation ID out of int32 range")
+	}
+	if created.MasterID > math.MaxInt32 || created.MasterID < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "master ID out of int32 range")
+	}
+
 	return &i18npb.CreateTranslationResponse{
 		Translation: &i18npb.Translation{
-			Id:        int32(created.ID),
+			Id:        int32(created.ID), //nolint:gosec // safe: checked range above
 			MasterId:  int32(created.MasterID),
 			Key:       created.Key,
 			Language:  created.Locale,
@@ -97,15 +106,22 @@ func (s *ServiceImpl) CreateTranslation(ctx context.Context, req *i18npb.CreateT
 func (s *ServiceImpl) GetTranslation(ctx context.Context, req *i18npb.GetTranslationRequest) (*i18npb.GetTranslationResponse, error) {
 	translation, err := s.repo.GetByID(ctx, int64(req.TranslationId))
 	if err != nil {
-		if err == i18nrepo.ErrTranslationNotFound {
+		if errors.Is(err, i18nrepo.ErrTranslationNotFound) {
 			return nil, status.Error(codes.NotFound, "translation not found")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to get translation: %v", err)
 	}
 
+	if translation.ID > math.MaxInt32 || translation.ID < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "translation ID out of int32 range")
+	}
+	if translation.MasterID > math.MaxInt32 || translation.MasterID < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "master ID out of int32 range")
+	}
+
 	return &i18npb.GetTranslationResponse{
 		Translation: &i18npb.Translation{
-			Id:        int32(translation.ID),
+			Id:        int32(translation.ID), //nolint:gosec // safe: checked range above
 			MasterId:  int32(translation.MasterID),
 			Key:       translation.Key,
 			Language:  translation.Locale,
@@ -126,15 +142,25 @@ func (s *ServiceImpl) ListTranslations(ctx context.Context, req *i18npb.ListTran
 		return nil, status.Errorf(codes.Internal, "failed to list translations: %v", err)
 	}
 
+	if len(translations) > math.MaxInt32 {
+		return nil, status.Error(codes.Internal, "too many translations to fit in int32")
+	}
+
 	resp := &i18npb.ListTranslationsResponse{
 		Translations: make([]*i18npb.Translation, 0, len(translations)),
 		Page:         req.Page,
-		TotalCount:   int32(len(translations)), // Optionally, use a count query for accuracy
+		TotalCount:   int32(len(translations)), //nolint:gosec // safe: checked range above
 		TotalPages:   1,                        // Optionally, calculate based on total count
 	}
 	for _, t := range translations {
+		if t.ID > math.MaxInt32 || t.ID < math.MinInt32 {
+			return nil, status.Error(codes.Internal, "translation ID out of int32 range")
+		}
+		if t.MasterID > math.MaxInt32 || t.MasterID < math.MinInt32 {
+			return nil, status.Error(codes.Internal, "master ID out of int32 range")
+		}
 		resp.Translations = append(resp.Translations, &i18npb.Translation{
-			Id:        int32(t.ID),
+			Id:        int32(t.ID), //nolint:gosec // safe: checked range above
 			MasterId:  int32(t.MasterID),
 			Key:       t.Key,
 			Language:  t.Locale,
@@ -146,15 +172,23 @@ func (s *ServiceImpl) ListTranslations(ctx context.Context, req *i18npb.ListTran
 }
 
 // BatchTranslateLibre calls the LibreTranslate API to translate a batch of texts.
-func BatchTranslateLibre(texts []string, sourceLang, targetLang, endpoint string) ([]string, error) {
+func BatchTranslateLibre(ctx context.Context, texts []string, sourceLang, targetLang, endpoint string) ([]string, error) {
 	payload := map[string]interface{}{
 		"q":      texts,
 		"source": sourceLang,
 		"target": targetLang,
 		"format": "text",
 	}
-	body, _ := json.Marshal(payload)
-	resp, err := http.Post(endpoint+"/translate", "application/json", bytes.NewBuffer(body))
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"/translate", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +200,7 @@ func BatchTranslateLibre(texts []string, sourceLang, targetLang, endpoint string
 	}()
 
 	var result []struct {
-		TranslatedText string `json:"translatedText"`
+		TranslatedText string `json:"translated_text"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
@@ -185,7 +219,7 @@ func (s *ServiceImpl) TranslateSite(ctx context.Context, req *i18npb.TranslateSi
 	if endpoint == "" {
 		endpoint = "http://libretranslate:5000"
 	}
-	translations, err := BatchTranslateLibre(req.Texts, req.SourceLang, req.TargetLang, endpoint)
+	translations, err := BatchTranslateLibre(ctx, req.Texts, req.SourceLang, req.TargetLang, endpoint)
 	if err != nil {
 		return nil, err
 	}

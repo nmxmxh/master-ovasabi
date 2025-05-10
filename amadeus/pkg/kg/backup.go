@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// BackupInfo contains metadata about a backup
+// BackupInfo contains metadata about a backup.
 type BackupInfo struct {
 	Timestamp   time.Time `json:"timestamp"`
 	Version     string    `json:"version"`
@@ -16,7 +16,7 @@ type BackupInfo struct {
 	FilePath    string    `json:"file_path"`
 }
 
-// Backup creates a backup of the knowledge graph
+// Backup creates a backup of the knowledge graph.
 func (kg *KnowledgeGraph) Backup(description string) (*BackupInfo, error) {
 	kg.mu.RLock()
 	defer kg.mu.RUnlock()
@@ -27,7 +27,7 @@ func (kg *KnowledgeGraph) Backup(description string) (*BackupInfo, error) {
 
 	// Create backup directory if it doesn't exist
 	backupDir := "amadeus/backups"
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
@@ -43,7 +43,7 @@ func (kg *KnowledgeGraph) Backup(description string) (*BackupInfo, error) {
 	}
 
 	// Write to backup file
-	if err := os.WriteFile(backupPath, data, 0644); err != nil {
+	if err := os.WriteFile(backupPath, data, 0o600); err != nil {
 		return nil, fmt.Errorf("failed to write backup file: %w", err)
 	}
 
@@ -58,12 +58,12 @@ func (kg *KnowledgeGraph) Backup(description string) (*BackupInfo, error) {
 	return info, nil
 }
 
-// ListBackups returns a list of available backups
+// ListBackups returns a list of available backups.
 func ListBackups() ([]*BackupInfo, error) {
 	backupDir := "amadeus/backups"
 
 	// Create backup directory if it doesn't exist
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
@@ -73,7 +73,7 @@ func ListBackups() ([]*BackupInfo, error) {
 		return nil, fmt.Errorf("failed to read backup directory: %w", err)
 	}
 
-	var backups []*BackupInfo
+	backups := make([]*BackupInfo, 0, len(files))
 	for _, file := range files {
 		// Skip directories and non-JSON files
 		if file.IsDir() || filepath.Ext(file.Name()) != ".json" {
@@ -106,7 +106,7 @@ func ListBackups() ([]*BackupInfo, error) {
 	return backups, nil
 }
 
-// RestoreFromBackup restores the knowledge graph from a backup file
+// RestoreFromBackup restores the knowledge graph from a backup file.
 func (kg *KnowledgeGraph) RestoreFromBackup(backupPath string) error {
 	backup, err := LoadFromFile(backupPath)
 	if err != nil {
@@ -132,7 +132,7 @@ func (kg *KnowledgeGraph) RestoreFromBackup(backupPath string) error {
 	return nil
 }
 
-// LoadFromFile loads a knowledge graph from a file
+// LoadFromFile loads a knowledge graph from a file.
 func LoadFromFile(filePath string) (*KnowledgeGraph, error) {
 	kg := &KnowledgeGraph{}
 	if err := kg.Load(filePath); err != nil {
@@ -141,7 +141,7 @@ func LoadFromFile(filePath string) (*KnowledgeGraph, error) {
 	return kg, nil
 }
 
-// Helper function to marshal the knowledge graph with indentation
+// Helper function to marshal the knowledge graph with indentation.
 func (kg *KnowledgeGraph) marshalWithIndent() ([]byte, error) {
 	return json.MarshalIndent(kg, "", "  ")
 }

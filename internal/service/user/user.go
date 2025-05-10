@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -27,7 +28,7 @@ type Service struct {
 	repo  *userrepo.UserRepository
 }
 
-// Compile-time check
+// Compile-time check.
 var _ userpb.UserServiceServer = (*Service)(nil)
 
 // NewUserService creates a new instance of UserService.
@@ -57,7 +58,11 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 		Password: string(hashedPassword),
 	}
 	if req.Metadata != nil {
-		metadata, _ := json.Marshal(req.Metadata)
+		metadata, err := json.Marshal(req.Metadata)
+		if err != nil {
+			s.log.Error("Failed to marshal user metadata", zap.Error(err))
+			return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+		}
 		user.Metadata = metadata
 	}
 
@@ -75,6 +80,9 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 		}
 	}
 
+	if created.ID > math.MaxInt32 || created.ID < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "user ID out of int32 range")
+	}
 	respUser := &userpb.User{
 		Id:           int32(created.ID),
 		Username:     created.Username,
@@ -115,6 +123,10 @@ func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*use
 		}
 		return nil, status.Errorf(codes.Internal, "database error: %v", err)
 	}
+
+	if repoUser.ID > math.MaxInt32 || repoUser.ID < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "user ID out of int32 range")
+	}
 	respUser := &userpb.User{
 		Id:           int32(repoUser.ID),
 		Username:     repoUser.Username,
@@ -143,6 +155,9 @@ func (s *Service) GetUserByUsername(ctx context.Context, req *userpb.GetUserByUs
 		return nil, status.Errorf(codes.Internal, "database error: %v", err)
 	}
 
+	if repoUser.ID > math.MaxInt32 || repoUser.ID < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "user ID out of int32 range")
+	}
 	respUser := &userpb.User{
 		Id:           int32(repoUser.ID),
 		Username:     repoUser.Username,
@@ -232,7 +247,13 @@ func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (
 	if req.PageSize > 0 {
 		limit = int(req.PageSize)
 	}
-	offset := int(req.Page * int32(limit))
+	page := int64(req.Page)
+	lim := int64(limit)
+	offset64 := page * lim
+	if offset64 > math.MaxInt32 || offset64 < 0 {
+		return nil, status.Error(codes.InvalidArgument, "pagination overflow")
+	}
+	offset := int(offset64)
 	users, err := s.repo.List(ctx, limit, offset)
 	if err != nil {
 		s.log.Error("failed to list users", zap.Error(err))
@@ -242,6 +263,9 @@ func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (
 		Users: make([]*userpb.User, 0, len(users)),
 	}
 	for _, u := range users {
+		if u.ID > math.MaxInt32 || u.ID < math.MinInt32 {
+			return nil, status.Error(codes.Internal, "user ID out of int32 range")
+		}
 		respUser := &userpb.User{
 			Id:           int32(u.ID),
 			Email:        u.Email,

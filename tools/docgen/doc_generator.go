@@ -10,13 +10,13 @@ import (
 	"strings"
 )
 
-// DocGenerator generates markdown documentation from code comments
+// DocGenerator generates markdown documentation from code comments.
 type DocGenerator struct {
 	sourceDir string
 	outputDir string
 }
 
-// NewDocGenerator creates a new documentation generator
+// NewDocGenerator creates a new documentation generator.
 func NewDocGenerator(sourceDir, outputDir string) *DocGenerator {
 	return &DocGenerator{
 		sourceDir: sourceDir,
@@ -24,10 +24,10 @@ func NewDocGenerator(sourceDir, outputDir string) *DocGenerator {
 	}
 }
 
-// Generate generates documentation for all packages in the source directory
+// Generate generates documentation for all packages in the source directory.
 func (g *DocGenerator) Generate() error {
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(g.outputDir, 0755); err != nil {
+	if err := os.MkdirAll(g.outputDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -56,7 +56,7 @@ func (g *DocGenerator) Generate() error {
 	})
 }
 
-// generatePackageDoc generates documentation for a single package
+// generatePackageDoc generates documentation for a single package.
 func (g *DocGenerator) generatePackageDoc(pkgPath string) error {
 	// Create file set
 	fset := token.NewFileSet()
@@ -86,11 +86,11 @@ func (g *DocGenerator) generatePackageDoc(pkgPath string) error {
 		}
 
 		outputPath := filepath.Join(g.outputDir, relPath, "README.md")
-		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 			return fmt.Errorf("failed to create output directory: %w", err)
 		}
 
-		if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(outputPath, []byte(content), 0o600); err != nil {
 			return fmt.Errorf("failed to write documentation: %w", err)
 		}
 	}
@@ -98,7 +98,7 @@ func (g *DocGenerator) generatePackageDoc(pkgPath string) error {
 	return nil
 }
 
-// generateMarkdown generates markdown documentation for a package
+// generateMarkdown generates markdown documentation for a package.
 func (g *DocGenerator) generateMarkdown(pkg *doc.Package) string {
 	var sb strings.Builder
 

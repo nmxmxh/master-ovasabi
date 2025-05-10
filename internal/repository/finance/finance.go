@@ -3,6 +3,7 @@ package finance
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,7 +11,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// Repository defines the interface for finance operations
+var ErrTransactionNotFound = errors.New("transaction not found")
+
+// Repository defines the interface for finance operations.
 type Repository interface {
 	GetBalance(ctx context.Context, userID uuid.UUID) (float64, error)
 	UpdateBalance(ctx context.Context, userID uuid.UUID, amount float64) error
@@ -19,7 +22,7 @@ type Repository interface {
 	GetTransaction(ctx context.Context, id uuid.UUID) (*TransactionModel, error)
 }
 
-// TransactionModel represents a financial transaction in the database
+// TransactionModel represents a financial transaction in the database.
 type TransactionModel struct {
 	ID          uuid.UUID
 	UserID      uuid.UUID
@@ -33,7 +36,7 @@ type TransactionModel struct {
 	DeletedAt   *time.Time
 }
 
-// Transaction represents a financial transaction
+// Transaction represents a financial transaction.
 type Transaction struct {
 	ID          uuid.UUID
 	UserID      uuid.UUID
@@ -52,7 +55,7 @@ type repository struct {
 	log *zap.Logger
 }
 
-// New creates a new finance repository
+// New creates a new finance repository.
 func New(db *sql.DB, log *zap.Logger) Repository {
 	return &repository{
 		db:  db,
@@ -60,7 +63,7 @@ func New(db *sql.DB, log *zap.Logger) Repository {
 	}
 }
 
-// GetBalance retrieves the current balance for a user
+// GetBalance retrieves the current balance for a user.
 func (r *repository) GetBalance(ctx context.Context, userID uuid.UUID) (float64, error) {
 	var balance float64
 	err := r.db.QueryRowContext(ctx, `
@@ -77,7 +80,7 @@ func (r *repository) GetBalance(ctx context.Context, userID uuid.UUID) (float64,
 	return balance, nil
 }
 
-// UpdateBalance updates a user's balance
+// UpdateBalance updates a user's balance.
 func (r *repository) UpdateBalance(ctx context.Context, userID uuid.UUID, amount float64) error {
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE user_balances
@@ -104,7 +107,7 @@ func (r *repository) UpdateBalance(ctx context.Context, userID uuid.UUID, amount
 	return nil
 }
 
-// CreateTransaction creates a new financial transaction
+// CreateTransaction creates a new financial transaction.
 func (r *repository) CreateTransaction(ctx context.Context, tx *TransactionModel) error {
 	query := `
 		INSERT INTO transactions (id, user_id, to_user_id, type, amount, description, status, created_at, updated_at)
@@ -120,7 +123,7 @@ func (r *repository) CreateTransaction(ctx context.Context, tx *TransactionModel
 	return nil
 }
 
-// GetTransaction retrieves a transaction by ID
+// GetTransaction retrieves a transaction by ID.
 func (r *repository) GetTransaction(ctx context.Context, id uuid.UUID) (*TransactionModel, error) {
 	tx := &TransactionModel{}
 	err := r.db.QueryRowContext(ctx, `
@@ -132,12 +135,12 @@ func (r *repository) GetTransaction(ctx context.Context, id uuid.UUID) (*Transac
 		&tx.Status, &tx.CreatedAt, &tx.UpdatedAt, &tx.DeletedAt,
 	)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return nil, ErrTransactionNotFound
 	}
 	return tx, err
 }
 
-// ListTransactions lists transactions for a user with pagination
+// ListTransactions lists transactions for a user with pagination.
 func (r *repository) ListTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*TransactionModel, error) {
 	query := `
 		SELECT id, user_id, to_user_id, type, amount, description, status, created_at, updated_at, deleted_at
@@ -175,7 +178,7 @@ func (r *repository) ListTransactions(ctx context.Context, userID uuid.UUID, lim
 	return transactions, nil
 }
 
-// LockBalance locks an amount in a user's balance
+// LockBalance locks an amount in a user's balance.
 func (r *repository) LockBalance(ctx context.Context, userID uuid.UUID, amount float64) error {
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE user_balances 
@@ -197,7 +200,7 @@ func (r *repository) LockBalance(ctx context.Context, userID uuid.UUID, amount f
 	return nil
 }
 
-// UnlockBalance unlocks a previously locked amount in a user's balance
+// UnlockBalance unlocks a previously locked amount in a user's balance.
 func (r *repository) UnlockBalance(ctx context.Context, userID uuid.UUID, amount float64) error {
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE user_balances 

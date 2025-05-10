@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Provider manages Redis cache instances
+// Provider manages Redis cache instances.
 type Provider struct {
 	mu      sync.RWMutex
 	caches  map[string]*Cache
@@ -21,7 +21,7 @@ type Provider struct {
 	patternExecutor *PatternExecutor
 }
 
-// NewProvider creates a new Redis provider
+// NewProvider creates a new Redis provider.
 func NewProvider(log *zap.Logger) *Provider {
 	if log == nil {
 		log = zap.NewNop()
@@ -34,7 +34,7 @@ func NewProvider(log *zap.Logger) *Provider {
 	}
 }
 
-// RegisterCache registers a Redis cache configuration
+// RegisterCache registers a Redis cache configuration.
 func (p *Provider) RegisterCache(name string, opts *Options) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -52,7 +52,7 @@ func (p *Provider) RegisterCache(name string, opts *Options) {
 	)
 }
 
-// RegisterPatternCache registers the pattern cache configuration
+// RegisterPatternCache registers the pattern cache configuration.
 func (p *Provider) RegisterPatternCache() {
 	p.RegisterCache("pattern", &Options{
 		Namespace:    NamespacePattern,
@@ -66,7 +66,7 @@ func (p *Provider) RegisterPatternCache() {
 	})
 }
 
-// InitializePatternSupport initializes pattern store and executor
+// InitializePatternSupport initializes pattern store and executor.
 func (p *Provider) InitializePatternSupport() error {
 	cache, err := p.GetCache("pattern")
 	if err != nil {
@@ -84,7 +84,7 @@ func (p *Provider) InitializePatternSupport() error {
 	return nil
 }
 
-// GetCache returns a Redis cache instance
+// GetCache returns a Redis cache instance.
 func (p *Provider) GetCache(name string) (*Cache, error) {
 	p.mu.RLock()
 	cache, exists := p.caches[name]
@@ -124,17 +124,17 @@ func (p *Provider) GetCache(name string) (*Cache, error) {
 	return cache, nil
 }
 
-// GetPatternStore returns the pattern store instance
+// GetPatternStore returns the pattern store instance.
 func (p *Provider) GetPatternStore() *PatternStore {
 	return p.patternStore
 }
 
-// GetPatternExecutor returns the pattern executor instance
+// GetPatternExecutor returns the pattern executor instance.
 func (p *Provider) GetPatternExecutor() *PatternExecutor {
 	return p.patternExecutor
 }
 
-// Close closes all Redis connections
+// Close closes all Redis connections.
 func (p *Provider) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -152,7 +152,7 @@ func (p *Provider) Close() error {
 	return nil
 }
 
-// Ping checks the connection to all Redis instances
+// Ping checks the connection to all Redis instances.
 func (p *Provider) Ping(ctx context.Context) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -170,7 +170,7 @@ func (p *Provider) Ping(ctx context.Context) error {
 	return nil
 }
 
-// FlushAll flushes all Redis instances
+// FlushAll flushes all Redis instances.
 func (p *Provider) FlushAll(ctx context.Context) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -188,7 +188,7 @@ func (p *Provider) FlushAll(ctx context.Context) error {
 	return nil
 }
 
-// Stats returns statistics for all Redis instances
+// Stats returns statistics for all Redis instances.
 func (p *Provider) Stats() map[string]interface{} {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

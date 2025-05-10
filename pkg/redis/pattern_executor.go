@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -9,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// ExecutorOptions defines configuration options for the pattern executor
+// ExecutorOptions defines configuration options for the pattern executor.
 type ExecutorOptions struct {
 	MaxConcurrency int
 	BatchSize      int
@@ -19,7 +20,7 @@ type ExecutorOptions struct {
 	DefaultRetries int
 }
 
-// DefaultExecutorOptions returns default executor options
+// DefaultExecutorOptions returns default executor options.
 func DefaultExecutorOptions() *ExecutorOptions {
 	return &ExecutorOptions{
 		MaxConcurrency: 100,
@@ -31,7 +32,7 @@ func DefaultExecutorOptions() *ExecutorOptions {
 	}
 }
 
-// PatternExecutor executes stored patterns
+// PatternExecutor executes stored patterns.
 type PatternExecutor struct {
 	store    *PatternStore
 	cache    *Cache
@@ -40,7 +41,7 @@ type PatternExecutor struct {
 	log      *zap.Logger
 }
 
-// NewPatternExecutor creates a new pattern executor
+// NewPatternExecutor creates a new pattern executor.
 func NewPatternExecutor(store *PatternStore, cache *Cache, opts *ExecutorOptions, log *zap.Logger) *PatternExecutor {
 	if opts == nil {
 		opts = DefaultExecutorOptions()
@@ -58,7 +59,7 @@ func NewPatternExecutor(store *PatternStore, cache *Cache, opts *ExecutorOptions
 	}
 }
 
-// ExecutePattern executes a pattern with the given input
+// ExecutePattern executes a pattern with the given input.
 func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID string, input map[string]interface{}) (map[string]interface{}, error) {
 	pattern, err := pe.store.GetPattern(ctx, patternID)
 	if err != nil {
@@ -138,7 +139,7 @@ func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID string,
 	return results, nil
 }
 
-// createExecutionPlan creates a plan for executing steps based on dependencies
+// createExecutionPlan creates a plan for executing steps based on dependencies.
 func (pe *PatternExecutor) createExecutionPlan(steps []OperationStep) [][]OperationStep {
 	// Implementation of topological sort to create execution levels
 	var plan [][]OperationStep
@@ -197,21 +198,21 @@ func (pe *PatternExecutor) createExecutionPlan(steps []OperationStep) [][]Operat
 	return plan
 }
 
-// checkDependencies checks if all dependencies for a step are satisfied
-func (pe *PatternExecutor) checkDependencies(step OperationStep, results map[string]interface{}, errors map[string]error) bool {
+// checkDependencies checks if all dependencies for a step are satisfied.
+func (pe *PatternExecutor) checkDependencies(step OperationStep, results map[string]interface{}, stepErrs map[string]error) bool {
 	for _, dep := range step.DependsOn {
 		if _, ok := results[dep]; !ok {
 			return false
 		}
-		if err, ok := errors[dep]; ok && err != nil {
+		if err, ok := stepErrs[dep]; ok && err != nil {
 			return false
 		}
 	}
 	return true
 }
 
-// executeStepWithRetry executes a step with retry logic
-func (pe *PatternExecutor) executeStepWithRetry(ctx context.Context, step OperationStep, input map[string]interface{}, stepResults map[string]interface{}) (interface{}, error) {
+// executeStepWithRetry executes a step with retry logic.
+func (pe *PatternExecutor) executeStepWithRetry(ctx context.Context, step OperationStep, input, stepResults map[string]interface{}) (interface{}, error) {
 	retries := step.Retries
 	if retries == 0 {
 		retries = pe.opts.DefaultRetries
@@ -253,8 +254,8 @@ func (pe *PatternExecutor) executeStepWithRetry(ctx context.Context, step Operat
 	return nil, fmt.Errorf("step execution failed after %d attempts: %w", retries+1, lastErr)
 }
 
-// executeStep executes a single step
-func (pe *PatternExecutor) executeStep(ctx context.Context, step OperationStep, input map[string]interface{}, stepResults map[string]interface{}) (interface{}, error) {
+// executeStep executes a single step.
+func (pe *PatternExecutor) executeStep(ctx context.Context, step OperationStep, input, stepResults map[string]interface{}) (interface{}, error) {
 	// Combine input with previous step results
 	combinedInput := make(map[string]interface{})
 	for k, v := range input {
@@ -277,8 +278,8 @@ func (pe *PatternExecutor) executeStep(ctx context.Context, step OperationStep, 
 	}
 }
 
-// executeCacheStep executes a cache operation
-func (pe *PatternExecutor) executeCacheStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
+// executeCacheStep executes a cache operation.
+func (pe *PatternExecutor) executeCacheStep(ctx context.Context, step OperationStep, _ map[string]interface{}) (interface{}, error) {
 	switch step.Action {
 	case "get":
 		key, ok := step.Parameters["key"].(string)
@@ -295,7 +296,14 @@ func (pe *PatternExecutor) executeCacheStep(ctx context.Context, step OperationS
 			return nil, fmt.Errorf("invalid key parameter")
 		}
 		value := step.Parameters["value"]
-		ttl, _ := step.Parameters["ttl"].(time.Duration)
+		ttlVal, ok := step.Parameters["ttl"]
+		if !ok {
+			return nil, fmt.Errorf("ttl parameter missing")
+		}
+		ttl, ok := ttlVal.(time.Duration)
+		if !ok {
+			return nil, fmt.Errorf("ttl is not time.Duration")
+		}
 		err := pe.cache.Set(ctx, key, "", value, ttl)
 		return nil, err
 
@@ -304,8 +312,8 @@ func (pe *PatternExecutor) executeCacheStep(ctx context.Context, step OperationS
 	}
 }
 
-// executePipelineStep executes a pipeline operation
-func (pe *PatternExecutor) executePipelineStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
+// executePipelineStep executes a pipeline operation.
+func (pe *PatternExecutor) executePipelineStep(ctx context.Context, step OperationStep, _ map[string]interface{}) (interface{}, error) {
 	pipe := pe.cache.Pipeline()
 
 	commands, ok := step.Parameters["commands"].([]map[string]interface{})
@@ -321,12 +329,21 @@ func (pe *PatternExecutor) executePipelineStep(ctx context.Context, step Operati
 
 		switch action {
 		case "get":
-			key, _ := cmd["key"].(string)
+			key, ok := cmd["key"].(string)
+			if !ok {
+				return nil, errors.New("cmd['key'] is not a string")
+			}
 			pipe.Get(ctx, key)
 		case "set":
-			key, _ := cmd["key"].(string)
+			key, ok := cmd["key"].(string)
+			if !ok {
+				return nil, errors.New("cmd['key'] is not a string")
+			}
 			value := cmd["value"]
-			ttl, _ := cmd["ttl"].(time.Duration)
+			ttl, ok := cmd["ttl"].(time.Duration)
+			if !ok {
+				return nil, errors.New("cmd['ttl'] is not a time.Duration")
+			}
 			pipe.Set(ctx, key, value, ttl)
 		}
 	}
@@ -334,8 +351,8 @@ func (pe *PatternExecutor) executePipelineStep(ctx context.Context, step Operati
 	return pipe.Exec(ctx)
 }
 
-// executeTransactionStep executes a transaction operation
-func (pe *PatternExecutor) executeTransactionStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
+// executeTransactionStep executes a transaction operation.
+func (pe *PatternExecutor) executeTransactionStep(ctx context.Context, step OperationStep, _ map[string]interface{}) (interface{}, error) {
 	pipe := pe.cache.TxPipeline()
 
 	commands, ok := step.Parameters["commands"].([]map[string]interface{})
@@ -351,12 +368,21 @@ func (pe *PatternExecutor) executeTransactionStep(ctx context.Context, step Oper
 
 		switch action {
 		case "get":
-			key, _ := cmd["key"].(string)
+			key, ok := cmd["key"].(string)
+			if !ok {
+				return nil, errors.New("cmd['key'] is not a string")
+			}
 			pipe.Get(ctx, key)
 		case "set":
-			key, _ := cmd["key"].(string)
+			key, ok := cmd["key"].(string)
+			if !ok {
+				return nil, errors.New("cmd['key'] is not a string")
+			}
 			value := cmd["value"]
-			ttl, _ := cmd["ttl"].(time.Duration)
+			ttl, ok := cmd["ttl"].(time.Duration)
+			if !ok {
+				return nil, errors.New("cmd['ttl'] is not a time.Duration")
+			}
 			pipe.Set(ctx, key, value, ttl)
 		}
 	}

@@ -23,10 +23,10 @@ var (
 	ErrCampaignExists   = errors.New("campaign already exists")
 )
 
-// Compile-time check
+// Compile-time check.
 var _ campaignpb.CampaignServiceServer = (*Service)(nil)
 
-// Service implements the CampaignService gRPC interface
+// Service implements the CampaignService gRPC interface.
 type Service struct {
 	campaignpb.UnimplementedCampaignServiceServer
 	log        *zap.Logger
@@ -44,7 +44,7 @@ func NewService(db *sql.DB, log *zap.Logger) *Service {
 	}
 }
 
-// SafeInt32 converts an int64 to int32 with overflow checking
+// SafeInt32 converts an int64 to int32 with overflow checking.
 func SafeInt32(i int64) (int32, error) {
 	if i > math.MaxInt32 || i < math.MinInt32 {
 		return 0, fmt.Errorf("integer overflow: value %d out of int32 range", i)

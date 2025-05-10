@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// OperationPattern represents a predefined set of Nexus operations
+// OperationPattern represents a predefined set of Nexus operations.
 type OperationPattern struct {
 	ID          string                 `json:"id"`
 	Name        string                 `json:"name"`
@@ -21,7 +21,7 @@ type OperationPattern struct {
 	Metadata    map[string]interface{} `json:"metadata"`
 }
 
-// OperationStep represents a single step in an operation pattern
+// OperationStep represents a single step in an operation pattern.
 type OperationStep struct {
 	Type       string                 `json:"type"`
 	Action     string                 `json:"action"`
@@ -31,7 +31,7 @@ type OperationStep struct {
 	Timeout    time.Duration          `json:"timeout"`
 }
 
-// PatternExecutor handles the execution of operation patterns
+// PatternExecutor handles the execution of operation patterns.
 type PatternExecutor struct {
 	nexusRepo     nexus.Repository
 	masterRepo    repository.MasterRepository
@@ -40,7 +40,7 @@ type PatternExecutor struct {
 	options       *Options
 }
 
-// NewPatternExecutor creates a new pattern executor
+// NewPatternExecutor creates a new pattern executor.
 func NewPatternExecutor(nexusRepo nexus.Repository, masterRepo repository.MasterRepository, opts *Options) *PatternExecutor {
 	return &PatternExecutor{
 		nexusRepo:  nexusRepo,
@@ -50,7 +50,7 @@ func NewPatternExecutor(nexusRepo nexus.Repository, masterRepo repository.Master
 	}
 }
 
-// RegisterPattern adds a new operation pattern
+// RegisterPattern adds a new operation pattern.
 func (pe *PatternExecutor) RegisterPattern(pattern *OperationPattern) error {
 	if pattern.ID == "" {
 		return fmt.Errorf("pattern ID cannot be empty")
@@ -62,7 +62,7 @@ func (pe *PatternExecutor) RegisterPattern(pattern *OperationPattern) error {
 	return nil
 }
 
-// ExecutePattern runs a registered pattern with provided input data
+// ExecutePattern runs a registered pattern with provided input data.
 func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID string, input map[string]interface{}) (map[string]interface{}, error) {
 	pe.patternsMutex.RLock()
 	pattern, exists := pe.patterns[patternID]
@@ -140,8 +140,8 @@ func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID string,
 	return results, nil
 }
 
-// executeStep executes a single operation step
-func (pe *PatternExecutor) executeStep(ctx context.Context, step OperationStep, input, results map[string]interface{}) (interface{}, error) {
+// executeStep executes a single operation step.
+func (pe *PatternExecutor) executeStep(ctx context.Context, step OperationStep, input, _ map[string]interface{}) (interface{}, error) {
 	switch step.Type {
 	case "relationship":
 		return pe.executeRelationshipStep(ctx, step, input)
@@ -154,21 +154,63 @@ func (pe *PatternExecutor) executeStep(ctx context.Context, step OperationStep, 
 	}
 }
 
-// executeRelationshipStep handles relationship operations
+// executeRelationshipStep handles relationship operations.
 func (pe *PatternExecutor) executeRelationshipStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
 	switch step.Action {
 	case "create":
-		parentID := input["parent_id"].(int64)
-		childID := input["child_id"].(int64)
-		relType := nexus.RelationType(step.Parameters["type"].(string))
-		metadata := step.Parameters["metadata"].(map[string]interface{})
-
+		parentIDVal, ok := input["parent_id"]
+		if !ok {
+			return nil, fmt.Errorf("parent_id missing in input")
+		}
+		parentID, ok := parentIDVal.(int64)
+		if !ok {
+			return nil, fmt.Errorf("parent_id is not int64")
+		}
+		childIDVal, ok := input["child_id"]
+		if !ok {
+			return nil, fmt.Errorf("child_id missing in input")
+		}
+		childID, ok := childIDVal.(int64)
+		if !ok {
+			return nil, fmt.Errorf("child_id is not int64")
+		}
+		relTypeVal, ok := step.Parameters["type"]
+		if !ok {
+			return nil, fmt.Errorf("type missing in step.Parameters")
+		}
+		relTypeStr, ok := relTypeVal.(string)
+		if !ok {
+			return nil, fmt.Errorf("type is not string")
+		}
+		relType := nexus.RelationType(relTypeStr)
+		metadataVal, ok := step.Parameters["metadata"]
+		if !ok {
+			return nil, fmt.Errorf("metadata missing in step.Parameters")
+		}
+		metadata, ok := metadataVal.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("metadata is not map[string]interface{}")
+		}
 		return pe.nexusRepo.CreateRelationship(ctx, parentID, childID, relType, metadata)
 
 	case "list":
-		masterID := input["master_id"].(int64)
-		relType := nexus.RelationType(step.Parameters["type"].(string))
-
+		masterIDVal, ok := input["master_id"]
+		if !ok {
+			return nil, fmt.Errorf("master_id missing in input")
+		}
+		masterID, ok := masterIDVal.(int64)
+		if !ok {
+			return nil, fmt.Errorf("master_id is not int64")
+		}
+		relTypeVal, ok := step.Parameters["type"]
+		if !ok {
+			return nil, fmt.Errorf("type missing in step.Parameters")
+		}
+		relTypeStr, ok := relTypeVal.(string)
+		if !ok {
+			return nil, fmt.Errorf("type is not string")
+		}
+		relType := nexus.RelationType(relTypeStr)
 		return pe.nexusRepo.ListRelationships(ctx, masterID, relType)
 
 	default:
@@ -176,20 +218,51 @@ func (pe *PatternExecutor) executeRelationshipStep(ctx context.Context, step Ope
 	}
 }
 
-// executeEventStep handles event operations
+// executeEventStep handles event operations.
 func (pe *PatternExecutor) executeEventStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
 	switch step.Action {
 	case "publish":
+		masterIDVal, ok := input["master_id"]
+		if !ok {
+			return nil, fmt.Errorf("master_id missing in input")
+		}
+		masterID, ok := masterIDVal.(int64)
+		if !ok {
+			return nil, fmt.Errorf("master_id is not int64")
+		}
+		entityTypeVal, ok := step.Parameters["entity_type"]
+		if !ok {
+			return nil, fmt.Errorf("entity_type missing in step.Parameters")
+		}
+		entityTypeStr, ok := entityTypeVal.(string)
+		if !ok {
+			return nil, fmt.Errorf("entity_type is not string")
+		}
+		eventTypeVal, ok := step.Parameters["event_type"]
+		if !ok {
+			return nil, fmt.Errorf("event_type missing in step.Parameters")
+		}
+		eventType, ok := eventTypeVal.(string)
+		if !ok {
+			return nil, fmt.Errorf("event_type is not string")
+		}
+		payloadVal, ok := step.Parameters["payload"]
+		if !ok {
+			return nil, fmt.Errorf("payload missing in step.Parameters")
+		}
+		payload, ok := payloadVal.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("payload is not map[string]interface{}")
+		}
 		event := &nexus.Event{
 			ID:         uuid.New(),
-			MasterID:   input["master_id"].(int64),
-			EntityType: repository.EntityType(step.Parameters["entity_type"].(string)),
-			EventType:  step.Parameters["event_type"].(string),
-			Payload:    step.Parameters["payload"].(map[string]interface{}),
+			MasterID:   masterID,
+			EntityType: repository.EntityType(entityTypeStr),
+			EventType:  eventType,
+			Payload:    payload,
 			Status:     "pending",
 			CreatedAt:  time.Now(),
 		}
-
 		return nil, pe.nexusRepo.PublishEvent(ctx, event)
 
 	default:
@@ -197,19 +270,45 @@ func (pe *PatternExecutor) executeEventStep(ctx context.Context, step OperationS
 	}
 }
 
-// executeGraphStep handles graph operations
+// executeGraphStep handles graph operations.
 func (pe *PatternExecutor) executeGraphStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
 	switch step.Action {
 	case "get_graph":
-		masterID := input["master_id"].(int64)
-		depth := step.Parameters["depth"].(int)
-
+		masterIDVal, ok := input["master_id"]
+		if !ok {
+			return nil, fmt.Errorf("master_id missing in input")
+		}
+		masterID, ok := masterIDVal.(int64)
+		if !ok {
+			return nil, fmt.Errorf("master_id is not int64")
+		}
+		depthVal, ok := step.Parameters["depth"]
+		if !ok {
+			return nil, fmt.Errorf("depth missing in step.Parameters")
+		}
+		depth, ok := depthVal.(int)
+		if !ok {
+			return nil, fmt.Errorf("depth is not int")
+		}
 		return pe.nexusRepo.GetEntityGraph(ctx, masterID, depth)
 
 	case "find_path":
-		fromID := input["from_id"].(int64)
-		toID := input["to_id"].(int64)
-
+		fromIDVal, ok := input["from_id"]
+		if !ok {
+			return nil, fmt.Errorf("from_id missing in input")
+		}
+		fromID, ok := fromIDVal.(int64)
+		if !ok {
+			return nil, fmt.Errorf("from_id is not int64")
+		}
+		toIDVal, ok := input["to_id"]
+		if !ok {
+			return nil, fmt.Errorf("to_id missing in input")
+		}
+		toID, ok := toIDVal.(int64)
+		if !ok {
+			return nil, fmt.Errorf("to_id is not int64")
+		}
 		return pe.nexusRepo.FindPath(ctx, fromID, toID)
 
 	default:
@@ -217,7 +316,7 @@ func (pe *PatternExecutor) executeGraphStep(ctx context.Context, step OperationS
 	}
 }
 
-// areDependenciesMet checks if all dependencies for a step are completed
+// areDependenciesMet checks if all dependencies for a step are completed.
 func (pe *PatternExecutor) areDependenciesMet(dependencies []string, completed map[string]bool) bool {
 	if len(dependencies) == 0 {
 		return true

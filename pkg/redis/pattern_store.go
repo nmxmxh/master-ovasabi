@@ -10,18 +10,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// PatternOrigin defines the source of a pattern
+// PatternOrigin defines the source of a pattern.
 type PatternOrigin string
 
-// PatternCategory defines the category of a pattern
+// PatternCategory defines the category of a pattern.
 type PatternCategory string
 
 const (
-	// Pattern Origins
+	// Pattern Origins.
 	PatternOriginSystem PatternOrigin = "system"
 	PatternOriginUser   PatternOrigin = "user"
 
-	// Pattern Categories
+	// Pattern Categories.
 	CategoryFinance      PatternCategory = "finance"
 	CategoryNotification PatternCategory = "notification"
 	CategoryUser         PatternCategory = "user"
@@ -30,7 +30,7 @@ const (
 	CategoryReferral     PatternCategory = "referral"
 )
 
-// OperationStep defines a single step in a pattern
+// OperationStep defines a single step in a pattern.
 type OperationStep struct {
 	Type       string                 `json:"type"`
 	Action     string                 `json:"action"`
@@ -40,7 +40,7 @@ type OperationStep struct {
 	Timeout    time.Duration          `json:"timeout"`
 }
 
-// StoredPattern represents a pattern stored in Redis
+// StoredPattern represents a pattern stored in Redis.
 type StoredPattern struct {
 	ID          string                 `json:"id"`
 	Name        string                 `json:"name"`
@@ -58,14 +58,14 @@ type StoredPattern struct {
 	SuccessRate float64                `json:"success_rate"`
 }
 
-// PatternStore manages pattern storage in Redis
+// PatternStore manages pattern storage in Redis.
 type PatternStore struct {
 	cache *Cache
 	kb    *KeyBuilder
 	log   *zap.Logger
 }
 
-// NewPatternStore creates a new pattern store
+// NewPatternStore creates a new pattern store.
 func NewPatternStore(cache *Cache, log *zap.Logger) *PatternStore {
 	if log == nil {
 		log = zap.NewNop()
@@ -78,7 +78,7 @@ func NewPatternStore(cache *Cache, log *zap.Logger) *PatternStore {
 	}
 }
 
-// StorePattern stores a pattern in Redis
+// StorePattern stores a pattern in Redis.
 func (ps *PatternStore) StorePattern(ctx context.Context, pattern *StoredPattern) error {
 	key := ps.kb.Build("pattern", pattern.ID)
 	if err := ps.cache.Set(ctx, key, "", pattern, TTLPattern); err != nil {
@@ -87,7 +87,7 @@ func (ps *PatternStore) StorePattern(ctx context.Context, pattern *StoredPattern
 	return nil
 }
 
-// GetPattern retrieves a pattern from Redis
+// GetPattern retrieves a pattern from Redis.
 func (ps *PatternStore) GetPattern(ctx context.Context, patternID string) (*StoredPattern, error) {
 	key := ps.kb.Build("pattern", patternID)
 	var pattern StoredPattern
@@ -97,7 +97,7 @@ func (ps *PatternStore) GetPattern(ctx context.Context, patternID string) (*Stor
 	return &pattern, nil
 }
 
-// ListPatterns lists patterns based on filters
+// ListPatterns lists patterns based on filters.
 func (ps *PatternStore) ListPatterns(ctx context.Context, filters map[string]interface{}) ([]*StoredPattern, error) {
 	pattern := ps.kb.BuildPattern("pattern", "*")
 	var keys []string
@@ -125,6 +125,7 @@ func (ps *PatternStore) ListPatterns(ctx context.Context, filters map[string]int
 
 	for _, cmd := range cmds {
 		var pattern StoredPattern
+		//nolint:errcheck // error is checked and logged below
 		if err := json.Unmarshal([]byte(cmd.(*redis.StringCmd).Val()), &pattern); err != nil {
 			ps.log.Error("failed to unmarshal pattern", zap.Error(err))
 			continue
@@ -138,7 +139,7 @@ func (ps *PatternStore) ListPatterns(ctx context.Context, filters map[string]int
 	return patterns, nil
 }
 
-// UpdatePatternStats updates pattern usage statistics
+// UpdatePatternStats updates pattern usage statistics.
 func (ps *PatternStore) UpdatePatternStats(ctx context.Context, patternID string, success bool) error {
 	pattern, err := ps.GetPattern(ctx, patternID)
 	if err != nil {
@@ -156,7 +157,7 @@ func (ps *PatternStore) UpdatePatternStats(ctx context.Context, patternID string
 	return ps.StorePattern(ctx, pattern)
 }
 
-// DeletePattern deletes a pattern from Redis
+// DeletePattern deletes a pattern from Redis.
 func (ps *PatternStore) DeletePattern(ctx context.Context, patternID string) error {
 	key := ps.kb.Build("pattern", patternID)
 	if err := ps.cache.Delete(ctx, key, ""); err != nil {
@@ -169,24 +170,28 @@ func (ps *PatternStore) DeletePattern(ctx context.Context, patternID string) err
 	return nil
 }
 
-// matchesFilters checks if a pattern matches the given filters
+// matchesFilters checks if a pattern matches the given filters.
 func matchesFilters(pattern *StoredPattern, filters map[string]interface{}) bool {
 	for key, value := range filters {
 		switch key {
 		case "origin":
-			if pattern.Origin != value.(PatternOrigin) {
+			v, ok := value.(PatternOrigin)
+			if !ok || pattern.Origin != v {
 				return false
 			}
 		case "category":
-			if pattern.Category != value.(PatternCategory) {
+			v, ok := value.(PatternCategory)
+			if !ok || pattern.Category != v {
 				return false
 			}
 		case "user_id":
-			if pattern.CreatedBy != value.(string) {
+			v, ok := value.(string)
+			if !ok || pattern.CreatedBy != v {
 				return false
 			}
 		case "is_active":
-			if pattern.IsActive != value.(bool) {
+			v, ok := value.(bool)
+			if !ok || pattern.IsActive != v {
 				return false
 			}
 		}

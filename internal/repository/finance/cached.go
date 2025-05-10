@@ -10,14 +10,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// CachedRepository wraps a Repository with caching capabilities
+// CachedRepository wraps a Repository with caching capabilities.
 type CachedRepository struct {
 	repo   Repository
 	cache  *redis.Cache
 	logger *zap.Logger
 }
 
-// NewCachedRepository creates a new cached finance repository
+// NewCachedRepository creates a new cached finance repository.
 func NewCachedRepository(repo Repository, cache *redis.Cache, logger *zap.Logger) Repository {
 	return &CachedRepository{
 		repo:   repo,
@@ -26,7 +26,7 @@ func NewCachedRepository(repo Repository, cache *redis.Cache, logger *zap.Logger
 	}
 }
 
-// generateBalanceKey creates a cache key for user balance
+// generateBalanceKey creates a cache key for user balance.
 func (r *CachedRepository) generateBalanceKey(userID uuid.UUID) string {
 	return fmt.Sprintf("%s:%s:balance:%s",
 		redis.NamespaceCache,
@@ -34,7 +34,7 @@ func (r *CachedRepository) generateBalanceKey(userID uuid.UUID) string {
 		userID.String())
 }
 
-// generateTransactionKey creates a cache key for transaction
+// generateTransactionKey creates a cache key for transaction.
 func (r *CachedRepository) generateTransactionKey(txID uuid.UUID) string {
 	return fmt.Sprintf("%s:%s:transaction:%s",
 		redis.NamespaceCache,
@@ -42,7 +42,7 @@ func (r *CachedRepository) generateTransactionKey(txID uuid.UUID) string {
 		txID.String())
 }
 
-// GetBalance retrieves the balance from cache or repository
+// GetBalance retrieves the balance from cache or repository.
 func (r *CachedRepository) GetBalance(ctx context.Context, userID uuid.UUID) (float64, error) {
 	key := r.generateBalanceKey(userID)
 
@@ -69,7 +69,7 @@ func (r *CachedRepository) GetBalance(ctx context.Context, userID uuid.UUID) (fl
 	return balance, nil
 }
 
-// UpdateBalance updates the balance and invalidates cache
+// UpdateBalance updates the balance and invalidates cache.
 func (r *CachedRepository) UpdateBalance(ctx context.Context, userID uuid.UUID, amount float64) error {
 	if err := r.repo.UpdateBalance(ctx, userID, amount); err != nil {
 		return err
@@ -86,7 +86,7 @@ func (r *CachedRepository) UpdateBalance(ctx context.Context, userID uuid.UUID, 
 	return nil
 }
 
-// CreateTransaction creates a transaction and caches it
+// CreateTransaction creates a transaction and caches it.
 func (r *CachedRepository) CreateTransaction(ctx context.Context, tx *TransactionModel) error {
 	if err := r.repo.CreateTransaction(ctx, tx); err != nil {
 		return err
@@ -103,7 +103,7 @@ func (r *CachedRepository) CreateTransaction(ctx context.Context, tx *Transactio
 	return nil
 }
 
-// GetTransaction retrieves a transaction from cache or repository
+// GetTransaction retrieves a transaction from cache or repository.
 func (r *CachedRepository) GetTransaction(ctx context.Context, id uuid.UUID) (*TransactionModel, error) {
 	key := r.generateTransactionKey(id)
 
@@ -121,7 +121,7 @@ func (r *CachedRepository) GetTransaction(ctx context.Context, id uuid.UUID) (*T
 	}
 
 	if tx2 == nil {
-		return nil, nil
+		return nil, ErrTransactionNotFound
 	}
 
 	// Cache the result
@@ -134,7 +134,7 @@ func (r *CachedRepository) GetTransaction(ctx context.Context, id uuid.UUID) (*T
 	return tx2, nil
 }
 
-// ListTransactions retrieves transactions from repository (no caching for lists)
+// ListTransactions retrieves transactions from repository (no caching for lists).
 func (r *CachedRepository) ListTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*TransactionModel, error) {
 	cacheKey := fmt.Sprintf("transactions:%s:%d:%d", userID.String(), limit, offset)
 	cacheNamespace := "transactions"

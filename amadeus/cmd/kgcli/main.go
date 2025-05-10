@@ -227,7 +227,7 @@ func handleVisualizeCommand(format, section, output string) {
 	if output == "" {
 		fmt.Println(string(data))
 	} else {
-		if err := os.WriteFile(output, data, 0644); err != nil {
+		if err := os.WriteFile(output, data, 0o600); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}

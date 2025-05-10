@@ -11,7 +11,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 )
 
-// Example of a system-defined financial transaction pattern
+// Example of a system-defined financial transaction pattern.
 func CreateSystemTransactionPattern() *service.StoredPattern {
 	return &service.StoredPattern{
 		ID:          uuid.New().String(),
@@ -70,7 +70,7 @@ func CreateSystemTransactionPattern() *service.StoredPattern {
 	}
 }
 
-// Example of a user-defined notification pattern
+// Example of a user-defined notification pattern.
 func CreateUserNotificationPattern(userID string) *service.StoredPattern {
 	return &service.StoredPattern{
 		ID:          uuid.New().String(),
@@ -119,13 +119,13 @@ func CreateUserNotificationPattern(userID string) *service.StoredPattern {
 	}
 }
 
-// PatternExecutionManager demonstrates how to use the pattern store and executor
+// PatternExecutionManager demonstrates how to use the pattern store and executor.
 type PatternExecutionManager struct {
 	store    *service.PatternStore
 	executor *service.PatternExecutor
 }
 
-// NewPatternExecutionManager creates a new pattern execution manager
+// NewPatternExecutionManager creates a new pattern execution manager.
 func NewPatternExecutionManager(store *service.PatternStore, executor *service.PatternExecutor) *PatternExecutionManager {
 	return &PatternExecutionManager{
 		store:    store,
@@ -133,7 +133,7 @@ func NewPatternExecutionManager(store *service.PatternStore, executor *service.P
 	}
 }
 
-// ExecuteUserPattern demonstrates executing a user-defined pattern
+// ExecuteUserPattern demonstrates executing a user-defined pattern.
 func (m *PatternExecutionManager) ExecuteUserPattern(ctx context.Context, patternID string, input map[string]interface{}) (map[string]interface{}, error) {
 	// Get pattern from store
 	pattern, err := m.store.GetPattern(ctx, patternID)
@@ -154,7 +154,7 @@ func (m *PatternExecutionManager) ExecuteUserPattern(ctx context.Context, patter
 	return results, err
 }
 
-// ListUserPatterns demonstrates listing patterns by user
+// ListUserPatterns demonstrates listing patterns by user.
 func (m *PatternExecutionManager) ListUserPatterns(ctx context.Context, userID string) ([]*service.StoredPattern, error) {
 	filters := map[string]interface{}{
 		"origin":  service.PatternOriginUser,
@@ -163,7 +163,7 @@ func (m *PatternExecutionManager) ListUserPatterns(ctx context.Context, userID s
 	return m.store.ListPatterns(ctx, filters)
 }
 
-// ListSystemPatterns demonstrates listing system patterns by category
+// ListSystemPatterns demonstrates listing system patterns by category.
 func (m *PatternExecutionManager) ListSystemPatterns(ctx context.Context, category service.PatternCategory) ([]*service.StoredPattern, error) {
 	filters := map[string]interface{}{
 		"origin":   service.PatternOriginSystem,
@@ -172,7 +172,7 @@ func (m *PatternExecutionManager) ListSystemPatterns(ctx context.Context, catego
 	return m.store.ListPatterns(ctx, filters)
 }
 
-// Example usage of creating and executing patterns
+// Example usage of creating and executing patterns.
 func ExamplePatternUsage(ctx context.Context, store *service.PatternStore, executor *service.PatternExecutor) error {
 	manager := NewPatternExecutionManager(store, executor)
 
@@ -194,25 +194,19 @@ func ExamplePatternUsage(ctx context.Context, store *service.PatternStore, execu
 		"to_id":   int64(2),
 		"amount":  100.0,
 	}
-	results, err := manager.ExecuteUserPattern(ctx, systemPattern.ID, input)
-	if err != nil {
+	if _, err := manager.ExecuteUserPattern(ctx, systemPattern.ID, input); err != nil {
 		return err
 	}
 
 	// List user patterns
-	userPatterns, err := manager.ListUserPatterns(ctx, "user123")
-	if err != nil {
+	if _, err := manager.ListUserPatterns(ctx, "user123"); err != nil {
 		return err
 	}
-	_ = userPatterns // Use patterns as needed
 
 	// List system patterns for finance category
-	financePatterns, err := manager.ListSystemPatterns(ctx, service.CategoryFinance)
-	if err != nil {
+	if _, err := manager.ListSystemPatterns(ctx, service.CategoryFinance); err != nil {
 		return err
 	}
-	_ = financePatterns // Use patterns as needed
 
-	_ = results // Use results as needed
 	return nil
 }

@@ -3,6 +3,7 @@ package broadcast
 import (
 	"context"
 	"errors"
+	"math"
 	"sync"
 
 	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v1"
@@ -31,15 +32,13 @@ func NewService(log *zap.Logger, repo *broadcastrepo.BroadcastRepository, cache 
 }
 
 // BroadcastAction implements the BroadcastAction RPC method.
-func (s *ServiceImpl) BroadcastAction(ctx context.Context, req *broadcastpb.BroadcastActionRequest) (*broadcastpb.BroadcastActionResponse, error) {
-	// TODO: Implement a CreateAction method in the repository for this use case
-	return nil, status.Error(codes.Unimplemented, "BroadcastAction repository integration not yet implemented")
+func (s *ServiceImpl) BroadcastAction(_ context.Context, _ *broadcastpb.BroadcastActionRequest) (*broadcastpb.BroadcastActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "BroadcastAction not yet implemented")
 }
 
 // SubscribeToActions implements the BroadcastAction streaming RPC method.
-func (s *ServiceImpl) SubscribeToActions(req *broadcastpb.SubscribeToActionsRequest, stream broadcastpb.BroadcastService_SubscribeToActionsServer) error {
-	// TODO: Implement repository method for listing recent actions
-	return status.Error(codes.Unimplemented, "BroadcastAction repository integration not yet implemented")
+func (s *ServiceImpl) SubscribeToActions(_ *broadcastpb.SubscribeToActionsRequest, _ broadcastpb.BroadcastService_SubscribeToActionsServer) error {
+	return status.Error(codes.Unimplemented, "SubscribeToActions not yet implemented")
 }
 
 // GetBroadcast retrieves a specific broadcast by ID.
@@ -50,6 +49,9 @@ func (s *ServiceImpl) GetBroadcast(ctx context.Context, req *broadcastpb.GetBroa
 			return nil, status.Error(codes.NotFound, "broadcast not found")
 		}
 		return nil, status.Errorf(codes.Internal, "database error: %v", err)
+	}
+	if b.ID > math.MaxInt32 || b.ID < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "broadcast ID out of int32 range")
 	}
 	resp := &broadcastpb.Broadcast{
 		Id: int32(b.ID),
@@ -73,6 +75,9 @@ func (s *ServiceImpl) ListBroadcasts(ctx context.Context, req *broadcastpb.ListB
 		Broadcasts: make([]*broadcastpb.Broadcast, 0, len(broadcasts)),
 	}
 	for _, b := range broadcasts {
+		if b.ID > math.MaxInt32 || b.ID < math.MinInt32 {
+			return nil, status.Error(codes.Internal, "broadcast ID out of int32 range")
+		}
 		resp.Broadcasts = append(resp.Broadcasts, &broadcastpb.Broadcast{
 			Id: int32(b.ID),
 			// Map other fields as needed
@@ -127,40 +132,22 @@ func (b *AssetBroadcaster) Publish(chunk []byte) {
 	}
 }
 
-// Place after AssetBroadcaster definition
-var (
-	liveAssetBroadcasters = make(map[string]*AssetBroadcaster)
-	broadcasterLock       sync.RWMutex
-)
+// Place after AssetBroadcaster definition.
 
-func getBroadcaster(assetID string) *AssetBroadcaster {
-	broadcasterLock.Lock()
-	defer broadcasterLock.Unlock()
-	b, ok := liveAssetBroadcasters[assetID]
-	if !ok {
-		b = NewAssetBroadcaster()
-		liveAssetBroadcasters[assetID] = b
-	}
-	return b
-}
-
-// SubscribeToLiveAssetChunks streams live asset chunks to the client
-func (s *ServiceImpl) SubscribeToLiveAssetChunks(req *broadcastpb.SubscribeToLiveAssetChunksRequest, stream broadcastpb.BroadcastService_SubscribeToLiveAssetChunksServer) error {
-	// TODO: Implement asset chunk streaming
+// SubscribeToLiveAssetChunks streams live asset chunks to the client.
+func (s *ServiceImpl) SubscribeToLiveAssetChunks(_ *broadcastpb.SubscribeToLiveAssetChunksRequest, _ broadcastpb.BroadcastService_SubscribeToLiveAssetChunksServer) error {
 	return status.Error(codes.Unimplemented, "SubscribeToLiveAssetChunks not yet implemented")
 }
 
-// PublishLiveAssetChunk pushes a live asset chunk to all subscribers
-func (s *ServiceImpl) PublishLiveAssetChunk(ctx context.Context, req *broadcastpb.PublishLiveAssetChunkRequest) (*broadcastpb.PublishLiveAssetChunkResponse, error) {
-	// TODO: Implement logic using req fields
-	return &broadcastpb.PublishLiveAssetChunkResponse{}, nil
+// PublishLiveAssetChunk pushes a live asset chunk to all subscribers.
+func (s *ServiceImpl) PublishLiveAssetChunk(_ context.Context, _ *broadcastpb.PublishLiveAssetChunkRequest) (*broadcastpb.PublishLiveAssetChunkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "PublishLiveAssetChunk not yet implemented")
 }
 
 // CreateBroadcast implements the CreateBroadcast RPC method.
-func (s *ServiceImpl) CreateBroadcast(ctx context.Context, req *broadcastpb.CreateBroadcastRequest) (*broadcastpb.CreateBroadcastResponse, error) {
-	// TODO: Implement create broadcast logic
+func (s *ServiceImpl) CreateBroadcast(_ context.Context, _ *broadcastpb.CreateBroadcastRequest) (*broadcastpb.CreateBroadcastResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "CreateBroadcast not yet implemented")
 }
 
-// Compile-time check to ensure ServiceImpl implements BroadcastServiceServer
+// Compile-time check to ensure ServiceImpl implements BroadcastServiceServer.
 var _ broadcastpb.BroadcastServiceServer = (*ServiceImpl)(nil)

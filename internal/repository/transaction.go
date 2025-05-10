@@ -3,12 +3,13 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"log"
 )
 
-// TxFn represents a function that will be executed within a transaction
+// TxFn represents a function that will be executed within a transaction.
 type TxFn func(*sql.Tx) error
 
-// WithTransaction executes the given function within a transaction
+// WithTransaction executes the given function within a transaction.
 func WithTransaction(ctx context.Context, db *sql.DB, fn TxFn) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -17,7 +18,9 @@ func WithTransaction(ctx context.Context, db *sql.DB, fn TxFn) error {
 
 	defer func() {
 		if p := recover(); p != nil {
-			_ = tx.Rollback()
+			if err := tx.Rollback(); err != nil {
+				log.Printf("transaction rollback failed during panic recovery: %v", err)
+			}
 			panic(p) // re-throw panic after rollback
 		}
 	}()
@@ -32,7 +35,7 @@ func WithTransaction(ctx context.Context, db *sql.DB, fn TxFn) error {
 	return tx.Commit()
 }
 
-// DBTX represents a database connection that can execute queries or a transaction
+// DBTX represents a database connection that can execute queries or a transaction.
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)

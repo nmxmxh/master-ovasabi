@@ -3,11 +3,10 @@ package r2
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"os"
-
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -18,7 +17,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// UploadFile uploads a file to Cloudflare R2 with strict structure and returns the public URL, authenticity hash, and R2 key
+// UploadFile uploads a file to Cloudflare R2 with strict structure and returns the public URL, authenticity hash, and R2 key.
 func UploadFile(ctx context.Context, fileBytes []byte, fileName, mimeType, folderPrefix string) (publicURL, authenticityHash, key string, err error) {
 	accessKey := os.Getenv("R2_ACCESS_KEY_ID")
 	secretKey := os.Getenv("R2_SECRET_ACCESS_KEY")
@@ -65,7 +64,7 @@ func UploadFile(ctx context.Context, fileBytes []byte, fileName, mimeType, folde
 	return publicURL, authenticityHash, key, nil
 }
 
-// GenerateSignedURL creates a signed URL for secure, time-limited access
+// GenerateSignedURL creates a signed URL for secure, time-limited access.
 func GenerateSignedURL(key string, expiresIn time.Duration) (string, error) {
 	accessKey := os.Getenv("R2_ACCESS_KEY_ID")
 	secretKey := os.Getenv("R2_SECRET_ACCESS_KEY")

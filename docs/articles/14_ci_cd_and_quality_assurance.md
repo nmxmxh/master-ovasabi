@@ -22,4 +22,4 @@ pipelines work.
 ## System Diagram
 
 > _[Insert a diagram showing the CI/CD pipeline: code commit → lint/test/coverage → build → deploy,
-> with quality gates at each stage.]_
+> > with quality gates at each stage.]_

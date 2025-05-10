@@ -3,6 +3,7 @@ package asset
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,7 +18,9 @@ const (
 	StorageTypeHeavy StorageType = "heavy"
 )
 
-type AssetModel struct {
+var ErrAssetNotFound = errors.New("asset not found")
+
+type Model struct {
 	ID        uuid.UUID   `db:"id"`
 	UserID    uuid.UUID   `db:"user_id"`
 	Type      StorageType `db:"type"`
@@ -36,32 +39,32 @@ type AssetModel struct {
 	Signature        string `db:"signature"`
 }
 
-// AssetRepository defines the interface for asset operations
-type AssetRepository interface {
-	CreateAsset(ctx context.Context, asset *AssetModel) error
-	GetAsset(ctx context.Context, id uuid.UUID) (*AssetModel, error)
-	ListUserAssets(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*AssetModel, error)
-	ListSystemAssets(ctx context.Context, limit, offset int) ([]*AssetModel, error)
-	UpdateAsset(ctx context.Context, asset *AssetModel) error
+// Repository defines the interface for asset operations.
+type Repository interface {
+	CreateAsset(ctx context.Context, asset *Model) error
+	GetAsset(ctx context.Context, id uuid.UUID) (*Model, error)
+	ListUserAssets(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Model, error)
+	ListSystemAssets(ctx context.Context, limit, offset int) ([]*Model, error)
+	UpdateAsset(ctx context.Context, asset *Model) error
 	DeleteAsset(ctx context.Context, id uuid.UUID) error
 }
 
-// Repository implements AssetRepository
-type Repository struct {
+// Repo implements Repository.
+type Repo struct {
 	db  *sql.DB
 	log *zap.Logger
 }
 
-// InitRepository creates a new asset repository instance
-func InitRepository(db *sql.DB, log *zap.Logger) *Repository {
-	return &Repository{
+// InitRepository creates a new asset repository instance.
+func InitRepository(db *sql.DB, log *zap.Logger) *Repo {
+	return &Repo{
 		db:  db,
 		log: log,
 	}
 }
 
-// CreateAsset creates a new asset
-func (r *Repository) CreateAsset(ctx context.Context, asset *AssetModel) error {
+// CreateAsset creates a new asset.
+func (r *Repo) CreateAsset(ctx context.Context, asset *Model) error {
 	query := `
 		INSERT INTO assets (id, user_id, type, name, mime_type, size, url, checksum, is_system, created_at, updated_at, authenticity_hash, r2_key, signature)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
@@ -78,15 +81,15 @@ func (r *Repository) CreateAsset(ctx context.Context, asset *AssetModel) error {
 	return nil
 }
 
-// GetAsset retrieves an asset by ID
-func (r *Repository) GetAsset(ctx context.Context, id uuid.UUID) (*AssetModel, error) {
+// GetAsset retrieves an asset by ID.
+func (r *Repo) GetAsset(ctx context.Context, id uuid.UUID) (*Model, error) {
 	query := `
 		SELECT id, user_id, type, name, mime_type, size, url, checksum, is_system,
 			   created_at, updated_at, deleted_at, authenticity_hash, r2_key, signature
 		FROM assets
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	asset := &AssetModel{}
+	asset := &Model{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&asset.ID, &asset.UserID, &asset.Type, &asset.Name, &asset.MimeType,
 		&asset.Size, &asset.URL, &asset.Checksum, &asset.IsSystem,
@@ -94,7 +97,7 @@ func (r *Repository) GetAsset(ctx context.Context, id uuid.UUID) (*AssetModel, e
 		&asset.AuthenticityHash, &asset.R2Key, &asset.Signature,
 	)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return nil, ErrAssetNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get asset: %w", err)
@@ -102,8 +105,8 @@ func (r *Repository) GetAsset(ctx context.Context, id uuid.UUID) (*AssetModel, e
 	return asset, nil
 }
 
-// ListUserAssets retrieves assets for a user with pagination
-func (r *Repository) ListUserAssets(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*AssetModel, error) {
+// ListUserAssets retrieves assets for a user with pagination.
+func (r *Repo) ListUserAssets(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Model, error) {
 	query := `
 		SELECT id, user_id, type, name, mime_type, size, url, checksum, is_system, created_at, updated_at, deleted_at, authenticity_hash, r2_key, signature
 		FROM assets
@@ -122,9 +125,9 @@ func (r *Repository) ListUserAssets(ctx context.Context, userID uuid.UUID, limit
 		}
 	}()
 
-	var assets []*AssetModel
+	var assets []*Model
 	for rows.Next() {
-		asset := &AssetModel{}
+		asset := &Model{}
 		err := rows.Scan(
 			&asset.ID, &asset.UserID, &asset.Type, &asset.Name, &asset.MimeType,
 			&asset.Size, &asset.URL, &asset.Checksum, &asset.IsSystem,
@@ -142,8 +145,8 @@ func (r *Repository) ListUserAssets(ctx context.Context, userID uuid.UUID, limit
 	return assets, nil
 }
 
-// ListSystemAssets retrieves system assets with pagination
-func (r *Repository) ListSystemAssets(ctx context.Context, limit, offset int) ([]*AssetModel, error) {
+// ListSystemAssets retrieves system assets with pagination.
+func (r *Repo) ListSystemAssets(ctx context.Context, limit, offset int) ([]*Model, error) {
 	query := `
 		SELECT id, user_id, type, name, mime_type, size, url, checksum, is_system,
 			   created_at, updated_at, deleted_at, authenticity_hash, r2_key, signature
@@ -163,9 +166,9 @@ func (r *Repository) ListSystemAssets(ctx context.Context, limit, offset int) ([
 		}
 	}()
 
-	var assets []*AssetModel
+	var assets []*Model
 	for rows.Next() {
-		asset := &AssetModel{}
+		asset := &Model{}
 		err := rows.Scan(
 			&asset.ID, &asset.UserID, &asset.Type, &asset.Name, &asset.MimeType,
 			&asset.Size, &asset.URL, &asset.Checksum, &asset.IsSystem,
@@ -183,8 +186,8 @@ func (r *Repository) ListSystemAssets(ctx context.Context, limit, offset int) ([
 	return assets, nil
 }
 
-// UpdateAsset updates an existing asset
-func (r *Repository) UpdateAsset(ctx context.Context, asset *AssetModel) error {
+// UpdateAsset updates an existing asset.
+func (r *Repo) UpdateAsset(ctx context.Context, asset *Model) error {
 	query := `
 		UPDATE assets
 		SET type = $1, name = $2, mime_type = $3, size = $4, url = $5, checksum = $6, is_system = $7, updated_at = $8, authenticity_hash = $9, r2_key = $10, signature = $11
@@ -210,8 +213,8 @@ func (r *Repository) UpdateAsset(ctx context.Context, asset *AssetModel) error {
 	return nil
 }
 
-// DeleteAsset soft deletes an asset
-func (r *Repository) DeleteAsset(ctx context.Context, id uuid.UUID) error {
+// DeleteAsset deletes an asset by ID.
+func (r *Repo) DeleteAsset(ctx context.Context, id uuid.UUID) error {
 	query := `
 		UPDATE assets
 		SET deleted_at = $1

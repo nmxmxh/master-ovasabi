@@ -13,7 +13,7 @@ var (
 	ErrReferralExists   = errors.New("referral already exists")
 )
 
-// Referral represents a referral record
+// Referral represents a referral record.
 type Referral struct {
 	ID            int64     `json:"id"`
 	MasterID      int64     `json:"master_id"`
@@ -26,29 +26,29 @@ type Referral struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-// ReferralStats represents referral statistics
-type ReferralStats struct {
+// Stats represents referral statistics.
+type Stats struct {
 	TotalReferrals      int64 `json:"total_referrals"`
 	SuccessfulReferrals int64 `json:"successful_referrals"`
 	PendingReferrals    int64 `json:"pending_referrals"`
 }
 
-// ReferralRepository handles database operations for referrals
-type ReferralRepository struct {
+// Repository handles database operations for referrals.
+type Repository struct {
 	*repository.BaseRepository
 	master repository.MasterRepository
 }
 
-// NewReferralRepository creates a new referral repository instance
-func NewReferralRepository(db *sql.DB, master repository.MasterRepository) *ReferralRepository {
-	return &ReferralRepository{
+// NewReferralRepository creates a new referral repository instance.
+func NewReferralRepository(db *sql.DB, master repository.MasterRepository) *Repository {
+	return &Repository{
 		BaseRepository: repository.NewBaseRepository(db),
 		master:         master,
 	}
 }
 
-// Create inserts a new referral record
-func (r *ReferralRepository) Create(referral *Referral) error {
+// Create inserts a new referral record.
+func (r *Repository) Create(referral *Referral) error {
 	query := `
 		INSERT INTO referrals (master_id, referrer_id, referee_id, referral_code, status, reward_claimed, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -65,7 +65,6 @@ func (r *ReferralRepository) Create(referral *Referral) error {
 		time.Now(),
 		time.Now(),
 	).Scan(&referral.ID)
-
 	if err != nil {
 		return err
 	}
@@ -73,8 +72,8 @@ func (r *ReferralRepository) Create(referral *Referral) error {
 	return nil
 }
 
-// GetByID retrieves a referral by ID
-func (r *ReferralRepository) GetByID(id int64) (*Referral, error) {
+// GetByID retrieves a referral by ID.
+func (r *Repository) GetByID(id int64) (*Referral, error) {
 	referral := &Referral{}
 	query := `
 		SELECT id, master_id, referrer_id, referee_id, referral_code, status, reward_claimed, created_at, updated_at
@@ -104,9 +103,9 @@ func (r *ReferralRepository) GetByID(id int64) (*Referral, error) {
 	return referral, nil
 }
 
-// GetStats retrieves referral statistics for a user
-func (r *ReferralRepository) GetStats(referrerID int64) (*ReferralStats, error) {
-	stats := &ReferralStats{}
+// GetStats retrieves referral statistics for a user.
+func (r *Repository) GetStats(referrerID int64) (*Stats, error) {
+	stats := &Stats{}
 	query := `
 		SELECT 
 			COUNT(*) as total_referrals,
@@ -120,7 +119,6 @@ func (r *ReferralRepository) GetStats(referrerID int64) (*ReferralStats, error) 
 		&stats.SuccessfulReferrals,
 		&stats.PendingReferrals,
 	)
-
 	if err != nil {
 		return nil, err
 	}

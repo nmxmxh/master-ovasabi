@@ -40,10 +40,10 @@ func NewService(repo *babel.Repository, cache *redis.Cache, log *zap.Logger) *Se
 	return &Service{repo: repo, cache: cache, log: log}
 }
 
-// Compile-time check
+// Compile-time check.
 var _ babelpb.BabelServiceServer = (*Service)(nil)
 
-// GetLocationContext implements the gRPC method for BabelService
+// GetLocationContext implements the gRPC method for BabelService.
 func (s *Service) GetLocationContext(ctx context.Context, req *babelpb.GetLocationContextRequest) (*babelpb.GetLocationContextResponse, error) {
 	rule, err := s.GetLocationContextInternal(ctx, req.CountryCode, req.Region, req.City)
 	if err != nil {
@@ -52,7 +52,7 @@ func (s *Service) GetLocationContext(ctx context.Context, req *babelpb.GetLocati
 	return &babelpb.GetLocationContextResponse{Rule: toProtoPricingRule(rule)}, nil
 }
 
-// Translate implements the gRPC method for BabelService
+// Translate implements the gRPC method for BabelService.
 func (s *Service) Translate(ctx context.Context, req *babelpb.TranslateRequest) (*babelpb.TranslateResponse, error) {
 	val, err := s.TranslateInternal(ctx, req.Key, req.Locale)
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *Service) Translate(ctx context.Context, req *babelpb.TranslateRequest) 
 	return &babelpb.TranslateResponse{Value: val}, nil
 }
 
-// Internal logic for location context (used by gRPC and internal calls)
+// Internal logic for location context (used by gRPC and internal calls).
 func (s *Service) GetLocationContextInternal(ctx context.Context, country, region, city string) (*babel.PricingRule, error) {
 	cacheKey := "babel:pricing:" + country + ":" + region + ":" + city
 	var rule babel.PricingRule
@@ -73,17 +73,19 @@ func (s *Service) GetLocationContextInternal(ctx context.Context, country, regio
 		s.log.Warn("No pricing rule found", zap.String("country", country), zap.String("region", region), zap.String("city", city), zap.Error(err))
 		return nil, err
 	}
-	_ = s.cache.Set(ctx, cacheKey, "", rulePtr, 10*time.Minute)
+	if err := s.cache.Set(ctx, cacheKey, "", rulePtr, 10*time.Minute); err != nil {
+		s.log.Error("failed to cache pricing rule", zap.String("cacheKey", cacheKey), zap.Error(err))
+	}
 	return rulePtr, nil
 }
 
-// Internal logic for translation (used by gRPC and internal calls)
-func (s *Service) TranslateInternal(ctx context.Context, key, locale string) (string, error) {
+// Internal logic for translation (used by gRPC and internal calls).
+func (s *Service) TranslateInternal(_ context.Context, _, _ string) (string, error) {
 	// TODO: Integrate with translation backend
 	return "", nil
 }
 
-// Helper to convert internal PricingRule to proto
+// Helper to convert internal PricingRule to proto.
 func toProtoPricingRule(rule *babel.PricingRule) *babelpb.PricingRule {
 	if rule == nil {
 		return nil
@@ -111,7 +113,7 @@ func toProtoPricingRule(rule *babel.PricingRule) *babelpb.PricingRule {
 	}
 }
 
-// HealthCheck returns nil if the service is healthy
+// HealthCheck returns nil if the service is healthy.
 func (s *Service) HealthCheck(ctx context.Context) error {
 	// Check DB connectivity
 	if err := s.repo.DB.PingContext(ctx); err != nil {

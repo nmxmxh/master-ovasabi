@@ -2,6 +2,7 @@ package asset
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -15,8 +16,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// AssetService defines the interface for asset operations
-type AssetService interface {
+// Service defines the interface for asset operations.
+type Service interface {
 	UploadLightAsset(ctx context.Context, req *assetpb.UploadLightAssetRequest) (*assetpb.UploadLightAssetResponse, error)
 	StartHeavyAssetUpload(ctx context.Context, req *assetpb.StartHeavyAssetUploadRequest) (*assetpb.StartHeavyAssetUploadResponse, error)
 	StreamAssetChunk(ctx context.Context, req *assetpb.StreamAssetChunkRequest) (*assetpb.StreamAssetChunkResponse, error)
@@ -32,32 +33,32 @@ type AssetService interface {
 }
 
 const (
-	// Upload size thresholds
+	// Upload size thresholds.
 	ultraLightThreshold = 100 * 1024      // 100KB - For tiny assets like icons
 	lightThreshold      = 500 * 1024      // 500KB - For small assets
 	mediumThreshold     = 5 * 1024 * 1024 // 5MB - For medium assets
 
-	// Chunk sizes for different upload types
+	// Chunk sizes for different upload types.
 	smallChunkSize   = 256 * 1024  // 256KB chunks for medium assets
 	largeChunkSize   = 1024 * 1024 // 1MB chunks for large assets
 	defaultChunkSize = 512 * 1024  // 512KB default chunk size for streaming
 
-	// Security and consistency
+	// Security and consistency.
 	maxRetries                = 3
 	uploadTimeout             = 30 * time.Minute
 	chunkTimeout              = 1 * time.Minute
 	maxConcurrentUploadChunks = 4
 )
 
-// ServiceImpl implements the AssetService interface
+// ServiceImpl implements the Service interface.
 type ServiceImpl struct {
 	assetpb.UnimplementedAssetServiceServer
 	log   *zap.Logger
 	cache *redis.Cache
-	repo  assetrepo.AssetRepository
+	repo  assetrepo.Repository
 }
 
-// UploadMetadata stores upload session information
+// UploadMetadata stores upload session information.
 type UploadMetadata struct {
 	ID             uuid.UUID
 	UserID         uuid.UUID
@@ -69,22 +70,19 @@ type UploadMetadata struct {
 	LastUpdate     time.Time
 }
 
-// nanoQ-style broadcaster for live asset chunks
-// Subscribers receive []byte chunks; slow subscribers are dropped
-// This can be moved to a shared package if needed
-
-type AssetBroadcaster struct {
+// Broadcaster struct.
+type Broadcaster struct {
 	subs map[string]chan []byte
 	lock sync.RWMutex
 }
 
-func NewAssetBroadcaster() *AssetBroadcaster {
-	return &AssetBroadcaster{
+func NewBroadcaster() *Broadcaster {
+	return &Broadcaster{
 		subs: make(map[string]chan []byte),
 	}
 }
 
-func (b *AssetBroadcaster) Subscribe(id string) <-chan []byte {
+func (b *Broadcaster) Subscribe(id string) <-chan []byte {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	ch := make(chan []byte, 8) // buffer for burst
@@ -92,7 +90,7 @@ func (b *AssetBroadcaster) Subscribe(id string) <-chan []byte {
 	return ch
 }
 
-func (b *AssetBroadcaster) Unsubscribe(id string) {
+func (b *Broadcaster) Unsubscribe(id string) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	if ch, ok := b.subs[id]; ok {
@@ -101,7 +99,7 @@ func (b *AssetBroadcaster) Unsubscribe(id string) {
 	}
 }
 
-func (b *AssetBroadcaster) Publish(chunk []byte) {
+func (b *Broadcaster) Publish(chunk []byte) {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 	for id, ch := range b.subs {
@@ -115,17 +113,17 @@ func (b *AssetBroadcaster) Publish(chunk []byte) {
 	}
 }
 
-// Global broadcaster instance (could be per-asset or per-session)
-var liveAssetBroadcaster = NewAssetBroadcaster()
+// Global broadcaster instance (could be per-asset or per-session).
+var liveAssetBroadcaster = NewBroadcaster()
 
-// BroadcastAssetChunk allows publishing a live asset chunk to all subscribers (for live streaming)
-func (s *ServiceImpl) BroadcastAssetChunk(ctx context.Context, chunk []byte) {
+// BroadcastAssetChunk allows publishing a live asset chunk to all subscribers (for live streaming).
+func (s *ServiceImpl) BroadcastAssetChunk(_ context.Context, chunk []byte) {
 	liveAssetBroadcaster.Publish(chunk)
 	// Optionally, notify the broadcast service here
 }
 
-// InitService creates a new instance of AssetService
-func InitService(log *zap.Logger, repo assetrepo.AssetRepository, cache *redis.Cache) *ServiceImpl {
+// InitService creates a new instance of Service.
+func InitService(log *zap.Logger, repo assetrepo.Repository, cache *redis.Cache) *ServiceImpl {
 	return &ServiceImpl{
 		log:   log,
 		repo:  repo,
@@ -133,7 +131,7 @@ func InitService(log *zap.Logger, repo assetrepo.AssetRepository, cache *redis.C
 	}
 }
 
-// validateMimeType checks if the MIME type is allowed
+// validateMimeType checks if the MIME type is allowed.
 func (s *ServiceImpl) validateMimeType(mimeType string) bool {
 	allowedTypes := map[string]bool{
 		"model/gltf-binary":        true,
@@ -146,7 +144,7 @@ func (s *ServiceImpl) validateMimeType(mimeType string) bool {
 	return allowedTypes[mimeType]
 }
 
-// validateUploadSize checks if the size is within allowed limits
+// validateUploadSize checks if the size is within allowed limits.
 func (s *ServiceImpl) validateUploadSize(size int64) error {
 	maxSize := int64(100 * 1024 * 1024) // 100MB max
 	if size <= 0 {
@@ -158,14 +156,14 @@ func (s *ServiceImpl) validateUploadSize(size int64) error {
 	return nil
 }
 
-// UploadLightAsset handles small asset uploads (< 500KB)
-func (s *ServiceImpl) UploadLightAsset(ctx context.Context, req *assetpb.UploadLightAssetRequest) (*assetpb.UploadLightAssetResponse, error) {
+// UploadLightAsset handles small asset uploads (< 500KB).
+func (s *ServiceImpl) UploadLightAsset(_ context.Context, _ *assetpb.UploadLightAssetRequest) (*assetpb.UploadLightAssetResponse, error) {
 	// v1 proto has no fields; add logic when fields are defined
 	// TODO: Implement light asset upload when proto fields are available
 	return &assetpb.UploadLightAssetResponse{}, nil
 }
 
-// StartHeavyAssetUpload initiates a chunked upload for large assets
+// StartHeavyAssetUpload initiates a chunked upload for large assets.
 func (s *ServiceImpl) StartHeavyAssetUpload(ctx context.Context, req *assetpb.StartHeavyAssetUploadRequest) (*assetpb.StartHeavyAssetUploadResponse, error) {
 	// Validate request
 	if !s.validateMimeType(req.MimeType) {
@@ -192,6 +190,13 @@ func (s *ServiceImpl) StartHeavyAssetUpload(ctx context.Context, req *assetpb.St
 	}
 	chunksTotal := (req.Size + int64(chunkSize) - 1) / int64(chunkSize)
 
+	if chunkSize > math.MaxInt32 || chunkSize < math.MinInt32 {
+		return nil, status.Error(codes.Internal, "chunk size out of int32 range")
+	}
+	if chunksTotal > math.MaxInt32 || chunksTotal < 0 {
+		return nil, status.Error(codes.Internal, "chunks total out of int32 range")
+	}
+
 	assetID := uuid.New()
 	metadata := &UploadMetadata{
 		ID:             assetID,
@@ -212,7 +217,7 @@ func (s *ServiceImpl) StartHeavyAssetUpload(ctx context.Context, req *assetpb.St
 		return nil, status.Error(codes.Internal, "failed to initialize upload")
 	}
 
-	asset := &assetrepo.AssetModel{
+	asset := &assetrepo.Model{
 		ID:        assetID,
 		UserID:    userID,
 		Type:      assetrepo.StorageTypeHeavy,
@@ -233,72 +238,64 @@ func (s *ServiceImpl) StartHeavyAssetUpload(ctx context.Context, req *assetpb.St
 
 	return &assetpb.StartHeavyAssetUploadResponse{
 		UploadId:    assetID.String(),
-		ChunkSize:   int32(chunkSize),
-		ChunksTotal: int32(chunksTotal),
+		ChunkSize:   int32(chunkSize),   //nolint:gosec // safe: checked range above
+		ChunksTotal: int32(chunksTotal), //nolint:gosec // safe: checked range above
 	}, nil
 }
 
-// StreamAssetChunk handles streaming chunks for heavy asset uploads
-func (s *ServiceImpl) StreamAssetChunk(ctx context.Context, req *assetpb.StreamAssetChunkRequest) (*assetpb.StreamAssetChunkResponse, error) {
+// StreamAssetChunk handles streaming chunks for heavy asset uploads.
+func (s *ServiceImpl) StreamAssetChunk(_ context.Context, _ *assetpb.StreamAssetChunkRequest) (*assetpb.StreamAssetChunkResponse, error) {
 	// v1 proto has no fields; add logic when fields are defined
 	// TODO: Implement streaming asset chunk when proto fields are available
 	return &assetpb.StreamAssetChunkResponse{}, nil
 }
 
-// CompleteAssetUpload finalizes a heavy asset upload
-func (s *ServiceImpl) CompleteAssetUpload(ctx context.Context, req *assetpb.CompleteAssetUploadRequest) (*assetpb.CompleteAssetUploadResponse, error) {
-	// This method is removed as per the instructions
-	return nil, nil
+// CompleteAssetUpload finalizes a heavy asset upload.
+func (s *ServiceImpl) CompleteAssetUpload(_ context.Context, _ *assetpb.CompleteAssetUploadRequest) (*assetpb.CompleteAssetUploadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "CompleteAssetUpload not yet implemented")
 }
 
-// GetAsset retrieves an asset by ID
-func (s *ServiceImpl) GetAsset(ctx context.Context, req *assetpb.GetAssetRequest) (*assetpb.GetAssetResponse, error) {
-	// This method is removed as per the instructions
-	return nil, nil
+// GetAsset retrieves an asset by ID.
+func (s *ServiceImpl) GetAsset(_ context.Context, _ *assetpb.GetAssetRequest) (*assetpb.GetAssetResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "GetAsset not yet implemented")
 }
 
-// StreamAssetContent streams the content of a stored asset from R2 in chunks via gRPC
-func (s *ServiceImpl) StreamAssetContent(ctx context.Context, req *assetpb.StreamAssetContentRequest) (*assetpb.StreamAssetContentResponse, error) {
+// StreamAssetContent streams the content of a stored asset from R2 in chunks via gRPC.
+func (s *ServiceImpl) StreamAssetContent(_ context.Context, _ *assetpb.StreamAssetContentRequest) (*assetpb.StreamAssetContentResponse, error) {
 	// v1 proto has no fields; add logic when fields are defined
 	// TODO: Implement stream asset content when proto fields are available
 	return &assetpb.StreamAssetContentResponse{}, nil
 }
 
-// DeleteAsset deletes an asset
-func (s *ServiceImpl) DeleteAsset(ctx context.Context, req *assetpb.DeleteAssetRequest) (*assetpb.DeleteAssetResponse, error) {
-	// Implementation needed
-	return nil, nil
+// DeleteAsset deletes an asset.
+func (s *ServiceImpl) DeleteAsset(_ context.Context, _ *assetpb.DeleteAssetRequest) (*assetpb.DeleteAssetResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "DeleteAsset not yet implemented")
 }
 
-// ListUserAssets lists assets for a user with pagination
-func (s *ServiceImpl) ListUserAssets(ctx context.Context, req *assetpb.ListUserAssetsRequest) (*assetpb.ListUserAssetsResponse, error) {
-	// This method is removed as per the instructions
-	return nil, nil
+// ListUserAssets lists assets for a user with pagination.
+func (s *ServiceImpl) ListUserAssets(_ context.Context, _ *assetpb.ListUserAssetsRequest) (*assetpb.ListUserAssetsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "ListUserAssets not yet implemented")
 }
 
-// ListSystemAssets lists system assets with pagination
-func (s *ServiceImpl) ListSystemAssets(ctx context.Context, req *assetpb.ListSystemAssetsRequest) (*assetpb.ListSystemAssetsResponse, error) {
-	// This method is removed as per the instructions
-	return nil, nil
+// ListSystemAssets lists system assets with pagination.
+func (s *ServiceImpl) ListSystemAssets(_ context.Context, _ *assetpb.ListSystemAssetsRequest) (*assetpb.ListSystemAssetsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "ListSystemAssets not yet implemented")
 }
 
-// SubscribeToUserAssets subscribes to user assets
-func (s *ServiceImpl) SubscribeToUserAssets(ctx context.Context, req *assetpb.SubscribeToUserAssetsRequest) (*assetpb.SubscribeToUserAssetsResponse, error) {
-	// Implementation needed
-	return nil, nil
+// SubscribeToUserAssets subscribes to user assets.
+func (s *ServiceImpl) SubscribeToUserAssets(_ context.Context, _ *assetpb.SubscribeToUserAssetsRequest) (*assetpb.SubscribeToUserAssetsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "SubscribeToUserAssets not yet implemented")
 }
 
-// SubscribeToSystemAssets subscribes to system assets
-func (s *ServiceImpl) SubscribeToSystemAssets(ctx context.Context, req *assetpb.SubscribeToSystemAssetsRequest) (*assetpb.SubscribeToSystemAssetsResponse, error) {
-	// Implementation needed
-	return nil, nil
+// SubscribeToSystemAssets subscribes to system assets.
+func (s *ServiceImpl) SubscribeToSystemAssets(_ context.Context, _ *assetpb.SubscribeToSystemAssetsRequest) (*assetpb.SubscribeToSystemAssetsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "SubscribeToSystemAssets not yet implemented")
 }
 
-// BroadcastSystemAsset broadcasts a system asset
-func (s *ServiceImpl) BroadcastSystemAsset(ctx context.Context, req *assetpb.BroadcastSystemAssetRequest) (*assetpb.BroadcastSystemAssetResponse, error) {
-	// Implementation needed
-	return nil, nil
+// BroadcastSystemAsset broadcasts a system asset.
+func (s *ServiceImpl) BroadcastSystemAsset(_ context.Context, _ *assetpb.BroadcastSystemAssetRequest) (*assetpb.BroadcastSystemAssetResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "BroadcastSystemAsset not yet implemented")
 }
 
-// Compile-time check
+// Compile-time check.
 var _ assetpb.AssetServiceServer = (*ServiceImpl)(nil)

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -39,7 +40,31 @@ func Load() (*Config, error) {
 		AppPort:       os.Getenv("APP_PORT"),
 		MetricsPort:   os.Getenv("METRICS_PORT"),
 	}
-	// TODO: Parse ints and add validation
+	var err error
+	if v := os.Getenv("REDIS_DB"); v != "" {
+		cfg.RedisDB, err = strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid REDIS_DB: %w", err)
+		}
+	}
+	if v := os.Getenv("REDIS_POOL_SIZE"); v != "" {
+		cfg.RedisPoolSize, err = strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid REDIS_POOL_SIZE: %w", err)
+		}
+	}
+	if v := os.Getenv("REDIS_MIN_IDLE_CONNS"); v != "" {
+		cfg.RedisMinIdleConns, err = strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid REDIS_MIN_IDLE_CONNS: %w", err)
+		}
+	}
+	if v := os.Getenv("REDIS_MAX_RETRIES"); v != "" {
+		cfg.RedisMaxRetries, err = strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid REDIS_MAX_RETRIES: %w", err)
+		}
+	}
 	if cfg.AppEnv == "" || cfg.AppName == "" || cfg.DBHost == "" || cfg.DBPort == "" || cfg.DBUser == "" || cfg.DBPassword == "" || cfg.DBName == "" || cfg.RedisHost == "" || cfg.RedisPassword == "" {
 		return nil, fmt.Errorf("missing required environment variables")
 	}

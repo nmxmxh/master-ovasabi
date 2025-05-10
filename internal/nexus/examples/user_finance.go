@@ -12,7 +12,7 @@ import (
 	userRepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
 )
 
-// UserFinanceManager demonstrates how to use Nexus for user-finance relationships
+// UserFinanceManager demonstrates how to use Nexus for user-finance relationships.
 type UserFinanceManager struct {
 	nexusRepo   nexus.Repository
 	userRepo    *userRepo.UserRepository
@@ -20,13 +20,13 @@ type UserFinanceManager struct {
 	masterRepo  baseRepo.MasterRepository
 }
 
-// TransactionWithMetadata combines transaction data with relationship metadata
+// TransactionWithMetadata combines transaction data with relationship metadata.
 type TransactionWithMetadata struct {
 	*finance.TransactionModel
 	RelationshipMetadata map[string]interface{}
 }
 
-// CreateUserWithWallet demonstrates creating a user with an associated wallet
+// CreateUserWithWallet demonstrates creating a user with an associated wallet.
 func (m *UserFinanceManager) CreateUserWithWallet(ctx context.Context, username, email string) error {
 	// 1. Create user
 	newUser := &userRepo.User{
@@ -64,7 +64,7 @@ func (m *UserFinanceManager) CreateUserWithWallet(ctx context.Context, username,
 	return nil
 }
 
-// GetUserTransactions demonstrates fetching user transactions with relationship data
+// GetUserTransactions demonstrates fetching user transactions with relationship data.
 func (m *UserFinanceManager) GetUserTransactions(ctx context.Context, userID uuid.UUID, limit int) ([]*TransactionWithMetadata, error) {
 	// 1. Get user's master record
 	userMaster, err := m.masterRepo.GetByUUID(ctx, userID)
@@ -103,7 +103,7 @@ func (m *UserFinanceManager) GetUserTransactions(ctx context.Context, userID uui
 	return result, nil
 }
 
-// TransferBetweenUsers demonstrates a complex operation using Nexus
+// TransferBetweenUsers demonstrates a complex operation using Nexus.
 func (m *UserFinanceManager) TransferBetweenUsers(ctx context.Context, fromUserID, toUserID uuid.UUID, amount float64) error {
 	// 1. Get relationship graph for both users
 	fromMaster, err := m.masterRepo.GetByUUID(ctx, fromUserID)
@@ -194,7 +194,7 @@ func (m *UserFinanceManager) TransferBetweenUsers(ctx context.Context, fromUserI
 	return nil
 }
 
-// GetUserFinancialGraph demonstrates getting a complete financial relationship graph
+// GetUserFinancialGraph demonstrates getting a complete financial relationship graph.
 func (m *UserFinanceManager) GetUserFinancialGraph(ctx context.Context, userID uuid.UUID) (*nexus.Graph, error) {
 	// Get user's master record first
 	userMaster, err := m.masterRepo.GetByUUID(ctx, userID)

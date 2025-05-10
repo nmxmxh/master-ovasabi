@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"go.uber.org/zap"
 )
 
 var (
@@ -14,7 +16,13 @@ var (
 	ErrBroadcastExists   = errors.New("broadcast already exists")
 )
 
-// Broadcast represents a broadcast message in the service_broadcast table
+var log *zap.Logger
+
+func SetLogger(l *zap.Logger) {
+	log = l
+}
+
+// Broadcast represents a broadcast message in the service_broadcast table.
 type Broadcast struct {
 	ID          int64      `db:"id"`
 	MasterID    int64      `db:"master_id"`
@@ -29,13 +37,13 @@ type Broadcast struct {
 	UpdatedAt   time.Time  `db:"updated_at"`
 }
 
-// BroadcastRepository handles operations on the service_broadcast table
+// BroadcastRepository handles operations on the service_broadcast table.
 type BroadcastRepository struct {
 	*repository.BaseRepository
 	masterRepo repository.MasterRepository
 }
 
-// NewBroadcastRepository creates a new broadcast repository instance
+// NewBroadcastRepository creates a new broadcast repository instance.
 func NewBroadcastRepository(db *sql.DB, masterRepo repository.MasterRepository) *BroadcastRepository {
 	return &BroadcastRepository{
 		BaseRepository: repository.NewBaseRepository(db),
@@ -43,12 +51,12 @@ func NewBroadcastRepository(db *sql.DB, masterRepo repository.MasterRepository) 
 	}
 }
 
-// Create inserts a new broadcast record
+// Create inserts a new broadcast record.
 func (r *BroadcastRepository) Create(ctx context.Context, broadcast *Broadcast) (*Broadcast, error) {
 	// Generate a descriptive name for the master record
 	masterName := r.GenerateMasterName(repository.EntityTypeBroadcast,
 		broadcast.Title,
-		string(broadcast.Type),
+		broadcast.Type,
 		broadcast.Status)
 
 	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeBroadcast, masterName)
@@ -68,16 +76,18 @@ func (r *BroadcastRepository) Create(ctx context.Context, broadcast *Broadcast) 
 		broadcast.Type, broadcast.Status, broadcast.ScheduledAt,
 		broadcast.SentAt, broadcast.Metadata,
 	).Scan(&broadcast.ID, &broadcast.CreatedAt, &broadcast.UpdatedAt)
-
 	if err != nil {
-		_ = r.masterRepo.Delete(ctx, masterID)
+		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
+			// TODO: handle/log error
+			return nil, fmt.Errorf("service not implemented: %w", err)
+		}
 		return nil, err
 	}
 
 	return broadcast, nil
 }
 
-// GetByID retrieves a broadcast by ID
+// GetByID retrieves a broadcast by ID.
 func (r *BroadcastRepository) GetByID(ctx context.Context, id int64) (*Broadcast, error) {
 	broadcast := &Broadcast{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -103,7 +113,7 @@ func (r *BroadcastRepository) GetByID(ctx context.Context, id int64) (*Broadcast
 	return broadcast, nil
 }
 
-// Update updates a broadcast record
+// Update updates a broadcast record.
 func (r *BroadcastRepository) Update(ctx context.Context, broadcast *Broadcast) error {
 	result, err := r.GetDB().ExecContext(ctx,
 		`UPDATE service_broadcast 
@@ -131,7 +141,7 @@ func (r *BroadcastRepository) Update(ctx context.Context, broadcast *Broadcast) 
 	return nil
 }
 
-// Delete removes a broadcast and its master record
+// Delete removes a broadcast and its master record.
 func (r *BroadcastRepository) Delete(ctx context.Context, id int64) error {
 	broadcast, err := r.GetByID(ctx, id)
 	if err != nil {
@@ -141,7 +151,7 @@ func (r *BroadcastRepository) Delete(ctx context.Context, id int64) error {
 	return r.masterRepo.Delete(ctx, broadcast.MasterID)
 }
 
-// List retrieves a paginated list of broadcasts
+// List retrieves a paginated list of broadcasts.
 func (r *BroadcastRepository) List(ctx context.Context, limit, offset int) ([]*Broadcast, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT 
@@ -157,7 +167,11 @@ func (r *BroadcastRepository) List(ctx context.Context, limit, offset int) ([]*B
 		return nil, err
 	}
 	defer func() {
-		_ = rows.Close()
+		if err := rows.Close(); err != nil {
+			if log != nil {
+				log.Error("service not implemented", zap.Error(err))
+			}
+		}
 	}()
 
 	var broadcasts []*Broadcast
@@ -177,7 +191,7 @@ func (r *BroadcastRepository) List(ctx context.Context, limit, offset int) ([]*B
 	return broadcasts, rows.Err()
 }
 
-// ListPending retrieves a list of pending broadcasts
+// ListPending retrieves a list of pending broadcasts.
 func (r *BroadcastRepository) ListPending(ctx context.Context) ([]*Broadcast, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT 
@@ -193,7 +207,11 @@ func (r *BroadcastRepository) ListPending(ctx context.Context) ([]*Broadcast, er
 		return nil, err
 	}
 	defer func() {
-		_ = rows.Close()
+		if err := rows.Close(); err != nil {
+			if log != nil {
+				log.Error("service not implemented", zap.Error(err))
+			}
+		}
 	}()
 
 	var broadcasts []*Broadcast

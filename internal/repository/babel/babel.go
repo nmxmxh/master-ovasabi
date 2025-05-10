@@ -53,7 +53,7 @@ func (r *Repository) FindBestRule(ctx context.Context, country, region, city str
 	return &rule, nil
 }
 
-// Initial sample data for seeding or testing
+// Initial sample data for seeding or testing.
 var InitialPricingRules = []PricingRule{
 	{
 		CountryCode:   "US",

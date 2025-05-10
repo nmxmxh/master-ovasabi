@@ -21,5 +21,5 @@ backend systems.
 
 ## System Diagram
 
-> _[Insert a diagram showing the flow of versioned changes, backup/restore cycles, and how the
+> _[Insert a diagram showing the flow of versioned changes, backup/restore cycles, and how the >
 > system adapts to change over time.]_

@@ -60,12 +60,12 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// IsAvailable checks if Redis is available
+// IsAvailable checks if Redis is available.
 func (c *Client) IsAvailable(ctx context.Context) error {
 	return c.Ping(ctx).Err()
 }
 
-// WithTimeout wraps a context with a timeout
+// WithTimeout wraps a context with a timeout.
 func (c *Client) WithTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, timeout)
 }

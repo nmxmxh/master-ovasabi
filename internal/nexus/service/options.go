@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Options configures the Nexus service
+// Options configures the Nexus service.
 type Options struct {
 	// Core options
 	Logger *zap.Logger
@@ -45,7 +45,7 @@ type Options struct {
 	MetricsInterval time.Duration // Interval for metrics collection
 }
 
-// DefaultOptions returns default configuration options
+// DefaultOptions returns default configuration options.
 func DefaultOptions() *Options {
 	return &Options{
 		MaxDepth:          5,
@@ -71,31 +71,31 @@ func DefaultOptions() *Options {
 	}
 }
 
-// Option is a function that modifies Options
+// Option is a function that modifies Options.
 type Option func(*Options)
 
-// WithLogger sets the logger
+// WithLogger sets the logger.
 func WithLogger(logger *zap.Logger) Option {
 	return func(o *Options) {
 		o.Logger = logger
 	}
 }
 
-// WithCache sets the cache
+// WithCache sets the cache.
 func WithCache(cache *redis.Cache) Option {
 	return func(o *Options) {
 		o.Cache = cache
 	}
 }
 
-// WithMaxDepth sets the maximum graph depth
+// WithMaxDepth sets the maximum graph depth.
 func WithMaxDepth(depth int) Option {
 	return func(o *Options) {
 		o.MaxDepth = depth
 	}
 }
 
-// WithEventOptions sets event processing options
+// WithEventOptions sets event processing options.
 func WithEventOptions(batchSize int, pollInterval time.Duration, retryLimit int) Option {
 	return func(o *Options) {
 		o.EventBatchSize = batchSize
@@ -104,7 +104,7 @@ func WithEventOptions(batchSize int, pollInterval time.Duration, retryLimit int)
 	}
 }
 
-// WithPerformanceOptions sets performance-related options
+// WithPerformanceOptions sets performance-related options.
 func WithPerformanceOptions(concurrency, batchSize int, timeout time.Duration) Option {
 	return func(o *Options) {
 		o.MaxConcurrency = concurrency
@@ -113,7 +113,7 @@ func WithPerformanceOptions(concurrency, batchSize int, timeout time.Duration) O
 	}
 }
 
-// WithCacheOptions sets caching options
+// WithCacheOptions sets caching options.
 func WithCacheOptions(ttl time.Duration, strategy, invalidationPattern string) Option {
 	return func(o *Options) {
 		o.CacheTTL = ttl
@@ -122,7 +122,7 @@ func WithCacheOptions(ttl time.Duration, strategy, invalidationPattern string) O
 	}
 }
 
-// WithMonitoringOptions sets monitoring options
+// WithMonitoringOptions sets monitoring options.
 func WithMonitoringOptions(metrics, tracing bool, metricsInterval time.Duration) Option {
 	return func(o *Options) {
 		o.EnableMetrics = metrics

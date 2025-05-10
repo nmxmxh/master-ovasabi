@@ -22,13 +22,13 @@ type MethodConfig struct {
 	Reply   string
 }
 
-// CodeGenerator handles code generation for services
+// CodeGenerator handles code generation for services.
 type CodeGenerator struct {
 	outputDir string
 	templates map[string]string
 }
 
-// NewCodeGenerator creates a new code generator instance
+// NewCodeGenerator creates a new code generator instance.
 func NewCodeGenerator(outputDir string) *CodeGenerator {
 	return &CodeGenerator{
 		outputDir: outputDir,
@@ -40,11 +40,11 @@ func NewCodeGenerator(outputDir string) *CodeGenerator {
 	}
 }
 
-// GenerateService generates all the files for a service
+// GenerateService generates all the files for a service.
 func (g *CodeGenerator) GenerateService(config ServiceConfig) error {
 	// Create service directory
 	serviceDir := filepath.Join(g.outputDir, strings.ToLower(config.ServiceName))
-	if err := os.MkdirAll(serviceDir, 0755); err != nil {
+	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create service directory: %w", err)
 	}
 
@@ -68,7 +68,7 @@ func (g *CodeGenerator) GenerateService(config ServiceConfig) error {
 	return nil
 }
 
-// generateFile generates a single file using the provided template and config
+// generateFile generates a single file using the provided template and config.
 func (g *CodeGenerator) generateFile(path, tmpl string, config ServiceConfig) error {
 	t, err := template.New("").Parse(tmpl)
 	if err != nil {
@@ -114,7 +114,7 @@ func main() {
 	}
 
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(outAbs, 0755); err != nil {
+	if err := os.MkdirAll(outAbs, 0o755); err != nil {
 		log.Fatalf("Failed to create output directory: %v", err)
 	}
 

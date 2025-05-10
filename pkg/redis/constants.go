@@ -2,7 +2,7 @@ package redis
 
 import "time"
 
-// Redis namespaces defines the top-level key prefixes for different types of data
+// Redis namespaces defines the top-level key prefixes for different types of data.
 const (
 	NamespaceCache     = "cache"   // For general caching
 	NamespaceSession   = "session" // For user sessions
@@ -16,7 +16,7 @@ const (
 	NamespacePattern   = "pattern" // For pattern storage
 )
 
-// Redis contexts defines the second-level key prefixes for specific domains
+// Redis contexts defines the second-level key prefixes for specific domains.
 const (
 	ContextAuth         = "auth"         // Authentication related data
 	ContextUser         = "user"         // User related data
@@ -38,7 +38,7 @@ const (
 	ContextNexus        = "nexus"   // Nexus related data
 )
 
-// TTL constants defines the time-to-live durations for different types of data
+// TTL constants defines the time-to-live durations for different types of data.
 const (
 	TTLUserProfile        = 1 * time.Hour    // User profile cache TTL
 	TTLLock               = 30 * time.Second // Lock TTL

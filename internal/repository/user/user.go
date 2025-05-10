@@ -29,7 +29,7 @@ func SetLogger(l *zap.Logger) {
 	log = l
 }
 
-// User represents a user in the service_user table
+// User represents a user in the service_user table.
 type User struct {
 	ID        int64           `db:"id"`
 	MasterID  int64           `db:"master_id"`
@@ -41,13 +41,13 @@ type User struct {
 	UpdatedAt time.Time       `db:"updated_at"`
 }
 
-// UserRepository handles operations on the service_user table
+// UserRepository handles operations on the service_user table.
 type UserRepository struct {
 	*repository.BaseRepository
 	masterRepo repository.MasterRepository
 }
 
-// NewUserRepository creates a new user repository instance
+// NewUserRepository creates a new user repository instance.
 func NewUserRepository(db *sql.DB, masterRepo repository.MasterRepository) *UserRepository {
 	return &UserRepository{
 		BaseRepository: repository.NewBaseRepository(db),
@@ -55,7 +55,7 @@ func NewUserRepository(db *sql.DB, masterRepo repository.MasterRepository) *User
 	}
 }
 
-// validateUsername checks if a username is valid and available
+// validateUsername checks if a username is valid and available.
 func (r *UserRepository) validateUsername(ctx context.Context, username string) error {
 	// Basic validation
 	username = strings.TrimSpace(username)
@@ -98,7 +98,7 @@ func (r *UserRepository) validateUsername(ctx context.Context, username string) 
 	return nil
 }
 
-// Create inserts a new user record
+// Create inserts a new user record.
 func (r *UserRepository) Create(ctx context.Context, user *User) (*User, error) {
 	// Validate username
 	if err := r.validateUsername(ctx, user.Username); err != nil {
@@ -121,13 +121,17 @@ func (r *UserRepository) Create(ctx context.Context, user *User) (*User, error) 
 		) RETURNING id, created_at, updated_at`,
 		user.MasterID, user.Username, user.Email, user.Password, user.Metadata,
 	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
-
 	if err != nil {
 		// If user creation fails, clean up the master record
-		_ = r.masterRepo.Delete(ctx, masterID)
+		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
+			if log != nil {
+				log.Error("service not implemented", zap.Error(err))
+			}
+		}
 
 		// Check for specific PostgreSQL errors
-		if pqErr, ok := err.(*pq.Error); ok {
+		pqErr := &pq.Error{}
+		if errors.As(err, &pqErr) {
 			switch pqErr.Code {
 			case "23505": // unique_violation
 				if strings.Contains(pqErr.Message, "username") {
@@ -148,7 +152,7 @@ func (r *UserRepository) Create(ctx context.Context, user *User) (*User, error) 
 	return user, nil
 }
 
-// GetByUsername retrieves a user by username
+// GetByUsername retrieves a user by username.
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*User, error) {
 	user := &User{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -172,7 +176,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*U
 	return user, nil
 }
 
-// GetByEmail retrieves a user by email
+// GetByEmail retrieves a user by email.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	user := &User{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -196,7 +200,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
 	return user, nil
 }
 
-// GetByID retrieves a user by ID
+// GetByID retrieves a user by ID.
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*User, error) {
 	user := &User{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -220,7 +224,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*User, error) {
 	return user, nil
 }
 
-// Update updates a user record
+// Update updates a user record.
 func (r *UserRepository) Update(ctx context.Context, user *User) error {
 	// If username is being changed, validate it
 	if user.Username != "" {
@@ -265,7 +269,7 @@ func (r *UserRepository) Update(ctx context.Context, user *User) error {
 	return nil
 }
 
-// Delete removes a user and its master record
+// Delete removes a user and its master record.
 func (r *UserRepository) Delete(ctx context.Context, id int64) error {
 	user, err := r.GetByID(ctx, id)
 	if err != nil {
@@ -276,7 +280,7 @@ func (r *UserRepository) Delete(ctx context.Context, id int64) error {
 	return r.masterRepo.Delete(ctx, user.MasterID)
 }
 
-// List retrieves a paginated list of users
+// List retrieves a paginated list of users.
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*User, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT 

@@ -23,7 +23,7 @@ func SetLogger(l *zap.Logger) {
 	log = l
 }
 
-// NotificationType represents the type of notification
+// NotificationType represents the type of notification.
 type NotificationType string
 
 const (
@@ -33,7 +33,7 @@ const (
 	NotificationTypeInApp NotificationType = "in_app"
 )
 
-// NotificationStatus represents the status of a notification
+// NotificationStatus represents the status of a notification.
 type NotificationStatus string
 
 const (
@@ -43,7 +43,7 @@ const (
 	NotificationStatusCancelled NotificationStatus = "cancelled"
 )
 
-// Notification represents a notification entry in the service_notification table
+// Notification represents a notification entry in the service_notification table.
 type Notification struct {
 	ID          int64              `db:"id"`
 	MasterID    int64              `db:"master_id"`
@@ -59,13 +59,13 @@ type Notification struct {
 	UpdatedAt   time.Time          `db:"updated_at"`
 }
 
-// NotificationRepository handles operations on the service_notification table
+// NotificationRepository handles operations on the service_notification table.
 type NotificationRepository struct {
 	*repository.BaseRepository
 	masterRepo repository.MasterRepository
 }
 
-// NewNotificationRepository creates a new notification repository instance
+// NewNotificationRepository creates a new notification repository instance.
 func NewNotificationRepository(db *sql.DB, masterRepo repository.MasterRepository) *NotificationRepository {
 	return &NotificationRepository{
 		BaseRepository: repository.NewBaseRepository(db),
@@ -73,7 +73,7 @@ func NewNotificationRepository(db *sql.DB, masterRepo repository.MasterRepositor
 	}
 }
 
-// Create inserts a new notification record
+// Create inserts a new notification record.
 func (r *NotificationRepository) Create(ctx context.Context, notification *Notification) (*Notification, error) {
 	// Generate a descriptive name for the master record
 	masterName := r.GenerateMasterName(repository.EntityTypeNotification,
@@ -102,16 +102,19 @@ func (r *NotificationRepository) Create(ctx context.Context, notification *Notif
 		notification.Metadata, notification.ScheduledAt,
 		notification.SentAt,
 	).Scan(&notification.ID, &notification.CreatedAt, &notification.UpdatedAt)
-
 	if err != nil {
-		_ = r.masterRepo.Delete(ctx, masterID)
+		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
+			if log != nil {
+				log.Error("service not implemented", zap.Error(err))
+			}
+		}
 		return nil, err
 	}
 
 	return notification, nil
 }
 
-// GetByID retrieves a notification by ID
+// GetByID retrieves a notification by ID.
 func (r *NotificationRepository) GetByID(ctx context.Context, id int64) (*Notification, error) {
 	notification := &Notification{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -139,7 +142,7 @@ func (r *NotificationRepository) GetByID(ctx context.Context, id int64) (*Notifi
 	return notification, nil
 }
 
-// Update updates a notification record
+// Update updates a notification record.
 func (r *NotificationRepository) Update(ctx context.Context, notification *Notification) error {
 	result, err := r.GetDB().ExecContext(ctx,
 		`UPDATE service_notification 
@@ -168,7 +171,7 @@ func (r *NotificationRepository) Update(ctx context.Context, notification *Notif
 	return nil
 }
 
-// Delete removes a notification and its master record
+// Delete removes a notification and its master record.
 func (r *NotificationRepository) Delete(ctx context.Context, id int64) error {
 	notification, err := r.GetByID(ctx, id)
 	if err != nil {
@@ -178,7 +181,7 @@ func (r *NotificationRepository) Delete(ctx context.Context, id int64) error {
 	return r.masterRepo.Delete(ctx, notification.MasterID)
 }
 
-// List retrieves a paginated list of notifications
+// List retrieves a paginated list of notifications.
 func (r *NotificationRepository) List(ctx context.Context, limit, offset int) ([]*Notification, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT 
@@ -220,7 +223,7 @@ func (r *NotificationRepository) List(ctx context.Context, limit, offset int) ([
 	return notifications, rows.Err()
 }
 
-// ListByUserID retrieves all notifications for a specific user
+// ListByUserID retrieves all notifications for a specific user.
 func (r *NotificationRepository) ListByUserID(ctx context.Context, userID int64, limit, offset int) ([]*Notification, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT 
@@ -263,7 +266,7 @@ func (r *NotificationRepository) ListByUserID(ctx context.Context, userID int64,
 	return notifications, rows.Err()
 }
 
-// ListPendingScheduled retrieves all pending notifications that are scheduled to be sent
+// ListPendingScheduled retrieves all pending notifications that are scheduled to be sent.
 func (r *NotificationRepository) ListPendingScheduled(ctx context.Context) ([]*Notification, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT 

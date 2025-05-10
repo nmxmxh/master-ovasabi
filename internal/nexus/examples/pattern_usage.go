@@ -2,6 +2,7 @@ package examples
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,7 +11,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 )
 
-// Example of creating and using a pattern for user onboarding
+// Example of creating and using a pattern for user onboarding.
 func CreateUserOnboardingPattern() *service.OperationPattern {
 	return &service.OperationPattern{
 		ID:          "user_onboarding",
@@ -63,7 +64,7 @@ func CreateUserOnboardingPattern() *service.OperationPattern {
 	}
 }
 
-// Example of creating and using a pattern for financial transaction
+// Example of creating and using a pattern for financial transaction.
 func CreateTransactionPattern() *service.OperationPattern {
 	return &service.OperationPattern{
 		ID:          "financial_transaction",
@@ -111,13 +112,13 @@ func CreateTransactionPattern() *service.OperationPattern {
 	}
 }
 
-// PatternManager demonstrates how to use the pattern executor
+// PatternManager demonstrates how to use the pattern executor.
 type PatternManager struct {
 	executor *service.PatternExecutor
 }
 
-// NewPatternManager creates a new pattern manager
-func NewPatternManager(nexusRepo nexus.Repository, masterRepo repository.MasterRepository) *PatternManager {
+// NewPatternManager creates a new pattern manager.
+func NewPatternManager(nexusRepo nexus.Repository, masterRepo repository.MasterRepository) (*PatternManager, error) {
 	opts := service.DefaultOptions()
 	opts.MaxConcurrency = 100
 	opts.BatchSize = 1000
@@ -127,15 +128,21 @@ func NewPatternManager(nexusRepo nexus.Repository, masterRepo repository.MasterR
 	executor := service.NewPatternExecutor(nexusRepo, masterRepo, opts)
 
 	// Register patterns
-	_ = executor.RegisterPattern(CreateUserOnboardingPattern())
-	_ = executor.RegisterPattern(CreateTransactionPattern())
+	if err := executor.RegisterPattern(CreateUserOnboardingPattern()); err != nil {
+		// TODO: handle/log error
+		return nil, fmt.Errorf("service not implemented: %w", err)
+	}
+	if err := executor.RegisterPattern(CreateTransactionPattern()); err != nil {
+		// TODO: handle/log error
+		return nil, fmt.Errorf("service not implemented: %w", err)
+	}
 
 	return &PatternManager{
 		executor: executor,
-	}
+	}, nil
 }
 
-// ExecuteUserOnboarding demonstrates how to execute the user onboarding pattern
+// ExecuteUserOnboarding demonstrates how to execute the user onboarding pattern.
 func (pm *PatternManager) ExecuteUserOnboarding(ctx context.Context, userID uuid.UUID, parentID, childID int64) (map[string]interface{}, error) {
 	input := map[string]interface{}{
 		"parent_id": parentID,
@@ -147,7 +154,7 @@ func (pm *PatternManager) ExecuteUserOnboarding(ctx context.Context, userID uuid
 	return pm.executor.ExecutePattern(ctx, "user_onboarding", input)
 }
 
-// ExecuteTransaction demonstrates how to execute the transaction pattern
+// ExecuteTransaction demonstrates how to execute the transaction pattern.
 func (pm *PatternManager) ExecuteTransaction(ctx context.Context, fromID, toID int64, amount float64) (map[string]interface{}, error) {
 	input := map[string]interface{}{
 		"from_id": fromID,

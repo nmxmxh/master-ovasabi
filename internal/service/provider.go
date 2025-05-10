@@ -346,7 +346,10 @@ func (p *Provider) registerServices() error {
 	p.log.Info("Registering BabelService")
 	if err := p.container.Register((*babelpb.BabelServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		repo := &babel.Repository{DB: p.db}
-		cache, _ := p.redisProvider.GetCache("babel")
+		cache, err := p.redisProvider.GetCache("babel")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get babel cache: %w", err)
+		}
 		return babelsvc.NewService(repo, cache, p.log), nil
 	}); err != nil {
 		p.log.Error("Failed to register BabelService", zap.Error(err))
@@ -471,7 +474,10 @@ func (p *Provider) Nexus() nexuspb.NexusServiceServer {
 func (p *Provider) Babel() babelpb.BabelServiceServer {
 	if p.babelService == nil {
 		repo := &babel.Repository{DB: p.db}
-		cache, _ := p.redisProvider.GetCache("babel")
+		cache, err := p.redisProvider.GetCache("babel")
+		if err != nil {
+			p.log.Fatal("Failed to get babel cache", zap.Error(err))
+		}
 		p.babelService = babelsvc.NewService(repo, cache, p.log)
 	}
 	return p.babelService

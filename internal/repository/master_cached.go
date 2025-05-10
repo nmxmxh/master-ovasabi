@@ -3,31 +3,30 @@ package repository
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"time"
-
-	"hash/fnv"
 
 	"github.com/google/uuid"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
-// CacheInvalidationPattern represents a pattern for cache invalidation
+// CacheInvalidationPattern represents a pattern for cache invalidation.
 type CacheInvalidationPattern struct {
 	EntityType EntityType
 	Pattern    string
 	Exact      bool
 }
 
-// CachedMasterRepository wraps a MasterRepository with caching
+// CachedMasterRepository wraps a MasterRepository with caching.
 type CachedMasterRepository struct {
 	repo  MasterRepository
 	cache *redis.Cache
 	log   *zap.Logger
 }
 
-// NewCachedMasterRepository creates a new cached master repository
+// NewCachedMasterRepository creates a new cached master repository.
 func NewCachedMasterRepository(repo MasterRepository, cache *redis.Cache, log *zap.Logger) MasterRepository {
 	return &CachedMasterRepository{
 		repo:  repo,
@@ -36,7 +35,7 @@ func NewCachedMasterRepository(repo MasterRepository, cache *redis.Cache, log *z
 	}
 }
 
-// generateCacheKey creates a deterministic cache key for a search query
+// generateCacheKey creates a deterministic cache key for a search query.
 func generateCacheKey(pattern string, entityType EntityType, limit int) string {
 	h := fnv.New32a()
 	if _, err := fmt.Fprintf(h, "%s:%s:%d", pattern, entityType, limit); err != nil {
@@ -46,7 +45,7 @@ func generateCacheKey(pattern string, entityType EntityType, limit int) string {
 	return fmt.Sprintf("search:%d", h.Sum32())
 }
 
-// generateLockKey creates a key for distributed locking
+// generateLockKey creates a key for distributed locking.
 func (r *CachedMasterRepository) generateLockKey(entityType EntityType, id interface{}) string {
 	return fmt.Sprintf("%s:%s:lock:%s:%v",
 		redis.NamespaceLock,
@@ -55,7 +54,7 @@ func (r *CachedMasterRepository) generateLockKey(entityType EntityType, id inter
 		id)
 }
 
-// getCachedResults attempts to get results from cache
+// getCachedResults attempts to get results from cache.
 func (r *CachedMasterRepository) getCachedResults(ctx context.Context, key string) ([]*SearchResult, bool) {
 	var results []*SearchResult
 	err := r.cache.Get(ctx, key, "", &results)
@@ -65,7 +64,7 @@ func (r *CachedMasterRepository) getCachedResults(ctx context.Context, key strin
 	return results, true
 }
 
-// cacheResults stores results in cache with appropriate TTL
+// cacheResults stores results in cache with appropriate TTL.
 func (r *CachedMasterRepository) cacheResults(ctx context.Context, key string, results []*SearchResult, pattern string) {
 	ttl := TTLSearchPattern
 	if !strings.ContainsAny(pattern, "*?%") {
@@ -79,20 +78,20 @@ func (r *CachedMasterRepository) cacheResults(ctx context.Context, key string, r
 	}
 
 	// Update search statistics asynchronously
-	go r.updateSearchStats(context.Background(), pattern)
+	go r.updateSearchStats(ctx, pattern)
 }
 
-// acquireLock attempts to acquire a distributed lock
+// acquireLock attempts to acquire a distributed lock.
 func (r *CachedMasterRepository) acquireLock(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	return r.cache.SetNX(ctx, key, "", ttl)
 }
 
-// releaseLock releases a distributed lock
+// releaseLock releases a distributed lock.
 func (r *CachedMasterRepository) releaseLock(ctx context.Context, key string) error {
 	return r.cache.Delete(ctx, key, "")
 }
 
-// invalidatePatterns invalidates cache entries matching the given patterns
+// invalidatePatterns invalidates cache entries matching the given patterns.
 func (r *CachedMasterRepository) invalidatePatterns(ctx context.Context, patterns []CacheInvalidationPattern) {
 	for _, p := range patterns {
 		pattern := fmt.Sprintf("%s:%s:%s_*",
@@ -108,7 +107,7 @@ func (r *CachedMasterRepository) invalidatePatterns(ctx context.Context, pattern
 	}
 }
 
-// WithLock executes a function while holding a distributed lock
+// WithLock executes a function while holding a distributed lock.
 func (r *CachedMasterRepository) WithLock(ctx context.Context, entityType EntityType, id interface{}, ttl time.Duration, fn func() error) error {
 	lockKey := r.generateLockKey(entityType, id)
 
@@ -131,7 +130,7 @@ func (r *CachedMasterRepository) WithLock(ctx context.Context, entityType Entity
 	return fn()
 }
 
-// SearchByPattern searches for master records matching a pattern with caching
+// SearchByPattern searches for master records matching a pattern with caching.
 func (r *CachedMasterRepository) SearchByPattern(ctx context.Context, pattern string, entityType EntityType, limit int) ([]*SearchResult, error) {
 	cacheKey := generateCacheKey(pattern, entityType, limit)
 
@@ -155,17 +154,17 @@ func (r *CachedMasterRepository) SearchByPattern(ctx context.Context, pattern st
 	return results, nil
 }
 
-// SearchByPatternAcrossTypes searches across all types with caching
+// SearchByPatternAcrossTypes searches across all types with caching.
 func (r *CachedMasterRepository) SearchByPatternAcrossTypes(ctx context.Context, pattern string, limit int) ([]*SearchResult, error) {
 	return r.SearchByPattern(ctx, pattern, "", limit)
 }
 
-// QuickSearch performs a fast search with caching
+// QuickSearch performs a fast search with caching.
 func (r *CachedMasterRepository) QuickSearch(ctx context.Context, pattern string) ([]*SearchResult, error) {
 	return r.SearchByPatternAcrossTypes(ctx, pattern, 10)
 }
 
-// searchStats stores search pattern statistics
+// searchStats stores search pattern statistics.
 type searchStats struct {
 	Pattern     string    `json:"pattern"`
 	Count       int       `json:"count"`
@@ -174,7 +173,7 @@ type searchStats struct {
 	AverageTime int64     `json:"avg_time_ms"`   // Average execution time in milliseconds
 }
 
-// updateSearchStats updates the usage statistics for a search pattern
+// updateSearchStats updates the usage statistics for a search pattern.
 func (r *CachedMasterRepository) updateSearchStats(ctx context.Context, pattern string) {
 	statsKey := fmt.Sprintf("%s:%s:stats:%s",
 		redis.NamespaceSearch,
@@ -203,7 +202,7 @@ func (r *CachedMasterRepository) updateSearchStats(ctx context.Context, pattern 
 	}
 }
 
-// Create creates a master record with cache invalidation
+// Create creates a master record with cache invalidation.
 func (r *CachedMasterRepository) Create(ctx context.Context, entityType EntityType, name string) (int64, error) {
 	id, err := r.repo.Create(ctx, entityType, name)
 	if err != nil {
@@ -222,7 +221,7 @@ func (r *CachedMasterRepository) Get(ctx context.Context, id int64) (*Master, er
 	return r.repo.Get(ctx, id)
 }
 
-// Update updates a master record with cache invalidation and locking
+// Update updates a master record with cache invalidation and locking.
 func (r *CachedMasterRepository) Update(ctx context.Context, master *Master) error {
 	return r.WithLock(ctx, master.Type, master.ID, 10*time.Second, func() error {
 		if err := r.repo.Update(ctx, master); err != nil {
@@ -239,7 +238,7 @@ func (r *CachedMasterRepository) Update(ctx context.Context, master *Master) err
 	})
 }
 
-// Delete deletes a master record with cache invalidation and locking
+// Delete deletes a master record with cache invalidation and locking.
 func (r *CachedMasterRepository) Delete(ctx context.Context, id int64) error {
 	// First get the record to know its type
 	master, err := r.Get(ctx, id)
@@ -266,6 +265,6 @@ func (r *CachedMasterRepository) List(ctx context.Context, limit, offset int) ([
 	return r.repo.List(ctx, limit, offset)
 }
 
-func (r *CachedMasterRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (*Master, error) {
-	return r.repo.GetByUUID(ctx, uuid)
+func (r *CachedMasterRepository) GetByUUID(ctx context.Context, id uuid.UUID) (*Master, error) {
+	return r.repo.GetByUUID(ctx, id)
 }

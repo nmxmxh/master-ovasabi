@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -12,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Options configures the Redis cache
+// Options configures the Redis cache.
 type Options struct {
 	Addr         string
 	Password     string
@@ -27,7 +28,7 @@ type Options struct {
 	Context      string
 }
 
-// DefaultOptions returns default Redis options
+// DefaultOptions returns default Redis options.
 func DefaultOptions() *Options {
 	// Read environment variables for Redis configuration
 	redisHost := getEnvOrDefault("REDIS_HOST", "redis")
@@ -53,7 +54,7 @@ func DefaultOptions() *Options {
 	}
 }
 
-// Helper functions for environment variables
+// Helper functions for environment variables.
 func getEnvOrDefault(key, defaultValue string) string {
 	value := os.Getenv(key)
 	if value == "" {
@@ -74,7 +75,7 @@ func getEnvOrDefaultInt(key string, defaultValue int) int {
 	return intValue
 }
 
-// Cache provides Redis caching functionality
+// Cache provides Redis caching functionality.
 type Cache struct {
 	client *redis.Client
 	kb     *KeyBuilder
@@ -82,7 +83,7 @@ type Cache struct {
 	opts   *Options
 }
 
-// NewCache creates a new Redis cache instance
+// NewCache creates a new Redis cache instance.
 func NewCache(opts *Options, log *zap.Logger) (*Cache, error) {
 	if opts == nil {
 		opts = DefaultOptions()
@@ -136,17 +137,17 @@ func NewCache(opts *Options, log *zap.Logger) (*Cache, error) {
 	}, nil
 }
 
-// Close closes the Redis connection
+// Close closes the Redis connection.
 func (c *Cache) Close() error {
 	return c.client.Close()
 }
 
-// GetClient returns the underlying Redis client
+// GetClient returns the underlying Redis client.
 func (c *Cache) GetClient() *redis.Client {
 	return c.client
 }
 
-// Set stores a value in the cache
+// Set stores a value in the cache.
 func (c *Cache) Set(ctx context.Context, key, field string, value interface{}, ttl time.Duration) error {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -180,7 +181,7 @@ func (c *Cache) Set(ctx context.Context, key, field string, value interface{}, t
 	return nil
 }
 
-// Get retrieves a value from the cache
+// Get retrieves a value from the cache.
 func (c *Cache) Get(ctx context.Context, key, field string, value interface{}) error {
 	var data []byte
 	var err error
@@ -192,7 +193,7 @@ func (c *Cache) Get(ctx context.Context, key, field string, value interface{}) e
 	}
 
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			c.log.Debug("cache miss",
 				zap.String("key", key),
 				zap.String("field", field),
@@ -219,7 +220,7 @@ func (c *Cache) Get(ctx context.Context, key, field string, value interface{}) e
 	return nil
 }
 
-// Delete removes a value from the cache
+// Delete removes a value from the cache.
 func (c *Cache) Delete(ctx context.Context, key, field string) error {
 	var err error
 	if field != "" {
@@ -238,7 +239,7 @@ func (c *Cache) Delete(ctx context.Context, key, field string) error {
 	return err
 }
 
-// DeletePattern removes all keys matching a pattern
+// DeletePattern removes all keys matching a pattern.
 func (c *Cache) DeletePattern(ctx context.Context, pattern string) error {
 	iter := c.client.Scan(ctx, 0, pattern, 0).Iterator()
 	for iter.Next(ctx) {
@@ -253,7 +254,7 @@ func (c *Cache) DeletePattern(ctx context.Context, pattern string) error {
 	return iter.Err()
 }
 
-// SetNX sets a value if the key doesn't exist
+// SetNX sets a value if the key doesn't exist.
 func (c *Cache) SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -277,7 +278,7 @@ func (c *Cache) SetNX(ctx context.Context, key string, value interface{}, ttl ti
 
 // Set Operations
 
-// SAdd adds members to a set
+// SAdd adds members to a set.
 func (c *Cache) SAdd(ctx context.Context, key string, members ...interface{}) error {
 	if err := c.client.SAdd(ctx, key, members...).Err(); err != nil {
 		c.log.Error("failed to add to set",
@@ -289,7 +290,7 @@ func (c *Cache) SAdd(ctx context.Context, key string, members ...interface{}) er
 	return nil
 }
 
-// SRem removes members from a set
+// SRem removes members from a set.
 func (c *Cache) SRem(ctx context.Context, key string, members ...interface{}) error {
 	if err := c.client.SRem(ctx, key, members...).Err(); err != nil {
 		c.log.Error("failed to remove from set",
@@ -301,7 +302,7 @@ func (c *Cache) SRem(ctx context.Context, key string, members ...interface{}) er
 	return nil
 }
 
-// SMembers returns all members of a set
+// SMembers returns all members of a set.
 func (c *Cache) SMembers(ctx context.Context, key string) ([]string, error) {
 	members, err := c.client.SMembers(ctx, key).Result()
 	if err != nil {
@@ -314,7 +315,7 @@ func (c *Cache) SMembers(ctx context.Context, key string) ([]string, error) {
 	return members, nil
 }
 
-// SInter returns the intersection of multiple sets
+// SInter returns the intersection of multiple sets.
 func (c *Cache) SInter(ctx context.Context, keys ...string) ([]string, error) {
 	members, err := c.client.SInter(ctx, keys...).Result()
 	if err != nil {
@@ -327,7 +328,7 @@ func (c *Cache) SInter(ctx context.Context, keys ...string) ([]string, error) {
 	return members, nil
 }
 
-// SUnion returns the union of multiple sets
+// SUnion returns the union of multiple sets.
 func (c *Cache) SUnion(ctx context.Context, keys ...string) ([]string, error) {
 	members, err := c.client.SUnion(ctx, keys...).Result()
 	if err != nil {
@@ -340,7 +341,7 @@ func (c *Cache) SUnion(ctx context.Context, keys ...string) ([]string, error) {
 	return members, nil
 }
 
-// SDiff returns the difference between multiple sets
+// SDiff returns the difference between multiple sets.
 func (c *Cache) SDiff(ctx context.Context, keys ...string) ([]string, error) {
 	members, err := c.client.SDiff(ctx, keys...).Result()
 	if err != nil {
@@ -353,7 +354,7 @@ func (c *Cache) SDiff(ctx context.Context, keys ...string) ([]string, error) {
 	return members, nil
 }
 
-// SIsMember checks if a member exists in a set
+// SIsMember checks if a member exists in a set.
 func (c *Cache) SIsMember(ctx context.Context, key string, member interface{}) (bool, error) {
 	exists, err := c.client.SIsMember(ctx, key, member).Result()
 	if err != nil {
@@ -368,7 +369,7 @@ func (c *Cache) SIsMember(ctx context.Context, key string, member interface{}) (
 
 // Sorted Set Operations
 
-// ZAdd adds members to a sorted set
+// ZAdd adds members to a sorted set.
 func (c *Cache) ZAdd(ctx context.Context, key string, members ...*redis.Z) error {
 	// Convert []*redis.Z to []redis.Z
 	zMembers := make([]redis.Z, len(members))
@@ -385,7 +386,7 @@ func (c *Cache) ZAdd(ctx context.Context, key string, members ...*redis.Z) error
 	return nil
 }
 
-// ZRem removes members from a sorted set
+// ZRem removes members from a sorted set.
 func (c *Cache) ZRem(ctx context.Context, key string, members ...interface{}) error {
 	if err := c.client.ZRem(ctx, key, members...).Err(); err != nil {
 		c.log.Error("failed to remove from sorted set",
@@ -397,7 +398,7 @@ func (c *Cache) ZRem(ctx context.Context, key string, members ...interface{}) er
 	return nil
 }
 
-// ZRange returns a range of members from a sorted set
+// ZRange returns a range of members from a sorted set.
 func (c *Cache) ZRange(ctx context.Context, key string, start, stop int64) ([]string, error) {
 	members, err := c.client.ZRange(ctx, key, start, stop).Result()
 	if err != nil {
@@ -412,7 +413,7 @@ func (c *Cache) ZRange(ctx context.Context, key string, start, stop int64) ([]st
 	return members, nil
 }
 
-// ZRangeByScore returns members from a sorted set by score
+// ZRangeByScore returns members from a sorted set by score.
 func (c *Cache) ZRangeByScore(ctx context.Context, key string, opt *redis.ZRangeBy) ([]string, error) {
 	members, err := c.client.ZRangeByScore(ctx, key, opt).Result()
 	if err != nil {
@@ -427,12 +428,12 @@ func (c *Cache) ZRangeByScore(ctx context.Context, key string, opt *redis.ZRange
 
 // Pipeline Operations
 
-// Pipeline returns a new pipeline
+// Pipeline returns a new pipeline.
 func (c *Cache) Pipeline() redis.Pipeliner {
 	return c.client.Pipeline()
 }
 
-// TxPipeline returns a new transaction pipeline
+// TxPipeline returns a new transaction pipeline.
 func (c *Cache) TxPipeline() redis.Pipeliner {
 	return c.client.TxPipeline()
 }

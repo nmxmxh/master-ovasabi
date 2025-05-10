@@ -35,12 +35,12 @@ var (
 	ErrFactoryFailed = errors.New("factory failed to create instance")
 )
 
-// New creates a new error with the given message
+// New creates a new error with the given message.
 func New(msg string) error {
 	return errors.New(msg)
 }
 
-// Wrap wraps an error with additional context
+// Wrap wraps an error with additional context.
 func Wrap(err error, msg string) error {
 	if err == nil {
 		return nil

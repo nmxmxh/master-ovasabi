@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// Logger is the interface for logging
+// Logger is the interface for logging.
 type Logger interface {
 	Info(msg string, fields ...zapcore.Field)
 	Error(msg string, fields ...zapcore.Field)
@@ -20,7 +20,7 @@ type Logger interface {
 	GetZapLogger() *zap.Logger
 }
 
-// Config holds the configuration for the logger
+// Config holds the configuration for the logger.
 type Config struct {
 	Environment string // "production" or "development"
 	LogLevel    string // "debug", "info", "warn", "error", "dpanic", "panic", "fatal"
@@ -31,7 +31,7 @@ type logger struct {
 	zapLogger *zap.Logger
 }
 
-// DefaultConfig returns a default configuration for the logger
+// DefaultConfig returns a default configuration for the logger.
 func DefaultConfig() Config {
 	return Config{
 		Environment: "development",
@@ -40,7 +40,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// New creates a new logger instance with the given configuration
+// New creates a new logger instance with the given configuration.
 func New(cfg Config) (Logger, error) {
 	var zapCfg zap.Config
 
@@ -69,7 +69,7 @@ func New(cfg Config) (Logger, error) {
 	}, nil
 }
 
-// NewDefault creates a new logger instance with default configuration
+// NewDefault creates a new logger instance with default configuration.
 func NewDefault() (Logger, error) {
 	return New(DefaultConfig())
 }

@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Service implements the Nexus service
+// Service implements the Nexus service.
 type Service struct {
 	nexuspb.UnimplementedNexusServiceServer
 	logger        *zap.Logger
@@ -27,7 +27,7 @@ type Service struct {
 	notifyService notificationpb.NotificationServiceServer
 }
 
-// NewService creates a new Nexus service instance
+// NewService creates a new Nexus service instance.
 func NewService(
 	logger *zap.Logger,
 	cache *redis.Cache,
@@ -46,19 +46,18 @@ func NewService(
 	}
 }
 
-// PatternDefinition for in-memory storage
-// (You may want to persist this in the knowledge graph or DB)
+// (You may want to persist this in the knowledge graph or DB).
 type PatternDefinition struct {
 	PatternName string
 	PatternType string
 	Steps       []*nexuspb.PatternStep
 }
 
-// Add a map to store registered patterns
+// Add a map to store registered patterns.
 var patternRegistry = make(map[string]PatternDefinition)
 
-// RegisterPattern registers a new pattern with steps
-func (s *Service) RegisterPattern(ctx context.Context, req *nexuspb.RegisterPatternRequest) (*nexuspb.RegisterPatternResponse, error) {
+// RegisterPattern registers a new pattern with steps.
+func (s *Service) RegisterPattern(_ context.Context, req *nexuspb.RegisterPatternRequest) (*nexuspb.RegisterPatternResponse, error) {
 	s.logger.Info("Registering pattern (structured)",
 		zap.String("pattern_name", req.PatternName),
 		zap.String("pattern_type", req.PatternType),
@@ -76,9 +75,9 @@ func (s *Service) RegisterPattern(ctx context.Context, req *nexuspb.RegisterPatt
 	}, nil
 }
 
-// ExecutePattern validates provided arguments against required config keys
-func (s *Service) ExecutePattern(ctx context.Context, req *nexuspb.ExecutePatternRequest) (*nexuspb.ExecutePatternResponse, error) {
-	pattern, ok := patternRegistry[req.PatternName]
+// ExecutePattern validates provided arguments against required config keys.
+func (s *Service) ExecutePattern(_ context.Context, req *nexuspb.ExecutePatternRequest) (*nexuspb.ExecutePatternResponse, error) {
+	pat, ok := patternRegistry[req.PatternName]
 	if !ok {
 		return &nexuspb.ExecutePatternResponse{
 			Status: "pattern_not_found",
@@ -88,7 +87,7 @@ func (s *Service) ExecutePattern(ctx context.Context, req *nexuspb.ExecutePatter
 
 	// Aggregate all required arguments from all steps
 	required := map[string]bool{}
-	for _, step := range pattern.Steps {
+	for _, step := range pat.Steps {
 		for _, arg := range step.RequiredArgs {
 			required[arg] = true
 		}
@@ -120,16 +119,16 @@ func (s *Service) ExecutePattern(ctx context.Context, req *nexuspb.ExecutePatter
 	}, nil
 }
 
-// GetKnowledge retrieves knowledge from the graph
-func (s *Service) GetKnowledge(ctx context.Context, req *nexuspb.GetKnowledgeRequest) (*nexuspb.GetKnowledgeResponse, error) {
+// GetKnowledge retrieves knowledge from the graph.
+func (s *Service) GetKnowledge(_ context.Context, req *nexuspb.GetKnowledgeRequest) (*nexuspb.GetKnowledgeResponse, error) {
 	s.logger.Info("Getting knowledge",
 		zap.String("path", req.Path))
 
 	// Get the knowledge graph
-	kg := kg.DefaultKnowledgeGraph()
+	graph := kg.DefaultKnowledgeGraph()
 
 	// Get knowledge from the graph
-	node, err := kg.GetNode(req.Path)
+	node, err := graph.GetNode(req.Path)
 	if err != nil {
 		s.logger.Error("Failed to get knowledge",
 			zap.String("path", req.Path),

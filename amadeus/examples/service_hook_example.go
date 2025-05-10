@@ -19,7 +19,7 @@ type ServiceHookExample struct {
 	kg          *kg.KnowledgeGraph
 }
 
-// NewServiceHookExample creates a new ServiceHookExample
+// NewServiceHookExample creates a new ServiceHookExample.
 func NewServiceHookExample(serviceName, category string) *ServiceHookExample {
 	return &ServiceHookExample{
 		serviceName: serviceName,
@@ -28,8 +28,8 @@ func NewServiceHookExample(serviceName, category string) *ServiceHookExample {
 	}
 }
 
-// OnServiceStart updates the knowledge graph when the service starts
-func (h *ServiceHookExample) OnServiceStart(ctx context.Context) error {
+// OnServiceStart updates the knowledge graph when the service starts.
+func (h *ServiceHookExample) OnServiceStart(_ context.Context) error {
 	log.Printf("Service %s starting, updating knowledge graph", h.serviceName)
 
 	// Get current service information
@@ -50,8 +50,8 @@ func (h *ServiceHookExample) OnServiceStart(ctx context.Context) error {
 	return nil
 }
 
-// OnEndpointAdded updates the knowledge graph when a new endpoint is added
-func (h *ServiceHookExample) OnEndpointAdded(ctx context.Context, endpointName string, metadata map[string]interface{}) error {
+// OnEndpointAdded updates the knowledge graph when a new endpoint is added.
+func (h *ServiceHookExample) OnEndpointAdded(_ context.Context, endpointName string, metadata map[string]interface{}) error {
 	log.Printf("Service %s added endpoint %s, updating knowledge graph", h.serviceName, endpointName)
 
 	// Get current service information
@@ -81,8 +81,8 @@ func (h *ServiceHookExample) OnEndpointAdded(ctx context.Context, endpointName s
 	return nil
 }
 
-// OnDependencyAdded updates the knowledge graph when a new dependency is added
-func (h *ServiceHookExample) OnDependencyAdded(ctx context.Context, dependencyType string, dependencyName string) error {
+// OnDependencyAdded updates the knowledge graph when a new dependency is added.
+func (h *ServiceHookExample) OnDependencyAdded(_ context.Context, dependencyType, dependencyName string) error {
 	log.Printf("Service %s added dependency %s of type %s, updating knowledge graph",
 		h.serviceName, dependencyName, dependencyType)
 
@@ -105,7 +105,7 @@ func (h *ServiceHookExample) OnDependencyAdded(ctx context.Context, dependencyTy
 	return nil
 }
 
-// Example of how to use the service hook in a real service
+// Example of how to use the service hook in a real service.
 func ExampleUsage() {
 	// Create a service hook
 	hook := NewServiceHookExample("user_service", "core_services")
@@ -134,7 +134,7 @@ func ExampleUsage() {
 	}
 }
 
-// getCurrentServiceInfo gets the current service information
+// getCurrentServiceInfo gets the current service information.
 func (h *ServiceHookExample) getCurrentServiceInfo() map[string]interface{} {
 	// In a real implementation, this would dynamically gather information
 	// about the service, its endpoints, dependencies, etc.

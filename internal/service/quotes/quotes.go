@@ -25,7 +25,7 @@ var (
 	ErrQuoteExists = errors.New("quote already exists")
 )
 
-// TTL constants for quotes caching
+// TTL constants for quotes caching.
 const (
 	TTLQuote     = 30 * time.Minute
 	TTLQuoteList = 5 * time.Minute
@@ -39,7 +39,7 @@ func SafeInt32(i int) (int32, error) {
 	return int32(i), nil
 }
 
-// Compile-time check
+// Compile-time check.
 var _ quotespb.QuotesServiceServer = (*ServiceImpl)(nil)
 
 // ServiceImpl implements the QuotesService interface.
@@ -260,6 +260,9 @@ func (s *ServiceImpl) ListQuotes(ctx context.Context, req *quotespb.ListQuotesRe
 
 		quote.CreatedAt = timestamppb.New(createdAt)
 		quotes = append(quotes, &quote)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, status.Errorf(codes.Internal, "error iterating rows: %v", err)
 	}
 
 	totalPages := (totalCount + pageSize - 1) / pageSize

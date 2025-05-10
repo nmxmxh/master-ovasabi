@@ -10,7 +10,7 @@ import (
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 )
 
-// UserCreationPattern handles the complete user creation flow
+// UserCreationPattern handles the complete user creation flow.
 type UserCreationPattern struct {
 	knowledgeGraph *kg.KnowledgeGraph
 	userService    userpb.UserServiceServer
@@ -18,7 +18,7 @@ type UserCreationPattern struct {
 	notifyService  notificationpb.NotificationServiceServer
 }
 
-// NewUserCreationPattern creates a new UserCreationPattern
+// NewUserCreationPattern creates a new UserCreationPattern.
 func NewUserCreationPattern(
 	userSvc userpb.UserServiceServer,
 	assetSvc assetpb.AssetServiceServer,
@@ -32,13 +32,25 @@ func NewUserCreationPattern(
 	}
 }
 
-// Execute runs the user creation pattern
+// Execute runs the user creation pattern.
 func (p *UserCreationPattern) Execute(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
 	// Step 1: Create user
+	username, ok := params["username"].(string)
+	if !ok {
+		return nil, fmt.Errorf("username parameter missing or not a string")
+	}
+	email, ok := params["email"].(string)
+	if !ok {
+		return nil, fmt.Errorf("email parameter missing or not a string")
+	}
+	password, ok := params["password"].(string)
+	if !ok {
+		return nil, fmt.Errorf("password parameter missing or not a string")
+	}
 	userReq := &userpb.CreateUserRequest{
-		Username: params["username"].(string),
-		Email:    params["email"].(string),
-		Password: params["password"].(string),
+		Username: username,
+		Email:    email,
+		Password: password,
 	}
 	userResp, err := p.userService.CreateUser(ctx, userReq)
 	if err != nil {

@@ -12,12 +12,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// Common errors
+// Common errors.
 var (
 	ErrServiceDegraded = fmt.Errorf("service is in degraded mode")
 )
 
-// KGService manages the knowledge graph service
+// KGService manages the knowledge graph service.
 type KGService struct {
 	hooks    *KGHooks
 	redis    *redis.Client
@@ -26,7 +26,7 @@ type KGService struct {
 	kg       *kg.KnowledgeGraph // in-memory knowledge graph
 }
 
-// NewKGService creates a new KGService instance
+// NewKGService creates a new KGService instance.
 func NewKGService(redisClient *redis.Client, logger *zap.Logger) *KGService {
 	return &KGService{
 		hooks:  NewKGHooks(redisClient, logger),
@@ -36,7 +36,7 @@ func NewKGService(redisClient *redis.Client, logger *zap.Logger) *KGService {
 	}
 }
 
-// Start initializes the knowledge graph service
+// Start initializes the knowledge graph service.
 func (s *KGService) Start() error {
 	// Start with degraded mode disabled
 	s.logger.Info("KGService: Starting, setting degraded mode to false")
@@ -78,12 +78,12 @@ func (s *KGService) Start() error {
 	return nil
 }
 
-// IsDegraded returns whether the service is in degraded mode
+// IsDegraded returns whether the service is in degraded mode.
 func (s *KGService) IsDegraded() bool {
 	return s.degraded.Load()
 }
 
-// Stop gracefully shuts down the service
+// Stop gracefully shuts down the service.
 func (s *KGService) Stop() {
 	s.hooks.Stop()
 	err := s.kg.Save("amadeus/knowledge_graph.json")
@@ -93,7 +93,7 @@ func (s *KGService) Stop() {
 	s.logger.Info("Knowledge graph service stopped")
 }
 
-// PublishUpdate sends an update to the knowledge graph
+// PublishUpdate sends an update to the knowledge graph.
 func (s *KGService) PublishUpdate(ctx context.Context, update *KGUpdate) error {
 	// Check if service is degraded
 	if s.degraded.Load() {
@@ -159,7 +159,7 @@ func (s *KGService) PublishUpdate(ctx context.Context, update *KGUpdate) error {
 	return nil
 }
 
-// validateUpdate performs basic validation of an update
+// validateUpdate performs basic validation of an update.
 func (s *KGService) validateUpdate(update *KGUpdate) error {
 	if update == nil {
 		return fmt.Errorf("update cannot be nil")
@@ -176,7 +176,7 @@ func (s *KGService) validateUpdate(update *KGUpdate) error {
 	return nil
 }
 
-// RegisterService registers a new service with the knowledge graph
+// RegisterService registers a new service with the knowledge graph.
 func (s *KGService) RegisterService(ctx context.Context, serviceID string, capabilities []string, schema interface{}) error {
 	s.logger.Info("Knowledge Graph Event: RegisterService", zap.String("service_id", serviceID), zap.Any("capabilities", capabilities))
 	update := &KGUpdate{
@@ -200,7 +200,7 @@ func (s *KGService) RegisterService(ctx context.Context, serviceID string, capab
 	return nil
 }
 
-// UpdateSchema updates the schema for a service
+// UpdateSchema updates the schema for a service.
 func (s *KGService) UpdateSchema(ctx context.Context, serviceID string, schema interface{}) error {
 	s.logger.Info("Knowledge Graph Event: UpdateSchema", zap.String("service_id", serviceID))
 	update := &KGUpdate{
@@ -220,7 +220,7 @@ func (s *KGService) UpdateSchema(ctx context.Context, serviceID string, schema i
 	return nil
 }
 
-// UpdateRelation updates a relation in the knowledge graph
+// UpdateRelation updates a relation in the knowledge graph.
 func (s *KGService) UpdateRelation(ctx context.Context, serviceID string, relation interface{}) error {
 	s.logger.Info("Knowledge Graph Event: UpdateRelation", zap.String("service_id", serviceID), zap.Any("relation", relation))
 	update := &KGUpdate{
@@ -240,7 +240,7 @@ func (s *KGService) UpdateRelation(ctx context.Context, serviceID string, relati
 	return nil
 }
 
-// persistAndBackup persists the knowledge graph to disk and creates a backup
+// persistAndBackup persists the knowledge graph to disk and creates a backup.
 func (s *KGService) persistAndBackup(reason string) {
 	s.logger.Info("Knowledge Graph Event: PersistAndBackup", zap.String("reason", reason))
 	err := s.kg.Save("amadeus/knowledge_graph.json")
@@ -253,7 +253,7 @@ func (s *KGService) persistAndBackup(reason string) {
 	}
 }
 
-// RecoverFromDegradedMode attempts to recover the service from degraded mode
+// RecoverFromDegradedMode attempts to recover the service from degraded mode.
 func (s *KGService) RecoverFromDegradedMode(ctx context.Context) error {
 	if !s.degraded.Load() {
 		return nil

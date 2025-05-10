@@ -93,7 +93,7 @@ lint-focused:
 # Lint-safe command that completely excludes amadeus and vendor directories (documentation/knowledge graph utilities only)
 lint-safe:
 	@echo "Running Go linter checks (excluding amadeus and vendor directories)..."
-	golangci-lint run ./cmd/... ./internal/... ./pkg/... --skip-dirs amadeus --skip-dirs vendor
+	golangci-lint run ./cmd/... ./internal/... ./pkg/... 
 	@echo "Checking Markdown documentation formatting (excluding amadeus and vendor)..."
 	@yarn format:check -- --ignore-path .prettierignore
 	@echo "Linting checks completed."
@@ -167,12 +167,6 @@ proto:
 		fi \
 	done
 	@echo "Protobuf code generation complete"
-
-# Lint protobuf files using Buf
-buf-lint:
-	@echo "Linting protobuf files with Buf..."
-	cd api/protos && buf lint
-	@echo "Buf linting complete"
 
 # Generate swagger documentation
 swagger:

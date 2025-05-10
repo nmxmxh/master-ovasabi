@@ -5,13 +5,13 @@ import (
 	"strings"
 )
 
-// KeyBuilder helps build Redis keys according to our naming convention
+// KeyBuilder helps build Redis keys according to our naming convention.
 type KeyBuilder struct {
 	namespace string
 	context   string
 }
 
-// NewKeyBuilder creates a new KeyBuilder with the given namespace
+// NewKeyBuilder creates a new KeyBuilder with the given namespace.
 func NewKeyBuilder(namespace, context string) *KeyBuilder {
 	return &KeyBuilder{
 		namespace: strings.ToLower(namespace),
@@ -19,7 +19,7 @@ func NewKeyBuilder(namespace, context string) *KeyBuilder {
 	}
 }
 
-// Build creates a Redis key following our naming convention
+// Build creates a Redis key following our naming convention.
 func (kb *KeyBuilder) Build(entity, attribute string) string {
 	parts := []string{
 		kb.namespace,
@@ -34,7 +34,7 @@ func (kb *KeyBuilder) Build(entity, attribute string) string {
 	return strings.Join(parts, ":")
 }
 
-// BuildPattern creates a Redis key pattern for searching
+// BuildPattern creates a Redis key pattern for searching.
 func (kb *KeyBuilder) BuildPattern(entity, pattern string) string {
 	if pattern == "" {
 		pattern = "*"
@@ -50,32 +50,32 @@ func (kb *KeyBuilder) BuildPattern(entity, pattern string) string {
 	return strings.Join(parts, ":")
 }
 
-// BuildHash creates a Redis hash key
+// BuildHash creates a Redis hash key.
 func (kb *KeyBuilder) BuildHash(entity, id string) string {
 	return kb.Build(entity, fmt.Sprintf("hash:%s", id))
 }
 
-// BuildSet creates a Redis set key
+// BuildSet creates a Redis set key.
 func (kb *KeyBuilder) BuildSet(entity, id string) string {
 	return kb.Build(entity, fmt.Sprintf("set:%s", id))
 }
 
-// BuildZSet creates a Redis sorted set key
+// BuildZSet creates a Redis sorted set key.
 func (kb *KeyBuilder) BuildZSet(entity, id string) string {
 	return kb.Build(entity, fmt.Sprintf("zset:%s", id))
 }
 
-// BuildLock creates a Redis lock key
+// BuildLock creates a Redis lock key.
 func (kb *KeyBuilder) BuildLock(entity, id string) string {
 	return kb.Build(entity, fmt.Sprintf("lock:%s", id))
 }
 
-// BuildTemp creates a temporary Redis key
+// BuildTemp creates a temporary Redis key.
 func (kb *KeyBuilder) BuildTemp(entity, id string) string {
 	return kb.Build(entity, fmt.Sprintf("temp:%s", id))
 }
 
-// Parse extracts components from a Redis key
+// Parse extracts components from a Redis key.
 func (kb *KeyBuilder) Parse(key string) map[string]string {
 	parts := strings.Split(key, ":")
 	result := make(map[string]string)
@@ -96,22 +96,22 @@ func (kb *KeyBuilder) Parse(key string) map[string]string {
 	return result
 }
 
-// GetNamespace returns the namespace
+// GetNamespace returns the namespace.
 func (kb *KeyBuilder) GetNamespace() string {
 	return kb.namespace
 }
 
-// GetContext returns the context
+// GetContext returns the context.
 func (kb *KeyBuilder) GetContext() string {
 	return kb.context
 }
 
-// WithNamespace creates a new key builder with a different namespace
+// WithNamespace creates a new key builder with a different namespace.
 func (kb *KeyBuilder) WithNamespace(namespace string) *KeyBuilder {
 	return NewKeyBuilder(namespace, kb.context)
 }
 
-// WithContext creates a new key builder with a different context
+// WithContext creates a new key builder with a different context.
 func (kb *KeyBuilder) WithContext(context string) *KeyBuilder {
 	return NewKeyBuilder(kb.namespace, context)
 }

@@ -17,13 +17,13 @@ var (
 	ErrCampaignExists   = errors.New("campaign already exists")
 )
 
-// Repository handles database operations for campaigns
+// Repository handles database operations for campaigns.
 type Repository struct {
 	*repository.BaseRepository
 	master repository.MasterRepository
 }
 
-// NewRepository creates a new campaign repository instance
+// NewRepository creates a new campaign repository instance.
 func NewRepository(db *sql.DB, master repository.MasterRepository) *Repository {
 	return &Repository{
 		BaseRepository: repository.NewBaseRepository(db),
@@ -31,7 +31,7 @@ func NewRepository(db *sql.DB, master repository.MasterRepository) *Repository {
 	}
 }
 
-// CreateWithTransaction creates a new campaign within a transaction
+// CreateWithTransaction creates a new campaign within a transaction.
 func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, campaign *Campaign) (*Campaign, error) {
 	query := `
 		INSERT INTO service_campaign (
@@ -55,7 +55,6 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 		now,
 		now,
 	).Scan(&campaign.ID, &campaign.CreatedAt, &campaign.UpdatedAt)
-
 	if err != nil {
 		if err.Error() == "pq: duplicate key value violates unique constraint" {
 			return nil, ErrCampaignExists
@@ -66,7 +65,7 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 	return campaign, nil
 }
 
-// GetBySlug retrieves a campaign by its slug
+// GetBySlug retrieves a campaign by its slug.
 func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, error) {
 	campaign := &Campaign{}
 	query := `
@@ -102,7 +101,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 	return campaign, nil
 }
 
-// Update updates an existing campaign
+// Update updates an existing campaign.
 func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 	query := `
 		UPDATE service_campaign SET
@@ -125,7 +124,6 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 		time.Now(),
 		campaign.ID,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -142,13 +140,12 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 	return nil
 }
 
-// Delete deletes a campaign by ID
+// Delete deletes a campaign by ID.
 func (r *Repository) Delete(ctx context.Context, id int64) error {
 	result, err := r.GetDB().ExecContext(ctx,
 		"DELETE FROM service_campaign WHERE id = $1",
 		id,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -165,7 +162,7 @@ func (r *Repository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// List retrieves a paginated list of campaigns
+// List retrieves a paginated list of campaigns.
 func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, error) {
 	query := `
 		SELECT 
@@ -208,16 +205,14 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		campaigns = append(campaigns, campaign)
 	}
 
-	if err = rows.Err(); err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
 	return campaigns, nil
 }
 
-// Define the Campaign struct here
-// Campaign represents a campaign entity
-// (move from shared repository types if needed)
+// (move from shared repository types if needed).
 type Campaign struct {
 	ID             int64     `db:"id"`
 	MasterID       int64     `db:"master_id"`
@@ -232,16 +227,13 @@ type Campaign struct {
 	UpdatedAt      time.Time `db:"updated_at"`
 }
 
-// LeaderboardEntry represents a leaderboard row
-// (move to a shared types file if needed)
+// (move to a shared types file if needed).
 type LeaderboardEntry struct {
 	Username      string
 	ReferralCount int
 }
 
-// RankingFormula represents a parsed and validated ranking formula
-// Supports multiple columns and directions, and can be extended for expressions
-// Example: "referral_count DESC, username ASC"
+// Example: "referral_count DESC, username ASC".
 type RankingFormula struct {
 	Columns []RankingColumn
 }
@@ -255,19 +247,20 @@ var allowedColumns = map[string]bool{
 	"referral_count": true,
 	"username":       true,
 }
+
 var allowedDirections = map[string]bool{
 	"ASC":  true,
 	"DESC": true,
 }
 
-// validateRankingFormula parses and validates a ranking formula string for safety
+// validateRankingFormula parses and validates a ranking formula string for safety.
 func validateRankingFormula(formula string) (*RankingFormula, error) {
 	formula = strings.TrimSpace(formula)
 	if formula == "" {
 		return nil, errors.New("empty ranking formula")
 	}
 	columns := strings.Split(formula, ",")
-	var parsed []RankingColumn
+	parsed := make([]RankingColumn, 0, len(columns))
 	for _, col := range columns {
 		col = strings.TrimSpace(col)
 		// Use regex to match: column_name [ASC|DESC]
@@ -292,9 +285,9 @@ func validateRankingFormula(formula string) (*RankingFormula, error) {
 	return &RankingFormula{Columns: parsed}, nil
 }
 
-// ToSQL returns the SQL ORDER BY clause for the validated formula
+// ToSQL returns the SQL ORDER BY clause for the validated formula.
 func (rf *RankingFormula) ToSQL() string {
-	var parts []string
+	parts := make([]string, 0, len(rf.Columns))
 	for _, col := range rf.Columns {
 		parts = append(parts, col.Name+" "+col.Direction)
 	}
@@ -333,6 +326,9 @@ func (r *Repository) GetLeaderboard(ctx context.Context, campaignSlug, rankingFo
 			return nil, err
 		}
 		leaderboard = append(leaderboard, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return leaderboard, nil
 }

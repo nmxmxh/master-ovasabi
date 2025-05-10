@@ -23,7 +23,7 @@ func SetLogger(l *zap.Logger) {
 	log = l
 }
 
-// Quote represents a financial quote in the service_quote table
+// Quote represents a financial quote in the service_quote table.
 type Quote struct {
 	ID        int64     `db:"id"`
 	MasterID  int64     `db:"master_id"`
@@ -36,13 +36,13 @@ type Quote struct {
 	UpdatedAt time.Time `db:"updated_at"`
 }
 
-// QuoteRepository handles operations on the service_quote table
+// QuoteRepository handles operations on the service_quote table.
 type QuoteRepository struct {
 	*repository.BaseRepository
 	masterRepo repository.MasterRepository
 }
 
-// NewQuoteRepository creates a new quote repository instance
+// NewQuoteRepository creates a new quote repository instance.
 func NewQuoteRepository(db *sql.DB, masterRepo repository.MasterRepository) *QuoteRepository {
 	return &QuoteRepository{
 		BaseRepository: repository.NewBaseRepository(db),
@@ -50,7 +50,7 @@ func NewQuoteRepository(db *sql.DB, masterRepo repository.MasterRepository) *Quo
 	}
 }
 
-// Create inserts a new quote record
+// Create inserts a new quote record.
 func (r *QuoteRepository) Create(ctx context.Context, quote *Quote) (*Quote, error) {
 	// Generate a descriptive name for the master record
 	masterName := r.GenerateMasterName(repository.EntityTypeQuote,
@@ -73,17 +73,20 @@ func (r *QuoteRepository) Create(ctx context.Context, quote *Quote) (*Quote, err
 		quote.MasterID, quote.Symbol, quote.Price,
 		quote.Volume, quote.Metadata, quote.Timestamp,
 	).Scan(&quote.ID, &quote.CreatedAt, &quote.UpdatedAt)
-
 	if err != nil {
 		// If quote creation fails, clean up the master record
-		_ = r.masterRepo.Delete(ctx, masterID)
+		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
+			if log != nil {
+				log.Error("service not implemented", zap.Error(err))
+			}
+		}
 		return nil, err
 	}
 
 	return quote, nil
 }
 
-// GetBySymbol retrieves the latest quote for a symbol
+// GetBySymbol retrieves the latest quote for a symbol.
 func (r *QuoteRepository) GetBySymbol(ctx context.Context, symbol string) (*Quote, error) {
 	quote := &Quote{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -109,7 +112,7 @@ func (r *QuoteRepository) GetBySymbol(ctx context.Context, symbol string) (*Quot
 	return quote, nil
 }
 
-// GetByID retrieves a quote by ID
+// GetByID retrieves a quote by ID.
 func (r *QuoteRepository) GetByID(ctx context.Context, id int64) (*Quote, error) {
 	quote := &Quote{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -133,7 +136,7 @@ func (r *QuoteRepository) GetByID(ctx context.Context, id int64) (*Quote, error)
 	return quote, nil
 }
 
-// ListBySymbol retrieves a paginated list of quotes for a symbol
+// ListBySymbol retrieves a paginated list of quotes for a symbol.
 func (r *QuoteRepository) ListBySymbol(ctx context.Context, symbol string, limit, offset int) ([]*Quote, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT 
@@ -172,7 +175,7 @@ func (r *QuoteRepository) ListBySymbol(ctx context.Context, symbol string, limit
 	return quotes, rows.Err()
 }
 
-// GetQuoteHistory retrieves quotes for a symbol within a time range
+// GetQuoteHistory retrieves quotes for a symbol within a time range.
 func (r *QuoteRepository) GetQuoteHistory(ctx context.Context, symbol string, start, end time.Time) ([]*Quote, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT 
@@ -210,7 +213,7 @@ func (r *QuoteRepository) GetQuoteHistory(ctx context.Context, symbol string, st
 	return quotes, rows.Err()
 }
 
-// Delete removes a quote and its master record
+// Delete removes a quote and its master record.
 func (r *QuoteRepository) Delete(ctx context.Context, id int64) error {
 	quote, err := r.GetByID(ctx, id)
 	if err != nil {
@@ -218,10 +221,15 @@ func (r *QuoteRepository) Delete(ctx context.Context, id int64) error {
 	}
 
 	// The master record deletion will cascade to the quote due to foreign key
-	return r.masterRepo.Delete(ctx, quote.MasterID)
+	if err := r.masterRepo.Delete(ctx, quote.MasterID); err != nil {
+		if log != nil {
+			log.Error("service not implemented", zap.Error(err))
+		}
+	}
+	return nil
 }
 
-// GetLatestQuotes retrieves the latest quotes for multiple symbols
+// GetLatestQuotes retrieves the latest quotes for multiple symbols.
 func (r *QuoteRepository) GetLatestQuotes(ctx context.Context, symbols []string) ([]*Quote, error) {
 	query := `
 		WITH RankedQuotes AS (

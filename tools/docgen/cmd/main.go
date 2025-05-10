@@ -27,7 +27,7 @@ func main() {
 	}
 
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(outAbs, 0755); err != nil {
+	if err := os.MkdirAll(outAbs, 0o755); err != nil {
 		log.Fatalf("Failed to create output directory: %v", err)
 	}
 

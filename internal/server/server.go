@@ -169,7 +169,8 @@ func Run() {
 	// Connect to database
 	db, err := connectToDatabase(ctx, log)
 	if err != nil {
-		log.Fatal("Failed to connect to database", zap.Error(err))
+		log.Error("Failed to connect to database", zap.Error(err))
+		return
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -190,7 +191,8 @@ func Run() {
 
 	provider, err := service.NewProvider(log, db, redisConfig)
 	if err != nil {
-		log.Fatal("Failed to initialize service provider", zap.Error(err))
+		log.Error("Failed to initialize service provider", zap.Error(err))
+		return
 	}
 	defer func() {
 		if err := provider.Close(); err != nil {
@@ -284,15 +286,17 @@ func Run() {
 	port := getEnvOrDefault("APP_PORT", "8080")
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatal("Failed to create listener", zap.Error(err))
+		log.Error("Failed to create listener", zap.Error(err))
+		return
 	}
 	log.Info("Starting gRPC server", zap.String("address", lis.Addr().String()))
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatal("gRPC server failed", zap.Error(err))
+		log.Error("gRPC server failed", zap.Error(err))
+		return
 	}
 }
 
-// Helper functions (copied or adapted from old main.go)
+// Helper functions (copied or adapted from old main.go).
 func getEnv(key string) string {
 	return os.Getenv(key)
 }
@@ -351,7 +355,7 @@ func connectToDatabase(ctx context.Context, log *zap.Logger) (*sql.DB, error) {
 	return nil, fmt.Errorf("failed to connect to database after %d retries: %w", maxRetries, err)
 }
 
-// createMetricsServer returns a basic HTTP server for Prometheus metrics (stub for now)
+// createMetricsServer returns a basic HTTP server for Prometheus metrics (stub for now).
 func createMetricsServer() *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())

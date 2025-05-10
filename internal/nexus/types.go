@@ -8,10 +8,10 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 )
 
-// RelationType defines the type of relationship between entities
+// RelationType defines the type of relationship between entities.
 type RelationType string
 
-// Common relationship types
+// Common relationship types.
 const (
 	RelationTypeOwner    RelationType = "owner"
 	RelationTypeMember   RelationType = "member"
@@ -21,7 +21,7 @@ const (
 	RelationTypeReferral RelationType = "referral"
 )
 
-// Relationship represents a connection between two master records
+// Relationship represents a connection between two master records.
 type Relationship struct {
 	ID         int64                  `json:"id" db:"id"`
 	ParentID   int64                  `json:"parent_id" db:"parent_id"`
@@ -35,7 +35,7 @@ type Relationship struct {
 	Version    int                    `json:"version" db:"version"`
 }
 
-// Event represents a cross-service event
+// Event represents a cross-service event.
 type Event struct {
 	ID          uuid.UUID              `json:"id" db:"id"`
 	MasterID    int64                  `json:"master_id" db:"master_id"`
@@ -47,7 +47,7 @@ type Event struct {
 	ProcessedAt *time.Time             `json:"processed_at" db:"processed_at"`
 }
 
-// Repository defines the interface for Nexus operations
+// Repository defines the interface for Nexus operations.
 type Repository interface {
 	// Relationship operations
 	CreateRelationship(ctx context.Context, parentID, childID int64, relType RelationType, metadata map[string]interface{}) (*Relationship, error)
@@ -67,7 +67,7 @@ type Repository interface {
 	GetEntityGraph(ctx context.Context, masterID int64, maxDepth int) (*Graph, error)
 }
 
-// Graph represents a relationship graph
+// Graph represents a relationship graph.
 type Graph struct {
 	Nodes []*repository.Master `json:"nodes"`
 	Edges []*Relationship      `json:"edges"`

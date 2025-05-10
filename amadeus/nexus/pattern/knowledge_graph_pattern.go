@@ -7,26 +7,26 @@ import (
 	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
 )
 
-// KnowledgeGraphPattern is a Nexus pattern that maintains the knowledge graph
+// KnowledgeGraphPattern is a Nexus pattern that maintains the knowledge graph.
 type KnowledgeGraphPattern struct {
 	knowledgeGraph *kg.KnowledgeGraph
 }
 
-// NewKnowledgeGraphPattern creates a new KnowledgeGraphPattern
+// NewKnowledgeGraphPattern creates a new KnowledgeGraphPattern.
 func NewKnowledgeGraphPattern() *KnowledgeGraphPattern {
 	return &KnowledgeGraphPattern{
 		knowledgeGraph: kg.DefaultKnowledgeGraph(),
 	}
 }
 
-// RegisterPattern registers the pattern with the Nexus pattern registry
+// RegisterPattern registers the pattern with the Nexus pattern registry.
 func (p *KnowledgeGraphPattern) RegisterPattern() error {
 	// TODO: Implement registration with Nexus pattern registry
 	return nil
 }
 
-// Execute executes the knowledge graph pattern
-func (p *KnowledgeGraphPattern) Execute(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
+// Execute executes the knowledge graph pattern.
+func (p *KnowledgeGraphPattern) Execute(_ context.Context, params map[string]interface{}) (map[string]interface{}, error) {
 	action, ok := params["action"].(string)
 	if !ok {
 		return nil, fmt.Errorf("action parameter is required")
@@ -61,7 +61,7 @@ func (p *KnowledgeGraphPattern) Execute(ctx context.Context, params map[string]i
 	return result, nil
 }
 
-// trackServiceUpdate tracks a service update in the knowledge graph
+// trackServiceUpdate tracks a service update in the knowledge graph.
 func (p *KnowledgeGraphPattern) trackServiceUpdate(params map[string]interface{}) (map[string]interface{}, error) {
 	category, ok := params["category"].(string)
 	if !ok {
@@ -89,7 +89,7 @@ func (p *KnowledgeGraphPattern) trackServiceUpdate(params map[string]interface{}
 	}, nil
 }
 
-// trackPatternUpdate tracks a pattern update in the knowledge graph
+// trackPatternUpdate tracks a pattern update in the knowledge graph.
 func (p *KnowledgeGraphPattern) trackPatternUpdate(params map[string]interface{}) (map[string]interface{}, error) {
 	category, ok := params["category"].(string)
 	if !ok {
@@ -117,7 +117,7 @@ func (p *KnowledgeGraphPattern) trackPatternUpdate(params map[string]interface{}
 	}, nil
 }
 
-// trackRelationship tracks a relationship between entities in the knowledge graph
+// trackRelationship tracks a relationship between entities in the knowledge graph.
 func (p *KnowledgeGraphPattern) trackRelationship(params map[string]interface{}) (map[string]interface{}, error) {
 	sourceType, ok := params["source_type"].(string)
 	if !ok {
@@ -155,7 +155,7 @@ func (p *KnowledgeGraphPattern) trackRelationship(params map[string]interface{})
 	}, nil
 }
 
-// getKnowledge retrieves knowledge from the knowledge graph
+// getKnowledge retrieves knowledge from the knowledge graph.
 func (p *KnowledgeGraphPattern) getKnowledge(params map[string]interface{}) (map[string]interface{}, error) {
 	path, ok := params["path"].(string)
 	if !ok {

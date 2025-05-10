@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// PatternOrigin defines where a pattern originated from
+// PatternOrigin defines where a pattern originated from.
 type PatternOrigin string
 
 const (
@@ -20,7 +20,7 @@ const (
 	PatternOriginUser   PatternOrigin = "user"
 )
 
-// PatternCategory defines the category of pattern
+// PatternCategory defines the category of pattern.
 type PatternCategory string
 
 const (
@@ -31,7 +31,7 @@ const (
 	CategorySecurity     PatternCategory = "security"
 )
 
-// StoredPattern represents a pattern stored in the system
+// StoredPattern represents a pattern stored in the system.
 type StoredPattern struct {
 	ID          string                 `json:"id"`
 	Name        string                 `json:"name"`
@@ -49,20 +49,20 @@ type StoredPattern struct {
 	SuccessRate float64                `json:"success_rate"`
 }
 
-// PatternValidationResult represents the result of pattern validation
+// PatternValidationResult represents the result of pattern validation.
 type PatternValidationResult struct {
 	IsValid bool     `json:"is_valid"`
 	Errors  []string `json:"errors"`
 }
 
-// PatternStore manages pattern storage and retrieval
+// PatternStore manages pattern storage and retrieval.
 type PatternStore struct {
 	cache  *redisCache.Cache
 	log    *zap.Logger
 	config *Options
 }
 
-// NewPatternStore creates a new pattern store
+// NewPatternStore creates a new pattern store.
 func NewPatternStore(cache *redisCache.Cache, log *zap.Logger, config *Options) *PatternStore {
 	return &PatternStore{
 		cache:  cache,
@@ -71,7 +71,7 @@ func NewPatternStore(cache *redisCache.Cache, log *zap.Logger, config *Options) 
 	}
 }
 
-// StorePattern stores a new pattern or updates an existing one
+// StorePattern stores a new pattern or updates an existing one.
 func (ps *PatternStore) StorePattern(ctx context.Context, pattern *StoredPattern) error {
 	if pattern.ID == "" {
 		pattern.ID = uuid.New().String()
@@ -123,7 +123,7 @@ func (ps *PatternStore) StorePattern(ctx context.Context, pattern *StoredPattern
 	return nil
 }
 
-// GetPattern retrieves a pattern by ID
+// GetPattern retrieves a pattern by ID.
 func (ps *PatternStore) GetPattern(ctx context.Context, id string) (*StoredPattern, error) {
 	key := ps.getPatternKey(id)
 	var pattern StoredPattern
@@ -133,7 +133,7 @@ func (ps *PatternStore) GetPattern(ctx context.Context, id string) (*StoredPatte
 	return &pattern, nil
 }
 
-// ListPatterns retrieves patterns based on filters
+// ListPatterns retrieves patterns based on filters.
 func (ps *PatternStore) ListPatterns(ctx context.Context, filters map[string]interface{}) ([]*StoredPattern, error) {
 	var patternIDs []string
 	var err error
@@ -151,13 +151,14 @@ func (ps *PatternStore) ListPatterns(ctx context.Context, filters map[string]int
 	}
 
 	// Get pattern IDs based on filters
-	if len(keys) == 0 {
+	switch len(keys) {
+	case 0:
 		// No filters, return all patterns
 		patternIDs, err = ps.cache.SMembers(ctx, "pattern:all")
-	} else if len(keys) == 1 {
+	case 1:
 		// Single filter, use SMembers
 		patternIDs, err = ps.cache.SMembers(ctx, keys[0])
-	} else {
+	default:
 		// Multiple filters, use SInter for intersection
 		patternIDs, err = ps.cache.SInter(ctx, keys...)
 	}
@@ -200,7 +201,7 @@ func (ps *PatternStore) ListPatterns(ctx context.Context, filters map[string]int
 	return patterns, nil
 }
 
-// ValidatePattern validates a pattern
+// ValidatePattern validates a pattern.
 func (ps *PatternStore) ValidatePattern(pattern *StoredPattern) PatternValidationResult {
 	var errors []string
 
@@ -231,7 +232,7 @@ func (ps *PatternStore) ValidatePattern(pattern *StoredPattern) PatternValidatio
 	}
 }
 
-// UpdatePatternStats updates pattern usage statistics
+// UpdatePatternStats updates pattern usage statistics.
 func (ps *PatternStore) UpdatePatternStats(ctx context.Context, id string, success bool) error {
 	pattern, err := ps.GetPattern(ctx, id)
 	if err != nil {

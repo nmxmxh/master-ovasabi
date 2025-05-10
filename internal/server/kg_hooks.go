@@ -2,9 +2,10 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"sync"
 	"time"
 
@@ -20,7 +21,7 @@ const (
 	updateBatchWindow = 5 * time.Second
 )
 
-// KGUpdateType represents the type of knowledge graph update
+// KGUpdateType represents the type of knowledge graph update.
 type KGUpdateType string
 
 const (
@@ -30,7 +31,7 @@ const (
 	RelationUpdate      KGUpdateType = "relation_update"
 )
 
-// KGUpdate represents a knowledge graph update event
+// KGUpdate represents a knowledge graph update event.
 type KGUpdate struct {
 	ID        string       `json:"id"`
 	Type      KGUpdateType `json:"type"`
@@ -40,7 +41,7 @@ type KGUpdate struct {
 	Version   string       `json:"version"`
 }
 
-// KGHooks manages real-time knowledge graph updates
+// KGHooks manages real-time knowledge graph updates.
 type KGHooks struct {
 	redis      *redis.Client
 	logger     *zap.Logger
@@ -51,7 +52,7 @@ type KGHooks struct {
 	startOnce  sync.Once
 }
 
-// NewKGHooks creates a new KGHooks instance
+// NewKGHooks creates a new KGHooks instance.
 func NewKGHooks(redisClient *redis.Client, logger *zap.Logger) *KGHooks {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &KGHooks{
@@ -63,7 +64,7 @@ func NewKGHooks(redisClient *redis.Client, logger *zap.Logger) *KGHooks {
 	}
 }
 
-// Start begins processing knowledge graph updates
+// Start begins processing knowledge graph updates.
 func (h *KGHooks) Start() error {
 	h.startOnce.Do(func() {
 		h.logger.Info("KGHooks starting...")
@@ -95,7 +96,11 @@ func (h *KGHooks) Start() error {
 							if backoff > 30*time.Second {
 								backoff = 30 * time.Second
 							}
-							jitter := time.Duration(rand.Intn(1000)) * time.Millisecond
+							n, err := rand.Int(rand.Reader, big.NewInt(1000))
+							if err != nil {
+								n = big.NewInt(0)
+							}
+							jitter := time.Duration(n.Int64()) * time.Millisecond
 							totalSleep := backoff + jitter
 							h.logger.Info("Sleeping before resubscribe", zap.Duration("sleep", totalSleep), zap.Int("attempt", reconnectAttempts), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
 							time.Sleep(totalSleep)
@@ -126,13 +131,13 @@ func (h *KGHooks) Start() error {
 	return nil
 }
 
-// Stop gracefully shuts down the hooks
+// Stop gracefully shuts down the hooks.
 func (h *KGHooks) Stop() {
 	h.logger.Info("KGHooks stopping, cancelling context...")
 	h.cancel()
 }
 
-// processUpdates handles batching and processing of updates
+// processUpdates handles batching and processing of updates.
 func (h *KGHooks) processUpdates() {
 	ticker := time.NewTicker(updateBatchWindow)
 	defer ticker.Stop()
@@ -164,7 +169,7 @@ func (h *KGHooks) processUpdates() {
 	}
 }
 
-// processBatch handles a batch of updates
+// processBatch handles a batch of updates.
 func (h *KGHooks) processBatch(updates []*KGUpdate) {
 	// Create a backup before processing
 	backupKey := fmt.Sprintf("%s%d", kgBackupPrefix, time.Now().Unix())
@@ -212,7 +217,7 @@ func (h *KGHooks) processBatch(updates []*KGUpdate) {
 		zap.Int("count", len(updates)))
 }
 
-// validateUpdate performs validation checks on an update
+// validateUpdate performs validation checks on an update.
 func (h *KGHooks) validateUpdate(update *KGUpdate) error {
 	// Basic validation
 	if update.ID == "" || update.ServiceID == "" {
@@ -231,7 +236,7 @@ func (h *KGHooks) validateUpdate(update *KGUpdate) error {
 	return nil
 }
 
-// createBackup creates a backup of the current state
+// createBackup creates a backup of the current state.
 func (h *KGHooks) createBackup(backupKey string) error {
 	// Get all keys matching the knowledge graph patterns
 	patterns := []string{
@@ -278,7 +283,7 @@ func (h *KGHooks) createBackup(backupKey string) error {
 	return nil
 }
 
-// rollbackToBackup restores the state from a backup
+// rollbackToBackup restores the state from a backup.
 func (h *KGHooks) rollbackToBackup(backupKey string) error {
 	// Get backup data
 	backupData, err := h.redis.Get(h.ctx, backupKey).Result()
@@ -331,7 +336,7 @@ func (h *KGHooks) rollbackToBackup(backupKey string) error {
 	return nil
 }
 
-// handleServiceRegistration processes a service registration update
+// handleServiceRegistration processes a service registration update.
 func (h *KGHooks) handleServiceRegistration(pipe redis.Pipeliner, update *KGUpdate) {
 	key := fmt.Sprintf("kg:service:%s", update.ServiceID)
 	data, err := json.Marshal(update.Payload)
@@ -346,7 +351,7 @@ func (h *KGHooks) handleServiceRegistration(pipe redis.Pipeliner, update *KGUpda
 	pipe.Set(h.ctx, fmt.Sprintf("kg:processed:%s", update.ID), "1", 24*time.Hour)
 }
 
-// handleSchemaUpdate processes a schema update
+// handleSchemaUpdate processes a schema update.
 func (h *KGHooks) handleSchemaUpdate(pipe redis.Pipeliner, update *KGUpdate) {
 	key := fmt.Sprintf("kg:schema:%s", update.ServiceID)
 	data, err := json.Marshal(update.Payload)
@@ -361,7 +366,7 @@ func (h *KGHooks) handleSchemaUpdate(pipe redis.Pipeliner, update *KGUpdate) {
 	pipe.Set(h.ctx, fmt.Sprintf("kg:processed:%s", update.ID), "1", 24*time.Hour)
 }
 
-// handlePatternDetection processes a pattern detection update
+// handlePatternDetection processes a pattern detection update.
 func (h *KGHooks) handlePatternDetection(pipe redis.Pipeliner, update *KGUpdate) {
 	key := fmt.Sprintf("kg:pattern:%s:%d", update.ServiceID, time.Now().UnixNano())
 	data, err := json.Marshal(update.Payload)
@@ -376,7 +381,7 @@ func (h *KGHooks) handlePatternDetection(pipe redis.Pipeliner, update *KGUpdate)
 	pipe.Set(h.ctx, fmt.Sprintf("kg:processed:%s", update.ID), "1", 24*time.Hour)
 }
 
-// handleRelationUpdate processes a relation update
+// handleRelationUpdate processes a relation update.
 func (h *KGHooks) handleRelationUpdate(pipe redis.Pipeliner, update *KGUpdate) {
 	key := fmt.Sprintf("kg:relation:%s:%d", update.ServiceID, time.Now().UnixNano())
 	data, err := json.Marshal(update.Payload)

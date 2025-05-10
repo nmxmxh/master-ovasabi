@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"go.uber.org/zap"
 )
 
 var (
@@ -14,8 +15,13 @@ var (
 	ErrTranslationExists   = errors.New("translation already exists")
 )
 
-// Translation represents a translation record for i18n
-// (move from shared repository types if needed)
+var log *zap.Logger
+
+func SetLogger(l *zap.Logger) {
+	log = l
+}
+
+// (move from shared repository types if needed).
 type Translation struct {
 	ID          int64     `db:"id"`
 	MasterID    int64     `db:"master_id"`
@@ -28,13 +34,13 @@ type Translation struct {
 	UpdatedAt   time.Time `db:"updated_at"`
 }
 
-// Repository handles operations on the service_i18n table
+// Repository handles operations on the service_i18n table.
 type Repository struct {
 	*repository.BaseRepository
 	masterRepo repository.MasterRepository
 }
 
-// NewRepository creates a new i18n repository instance
+// NewRepository creates a new i18n repository instance.
 func NewRepository(db *sql.DB, masterRepo repository.MasterRepository) *Repository {
 	return &Repository{
 		BaseRepository: repository.NewBaseRepository(db),
@@ -42,7 +48,7 @@ func NewRepository(db *sql.DB, masterRepo repository.MasterRepository) *Reposito
 	}
 }
 
-// Create inserts a new translation record
+// Create inserts a new translation record.
 func (r *Repository) Create(ctx context.Context, translation *Translation) (*Translation, error) {
 	// Generate a descriptive name for the master record
 	masterName := r.GenerateMasterName(repository.EntityTypeI18n,
@@ -61,16 +67,19 @@ func (r *Repository) Create(ctx context.Context, translation *Translation) (*Tra
 		 RETURNING id, created_at, updated_at`,
 		translation.MasterID, translation.Key, translation.Locale, translation.Value, translation.Description, translation.Tags,
 	).Scan(&translation.ID, &translation.CreatedAt, &translation.UpdatedAt)
-
 	if err != nil {
-		_ = r.masterRepo.Delete(ctx, masterID)
+		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
+			if log != nil {
+				log.Error("service not implemented", zap.Error(err))
+			}
+		}
 		return nil, err
 	}
 
 	return translation, nil
 }
 
-// GetByID retrieves a translation by ID
+// GetByID retrieves a translation by ID.
 func (r *Repository) GetByID(ctx context.Context, id int64) (*Translation, error) {
 	translation := &Translation{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -87,7 +96,7 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*Translation, error
 	return translation, nil
 }
 
-// GetByKeyAndLocale retrieves a translation by key and locale
+// GetByKeyAndLocale retrieves a translation by key and locale.
 func (r *Repository) GetByKeyAndLocale(ctx context.Context, key, locale string) (*Translation, error) {
 	translation := &Translation{}
 	err := r.GetDB().QueryRowContext(ctx,
@@ -104,7 +113,7 @@ func (r *Repository) GetByKeyAndLocale(ctx context.Context, key, locale string) 
 	return translation, nil
 }
 
-// Update updates a translation record
+// Update updates a translation record.
 func (r *Repository) Update(ctx context.Context, translation *Translation) error {
 	result, err := r.GetDB().ExecContext(ctx,
 		`UPDATE service_i18n SET value = $1, description = $2, tags = $3, updated_at = NOW() WHERE id = $4`,
@@ -123,17 +132,23 @@ func (r *Repository) Update(ctx context.Context, translation *Translation) error
 	return nil
 }
 
-// Delete removes a translation and its master record
+// Delete removes a translation and its master record.
 func (r *Repository) Delete(ctx context.Context, id int64) error {
 	translation, err := r.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	return r.masterRepo.Delete(ctx, translation.MasterID)
+	if err := r.masterRepo.Delete(ctx, translation.MasterID); err != nil {
+		if log != nil {
+			log.Error("service not implemented", zap.Error(err))
+		}
+		return err
+	}
+	return nil
 }
 
-// List retrieves a paginated list of translations
+// List retrieves a paginated list of translations.
 func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Translation, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT id, master_id, key, locale, value, description, tags, created_at, updated_at
@@ -144,7 +159,11 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Translatio
 		return nil, err
 	}
 	defer func() {
-		_ = rows.Close()
+		if err := rows.Close(); err != nil {
+			if log != nil {
+				log.Error("service not implemented", zap.Error(err))
+			}
+		}
 	}()
 
 	var translations []*Translation
@@ -156,10 +175,13 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Translatio
 		}
 		translations = append(translations, translation)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return translations, nil
 }
 
-// ListByLocale retrieves all translations for a specific locale
+// ListByLocale retrieves all translations for a specific locale.
 func (r *Repository) ListByLocale(ctx context.Context, locale string, limit, offset int) ([]*Translation, error) {
 	rows, err := r.GetDB().QueryContext(ctx,
 		`SELECT id, master_id, key, locale, value, description, tags, created_at, updated_at
@@ -170,7 +192,11 @@ func (r *Repository) ListByLocale(ctx context.Context, locale string, limit, off
 		return nil, err
 	}
 	defer func() {
-		_ = rows.Close()
+		if err := rows.Close(); err != nil {
+			if log != nil {
+				log.Error("service not implemented", zap.Error(err))
+			}
+		}
 	}()
 
 	var translations []*Translation
@@ -181,6 +207,9 @@ func (r *Repository) ListByLocale(ctx context.Context, locale string, limit, off
 			return nil, err
 		}
 		translations = append(translations, translation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return translations, nil
 }

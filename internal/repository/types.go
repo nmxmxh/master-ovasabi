@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Repository defines the common interface for all repositories
+// Repository defines the common interface for all repositories.
 type Repository interface {
 	// GetDB returns the database connection
 	GetDB() *sql.DB
@@ -18,17 +18,9 @@ type Repository interface {
 	WithTx(tx *sql.Tx) Repository
 }
 
-// RepositoryProvider provides access to all repositories
-// Only keep Master for now; service-specific repositories are provided elsewhere
-// Remove Campaign and I18n methods
-type RepositoryProvider interface {
-	// Master returns the master repository
-	Master() MasterRepository
-	// WithTx wraps all repositories with a transaction
-	WithTx(tx *sql.Tx) RepositoryProvider
-}
+// Only define Provider once, and update all references from RepositoryProvider to Provider.
 
-// EntityType represents the type of entity in the master table
+// EntityType represents the type of entity in the master table.
 type EntityType string
 
 const (
@@ -43,7 +35,7 @@ const (
 	EntityTypeFinance      EntityType = "finance"
 )
 
-// Master represents the core entity in the master table
+// Master represents the core entity in the master table.
 type Master struct {
 	ID          int64      `db:"id"`
 	UUID        uuid.UUID  `db:"uuid"`
@@ -56,7 +48,7 @@ type Master struct {
 	IsActive    bool       `db:"is_active"`
 }
 
-// MasterRepository defines the interface for master record operations
+// MasterRepository defines the interface for master record operations.
 type MasterRepository interface {
 	Create(ctx context.Context, entityType EntityType, name string) (int64, error)
 	Get(ctx context.Context, id int64) (*Master, error)

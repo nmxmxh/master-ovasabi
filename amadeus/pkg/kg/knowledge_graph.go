@@ -2,6 +2,7 @@ package kg
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,7 +10,7 @@ import (
 	"time"
 )
 
-// KnowledgeGraph represents the core structure of the OVASABI knowledge graph
+// KnowledgeGraph represents the core structure of the OVASABI knowledge graph.
 type KnowledgeGraph struct {
 	Version     string    `json:"version"`
 	LastUpdated time.Time `json:"last_updated"`
@@ -29,11 +30,11 @@ type KnowledgeGraph struct {
 
 var (
 	defaultKG   *KnowledgeGraph
-	defaultPath string = "amadeus/knowledge_graph.json"
+	defaultPath = "amadeus/knowledge_graph.json"
 	once        sync.Once
 )
 
-// DefaultKnowledgeGraph returns the singleton instance of the knowledge graph
+// DefaultKnowledgeGraph returns the singleton instance of the knowledge graph.
 func DefaultKnowledgeGraph() *KnowledgeGraph {
 	once.Do(func() {
 		defaultKG = &KnowledgeGraph{}
@@ -56,7 +57,7 @@ func DefaultKnowledgeGraph() *KnowledgeGraph {
 	return defaultKG
 }
 
-// Load reads the knowledge graph from the specified file
+// Load reads the knowledge graph from the specified file.
 func (kg *KnowledgeGraph) Load(filePath string) error {
 	kg.mu.Lock()
 	defer kg.mu.Unlock()
@@ -75,7 +76,7 @@ func (kg *KnowledgeGraph) Load(filePath string) error {
 	return nil
 }
 
-// Save writes the knowledge graph to the specified file
+// Save writes the knowledge graph to the specified file.
 func (kg *KnowledgeGraph) Save(filePath string) error {
 	kg.mu.RLock()
 	defer kg.mu.RUnlock()
@@ -89,7 +90,7 @@ func (kg *KnowledgeGraph) Save(filePath string) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
@@ -98,14 +99,14 @@ func (kg *KnowledgeGraph) Save(filePath string) error {
 		return fmt.Errorf("failed to marshal knowledge graph: %w", err)
 	}
 
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := os.WriteFile(filePath, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write knowledge graph: %w", err)
 	}
 
 	return nil
 }
 
-// GetNode retrieves a value from the knowledge graph using a dot-notation path
+// GetNode retrieves a value from the knowledge graph using a dot-notation path.
 func (kg *KnowledgeGraph) GetNode(path string) (interface{}, error) {
 	kg.mu.RLock()
 	defer kg.mu.RUnlock()
@@ -114,23 +115,34 @@ func (kg *KnowledgeGraph) GetNode(path string) (interface{}, error) {
 		return nil, fmt.Errorf("knowledge graph not loaded")
 	}
 
-	// Convert the entire knowledge graph to a generic map for traversal
-	var data map[string]interface{}
-	kgBytes, err := json.Marshal(kg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal knowledge graph: %w", err)
+	// Only support top-level fields for now
+	switch path {
+	case "version":
+		return kg.Version, nil
+	case "last_updated":
+		return kg.LastUpdated, nil
+	case "system_components":
+		return kg.SystemComponents, nil
+	case "repository_structure":
+		return kg.RepositoryStructure, nil
+	case "services":
+		return kg.Services, nil
+	case "nexus":
+		return kg.Nexus, nil
+	case "patterns":
+		return kg.Patterns, nil
+	case "database_practices":
+		return kg.DatabasePractices, nil
+	case "redis_practices":
+		return kg.RedisPractices, nil
+	case "amadeus_integration":
+		return kg.AmadeusIntegration, nil
+	default:
+		return nil, errors.New("GetNode: only top-level fields supported; deeper traversal not implemented")
 	}
-
-	if err := json.Unmarshal(kgBytes, &data); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal knowledge graph: %w", err)
-	}
-
-	// TODO: Implement path traversal to retrieve specific nodes
-
-	return data[path], nil
 }
 
-// UpdateNode updates a node in the knowledge graph using a dot-notation path
+// UpdateNode updates a node in the knowledge graph using a dot-notation path.
 func (kg *KnowledgeGraph) UpdateNode(path string, value interface{}) error {
 	kg.mu.Lock()
 	defer kg.mu.Unlock()
@@ -139,16 +151,78 @@ func (kg *KnowledgeGraph) UpdateNode(path string, value interface{}) error {
 		return fmt.Errorf("knowledge graph not loaded")
 	}
 
-	// TODO: Implement path traversal to update specific nodes
+	// Only support top-level fields for now
+	switch path {
+	case "version":
+		if v, ok := value.(string); ok {
+			kg.Version = v
+		} else {
+			return errors.New("UpdateNode: value for version must be string")
+		}
+	case "last_updated":
+		if t, ok := value.(time.Time); ok {
+			kg.LastUpdated = t
+		} else {
+			return errors.New("UpdateNode: value for last_updated must be time.Time")
+		}
+	case "system_components":
+		if m, ok := value.(map[string]interface{}); ok {
+			kg.SystemComponents = m
+		} else {
+			return errors.New("UpdateNode: value for system_components must be map[string]interface{}")
+		}
+	case "repository_structure":
+		if m, ok := value.(map[string]interface{}); ok {
+			kg.RepositoryStructure = m
+		} else {
+			return errors.New("UpdateNode: value for repository_structure must be map[string]interface{}")
+		}
+	case "services":
+		if m, ok := value.(map[string]interface{}); ok {
+			kg.Services = m
+		} else {
+			return errors.New("UpdateNode: value for services must be map[string]interface{}")
+		}
+	case "nexus":
+		if m, ok := value.(map[string]interface{}); ok {
+			kg.Nexus = m
+		} else {
+			return errors.New("UpdateNode: value for nexus must be map[string]interface{}")
+		}
+	case "patterns":
+		if m, ok := value.(map[string]interface{}); ok {
+			kg.Patterns = m
+		} else {
+			return errors.New("UpdateNode: value for patterns must be map[string]interface{}")
+		}
+	case "database_practices":
+		if m, ok := value.(map[string]interface{}); ok {
+			kg.DatabasePractices = m
+		} else {
+			return errors.New("UpdateNode: value for database_practices must be map[string]interface{}")
+		}
+	case "redis_practices":
+		if m, ok := value.(map[string]interface{}); ok {
+			kg.RedisPractices = m
+		} else {
+			return errors.New("UpdateNode: value for redis_practices must be map[string]interface{}")
+		}
+	case "amadeus_integration":
+		if m, ok := value.(map[string]interface{}); ok {
+			kg.AmadeusIntegration = m
+		} else {
+			return errors.New("UpdateNode: value for amadeus_integration must be map[string]interface{}")
+		}
+	default:
+		return errors.New("UpdateNode: only top-level fields supported; deeper traversal not implemented")
+	}
 
-	// Update the last updated time
 	kg.LastUpdated = time.Now().UTC()
-
 	return nil
 }
 
-// AddService adds a new service to the knowledge graph
-func (kg *KnowledgeGraph) AddService(category string, name string, serviceInfo map[string]interface{}) error {
+// AddService adds a new service to the knowledge graph.
+func (kg *KnowledgeGraph) AddService(category, name string, serviceInfo map[string]interface{}) error {
 	kg.mu.Lock()
 	defer kg.mu.Unlock()
 
@@ -180,8 +254,8 @@ func (kg *KnowledgeGraph) AddService(category string, name string, serviceInfo m
 	return nil
 }
 
-// AddPattern adds a new pattern to the knowledge graph
-func (kg *KnowledgeGraph) AddPattern(category string, name string, patternInfo map[string]interface{}) error {
+// AddPattern adds a new pattern to the knowledge graph.
+func (kg *KnowledgeGraph) AddPattern(category, name string, patternInfo map[string]interface{}) error {
 	kg.mu.Lock()
 	defer kg.mu.Unlock()
 
@@ -213,15 +287,12 @@ func (kg *KnowledgeGraph) AddPattern(category string, name string, patternInfo m
 	return nil
 }
 
-// TrackEntityRelationship adds or updates a relationship between two entities
-func (kg *KnowledgeGraph) TrackEntityRelationship(sourceType string, sourceID string,
-	relationType string, targetType string, targetID string) error {
-	// TODO: Implement relationship tracking
-	return nil
+// TrackEntityRelationship adds or updates a relationship between two entities.
+func (kg *KnowledgeGraph) TrackEntityRelationship(_, _, _, _, _ string) error {
+	return errors.New("TrackEntityRelationship not implemented")
 }
 
-// GenerateVisualization generates a visualization of part or all of the knowledge graph
-func (kg *KnowledgeGraph) GenerateVisualization(format string, section string) ([]byte, error) {
-	// TODO: Implement visualization generation
-	return nil, nil
+// GenerateVisualization generates a visualization of part or all of the knowledge graph.
+func (kg *KnowledgeGraph) GenerateVisualization(_, _ string) ([]byte, error) {
+	return nil, errors.New("GenerateVisualization not implemented")
 }

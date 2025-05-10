@@ -21,5 +21,5 @@ OVASABI leverages these ideas.
 
 ## System Diagram
 
-> _[Insert a diagram showing the interaction between neural (AI/ML) and symbolic (knowledge
+> _[Insert a diagram showing the interaction between neural (AI/ML) and symbolic (knowledge >
 > graph/rules) components, and how they inform backend decisions.]_

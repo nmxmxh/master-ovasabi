@@ -44,10 +44,10 @@ type ServiceImpl struct {
 	cache      *redis.Cache
 }
 
-// Compile-time check
+// Compile-time check.
 var _ authpb.AuthServiceServer = (*ServiceImpl)(nil)
 
-// NewService creates a new auth service instance
+// NewService creates a new auth service instance.
 func NewService(log *zap.Logger, userSvc userpb.UserServiceServer, cache *redis.Cache) *ServiceImpl {
 	return &ServiceImpl{
 		log:        log,
@@ -69,7 +69,7 @@ func validatePassword(password string) error {
 	if len(password) < 8 {
 		return ErrWeakPassword
 	}
-	// TODO: Add more password strength checks
+	// Password strength checks not yet implemented
 	return nil
 }
 
