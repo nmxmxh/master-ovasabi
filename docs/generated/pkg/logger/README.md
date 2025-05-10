@@ -6,8 +6,8 @@ logger/logger.go
 
 ### Config
 
-Config holds the configuration for the logger
+Config holds the configuration for the logger.
 
 ### Logger
 
-Logger is the interface for logging
+Logger is the interface for logging.

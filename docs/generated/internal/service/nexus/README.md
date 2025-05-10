@@ -2,20 +2,24 @@
 
 ## Types
 
+### PatternDefinition
+
+(You may want to persist this in the knowledge graph or DB).
+
 ### Service
 
-Service implements the Nexus service
+Service implements the Nexus service.
 
 #### Methods
 
 ##### ExecutePattern
 
-ExecutePattern executes a registered pattern
+ExecutePattern validates provided arguments against required config keys.
 
 ##### GetKnowledge
 
-GetKnowledge retrieves knowledge from the graph
+GetKnowledge retrieves knowledge from the graph.
 
 ##### RegisterPattern
 
-RegisterPattern registers a new pattern
+RegisterPattern registers a new pattern with steps.

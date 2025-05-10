@@ -8,38 +8,42 @@
 
 ### Repository
 
-Repository handles operations on the service_i18n table
+Repository handles operations on the service_i18n table.
 
 #### Methods
 
 ##### Create
 
-Create inserts a new translation record
+Create inserts a new translation record.
 
 ##### Delete
 
-Delete removes a translation and its master record
+Delete removes a translation and its master record.
 
 ##### GetByID
 
-GetByID retrieves a translation by ID
+GetByID retrieves a translation by ID.
 
 ##### GetByKeyAndLocale
 
-GetByKeyAndLocale retrieves a translation by key and locale
+GetByKeyAndLocale retrieves a translation by key and locale.
 
 ##### List
 
-List retrieves a paginated list of translations
+List retrieves a paginated list of translations.
 
 ##### ListByLocale
 
-ListByLocale retrieves all translations for a specific locale
+ListByLocale retrieves all translations for a specific locale.
 
 ##### Update
 
-Update updates a translation record
+Update updates a translation record.
 
 ### Translation
 
-Translation represents a translation record for i18n (move from shared repository types if needed)
+(move from shared repository types if needed).
+
+## Functions
+
+### SetLogger

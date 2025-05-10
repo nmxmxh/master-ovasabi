@@ -1,41 +1,45 @@
 # Package asset
 
+## Variables
+
+### ErrAssetNotFound
+
 ## Types
 
-### AssetModel
+### Model
 
-### AssetRepository
+### Repo
 
-AssetRepository defines the interface for asset operations
-
-### Repository
-
-Repository implements AssetRepository
+Repo implements Repository.
 
 #### Methods
 
 ##### CreateAsset
 
-CreateAsset creates a new asset
+CreateAsset creates a new asset.
 
 ##### DeleteAsset
 
-DeleteAsset soft deletes an asset
+DeleteAsset deletes an asset by ID.
 
 ##### GetAsset
 
-GetAsset retrieves an asset by ID
+GetAsset retrieves an asset by ID.
 
 ##### ListSystemAssets
 
-ListSystemAssets retrieves system assets with pagination
+ListSystemAssets retrieves system assets with pagination.
 
 ##### ListUserAssets
 
-ListUserAssets retrieves assets for a user with pagination
+ListUserAssets retrieves assets for a user with pagination.
 
 ##### UpdateAsset
 
-UpdateAsset updates an existing asset
+UpdateAsset updates an existing asset.
+
+### Repository
+
+Repository defines the interface for asset operations.
 
 ### StorageType

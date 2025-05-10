@@ -8,7 +8,7 @@
 
 ### Service
 
-Service implements the CampaignService gRPC interface
+Service implements the CampaignService gRPC interface.
 
 #### Methods
 
@@ -30,4 +30,4 @@ GetLeaderboard returns the leaderboard for a campaign, applying the ranking form
 
 ### SafeInt32
 
-SafeInt32 converts an int64 to int32 with overflow checking
+SafeInt32 converts an int64 to int32 with overflow checking.

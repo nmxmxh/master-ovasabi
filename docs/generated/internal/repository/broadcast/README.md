@@ -8,34 +8,38 @@
 
 ### Broadcast
 
-Broadcast represents a broadcast message in the service_broadcast table
+Broadcast represents a broadcast message in the service_broadcast table.
 
 ### BroadcastRepository
 
-BroadcastRepository handles operations on the service_broadcast table
+BroadcastRepository handles operations on the service_broadcast table.
 
 #### Methods
 
 ##### Create
 
-Create inserts a new broadcast record
+Create inserts a new broadcast record.
 
 ##### Delete
 
-Delete removes a broadcast and its master record
+Delete removes a broadcast and its master record.
 
 ##### GetByID
 
-GetByID retrieves a broadcast by ID
+GetByID retrieves a broadcast by ID.
 
 ##### List
 
-List retrieves a paginated list of broadcasts
+List retrieves a paginated list of broadcasts.
 
 ##### ListPending
 
-ListPending retrieves a list of pending broadcasts
+ListPending retrieves a list of pending broadcasts.
 
 ##### Update
 
-Update updates a broadcast record
+Update updates a broadcast record.
+
+## Functions
+
+### SetLogger

@@ -2,7 +2,9 @@
 
 ## Types
 
-### AssetBroadcaster
+### Broadcaster
+
+Broadcaster struct.
 
 #### Methods
 
@@ -12,56 +14,68 @@
 
 ##### Unsubscribe
 
-### AssetService
+### Service
 
-AssetService defines the interface for asset operations
+Service defines the interface for asset operations.
 
 ### ServiceImpl
 
-ServiceImpl implements the AssetService interface
+ServiceImpl implements the Service interface.
 
 #### Methods
 
 ##### BroadcastAssetChunk
 
-BroadcastAssetChunk allows publishing a live asset chunk to all subscribers (for live streaming)
+BroadcastAssetChunk allows publishing a live asset chunk to all subscribers (for live streaming).
+
+##### BroadcastSystemAsset
+
+BroadcastSystemAsset broadcasts a system asset.
 
 ##### CompleteAssetUpload
 
-CompleteAssetUpload finalizes a heavy asset upload
+CompleteAssetUpload finalizes a heavy asset upload.
 
 ##### DeleteAsset
 
-DeleteAsset deletes an asset by ID
+DeleteAsset deletes an asset.
 
 ##### GetAsset
 
-GetAsset retrieves an asset by ID
+GetAsset retrieves an asset by ID.
 
 ##### ListSystemAssets
 
-ListSystemAssets lists system assets with pagination
+ListSystemAssets lists system assets with pagination.
 
 ##### ListUserAssets
 
-ListUserAssets lists assets for a user with pagination
+ListUserAssets lists assets for a user with pagination.
 
 ##### StartHeavyAssetUpload
 
-StartHeavyAssetUpload initiates a chunked upload for large assets
+StartHeavyAssetUpload initiates a chunked upload for large assets.
 
 ##### StreamAssetChunk
 
-StreamAssetChunk handles streaming chunks for heavy asset uploads
+StreamAssetChunk handles streaming chunks for heavy asset uploads.
 
 ##### StreamAssetContent
 
-StreamAssetContent streams the content of a stored asset from R2 in chunks via gRPC
+StreamAssetContent streams the content of a stored asset from R2 in chunks via gRPC.
+
+##### SubscribeToSystemAssets
+
+SubscribeToSystemAssets subscribes to system assets.
+
+##### SubscribeToUserAssets
+
+SubscribeToUserAssets subscribes to user assets.
 
 ##### UploadLightAsset
 
-UploadLightAsset handles small asset uploads (< 500KB) and stores them in R2 CDN
+UploadLightAsset handles small asset uploads (< 500KB).
 
 ### UploadMetadata
 
-UploadMetadata stores upload session information
+UploadMetadata stores upload session information.

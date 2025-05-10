@@ -4,7 +4,7 @@
 
 ### TTLQuote
 
-TTL constants for quotes caching
+TTL constants for quotes caching.
 
 ## Variables
 

@@ -8,43 +8,41 @@
 
 ### Campaign
 
-Define the Campaign struct here Campaign represents a campaign entity (move from shared repository
-types if needed)
+(move from shared repository types if needed).
 
 ### LeaderboardEntry
 
-LeaderboardEntry represents a leaderboard row (move to a shared types file if needed)
+(move to a shared types file if needed).
 
 ### RankingColumn
 
 ### RankingFormula
 
-RankingFormula represents a parsed and validated ranking formula Supports multiple columns and
-directions, and can be extended for expressions Example: "referral_count DESC, username ASC"
+Example: "referral_count DESC, username ASC".
 
 #### Methods
 
 ##### ToSQL
 
-ToSQL returns the SQL ORDER BY clause for the validated formula
+ToSQL returns the SQL ORDER BY clause for the validated formula.
 
 ### Repository
 
-Repository handles database operations for campaigns
+Repository handles database operations for campaigns.
 
 #### Methods
 
 ##### CreateWithTransaction
 
-CreateWithTransaction creates a new campaign within a transaction
+CreateWithTransaction creates a new campaign within a transaction.
 
 ##### Delete
 
-Delete deletes a campaign by ID
+Delete deletes a campaign by ID.
 
 ##### GetBySlug
 
-GetBySlug retrieves a campaign by its slug
+GetBySlug retrieves a campaign by its slug.
 
 ##### GetLeaderboard
 
@@ -52,12 +50,8 @@ GetLeaderboard returns the leaderboard for a campaign, applying the ranking form
 
 ##### List
 
-List retrieves a paginated list of campaigns
+List retrieves a paginated list of campaigns.
 
 ##### Update
 
-Update updates an existing campaign
-
-## Functions
-
-### SetLogger
+Update updates an existing campaign.

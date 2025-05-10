@@ -22,6 +22,10 @@ ServiceImpl implements the BroadcastService interface.
 
 BroadcastAction implements the BroadcastAction RPC method.
 
+##### CreateBroadcast
+
+CreateBroadcast implements the CreateBroadcast RPC method.
+
 ##### GetBroadcast
 
 GetBroadcast retrieves a specific broadcast by ID.
@@ -32,12 +36,12 @@ ListBroadcasts retrieves a list of broadcasts with pagination.
 
 ##### PublishLiveAssetChunk
 
-PublishLiveAssetChunk pushes a live asset chunk to all subscribers
+PublishLiveAssetChunk pushes a live asset chunk to all subscribers.
 
 ##### SubscribeToActions
 
-SubscribeToActions implements the SubscribeToActions streaming RPC method.
+SubscribeToActions implements the BroadcastAction streaming RPC method.
 
 ##### SubscribeToLiveAssetChunks
 
-SubscribeToLiveAssetChunks streams live asset chunks to the client
+SubscribeToLiveAssetChunks streams live asset chunks to the client.

@@ -4,50 +4,63 @@
 
 ### BackupInfo
 
-BackupInfo contains metadata about a backup
+BackupInfo contains metadata about a backup.
+
 
 ### KnowledgeGraph
 
-KnowledgeGraph represents the core structure of the OVASABI knowledge graph
+KnowledgeGraph represents the core structure of the OVASABI knowledge graph.
+
 
 #### Methods
 
 ##### AddPattern
 
-AddPattern adds a new pattern to the knowledge graph
+AddPattern adds a new pattern to the knowledge graph.
+
 
 ##### AddService
 
-AddService adds a new service to the knowledge graph
+AddService adds a new service to the knowledge graph.
+
 
 ##### Backup
 
-Backup creates a backup of the knowledge graph
+Backup creates a backup of the knowledge graph.
+
 
 ##### GenerateVisualization
 
-GenerateVisualization generates a visualization of part or all of the knowledge graph
+GenerateVisualization generates a visualization of part or all of the knowledge graph.
+
 
 ##### GetNode
 
-GetNode retrieves a value from the knowledge graph using a dot-notation path
+GetNode retrieves a value from the knowledge graph using a dot-notation path.
+
 
 ##### Load
 
-Load reads the knowledge graph from the specified file
+Load reads the knowledge graph from the specified file.
+
 
 ##### RestoreFromBackup
 
-RestoreFromBackup restores the knowledge graph from a backup file
+RestoreFromBackup restores the knowledge graph from a backup file.
+
 
 ##### Save
 
-Save writes the knowledge graph to the specified file
+Save writes the knowledge graph to the specified file.
+
 
 ##### TrackEntityRelationship
 
-TrackEntityRelationship adds or updates a relationship between two entities
+TrackEntityRelationship adds or updates a relationship between two entities.
+
 
 ##### UpdateNode
 
-UpdateNode updates a node in the knowledge graph using a dot-notation path
+UpdateNode updates a node in the knowledge graph using a dot-notation path.
+
+

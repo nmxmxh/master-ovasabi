@@ -8,26 +8,26 @@
 
 ### Referral
 
-Referral represents a referral record
+Referral represents a referral record.
 
-### ReferralRepository
+### Repository
 
-ReferralRepository handles database operations for referrals
+Repository handles database operations for referrals.
 
 #### Methods
 
 ##### Create
 
-Create inserts a new referral record
+Create inserts a new referral record.
 
 ##### GetByID
 
-GetByID retrieves a referral by ID
+GetByID retrieves a referral by ID.
 
 ##### GetStats
 
-GetStats retrieves referral statistics for a user
+GetStats retrieves referral statistics for a user.
 
-### ReferralStats
+### Stats
 
-ReferralStats represents referral statistics
+Stats represents referral statistics.

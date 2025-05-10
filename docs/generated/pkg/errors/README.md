@@ -12,8 +12,8 @@ DI container errors.
 
 ### New
 
-New creates a new error with the given message
+New creates a new error with the given message.
 
 ### Wrap
 
-Wrap wraps an error with additional context
+Wrap wraps an error with additional context.

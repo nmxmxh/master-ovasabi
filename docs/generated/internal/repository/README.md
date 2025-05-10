@@ -12,55 +12,55 @@
 
 ### BaseRepository
 
-BaseRepository provides common database functionality
+BaseRepository provides common database functionality.
 
 #### Methods
 
 ##### BeginTx
 
-BeginTx starts a new transaction
+BeginTx starts a new transaction.
 
 ##### CommitTx
 
-CommitTx commits a transaction
+CommitTx commits a transaction.
 
 ##### GenerateMasterName
 
-GenerateMasterName creates a standardized name for master records
+GenerateMasterName creates a standardized name for master records.
 
 ##### GetContext
 
-GetContext returns the context, possibly with transaction
+GetContext returns the context, possibly with transaction.
 
 ##### GetDB
 
-GetDB returns the database connection
+GetDB returns the database connection.
 
 ##### RollbackTx
 
-RollbackTx rolls back a transaction
+RollbackTx rolls back a transaction.
 
 ##### WithTx
 
-WithTx returns a new repository with transaction
+WithTx returns a new repository with transaction.
 
 ### CacheInvalidationPattern
 
-CacheInvalidationPattern represents a pattern for cache invalidation
+CacheInvalidationPattern represents a pattern for cache invalidation.
 
 ### CachedMasterRepository
 
-CachedMasterRepository wraps a MasterRepository with caching
+CachedMasterRepository wraps a MasterRepository with caching.
 
 #### Methods
 
 ##### Create
 
-Create creates a master record with cache invalidation
+Create creates a master record with cache invalidation.
 
 ##### Delete
 
-Delete deletes a master record with cache invalidation and locking
+Delete deletes a master record with cache invalidation and locking.
 
 ##### Get
 
@@ -70,31 +70,31 @@ Delete deletes a master record with cache invalidation and locking
 
 ##### QuickSearch
 
-QuickSearch performs a fast search with caching
+QuickSearch performs a fast search with caching.
 
 ##### SearchByPattern
 
-SearchByPattern searches for master records matching a pattern with caching
+SearchByPattern searches for master records matching a pattern with caching.
 
 ##### SearchByPatternAcrossTypes
 
-SearchByPatternAcrossTypes searches across all types with caching
+SearchByPatternAcrossTypes searches across all types with caching.
 
 ##### Update
 
-Update updates a master record with cache invalidation and locking
+Update updates a master record with cache invalidation and locking.
 
 ##### WithLock
 
-WithLock executes a function while holding a distributed lock
+WithLock executes a function while holding a distributed lock.
 
 ### DBTX
 
-DBTX represents a database connection that can execute queries or a transaction
+DBTX represents a database connection that can execute queries or a transaction.
 
 ### DefaultMasterRepository
 
-DefaultMasterRepository implements MasterRepository (interface is defined in types.go)
+(interface is defined in types.go).
 
 #### Methods
 
@@ -104,103 +104,90 @@ DefaultMasterRepository implements MasterRepository (interface is defined in typ
 
 ##### Create
 
-Create creates a new master record
+Create creates a new master record.
 
 ##### Delete
 
-Delete removes a master record
+Delete removes a master record.
 
 ##### ExecuteInTx
 
 ##### Get
 
-Get retrieves a master record by ID
-
-##### GetByID
-
-GetByID retrieves a master record by ID
-
-##### GetByName
-
-GetByName retrieves a master record by name
+Get retrieves a master record by ID.
 
 ##### GetByUUID
 
-GetByUUID retrieves a master record by UUID
+GetByUUID retrieves a master record by UUID.
 
 ##### List
 
-List retrieves a paginated list of master records
+List retrieves a paginated list of master records.
 
 ##### QuickSearch
 
-QuickSearch performs a fast search with default parameters
+QuickSearch performs a fast search with default parameters.
 
 ##### SearchByPattern
 
-SearchByPattern searches for master records matching a pattern
+SearchByPattern searches for master records matching a pattern.
 
 ##### SearchByPatternAcrossTypes
 
-SearchByPatternAcrossTypes searches for master records matching a pattern across all entity types
+SearchByPatternAcrossTypes searches for master records matching a pattern across all entity types.
 
 ##### Update
 
-Update updates a master record with optimistic locking
+Update updates a master record with optimistic locking.
 
 ##### UpdateWithTransaction
 
-UpdateWithTransaction updates a master record within a transaction
+UpdateWithTransaction updates a master record within a transaction.
 
 ##### WithLock
 
-WithLock executes a function while holding a distributed lock
+WithLock executes a function while holding a distributed lock.
 
 ### EntityType
 
-EntityType represents the type of entity in the master table
+EntityType represents the type of entity in the master table.
 
 ### Master
 
-Master represents the core entity in the master table
+Master represents the core entity in the master table.
 
 ### MasterRepository
 
-MasterRepository defines the interface for master record operations
+MasterRepository defines the interface for master record operations.
 
 ### Provider
 
-Provider manages repository instances
+Provider manages repository instances.
 
 #### Methods
 
 ##### GetMasterRepository
 
-GetMasterRepository returns the master repository instance
+GetMasterRepository returns the master repository instance.
 
 ### Repository
 
-Repository defines the common interface for all repositories
-
-### RepositoryProvider
-
-RepositoryProvider provides access to all repositories Only keep Master for now; service-specific
-repositories are provided elsewhere Remove Campaign and I18n methods
+Repository defines the common interface for all repositories.
 
 ### SearchResult
 
-SearchResult represents a master record with similarity score
+SearchResult represents a master record with similarity score.
 
 ### Statement
 
-Statement represents a SQL statement with its arguments
+Statement represents a SQL statement with its arguments.
 
 ### TxFn
 
-TxFn represents a function that will be executed within a transaction
+TxFn represents a function that will be executed within a transaction.
 
 ## Functions
 
 ### WithTransaction
 
-WithTransaction executes the given function within a transaction
+WithTransaction executes the given function within a transaction.

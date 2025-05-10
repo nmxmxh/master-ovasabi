@@ -33,7 +33,7 @@ Parameters:
 
 Returns:
 
-- \*protos.EchoResponse: Response containing the echoed message
+- interface{}: Response containing the echoed message (placeholder)
 - error: Any error that occurred during processing
 
 ### I18nService

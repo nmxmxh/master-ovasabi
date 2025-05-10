@@ -4,20 +4,20 @@
 
 ### Event
 
-Event represents a cross-service event
+Event represents a cross-service event.
 
 ### Graph
 
-Graph represents a relationship graph
+Graph represents a relationship graph.
 
 ### RelationType
 
-RelationType defines the type of relationship between entities
+RelationType defines the type of relationship between entities.
 
 ### Relationship
 
-Relationship represents a connection between two master records
+Relationship represents a connection between two master records.
 
 ### Repository
 
-Repository defines the interface for Nexus operations
+Repository defines the interface for Nexus operations.

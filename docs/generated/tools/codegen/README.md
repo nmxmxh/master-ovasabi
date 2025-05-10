@@ -4,13 +4,13 @@
 
 ### CodeGenerator
 
-CodeGenerator handles code generation for services
+CodeGenerator handles code generation for services.
 
 #### Methods
 
 ##### GenerateService
 
-GenerateService generates all the files for a service
+GenerateService generates all the files for a service.
 
 ### MethodConfig
 

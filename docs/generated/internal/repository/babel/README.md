@@ -4,7 +4,7 @@
 
 ### InitialPricingRules
 
-Initial sample data for seeding or testing
+Initial sample data for seeding or testing.
 
 ## Types
 

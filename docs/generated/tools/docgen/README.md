@@ -4,10 +4,10 @@
 
 ### DocGenerator
 
-DocGenerator generates markdown documentation from code comments
+DocGenerator generates markdown documentation from code comments.
 
 #### Methods
 
 ##### Generate
 
-Generate generates documentation for all packages in the source directory
+Generate generates documentation for all packages in the source directory.
