@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/nmxmxh/master-ovasabi/pkg/json"
 )
 
 // BaseRepository provides common database functionality.
@@ -69,4 +71,22 @@ func (r *BaseRepository) GenerateMasterName(entityType EntityType, identifiers .
 
 	// Format: type:identifier1:identifier2...
 	return fmt.Sprintf("%s:%s", entityType, strings.Join(cleaned, ":"))
+}
+
+// ToJSONB marshals a map to JSONB ([]byte) for Postgres.
+func ToJSONB(m map[string]interface{}) ([]byte, error) {
+	if m == nil {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(m)
+}
+
+// FromJSONB unmarshals JSONB ([]byte) from Postgres to a map.
+func FromJSONB(b []byte) (map[string]interface{}, error) {
+	if len(b) == 0 {
+		return map[string]interface{}{}, nil
+	}
+	var m map[string]interface{}
+	err := json.Unmarshal(b, &m)
+	return m, err
 }

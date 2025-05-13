@@ -6,7 +6,7 @@
 
 ## Variables
 
-### File_api_protos_nexus_v1_nexus_proto
+### File_nexus_v1_nexus_proto
 
 ### NexusService_ServiceDesc
 
@@ -127,6 +127,8 @@ NexusService provides pattern-based orchestration and knowledge graph management
 
 Deprecated: Use PatternDefinition.ProtoReflect.Descriptor instead.
 
+##### GetMetadata
+
 ##### GetPatternName
 
 ##### GetSteps
@@ -148,6 +150,8 @@ Deprecated: Use PatternDefinition.ProtoReflect.Descriptor instead.
 Deprecated: Use PatternStep.ProtoReflect.Descriptor instead.
 
 ##### GetAction
+
+##### GetMetadata
 
 ##### GetOptionalArgs
 

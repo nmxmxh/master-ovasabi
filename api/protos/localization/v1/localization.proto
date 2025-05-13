@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package localization.v1;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1;localizationpb";
+
+import "google/protobuf/timestamp.proto";
+import "common/v1/metadata.proto";
+
+service LocalizationService {
+  // Translation
+  rpc Translate(TranslateRequest) returns (TranslateResponse);
+  rpc BatchTranslate(BatchTranslateRequest) returns (BatchTranslateResponse);
+  rpc CreateTranslation(CreateTranslationRequest) returns (CreateTranslationResponse);
+  rpc GetTranslation(GetTranslationRequest) returns (GetTranslationResponse);
+  rpc ListTranslations(ListTranslationsRequest) returns (ListTranslationsResponse);
+
+  // Pricing
+  rpc GetPricingRule(GetPricingRuleRequest) returns (GetPricingRuleResponse);
+  rpc SetPricingRule(SetPricingRuleRequest) returns (SetPricingRuleResponse);
+  rpc ListPricingRules(ListPricingRulesRequest) returns (ListPricingRulesResponse);
+
+  // Locale metadata
+  rpc ListLocales(ListLocalesRequest) returns (ListLocalesResponse);
+  rpc GetLocaleMetadata(GetLocaleMetadataRequest) returns (GetLocaleMetadataResponse);
+}
+
+message TranslateRequest {
+  string key = 1;
+  string locale = 2;
+}
+message TranslateResponse {
+  string value = 1;
+}
+
+message BatchTranslateRequest {
+  repeated string keys = 1;
+  string locale = 2;
+}
+message BatchTranslateResponse {
+  map<string, string> values = 1;
+}
+
+message CreateTranslationRequest {
+  string key = 1;
+  string language = 2;
+  string value = 3;
+  common.Metadata metadata = 4;
+}
+message CreateTranslationResponse {
+  Translation translation = 1;
+  bool success = 2;
+}
+message GetTranslationRequest {
+  string translation_id = 1;
+}
+message GetTranslationResponse {
+  Translation translation = 1;
+}
+message ListTranslationsRequest {
+  string language = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+message ListTranslationsResponse {
+  repeated Translation translations = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+message Translation {
+  string id = 1;
+  string key = 2;
+  string language = 3;
+  string value = 4;
+  common.Metadata metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message GetPricingRuleRequest {
+  string country_code = 1;
+  string region = 2;
+  string city = 3;
+}
+message GetPricingRuleResponse {
+  PricingRule rule = 1;
+}
+message SetPricingRuleRequest {
+  PricingRule rule = 1;
+}
+message SetPricingRuleResponse {
+  bool success = 1;
+}
+message ListPricingRulesRequest {
+  string country_code = 1;
+  string region = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+message ListPricingRulesResponse {
+  repeated PricingRule rules = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+message PricingRule {
+  string id = 1;
+  string country_code = 2;
+  string region = 3;
+  string city = 4;
+  string currency_code = 5;
+  string affluence_tier = 6;
+  string demand_level = 7;
+  double multiplier = 8;
+  double base_price = 9;
+  google.protobuf.Timestamp effective_from = 10;
+  google.protobuf.Timestamp effective_to = 11;
+  string notes = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+message ListLocalesRequest {}
+message ListLocalesResponse {
+  repeated Locale locales = 1;
+}
+message GetLocaleMetadataRequest {
+  string locale = 1;
+}
+message GetLocaleMetadataResponse {
+  Locale locale = 1;
+}
+message Locale {
+  string code = 1;
+  string language = 2;
+  string country = 3;
+  string currency = 4;
+  repeated string regions = 5;
+  common.Metadata metadata = 6;
+} 

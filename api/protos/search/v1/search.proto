@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package search.v1;
+
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/search/v1;searchpb";
+
+// Robust, extensible metadata for all services
+
+service SearchService {
+  rpc SearchEntities(SearchRequest) returns (SearchResponse);
+}
+
+message SearchRequest {
+  string query = 1;
+  string entity_type = 2;
+  string master_id = 3; // Optional filter by master entity
+  int32 page = 4;
+  int32 page_size = 5;
+  repeated string fields = 6; // Columns to return
+  common.Metadata metadata = 7; // Metadata filters
+  bool fuzzy = 8; // Fuzzy search
+  string language = 9; // Language for FTS
+}
+
+message EntityResult {
+  string entity_id = 1;
+  string entity_type = 2;
+  string name = 3;
+  string summary = 4;
+  common.Metadata metadata = 5;
+  float rank = 6;
+  float similarity = 7;
+}
+
+message SearchResult {
+  string id = 1;
+  string master_id = 2; // UUID reference to master table
+  string entity_type = 3;
+  string title = 4;
+  string snippet = 5;
+  common.Metadata metadata = 6;
+  double score = 7;
+}
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+  int32 total = 2;
+} 

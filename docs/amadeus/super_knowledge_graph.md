@@ -1,5 +1,7 @@
 # Super Knowledge Graph Configuration
 
+> **Note:** Always refer to the Amadeus context and knowledge graph documentation before implementing or updating any service. This ensures all dependencies, capabilities, and integration points are current and consistent across the platform.
+
 This document details the advanced configuration and implementation of the OVASABI Knowledge Graph
 system.
 
@@ -8,6 +10,24 @@ system.
 The Super Knowledge Graph extends the base knowledge graph with advanced AI capabilities,
 mathematical models, and research-driven improvements. It provides a comprehensive framework for
 knowledge representation, reasoning, and AI integration.
+
+## Core Services
+
+| Service      | Status | Capabilities                  | Dependencies       | Integration Points    |
+| ------------ | ------ | ----------------------------- | ------------------ | --------------------- |
+| Asset        | 🔄     | 3D asset mgmt, CDN, version   | User, Security     | Babel, Nexus          |
+| Auth         | 🔄     | Auth, token, session, policy  | User               | Security, Nexus       |
+| Babel        | 🔄     | i18n, pricing, translation    | -                  | Quotes, Finance, User |
+| Broadcast    | 🔄     | Real-time, pub/sub, streaming | User, Notification | Nexus                 |
+| Campaign     | 🔄     | Campaign mgmt, analytics      | User, Notification | Babel, Nexus          |
+| Finance      | ✅     | Balance, tx, audit, rewards   | User, Notification | Babel, Nexus          |
+| I18n         | 🔄     | Localization, translation     | -                  | Babel, User           |
+| Nexus        | ✅     | Orchestration, patterns       | All services       | Amadeus, All          |
+| Notification | 🔄     | Multi-channel, templates      | User               | Broadcast, Nexus      |
+| Quotes       | 🔄     | Quote gen, pricing, history   | User, Babel        | Finance, Nexus        |
+| Referral     | 🔄     | Referral, rewards, fraud      | User, Notification | Finance, Nexus        |
+| Security     | 🔄     | Policies, audit, compliance   | All services       | Auth, Nexus           |
+| User         | 🔄     | User mgmt, profile, RBAC      | Auth, Security     | Babel, Nexus          |
 
 ## Core Components
 

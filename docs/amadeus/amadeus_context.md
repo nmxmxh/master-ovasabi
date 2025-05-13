@@ -1,5 +1,10 @@
 # Amadeus Context File
 
+> **Note:** Always refer to this Amadeus context and knowledge graph documentation before implementing or updating any service. This ensures all dependencies, capabilities, and integration points are current and consistent across the platform.
+> **New:** For research-backed best practices and reference architectures for each service, see [Service Patterns & Research-Backed Best Practices](service_patterns_and_research.md). All new and refactored services must follow the patterns, integration points, and extensibility guidelines described there. Use this guide to update the knowledge graph and document all relationships.
+
+> **Database Reference:** For a full list of all tables, functions, and their responsibilities, see [Database Tables & Functions Reference](../development/database_tables.md). This document is tightly integrated with the Amadeus context for system-wide knowledge, impact analysis, and documentation.
+
 This file provides continuous context about the Amadeus Knowledge Graph system for AI assistants
 working with the OVASABI platform.
 
@@ -9,6 +14,25 @@ Amadeus is the knowledge persistence system for the OVASABI platform, providing 
 programmatically accessible knowledge graph of all system components and their relationships. It
 serves as both documentation and a runtime-accessible knowledge repository that evolves with the
 system.
+
+## Core Services
+
+| Service      | Status | Capabilities                  | Dependencies       | Integration Points    |
+| ------------ | ------ | ----------------------------- | ------------------ | --------------------- |
+| User         | ✅     | User mgmt, profile, RBAC      | Security           | Notification, Nexus   |
+| Notification | ✅     | Multi-channel, templates, real-time, streaming | User               | Nexus      |
+| Campaign     | ✅     | Campaign mgmt, analytics      | User, Notification | Nexus                |
+| Referral     | ✅     | Referral, rewards, fraud      | User, Notification | Nexus                |
+| Security     | ✅     | Policies, audit, compliance   | All services       | Nexus                |
+| Content      | ✅     | Articles, micro-posts, video, comments, reactions, FTS | User, Notification, Search, ContentModeration | Nexus, Analytics |
+| Commerce     | ✅     | Orders, payments, billing     | User               | Nexus                |
+| Localization | ✅     | i18n, translation             | -                  | User, Content        |
+| Search       | ✅     | Full-text, fuzzy, entity search | Content, User      | Nexus                |
+| Admin        | ✅     | Admin user mgmt, roles, audit | User (via gRPC)    | Security, Nexus      |
+| Analytics    | ✅     | Event, usage, reporting       | User, Content      | Nexus                |
+| ContentModeration | ✅ | Moderation, compliance        | Content, User      | Nexus                |
+| Talent       | ✅     | Talent profiles, bookings     | User               | Nexus                |
+| Nexus        | ✅     | Orchestration, patterns       | All services       | Amadeus, All         |
 
 ## Core Capabilities
 
@@ -25,7 +49,34 @@ system.
 - **Health and metrics**: All services expose health and metrics endpoints, managed centrally for
   observability and monitoring.
 - **Babel service integration**: The Babel service provides i18n and dynamic, location-based pricing
-  rules, and is integrated with Quotes, Finance, and Campaign services.
+  rules, and is integrated with Quotes, Finance, Campaign, and other services.
+- **Pattern orchestration**: All services are registered as patterns in Nexus for orchestration, introspection, and automation.
+
+## Campaign Scaffolding & Documentation Workflow
+
+To ensure rapid, consistent, and reproducible campaign launches, the OVASABI platform uses a standardized campaign scaffolding and documentation workflow:
+
+- **Numbered Campaign Files:** All campaign documentation must be created as a numbered file in `docs/campaign/` (e.g., `001_ovasabi_website.md`, `002_new_campaign.md`). This ensures clear versioning, ordering, and reproducibility.
+- **Documentation Requirements:** Each campaign file must include:
+  1. Overview and user stories
+  2. Required backend functionality and service responsibilities
+  3. Frontend-backend communication patterns (REST, WebSocket/SSE, gRPC)
+  4. Extensibility and reproducibility notes
+  5. Implementation notes and next steps
+  6. Campaign-specific API endpoints and event types
+  7. Mapping to existing services and identification of new requirements
+- **Scaffolding Steps:**
+  1. Define campaign requirements and document in a new numbered file
+  2. Map features to services and identify new event types
+  3. Design and document APIs and event payloads
+  4. Add campaign metadata and rules to CampaignService
+  5. Integrate frontend with APIs and real-time events
+  6. Test, monitor, and review
+  7. Update Amadeus context and knowledge graph with new campaign and relationships
+- **Reference Example:** See [001_ovasabi_website.md](../campaign/001_ovasabi_website.md) for a complete, production-ready campaign documentation example.
+- **Amadeus Context Integration:** All new campaigns must be referenced in this context file and the knowledge graph, with relationships and dependencies updated accordingly.
+
+For more details and the latest campaign scaffolding best practices, always refer to the numbered campaign files in `docs/campaign/` and this Amadeus context.
 
 ## System Components
 
@@ -37,6 +88,7 @@ system.
 - **Provider/DI Container** (`internal/service/provider.go`): Centralized service registration and
   dependency injection
 - **Babel Service** (`internal/service/babel`): Unified i18n and location-based pricing logic
+- **PatternStore** (`internal/nexus/service/pattern_store.go`): Modular pattern registration for all services
 
 ## Knowledge Graph Structure
 
@@ -53,6 +105,7 @@ The knowledge graph is structured with these main sections:
 - `service_registration`: Tracks all service registrations, DI relationships, and health/metrics
   endpoints
 - `babel_integration`: Tracks Babel service integration points and pricing/i18n relationships
+- `pattern_orchestration`: Tracks all service pattern registrations and orchestration logic
 
 For advanced configuration and implementation details, see the
 [Super Knowledge Graph Configuration](super_knowledge_graph.md) and
@@ -315,6 +368,7 @@ integration, refer to the [Super Knowledge Graph Configuration](super_knowledge_
 
 For detailed information, see:
 
+- [Service Patterns & Research-Backed Best Practices](service_patterns_and_research.md)
 - [Implementation Guide](implementation_guide.md)
 - [Integration Examples](integration_examples.md)
 - [Architecture Overview](architecture.md)
@@ -322,6 +376,9 @@ For detailed information, see:
 - [Consistent Update Guide](consistent_updates.md)
 - [Service Implementation Pattern](../services/implementation_pattern.md)
 - [Service List](../services/service_list.md)
+- [Database Tables & Functions Reference](../development/database_tables.md)
+- [Campaign Scaffolding & Documentation Workflow](#campaign-scaffolding--documentation-workflow)
+- [Ovasabi Website Campaign Example](../campaign/001_ovasabi_website.md)
 
 ## Build and Development Commands
 
@@ -382,274 +439,271 @@ k8s-deploy        # Deploys to Kubernetes
 k8s-status        # Shows deployment status
 ```
 
-### Knowledge Graph Specific
+## Database Table Naming Convention
 
-```makefile
-# Proto Generation
-proto             # Generates protobuf code for all services
+For all new and existing services, the following naming convention must be used for database tables:
 
-# Backup and Restore
-backup            # Creates KG backup
-restore           # Restores from backup
+- **Pattern:** `service_{service}_{entity}`
+- **Examples:**
+  - `service_user_master`
+  - `service_admin_user`
+  - `service_content_main`
+  - `service_referral_main`
+  - `service_commerce_order`
+  - `service_analytics_event`
+
+This ensures clarity, modularity, and analytics-readiness across the platform. All migrations, repository code, and documentation must reference tables using this convention.
+
+For full details and rationale, see [Database Table Naming & Migration Best Practices](../development/database_table_naming.md).
+
+## Repository and Data Management Best Practices
+
+For a detailed explanation of the repository pattern, master-client-service-event architecture, and advanced strategies for archiving, partitioning, and analytics, see:
+- [Master-Client-Service-Event Pattern: Repository Architecture & Best Practices](../architecture/master_client_event_pattern.md)
+- [Database Practices: Advanced Strategies](../development/database_practices.md)
+
+These documents cover:
+- Automated archiving and partitioning
+- Retention policies and cold storage
+- Data lake integration and export
+- Immutable audit/event logging
+- Monitoring, index review, and documentation automation
+
+## Standard: Provider/DI Registration Pattern File Comment
+
+All new service/provider files must begin with a comment block describing the Provider/DI registration pattern, following this standard:
+
+```
+Provider/DI Registration Pattern (Modern, Extensible, DRY)
+---------------------------------------------------------
+
+This file implements the centralized Provider pattern for service registration and dependency injection (DI) across the platform. It ensures all services are registered, resolved, and composed in a DRY, maintainable, and extensible way.
+
+Key Features:
+- **Centralized Service Registration:** All gRPC services are registered with a DI container, ensuring single-point, modular registration and easy dependency management.
+- **Repository & Cache Integration:** Each service can specify its repository constructor and (optionally) a cache name for Redis-backed caching.
+- **Multi-Dependency Support:** Services with multiple or cross-service dependencies (e.g., ContentService, NotificationService) use custom registration functions to resolve all required dependencies from the DI container.
+- **Extensible Pattern:** To add a new service, define its repository and (optionally) cache, then add a registration entry. For complex dependencies, use a custom registration function.
+- **Consistent Error Handling:** All registration errors are logged and wrapped for traceability.
+- **Self-Documenting:** The registration pattern is discoverable and enforced as a standard for all new services.
+
+Standard for New Service/Provider Files:
+1. Document the registration pattern and DI approach at the top of the file.
+2. Describe how to add new services, including repository, cache, and dependency resolution.
+3. Note any special patterns for multi-dependency or cross-service orchestration.
+4. Ensure all registration and error handling is consistent and logged.
+5. Reference this comment as the standard for all new service/provider files.
 ```
 
-1. **Development Workflow**:
+This comment block must be present and up-to-date in all new and refactored service/provider files. It serves as the canonical documentation for the Provider/DI pattern in the OVASABI platform.
 
-   ```bash
-   make setup     # First-time setup
-   make build     # Build the project
-   make dev       # Run in development mode
-   ```
+## Standard: Performance Review Process & Continuous Evolution
 
-2. **Testing Workflow**:
+### Purpose
+To ensure the OVASABI platform remains performant, scalable, and robust, a standardized performance review process must be followed. This process is both technical (code, database, infrastructure) and procedural (continuous improvement, feedback, and automation).
 
-   ```bash
-   make test-unit # Run unit tests during development
-   make test      # Run full test suite before commits
-   make coverage  # Check test coverage
-   ```
+### Performance Review Checklist
 
-3. **Deployment Workflow**:
+1. **Static Code Analysis**
+   - Run linters and static analysis tools (e.g., gosec, revive, errcheck).
+   - Identify anti-patterns (N+1 queries, full scans, unbounded goroutines, etc.).
+   - Check for unchecked errors, resource leaks, and concurrency issues.
 
-   ```bash
-   make docker-build-scan # Build and security scan
-   make k8s-deploy       # Deploy to Kubernetes
-   ```
+2. **Database & Query Efficiency**
+   - Review schema, indexes, and migrations for optimal design.
+   - Ensure queries use indexes and avoid full table scans.
+   - Audit counting strategies (prefer increment/decrement counters over full scans).
+   - Check for partitioning, archiving, and extension usage (e.g., pg_trgm).
 
-4. **Documentation Workflow**:
+3. **Caching & Data Access**
+   - Verify use of Redis or other caches for hot data and counters.
+   - Review cache invalidation and consistency strategies.
 
-   ```bash
-   make docs-format      # Format documentation
-   make docs-validate    # Validate before commits
-   make docs-deploy-github # Deploy documentation
-   ```
+4. **Service & Dependency Injection**
+   - Ensure DI/Provider patterns are followed for efficient service registration and resolution.
+   - Audit cross-service calls for efficiency and asynchronicity where possible.
 
-### Environment Configuration
+5. **Observability & Metrics**
+   - Confirm all services expose health and metrics endpoints.
+   - Review logging for structure, context, and traceability.
+   - Ensure error wrapping and propagation is consistent.
 
-The Makefile uses these key variables:
+6. **Scalability & Extensibility**
+   - Check for statelessness and readiness for horizontal scaling.
+   - Ensure code is modular, DRY, and easily extensible.
 
-- `BINARY_NAME=master-ovasabi`
-- `DOCKER_IMAGE=ovasabi/$(BINARY_NAME)`
-- `K8S_NAMESPACE=ovasabi`
-- `K8S_CONTEXT=docker-desktop`
+7. **Documentation & Onboarding**
+   - Ensure all standards, patterns, and review processes are documented and discoverable.
+   - Keep the Amadeus context and knowledge graph up-to-date.
 
-Environment variables are loaded from `.env` file and include:
+8. **Automated Testing & CI/CD**
+   - Review test coverage and critical path tests.
+   - Ensure CI/CD pipelines enforce linting, testing, and deployment standards.
 
-- Database configuration
-- Redis settings
-- Knowledge graph parameters
-- Service endpoints
+### Continuous Evolution of the Performance Review Process
 
-### Best Practices
+- **Feedback Loops:** After each review, document lessons learned and update this standard with new checks, tools, or patterns.
+- **Tooling Updates:** Regularly evaluate and integrate new static analysis, profiling, and monitoring tools.
+- **Knowledge Graph Integration:** All performance review findings and improvements should be reflected in the Amadeus context and knowledge graph for system-wide visibility.
+- **Automation:** Where possible, automate checks and integrate them into CI/CD pipelines.
+- **Community & Team Input:** Encourage engineers to propose additions or changes to the review process based on real-world experience.
+- **Versioning:** Track changes to the performance review standard and maintain an evolution history.
 
-1. Always run `make lint-safe` before commits
-2. Use `make test` to ensure all tests pass
-3. Run `make docker-build-scan` before deployments
-4. Keep documentation updated with `make docs-format`
-5. Use `make backup` before major changes
+### How to Update This Process
+1. Propose a change or addition (e.g., new tool, new check, new best practice).
+2. Document the rationale and expected impact.
+3. Update this section in the Amadeus context and notify the team.
+4. Integrate the change into review checklists, automation, and onboarding materials.
+5. Periodically review the process for relevance and effectiveness.
 
-For detailed implementation of specific commands, refer to the [`Makefile`](../../Makefile) in the
-project root.
+**This standard ensures that performance reviews are not static, but continuously evolve with the platform, technology, and team experience.**
 
----
-
-# Practical Reference & Knowledge Base
-
-## 1. Concrete Code Examples
-
-### Service Registration (Provider/DI)
-
-```go
-// Registering a new service in internal/service/provider.go
-if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-    cache, err := p.redisProvider.GetCache("quotes")
-    if err != nil {
-        return nil, fmt.Errorf("failed to get quotes cache: %w", err)
-    }
-    return quotesservice.NewQuotesService(p.log, quotesRepo, cache), nil
-}); err != nil {
-    p.log.Error("Failed to register QuotesService", zap.Error(err))
-    return err
-}
-```
-
-### Babel Integration in a Service
-
-```go
-// Example: Using Babel for location-based pricing in QuotesService
-pricingRule, err := babelClient.GetLocationContext(ctx, &babelpb.LocationContextRequest{
-    Country: user.Country,
-    Region: user.Region,
-    City: user.City,
-})
-if err != nil {
-    // fallback or error handling
-}
-quote.Price = basePrice * pricingRule.Multiplier
-```
-
-## 2. Edge Cases & Gotchas
-
-- **Do NOT register a service twice in the DI container**: This will cause fatal errors at runtime.
-- **Always resolve dependencies via the Provider/DI**: Manual instantiation can break dependency
-  chains and caching.
-- **Health and metrics endpoints must be unique per service**: Avoid port conflicts.
-- **Babel integration**: Ensure the pricing rules table is seeded and kept up to date for all
-  supported locales.
-- **Proto versioning**: Always increment proto versions for breaking changes.
-
-## 3. Explicit Relationship Diagrams
-
-### Service-to-Service & Babel Integration
-
-```mermaid
-graph TD
-    QuotesService -->|uses| BabelService
-    FinanceService -->|uses| BabelService
-    CampaignService -->|uses| BabelService
-    NotificationService -->|notifies| UserService
-    BroadcastService -->|publishes| NotificationService
-    AssetService -->|references| UserService
-    AuthService -->|validates| UserService
-    ReferralService -->|uses| CampaignService
-    ReferralService -->|rewards| FinanceService
-```
-
-### Data Flow: Quote Generation
-
-```mermaid
-graph LR
-    UserRequest --> QuotesService --> BabelService --> PricingRule
-    PricingRule --> QuotesService --> QuoteResponse --> User
-```
-
-## 4. API/Proto Reference Links
-
-- [Quotes Proto](../../api/protos/quotes/v0/quotes.proto)
-- [Finance Proto](../../api/protos/finance/v0/finance.proto)
-- [Babel Proto](../../api/protos/babel/v0/babel.proto)
-- [Campaign Proto](../../api/protos/campaign/v0/campaign.proto)
-- [User Proto](../../api/protos/user/v0/user.proto)
-- [Auth Proto](../../api/protos/auth/v0/auth.proto)
-
-## 5. Data Flow Walkthroughs
-
-### Example: Quote Generation with Location-Based Pricing
-
-1. **User requests a quote** via the QuotesService gRPC endpoint.
-2. QuotesService **calls BabelService** with the user's location (country, region, city).
-3. BabelService **returns the best pricing rule** for that location.
-4. QuotesService **applies the pricing rule** to generate the quote.
-5. The **quote is returned** to the user.
-
-### Example: Campaign Orchestration
-
-1. User signs up for a campaign.
-2. CampaignService checks eligibility and audience targeting (may use Babel for locale).
-3. CampaignService triggers notifications and broadcasts as needed.
-4. Campaign metrics are updated and tracked in Amadeus.
-
-## 6. Testing & CI/CD Practices
-
-- **Unit tests**: All business logic must be covered by unit tests.
-- **Integration tests**: Test service-to-service and DB/Redis interactions.
-- **Repository tests**: Use test containers for DB/Redis.
-- **CI/CD**: Lint, test, and coverage checks must pass before merge. Docs are auto-generated and
-  validated.
-- **Pre-commit hooks**: Run `make lint-safe` and `make test-unit` before every commit.
-
-## 7. Glossary
-
-- **Provider/DI**: The central dependency injection container and service registry.
-- **Babel**: The unified service for i18n and location-based pricing.
-- **Amadeus**: The knowledge graph and system documentation engine.
-- **Nexus**: The orchestration and pattern engine.
-- **Service Registration**: The process of registering a service with both Amadeus and the DI
-  container.
-- **Health/Metrics**: Endpoints for service health and Prometheus metrics.
-- **Master Repository**: Central DB abstraction for cross-service data.
-- **Pattern**: A reusable orchestration or data flow template in Nexus/Amadeus.
-
----
-
-## Changelog / What's New
-
-- 2024-05-04: Added explicit DI/Provider, Babel, and health/metrics documentation. Added code
-  examples, diagrams, and glossary for AI and human onboarding.
-
-## Real-Time Asset Streaming & Broadcasting (2024-05)
+## Standard: Robust Metadata Pattern for Extensible Services
 
 ### Overview
+The Metadata pattern provides a unified, extensible structure for attaching rich, structured, and service-specific information to any entity (campaign, content, user, etc.). It is implemented as a `Metadata` message in all service protos, using `google.protobuf.Struct` for flexibility and future-proofing. This pattern enables:
+- Dynamic orchestration and introspection via Nexus
+- Rich, queryable nodes and edges in the knowledge graph
+- Contextual, data-rich inputs for AI/ML
+- Consistent, high-performance storage via Postgres `jsonb`
 
-The platform now supports real-time asset streaming and broadcasting using gRPC and a nanoQ-style
-in-memory broadcaster. This enables:
+### Metadata Structure
 
-- Live video/3D asset streaming
-- Real-time collaborative editing
-- Live NFT minting and reveal events
-- Scalable, low-latency delivery to many clients
+```
+syntax = "proto3";
+package common;
 
-### Key Features
+import "google/protobuf/struct.proto";
 
-- **gRPC Endpoints (in BroadcastService):**
-  - `SubscribeToLiveAssetChunks`: Server streaming endpoint for real-time asset chunk delivery
-  - `PublishLiveAssetChunk`: Pushes a chunk to all subscribers of a given asset
-- **AssetChunk message:** Binary chunk with upload_id, data, and sequence number
-- **nanoQ-style broadcaster:** In-memory, per-asset, drops slow clients for scalability
-
-### Proto Changes (api/protos/broadcast/v0/broadcast.proto)
-
-```proto
-message AssetChunk {
-  string upload_id = 1;
-  bytes data = 2;
-  uint32 sequence = 3;
-}
-message SubscribeToLiveAssetChunksRequest {
-  string asset_id = 1;
-}
-service BroadcastService {
-  rpc SubscribeToLiveAssetChunks(SubscribeToLiveAssetChunksRequest) returns (stream AssetChunk);
-  rpc PublishLiveAssetChunk(AssetChunk) returns (.google.protobuf.Empty);
+message Metadata {
+  google.protobuf.Struct scheduling = 1;         // General scheduling and orchestration fields
+  repeated string features = 2;                  // Feature toggles (e.g., ["referral", "notification"])
+  google.protobuf.Struct custom_rules = 3;       // Custom rules (e.g., {max_referrals: 10})
+  google.protobuf.Struct audit = 4;              // Audit info (created_by, history, etc.)
+  repeated string tags = 5;                      // Tags for search, analytics, etc.
+  google.protobuf.Struct service_specific = 6;   // Service-specific extensions (e.g., {"content": {...}})
+  google.protobuf.Struct knowledge_graph = 7;    // For knowledge graph enrichment
 }
 ```
 
-### Service Implementation (internal/service/broadcast/broadcast.go)
+### Shared/General Fields
+- **scheduling:** Start/end times, reminders, cron expressions
+- **features:** List of enabled features for orchestration
+- **custom_rules:** Arbitrary rules for business logic
+- **audit:** Created by, last modified by, change history
+- **tags:** For search, analytics, and grouping
 
-- Per-asset broadcaster using Go channels and sync.RWMutex
-- Drops slow subscribers automatically (nanoQ pattern)
-- Thread-safe, supports many concurrent subscribers
-- See `SubscribeToLiveAssetChunks` and `PublishLiveAssetChunk` methods
+### Service-Specific Extensions
+- **service_specific:**
+  - Each service can define and document its own fields under a namespaced key (e.g., `content`, `commerce`, `notification`).
+  - Example: `metadata.service_specific.content.editor_mode = "richtext"`
 
-### Usage
+### Usage Pattern
+- All core entities in service protos use `Metadata metadata` instead of `map<string, string> metadata`.
+- When storing in Postgres, metadata is mapped to a `jsonb` column for efficient querying and indexing.
+- Services use shared helpers to extract, validate, and manipulate both general and service-specific fields.
 
-- **Live asset streaming:**
-  - Service pushes chunks via `PublishLiveAssetChunk`
-  - Clients subscribe via `SubscribeToLiveAssetChunks` and receive chunks in real time
-- **Scalability:**
-  - In-memory for now; can be extended to Redis pub/sub for cross-instance scaling
+### Knowledge Graph & Nexus Integration
+- Metadata fields are ingested into the knowledge graph, enriching nodes and edges for advanced queries and impact analysis.
+- Nexus uses metadata to dynamically orchestrate services, schedule jobs, and enable/disable features based on context.
 
-### References
+### AI/ML Enablement
+- Metadata provides rich, contextual features for AI/ML models (personalization, anomaly detection, recommendations, etc.).
+- Enables explainable AI by tracing which metadata fields influenced decisions.
 
-- [Master Video Streaming in Golang](https://medium.com/coding-compass/master-video-streaming-in-golang-build-your-own-high-performance-server-415849d3284a)
-- [nanoQ: High-Performance Brokerless Pub/Sub](https://medium.com/aigent/meet-nanoq-high-performance-brokerless-pub-sub-for-streaming-real-time-data-with-golang-6630d3067f4e)
-- [Cloudflare R2 API Docs](https://developers.cloudflare.com/api/)
+### Performance
+- Use Postgres `jsonb` with GIN/partial indexes for efficient storage and querying.
+- Cache hot metadata in Redis for low-latency access.
+- Parse only relevant fields in service logic to minimize overhead.
 
----
+### Developer Guidance
+- Always use the shared `Metadata` message for extensible properties.
+- Document any service-specific fields in your service's proto and onboarding docs.
+- Use shared helpers for extracting and validating metadata fields.
+- Keep metadata schemas up-to-date in the Amadeus context and knowledge graph.
 
-## Proto Generation Strategy
+### Example: Service-Specific Extension
+```
+// In content service:
+metadata.service_specific["content"].editor_mode = "richtext"
+// In commerce service:
+metadata.service_specific["commerce"].payment_window = "24h"
+```
 
-To keep generated Go code up-to-date and avoid redundancy, the build system only generates Go code for the latest version (v*) directory in each service directory under `api/protos`.
+### Migration Notes
+- **Update all service protos** to import and use `common.Metadata`.
+- **Update repositories and DB migrations** to store metadata as `jsonb` and add necessary indexes.
+- **Update scheduling logic** to use the `scheduling` field and integrate with triggers and the Scheduler service.
+- **Update documentation and onboarding guides** to reference the canonical pattern.
 
-- For each service (e.g., `api/protos/quotes/`), only the latest version subdirectory (e.g., `v2/`) is processed.
-- All `.proto` files in that latest version directory are used to generate Go code.
-- Older version directories are ignored during code generation.
+## Canonical Metadata Integration Pattern (System-Wide)
 
-**Why:**
-- This avoids generating code for old/unused proto versions, reducing clutter and potential confusion.
-- Ensures that only the most current API contracts are reflected in the generated Go code.
-- Keeps the codebase clean and easier to maintain, especially in multi-service, multi-version environments.
+All services in OVASABI now use a single, extensible `common.Metadata` proto for all metadata fields. This enables:
+- Consistent, high-performance storage (Postgres `jsonb`)
+- Rich orchestration (Scheduler, Nexus)
+- Knowledge graph enrichment
+- Redis caching for hot metadata
 
-**How:**
-- Both the Makefile and Dockerfile use logic to find the latest version directory for each service and only run `protoc` on those files.
-- This is documented in the Makefile and enforced in CI/CD builds.
+### Integration Points
+- **Redis:** Cache hot metadata for low-latency access using `CacheMetadata` and `GetCachedMetadata` helpers.
+- **Scheduler:** Use the `scheduling` field in metadata to register jobs and orchestrate time-based actions. Use `RegisterSchedule` helper after create/update.
+- **Knowledge Graph:** Enrich nodes/edges with metadata using `EnrichKnowledgeGraph` helper.
+- **Nexus:** Register service patterns and metadata for orchestration using `RegisterWithNexus` helper.
+
+### Implementation Pattern
+After a successful create/update operation in any service:
+```go
+if s.Cache != nil && entity.Metadata != nil {
+    _ = pattern.CacheMetadata(ctx, s.Cache, "entity_type", entity.Id, entity.Metadata, 10*time.Minute)
+}
+_ = pattern.RegisterSchedule(ctx, "entity_type", entity.Id, entity.Metadata)
+_ = pattern.EnrichKnowledgeGraph(ctx, "entity_type", entity.Id, entity.Metadata)
+_ = pattern.RegisterWithNexus(ctx, "entity_type", entity.Metadata)
+```
+
+### Scheduler Example
+When scheduling a job, extract scheduling info from metadata:
+```go
+if job.Metadata != nil && job.Metadata.Scheduling != nil {
+    _ = pattern.RegisterSchedule(ctx, "job", job.Id, job.Metadata)
+}
+```
+
+### Onboarding Guidance
+- Always use `common.Metadata` for extensible fields in protos and models.
+- Document any service-specific fields under `service_specific` in your proto and onboarding docs.
+- Use the shared helpers in `internal/service/pattern/metadata_pattern.go` for all integration points.
+- Keep this context and the knowledge graph up-to-date with new fields and integration points.
+
+For more, see `internal/service/pattern/metadata_pattern.go` and service implementation files.
+
+## Real-Time Communication & WebSocket Management (2024)
+
+The platform now implements a robust, production-grade WebSocket management pattern:
+- **Per-client buffered outgoing channels**: Each WebSocket connection has its own buffered channel and write goroutine, ensuring slow clients do not block broadcasts.
+- **Frame dropping for slow clients**: If a client's buffer is full, new frames are dropped and a warning is logged.
+- **Dynamic broadcast frequency**: Each campaign can specify its own frequency via `metadata.scheduling.frequency` (default 1Hz).
+- **Logging and monitoring**: All dropped frames and client disconnects are logged for observability.
+- **Batching/compression and profiling hooks**: The system is designed for future extension with batching, compression, and resource profiling.
+- **Extensible for multi-campaign, database-driven state**: The architecture supports loading campaigns from the database, starting/stopping broadcast goroutines per campaign, and dynamic campaign/user management.
+- **Horizontal scaling ready**: The pattern is compatible with sharding, pub/sub, and distributed state for large-scale deployments.
+
+### Servers and Endpoints
+- **REST/WebSocket server**: Port 8090 (see Docker Compose for port exposure)
+- **gRPC server**: Port 8080
+- **Metrics server**: Port 9090
+
+### Integration Pattern
+- Campaigns can be loaded from the database at startup or dynamically.
+- For each campaign, a broadcast goroutine is started using the campaign's metadata for frequency and settings.
+- State updates can be driven by database changes, events, or other services.
+- See `internal/server/websocket.go` for the canonical implementation.
+
+### Available Services
+- **User, Notification, Campaign, Referral, Security, Content, Commerce, Localization, Search, Admin, Analytics, ContentModeration, Talent, Nexus** (see Service List)
+- **WebSocket endpoints**: `/ws/{campaign_id}/{user_id}`
+- **REST endpoints**: `/api/...` (see OpenAPI/REST docs)
+- **gRPC endpoints**: See proto definitions in `api/protos/`
+- **Metrics endpoint**: `/metrics` on port 9090
+
+**This standard is required for all new and refactored real-time/broadcast services.**

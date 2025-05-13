@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.29.2
-// source: api/protos/notification/v1/notification.proto
+// source: notification/v1/notification.proto
 
-package notification
+package notificationpb
 
 import (
 	context "context"
@@ -19,35 +19,48 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	NotificationService_CreateNotification_FullMethodName            = "/notification.v1.NotificationService/CreateNotification"
-	NotificationService_GetNotification_FullMethodName               = "/notification.v1.NotificationService/GetNotification"
-	NotificationService_ListNotifications_FullMethodName             = "/notification.v1.NotificationService/ListNotifications"
+	NotificationService_SendNotification_FullMethodName              = "/notification.v1.NotificationService/SendNotification"
 	NotificationService_SendEmail_FullMethodName                     = "/notification.v1.NotificationService/SendEmail"
 	NotificationService_SendSMS_FullMethodName                       = "/notification.v1.NotificationService/SendSMS"
 	NotificationService_SendPushNotification_FullMethodName          = "/notification.v1.NotificationService/SendPushNotification"
-	NotificationService_GetNotificationHistory_FullMethodName        = "/notification.v1.NotificationService/GetNotificationHistory"
+	NotificationService_BroadcastEvent_FullMethodName                = "/notification.v1.NotificationService/BroadcastEvent"
+	NotificationService_SubscribeToEvents_FullMethodName             = "/notification.v1.NotificationService/SubscribeToEvents"
+	NotificationService_StreamAssetChunks_FullMethodName             = "/notification.v1.NotificationService/StreamAssetChunks"
+	NotificationService_PublishAssetChunk_FullMethodName             = "/notification.v1.NotificationService/PublishAssetChunk"
+	NotificationService_GetNotification_FullMethodName               = "/notification.v1.NotificationService/GetNotification"
+	NotificationService_ListNotifications_FullMethodName             = "/notification.v1.NotificationService/ListNotifications"
+	NotificationService_AcknowledgeNotification_FullMethodName       = "/notification.v1.NotificationService/AcknowledgeNotification"
 	NotificationService_UpdateNotificationPreferences_FullMethodName = "/notification.v1.NotificationService/UpdateNotificationPreferences"
+	NotificationService_ListNotificationEvents_FullMethodName        = "/notification.v1.NotificationService/ListNotificationEvents"
 )
 
 // NotificationServiceClient is the client API for NotificationService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// NotificationService manages notifications for users and campaigns
+// Unified NotificationService: handles notifications, broadcasts, real-time events, and asset streaming
 type NotificationServiceClient interface {
-	CreateNotification(ctx context.Context, in *CreateNotificationRequest, opts ...grpc.CallOption) (*CreateNotificationResponse, error)
+	// Generic notification send (channel-agnostic)
+	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
+	// Channel-specific sends (for compatibility)
+	SendEmail(ctx context.Context, in *SendEmailRequest, opts ...grpc.CallOption) (*SendEmailResponse, error)
+	SendSMS(ctx context.Context, in *SendSMSRequest, opts ...grpc.CallOption) (*SendSMSResponse, error)
+	SendPushNotification(ctx context.Context, in *SendPushNotificationRequest, opts ...grpc.CallOption) (*SendPushNotificationResponse, error)
+	// Broadcasts
+	BroadcastEvent(ctx context.Context, in *BroadcastEventRequest, opts ...grpc.CallOption) (*BroadcastEventResponse, error)
+	// Real-time pub/sub
+	SubscribeToEvents(ctx context.Context, in *SubscribeToEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[NotificationEvent], error)
+	// Asset streaming (for live events/media)
+	StreamAssetChunks(ctx context.Context, in *StreamAssetChunksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AssetChunk], error)
+	PublishAssetChunk(ctx context.Context, in *PublishAssetChunkRequest, opts ...grpc.CallOption) (*PublishAssetChunkResponse, error)
+	// Notification management
 	GetNotification(ctx context.Context, in *GetNotificationRequest, opts ...grpc.CallOption) (*GetNotificationResponse, error)
 	ListNotifications(ctx context.Context, in *ListNotificationsRequest, opts ...grpc.CallOption) (*ListNotificationsResponse, error)
-	// SendEmail sends an email notification
-	SendEmail(ctx context.Context, in *SendEmailRequest, opts ...grpc.CallOption) (*SendEmailResponse, error)
-	// SendSMS sends an SMS notification
-	SendSMS(ctx context.Context, in *SendSMSRequest, opts ...grpc.CallOption) (*SendSMSResponse, error)
-	// SendPushNotification sends a push notification
-	SendPushNotification(ctx context.Context, in *SendPushNotificationRequest, opts ...grpc.CallOption) (*SendPushNotificationResponse, error)
-	// GetNotificationHistory retrieves notification history for a user
-	GetNotificationHistory(ctx context.Context, in *GetNotificationHistoryRequest, opts ...grpc.CallOption) (*GetNotificationHistoryResponse, error)
-	// UpdateNotificationPreferences updates a user's notification preferences
+	AcknowledgeNotification(ctx context.Context, in *AcknowledgeNotificationRequest, opts ...grpc.CallOption) (*AcknowledgeNotificationResponse, error)
+	// Preferences
 	UpdateNotificationPreferences(ctx context.Context, in *UpdateNotificationPreferencesRequest, opts ...grpc.CallOption) (*UpdateNotificationPreferencesResponse, error)
+	// Analytics/events
+	ListNotificationEvents(ctx context.Context, in *ListNotificationEventsRequest, opts ...grpc.CallOption) (*ListNotificationEventsResponse, error)
 }
 
 type notificationServiceClient struct {
@@ -58,30 +71,10 @@ func NewNotificationServiceClient(cc grpc.ClientConnInterface) NotificationServi
 	return &notificationServiceClient{cc}
 }
 
-func (c *notificationServiceClient) CreateNotification(ctx context.Context, in *CreateNotificationRequest, opts ...grpc.CallOption) (*CreateNotificationResponse, error) {
+func (c *notificationServiceClient) SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateNotificationResponse)
-	err := c.cc.Invoke(ctx, NotificationService_CreateNotification_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *notificationServiceClient) GetNotification(ctx context.Context, in *GetNotificationRequest, opts ...grpc.CallOption) (*GetNotificationResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetNotificationResponse)
-	err := c.cc.Invoke(ctx, NotificationService_GetNotification_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *notificationServiceClient) ListNotifications(ctx context.Context, in *ListNotificationsRequest, opts ...grpc.CallOption) (*ListNotificationsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListNotificationsResponse)
-	err := c.cc.Invoke(ctx, NotificationService_ListNotifications_FullMethodName, in, out, cOpts...)
+	out := new(SendNotificationResponse)
+	err := c.cc.Invoke(ctx, NotificationService_SendNotification_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -118,10 +111,88 @@ func (c *notificationServiceClient) SendPushNotification(ctx context.Context, in
 	return out, nil
 }
 
-func (c *notificationServiceClient) GetNotificationHistory(ctx context.Context, in *GetNotificationHistoryRequest, opts ...grpc.CallOption) (*GetNotificationHistoryResponse, error) {
+func (c *notificationServiceClient) BroadcastEvent(ctx context.Context, in *BroadcastEventRequest, opts ...grpc.CallOption) (*BroadcastEventResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetNotificationHistoryResponse)
-	err := c.cc.Invoke(ctx, NotificationService_GetNotificationHistory_FullMethodName, in, out, cOpts...)
+	out := new(BroadcastEventResponse)
+	err := c.cc.Invoke(ctx, NotificationService_BroadcastEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) SubscribeToEvents(ctx context.Context, in *SubscribeToEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[NotificationEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &NotificationService_ServiceDesc.Streams[0], NotificationService_SubscribeToEvents_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SubscribeToEventsRequest, NotificationEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotificationService_SubscribeToEventsClient = grpc.ServerStreamingClient[NotificationEvent]
+
+func (c *notificationServiceClient) StreamAssetChunks(ctx context.Context, in *StreamAssetChunksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AssetChunk], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &NotificationService_ServiceDesc.Streams[1], NotificationService_StreamAssetChunks_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamAssetChunksRequest, AssetChunk]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotificationService_StreamAssetChunksClient = grpc.ServerStreamingClient[AssetChunk]
+
+func (c *notificationServiceClient) PublishAssetChunk(ctx context.Context, in *PublishAssetChunkRequest, opts ...grpc.CallOption) (*PublishAssetChunkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PublishAssetChunkResponse)
+	err := c.cc.Invoke(ctx, NotificationService_PublishAssetChunk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) GetNotification(ctx context.Context, in *GetNotificationRequest, opts ...grpc.CallOption) (*GetNotificationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetNotificationResponse)
+	err := c.cc.Invoke(ctx, NotificationService_GetNotification_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) ListNotifications(ctx context.Context, in *ListNotificationsRequest, opts ...grpc.CallOption) (*ListNotificationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListNotificationsResponse)
+	err := c.cc.Invoke(ctx, NotificationService_ListNotifications_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) AcknowledgeNotification(ctx context.Context, in *AcknowledgeNotificationRequest, opts ...grpc.CallOption) (*AcknowledgeNotificationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AcknowledgeNotificationResponse)
+	err := c.cc.Invoke(ctx, NotificationService_AcknowledgeNotification_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -138,25 +209,43 @@ func (c *notificationServiceClient) UpdateNotificationPreferences(ctx context.Co
 	return out, nil
 }
 
+func (c *notificationServiceClient) ListNotificationEvents(ctx context.Context, in *ListNotificationEventsRequest, opts ...grpc.CallOption) (*ListNotificationEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListNotificationEventsResponse)
+	err := c.cc.Invoke(ctx, NotificationService_ListNotificationEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NotificationServiceServer is the server API for NotificationService service.
 // All implementations must embed UnimplementedNotificationServiceServer
 // for forward compatibility.
 //
-// NotificationService manages notifications for users and campaigns
+// Unified NotificationService: handles notifications, broadcasts, real-time events, and asset streaming
 type NotificationServiceServer interface {
-	CreateNotification(context.Context, *CreateNotificationRequest) (*CreateNotificationResponse, error)
+	// Generic notification send (channel-agnostic)
+	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)
+	// Channel-specific sends (for compatibility)
+	SendEmail(context.Context, *SendEmailRequest) (*SendEmailResponse, error)
+	SendSMS(context.Context, *SendSMSRequest) (*SendSMSResponse, error)
+	SendPushNotification(context.Context, *SendPushNotificationRequest) (*SendPushNotificationResponse, error)
+	// Broadcasts
+	BroadcastEvent(context.Context, *BroadcastEventRequest) (*BroadcastEventResponse, error)
+	// Real-time pub/sub
+	SubscribeToEvents(*SubscribeToEventsRequest, grpc.ServerStreamingServer[NotificationEvent]) error
+	// Asset streaming (for live events/media)
+	StreamAssetChunks(*StreamAssetChunksRequest, grpc.ServerStreamingServer[AssetChunk]) error
+	PublishAssetChunk(context.Context, *PublishAssetChunkRequest) (*PublishAssetChunkResponse, error)
+	// Notification management
 	GetNotification(context.Context, *GetNotificationRequest) (*GetNotificationResponse, error)
 	ListNotifications(context.Context, *ListNotificationsRequest) (*ListNotificationsResponse, error)
-	// SendEmail sends an email notification
-	SendEmail(context.Context, *SendEmailRequest) (*SendEmailResponse, error)
-	// SendSMS sends an SMS notification
-	SendSMS(context.Context, *SendSMSRequest) (*SendSMSResponse, error)
-	// SendPushNotification sends a push notification
-	SendPushNotification(context.Context, *SendPushNotificationRequest) (*SendPushNotificationResponse, error)
-	// GetNotificationHistory retrieves notification history for a user
-	GetNotificationHistory(context.Context, *GetNotificationHistoryRequest) (*GetNotificationHistoryResponse, error)
-	// UpdateNotificationPreferences updates a user's notification preferences
+	AcknowledgeNotification(context.Context, *AcknowledgeNotificationRequest) (*AcknowledgeNotificationResponse, error)
+	// Preferences
 	UpdateNotificationPreferences(context.Context, *UpdateNotificationPreferencesRequest) (*UpdateNotificationPreferencesResponse, error)
+	// Analytics/events
+	ListNotificationEvents(context.Context, *ListNotificationEventsRequest) (*ListNotificationEventsResponse, error)
 	mustEmbedUnimplementedNotificationServiceServer()
 }
 
@@ -167,14 +256,8 @@ type NotificationServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedNotificationServiceServer struct{}
 
-func (UnimplementedNotificationServiceServer) CreateNotification(context.Context, *CreateNotificationRequest) (*CreateNotificationResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateNotification not implemented")
-}
-func (UnimplementedNotificationServiceServer) GetNotification(context.Context, *GetNotificationRequest) (*GetNotificationResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetNotification not implemented")
-}
-func (UnimplementedNotificationServiceServer) ListNotifications(context.Context, *ListNotificationsRequest) (*ListNotificationsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListNotifications not implemented")
+func (UnimplementedNotificationServiceServer) SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendNotification not implemented")
 }
 func (UnimplementedNotificationServiceServer) SendEmail(context.Context, *SendEmailRequest) (*SendEmailResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendEmail not implemented")
@@ -185,11 +268,32 @@ func (UnimplementedNotificationServiceServer) SendSMS(context.Context, *SendSMSR
 func (UnimplementedNotificationServiceServer) SendPushNotification(context.Context, *SendPushNotificationRequest) (*SendPushNotificationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendPushNotification not implemented")
 }
-func (UnimplementedNotificationServiceServer) GetNotificationHistory(context.Context, *GetNotificationHistoryRequest) (*GetNotificationHistoryResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetNotificationHistory not implemented")
+func (UnimplementedNotificationServiceServer) BroadcastEvent(context.Context, *BroadcastEventRequest) (*BroadcastEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BroadcastEvent not implemented")
+}
+func (UnimplementedNotificationServiceServer) SubscribeToEvents(*SubscribeToEventsRequest, grpc.ServerStreamingServer[NotificationEvent]) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToEvents not implemented")
+}
+func (UnimplementedNotificationServiceServer) StreamAssetChunks(*StreamAssetChunksRequest, grpc.ServerStreamingServer[AssetChunk]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamAssetChunks not implemented")
+}
+func (UnimplementedNotificationServiceServer) PublishAssetChunk(context.Context, *PublishAssetChunkRequest) (*PublishAssetChunkResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PublishAssetChunk not implemented")
+}
+func (UnimplementedNotificationServiceServer) GetNotification(context.Context, *GetNotificationRequest) (*GetNotificationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNotification not implemented")
+}
+func (UnimplementedNotificationServiceServer) ListNotifications(context.Context, *ListNotificationsRequest) (*ListNotificationsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListNotifications not implemented")
+}
+func (UnimplementedNotificationServiceServer) AcknowledgeNotification(context.Context, *AcknowledgeNotificationRequest) (*AcknowledgeNotificationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AcknowledgeNotification not implemented")
 }
 func (UnimplementedNotificationServiceServer) UpdateNotificationPreferences(context.Context, *UpdateNotificationPreferencesRequest) (*UpdateNotificationPreferencesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateNotificationPreferences not implemented")
+}
+func (UnimplementedNotificationServiceServer) ListNotificationEvents(context.Context, *ListNotificationEventsRequest) (*ListNotificationEventsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListNotificationEvents not implemented")
 }
 func (UnimplementedNotificationServiceServer) mustEmbedUnimplementedNotificationServiceServer() {}
 func (UnimplementedNotificationServiceServer) testEmbeddedByValue()                             {}
@@ -212,56 +316,20 @@ func RegisterNotificationServiceServer(s grpc.ServiceRegistrar, srv Notification
 	s.RegisterService(&NotificationService_ServiceDesc, srv)
 }
 
-func _NotificationService_CreateNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateNotificationRequest)
+func _NotificationService_SendNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendNotificationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NotificationServiceServer).CreateNotification(ctx, in)
+		return srv.(NotificationServiceServer).SendNotification(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NotificationService_CreateNotification_FullMethodName,
+		FullMethod: NotificationService_SendNotification_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NotificationServiceServer).CreateNotification(ctx, req.(*CreateNotificationRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NotificationService_GetNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNotificationRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NotificationServiceServer).GetNotification(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NotificationService_GetNotification_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NotificationServiceServer).GetNotification(ctx, req.(*GetNotificationRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NotificationService_ListNotifications_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListNotificationsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NotificationServiceServer).ListNotifications(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NotificationService_ListNotifications_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NotificationServiceServer).ListNotifications(ctx, req.(*ListNotificationsRequest))
+		return srv.(NotificationServiceServer).SendNotification(ctx, req.(*SendNotificationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -320,20 +388,114 @@ func _NotificationService_SendPushNotification_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NotificationService_GetNotificationHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNotificationHistoryRequest)
+func _NotificationService_BroadcastEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BroadcastEventRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NotificationServiceServer).GetNotificationHistory(ctx, in)
+		return srv.(NotificationServiceServer).BroadcastEvent(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NotificationService_GetNotificationHistory_FullMethodName,
+		FullMethod: NotificationService_BroadcastEvent_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NotificationServiceServer).GetNotificationHistory(ctx, req.(*GetNotificationHistoryRequest))
+		return srv.(NotificationServiceServer).BroadcastEvent(ctx, req.(*BroadcastEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_SubscribeToEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToEventsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(NotificationServiceServer).SubscribeToEvents(m, &grpc.GenericServerStream[SubscribeToEventsRequest, NotificationEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotificationService_SubscribeToEventsServer = grpc.ServerStreamingServer[NotificationEvent]
+
+func _NotificationService_StreamAssetChunks_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamAssetChunksRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(NotificationServiceServer).StreamAssetChunks(m, &grpc.GenericServerStream[StreamAssetChunksRequest, AssetChunk]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotificationService_StreamAssetChunksServer = grpc.ServerStreamingServer[AssetChunk]
+
+func _NotificationService_PublishAssetChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishAssetChunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).PublishAssetChunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_PublishAssetChunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).PublishAssetChunk(ctx, req.(*PublishAssetChunkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_GetNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).GetNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_GetNotification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).GetNotification(ctx, req.(*GetNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_ListNotifications_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNotificationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).ListNotifications(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_ListNotifications_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).ListNotifications(ctx, req.(*ListNotificationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_AcknowledgeNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcknowledgeNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).AcknowledgeNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_AcknowledgeNotification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).AcknowledgeNotification(ctx, req.(*AcknowledgeNotificationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -356,6 +518,24 @@ func _NotificationService_UpdateNotificationPreferences_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NotificationService_ListNotificationEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNotificationEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).ListNotificationEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_ListNotificationEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).ListNotificationEvents(ctx, req.(*ListNotificationEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NotificationService_ServiceDesc is the grpc.ServiceDesc for NotificationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -364,16 +544,8 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*NotificationServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateNotification",
-			Handler:    _NotificationService_CreateNotification_Handler,
-		},
-		{
-			MethodName: "GetNotification",
-			Handler:    _NotificationService_GetNotification_Handler,
-		},
-		{
-			MethodName: "ListNotifications",
-			Handler:    _NotificationService_ListNotifications_Handler,
+			MethodName: "SendNotification",
+			Handler:    _NotificationService_SendNotification_Handler,
 		},
 		{
 			MethodName: "SendEmail",
@@ -388,14 +560,45 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NotificationService_SendPushNotification_Handler,
 		},
 		{
-			MethodName: "GetNotificationHistory",
-			Handler:    _NotificationService_GetNotificationHistory_Handler,
+			MethodName: "BroadcastEvent",
+			Handler:    _NotificationService_BroadcastEvent_Handler,
+		},
+		{
+			MethodName: "PublishAssetChunk",
+			Handler:    _NotificationService_PublishAssetChunk_Handler,
+		},
+		{
+			MethodName: "GetNotification",
+			Handler:    _NotificationService_GetNotification_Handler,
+		},
+		{
+			MethodName: "ListNotifications",
+			Handler:    _NotificationService_ListNotifications_Handler,
+		},
+		{
+			MethodName: "AcknowledgeNotification",
+			Handler:    _NotificationService_AcknowledgeNotification_Handler,
 		},
 		{
 			MethodName: "UpdateNotificationPreferences",
 			Handler:    _NotificationService_UpdateNotificationPreferences_Handler,
 		},
+		{
+			MethodName: "ListNotificationEvents",
+			Handler:    _NotificationService_ListNotificationEvents_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/protos/notification/v1/notification.proto",
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SubscribeToEvents",
+			Handler:       _NotificationService_SubscribeToEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "StreamAssetChunks",
+			Handler:       _NotificationService_StreamAssetChunks_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "notification/v1/notification.proto",
 }

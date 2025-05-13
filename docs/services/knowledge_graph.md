@@ -19,10 +19,11 @@ graph TD
 
 ---
 
-**All services are registered and resolved via a central Provider using a DI container. Modular
-registration ensures each service is only registered once. Health and metrics are managed centrally
-and exposed for observability. Amadeus registration is performed at service startup for capability
-tracking.**
+**All services are registered and resolved via a central Provider using a DI container. Modular,
+concurrent service registration ensures each service is only registered once and is tracked in the
+Nexus orchestrator for orchestration and introspection. The Provider manages all dependencies and
+now includes a patternStore for pattern orchestration registration in Nexus. Robust error handling
+ensures all registration and orchestration steps are logged and managed.**
 
 **The Babel service provides i18n and dynamic, location-based pricing rules. Quotes, Finance, and
 Campaign services integrate with Babel for pricing and localization.**

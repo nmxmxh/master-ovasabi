@@ -4,6 +4,10 @@
 
 ### TTLSearchPattern
 
+### ContextMaster
+
+For redis.ContextMaster, if not defined in pkg/redis, define here:.
+
 ## Variables
 
 ### ErrMasterNotFound
@@ -187,6 +191,14 @@ Statement represents a SQL statement with its arguments.
 TxFn represents a function that will be executed within a transaction.
 
 ## Functions
+
+### FromJSONB
+
+FromJSONB unmarshals JSONB ([]byte) from Postgres to a map.
+
+### ToJSONB
+
+ToJSONB marshals a map to JSONB ([]byte) for Postgres.
 
 ### WithTransaction
 

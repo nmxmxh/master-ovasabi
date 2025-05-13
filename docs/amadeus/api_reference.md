@@ -314,3 +314,40 @@ Options:
 - `--format`: Visualization format (mermaid|dot|json)
 - `--section`: Section of knowledge graph to visualize (optional)
 - `--output`: Output file path (optional, stdout if not specified)
+
+## ContentService (contentpb.ContentServiceServer)
+
+The ContentService provides APIs for dynamic content (articles, micro-posts, video), comments, reactions, and full-text search. It integrates with UserService for author info, NotificationService for engagement, SearchService for indexing, and ContentModerationService for compliance.
+
+### RPC Methods
+- CreateContent
+- GetContent
+- UpdateContent
+- DeleteContent
+- ListContent
+- AddReaction
+- ListReactions
+
+### Integration Points
+- Calls UserService to enrich content with author/user info
+- Calls ContentModerationService to submit content for moderation
+- Calls NotificationService to notify followers/mentioned users
+- Calls SearchService to index content for FTS
+
+### Example Usage
+
+```go
+// Create content and trigger cross-service orchestration
+resp, err := contentClient.CreateContent(ctx, &contentpb.CreateContentRequest{
+    Content: &contentpb.Content{
+        AuthorId: "user-uuid",
+        Type: "article",
+        Title: "My First Post",
+        Body: "Hello, world!",
+    },
+})
+if err != nil {
+    // handle error
+}
+fmt.Println("Created content:", resp.Content)
+```

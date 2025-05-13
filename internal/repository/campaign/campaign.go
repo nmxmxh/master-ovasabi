@@ -9,13 +9,27 @@ import (
 	"strings"
 	"time"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/pkg/logger"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var (
 	ErrCampaignNotFound = errors.New("campaign not found")
 	ErrCampaignExists   = errors.New("campaign already exists")
 )
+
+var logInstance logger.Logger
+
+func init() {
+	var err error
+	logInstance, err = logger.NewDefault()
+	if err != nil {
+		panic(fmt.Sprintf("failed to initialize logger: %v", err))
+	}
+}
 
 // Repository handles database operations for campaigns.
 type Repository struct {
@@ -33,6 +47,14 @@ func NewRepository(db *sql.DB, master repository.MasterRepository) *Repository {
 
 // CreateWithTransaction creates a new campaign within a transaction.
 func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, campaign *Campaign) (*Campaign, error) {
+	var metadataJSON []byte
+	var err error
+	if campaign.Metadata != nil {
+		metadataJSON, err = protojson.Marshal(campaign.Metadata)
+		if err != nil {
+			return nil, err
+		}
+	}
 	query := `
 		INSERT INTO service_campaign (
 			master_id, slug, title, description,
@@ -43,13 +65,13 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 		) RETURNING id, created_at, updated_at`
 
 	now := time.Now()
-	err := tx.QueryRowContext(ctx, query,
+	err = tx.QueryRowContext(ctx, query,
 		campaign.MasterID,
 		campaign.Slug,
 		campaign.Title,
 		campaign.Description,
 		campaign.RankingFormula,
-		campaign.Metadata,
+		metadataJSON,
 		campaign.StartDate,
 		campaign.EndDate,
 		now,
@@ -76,6 +98,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		FROM service_campaign
 		WHERE slug = $1`
 
+	var metadataStr string
 	err := r.GetDB().QueryRowContext(ctx, query, slug).Scan(
 		&campaign.ID,
 		&campaign.MasterID,
@@ -83,7 +106,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		&campaign.Title,
 		&campaign.Description,
 		&campaign.RankingFormula,
-		&campaign.Metadata,
+		&metadataStr,
 		&campaign.StartDate,
 		&campaign.EndDate,
 		&campaign.CreatedAt,
@@ -98,11 +121,28 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		return nil, err
 	}
 
+	campaign.Metadata = &commonpb.Metadata{}
+	if metadataStr != "" {
+		err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
+		if err != nil {
+			logInstance.Warn("failed to unmarshal campaign metadata", zap.Error(err))
+			return nil, err
+		}
+	}
+
 	return campaign, nil
 }
 
 // Update updates an existing campaign.
 func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
+	var metadataJSON []byte
+	var err error
+	if campaign.Metadata != nil {
+		metadataJSON, err = protojson.Marshal(campaign.Metadata)
+		if err != nil {
+			return err
+		}
+	}
 	query := `
 		UPDATE service_campaign SET
 			title = $1,
@@ -118,7 +158,7 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 		campaign.Title,
 		campaign.Description,
 		campaign.RankingFormula,
-		campaign.Metadata,
+		metadataJSON,
 		campaign.StartDate,
 		campaign.EndDate,
 		time.Now(),
@@ -186,6 +226,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 	var campaigns []*Campaign
 	for rows.Next() {
 		campaign := &Campaign{}
+		var metadataStr string
 		err := rows.Scan(
 			&campaign.ID,
 			&campaign.MasterID,
@@ -193,7 +234,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 			&campaign.Title,
 			&campaign.Description,
 			&campaign.RankingFormula,
-			&campaign.Metadata,
+			&metadataStr,
 			&campaign.StartDate,
 			&campaign.EndDate,
 			&campaign.CreatedAt,
@@ -201,6 +242,14 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		)
 		if err != nil {
 			return nil, err
+		}
+		campaign.Metadata = &commonpb.Metadata{}
+		if metadataStr != "" {
+			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
+			if err != nil {
+				logInstance.Warn("failed to unmarshal campaign metadata", zap.Error(err))
+				return nil, err
+			}
 		}
 		campaigns = append(campaigns, campaign)
 	}
@@ -214,13 +263,13 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 
 // (move from shared repository types if needed).
 type Campaign struct {
-	ID             int64     `db:"id"`
-	MasterID       int64     `db:"master_id"`
-	Slug           string    `db:"slug"`
-	Title          string    `db:"title"`
-	Description    string    `db:"description"`
-	RankingFormula string    `db:"ranking_formula"`
-	Metadata       string    `db:"metadata"`
+	ID             int64  `db:"id"`
+	MasterID       int64  `db:"master_id"`
+	Slug           string `db:"slug"`
+	Title          string `db:"title"`
+	Description    string `db:"description"`
+	RankingFormula string `db:"ranking_formula"`
+	Metadata       *commonpb.Metadata
 	StartDate      time.Time `db:"start_date"`
 	EndDate        time.Time `db:"end_date"`
 	CreatedAt      time.Time `db:"created_at"`

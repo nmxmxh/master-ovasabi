@@ -1,0 +1,21 @@
+syntax = "proto3";
+package common;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
+
+import "google/protobuf/struct.proto";
+
+// Central, robust, extensible metadata for all services
+//
+// - All shared fields are available to every service.
+// - The service_specific field allows each service to store its own custom, structured data under a namespaced key (e.g., "content", "commerce").
+// - The knowledge_graph field is for graph enrichment and relationships.
+message Metadata {
+  google.protobuf.Struct scheduling = 1;         // General scheduling and orchestration fields
+  repeated string features = 2;                  // Feature toggles (e.g., ["referral", "notification"])
+  google.protobuf.Struct custom_rules = 3;       // Custom rules (e.g., {max_referrals: 10})
+  google.protobuf.Struct audit = 4;              // Audit info (created_by, history, etc.)
+  repeated string tags = 5;                      // Tags for search, analytics, etc.
+  google.protobuf.Struct service_specific = 6;   // Service-specific extensions (e.g., {"content": {...}})
+  google.protobuf.Struct knowledge_graph = 7;    // For knowledge graph enrichment
+} 

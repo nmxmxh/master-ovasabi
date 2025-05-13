@@ -11,6 +11,7 @@ services:
         - ovasabi/master-ovasabi:latest
     ports:
       - '8080:8080'
+      - '8090:8090'
       - '50051:50051'
     environment:
       APP_ENV: '${APP_ENV:-development}'

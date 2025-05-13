@@ -1,0 +1,275 @@
+syntax = "proto3";
+
+package commerce.v1;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1;commercepb";
+
+import "google/protobuf/timestamp.proto";
+import "common/v1/metadata.proto";
+import "google/protobuf/struct.proto";
+
+// Robust, extensible metadata for all services
+
+service CommerceService {
+  // Quotes
+  rpc CreateQuote(CreateQuoteRequest) returns (CreateQuoteResponse);
+  rpc GetQuote(GetQuoteRequest) returns (GetQuoteResponse);
+  rpc ListQuotes(ListQuotesRequest) returns (ListQuotesResponse);
+
+  // Orders
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (UpdateOrderStatusResponse);
+
+  // Payments
+  rpc InitiatePayment(InitiatePaymentRequest) returns (InitiatePaymentResponse);
+  rpc ConfirmPayment(ConfirmPaymentRequest) returns (ConfirmPaymentResponse);
+  rpc RefundPayment(RefundPaymentRequest) returns (RefundPaymentResponse);
+
+  // Transactions
+  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+
+  // Balances
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
+  rpc ListBalances(ListBalancesRequest) returns (ListBalancesResponse);
+
+  // Events (for analytics/audit)
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+}
+
+// --- Quotes ---
+message CreateQuoteRequest {
+  string user_id = 1;
+  string product_id = 2;
+  double amount = 3;
+  string currency = 4;
+  common.Metadata metadata = 5;
+}
+message CreateQuoteResponse {
+  Quote quote = 1;
+}
+message GetQuoteRequest {
+  string quote_id = 1;
+}
+message GetQuoteResponse {
+  Quote quote = 1;
+}
+message ListQuotesRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+message ListQuotesResponse {
+  repeated Quote quotes = 1;
+  int32 total = 2;
+}
+message Quote {
+  string quote_id = 1;
+  string user_id = 2;
+  string product_id = 3;
+  double amount = 4;
+  string currency = 5;
+  QuoteStatus status = 6;
+  common.Metadata metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+enum QuoteStatus {
+  QUOTE_STATUS_UNSPECIFIED = 0;
+  QUOTE_STATUS_PENDING = 1;
+  QUOTE_STATUS_ACCEPTED = 2;
+  QUOTE_STATUS_REJECTED = 3;
+  QUOTE_STATUS_EXPIRED = 4;
+}
+
+// --- Orders ---
+message CreateOrderRequest {
+  string user_id = 1;
+  repeated OrderItem items = 2;
+  string currency = 3;
+  common.Metadata metadata = 4;
+}
+message CreateOrderResponse {
+  Order order = 1;
+}
+message GetOrderRequest {
+  string order_id = 1;
+}
+message GetOrderResponse {
+  Order order = 1;
+}
+message ListOrdersRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+message ListOrdersResponse {
+  repeated Order orders = 1;
+  int32 total = 2;
+}
+message UpdateOrderStatusRequest {
+  string order_id = 1;
+  OrderStatus status = 2;
+}
+message UpdateOrderStatusResponse {
+  Order order = 1;
+}
+message Order {
+  string order_id = 1;
+  string user_id = 2;
+  repeated OrderItem items = 3;
+  double total = 4;
+  string currency = 5;
+  OrderStatus status = 6;
+  common.Metadata metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+message OrderItem {
+  string product_id = 1;
+  int32 quantity = 2;
+  double price = 3;
+  common.Metadata metadata = 4;
+}
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_PAID = 2;
+  ORDER_STATUS_SHIPPED = 3;
+  ORDER_STATUS_COMPLETED = 4;
+  ORDER_STATUS_CANCELLED = 5;
+  ORDER_STATUS_REFUNDED = 6;
+}
+
+// --- Payments ---
+message InitiatePaymentRequest {
+  string order_id = 1;
+  string user_id = 2;
+  double amount = 3;
+  string currency = 4;
+  string method = 5;
+  common.Metadata metadata = 6;
+}
+message InitiatePaymentResponse {
+  Payment payment = 1;
+}
+message ConfirmPaymentRequest {
+  string payment_id = 1;
+  string user_id = 2;
+  common.Metadata metadata = 3;
+}
+message ConfirmPaymentResponse {
+  Payment payment = 1;
+}
+message RefundPaymentRequest {
+  string payment_id = 1;
+  string user_id = 2;
+  double amount = 3;
+  common.Metadata metadata = 4;
+}
+message RefundPaymentResponse {
+  Payment payment = 1;
+}
+message Payment {
+  string payment_id = 1;
+  string order_id = 2;
+  string user_id = 3;
+  double amount = 4;
+  string currency = 5;
+  string method = 6;
+  PaymentStatus status = 7;
+  common.Metadata metadata = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_PENDING = 1;
+  PAYMENT_STATUS_SUCCEEDED = 2;
+  PAYMENT_STATUS_FAILED = 3;
+  PAYMENT_STATUS_REFUNDED = 4;
+}
+
+// --- Transactions ---
+message GetTransactionRequest {
+  string transaction_id = 1;
+}
+message GetTransactionResponse {
+  Transaction transaction = 1;
+}
+message ListTransactionsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+message ListTransactionsResponse {
+  repeated Transaction transactions = 1;
+  int32 total = 2;
+}
+message Transaction {
+  string transaction_id = 1;
+  string payment_id = 2;
+  string user_id = 3;
+  TransactionType type = 4;
+  double amount = 5;
+  string currency = 6;
+  TransactionStatus status = 7;
+  common.Metadata metadata = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+enum TransactionType {
+  TRANSACTION_TYPE_UNSPECIFIED = 0;
+  TRANSACTION_TYPE_CREDIT = 1;
+  TRANSACTION_TYPE_DEBIT = 2;
+  TRANSACTION_TYPE_REFUND = 3;
+}
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_PENDING = 1;
+  TRANSACTION_STATUS_COMPLETED = 2;
+  TRANSACTION_STATUS_FAILED = 3;
+}
+
+// --- Balances ---
+message GetBalanceRequest {
+  string user_id = 1;
+  string currency = 2;
+}
+message GetBalanceResponse {
+  Balance balance = 1;
+}
+message ListBalancesRequest {
+  string user_id = 1;
+}
+message ListBalancesResponse {
+  repeated Balance balances = 1;
+}
+message Balance {
+  string user_id = 1;
+  string currency = 2;
+  double amount = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+// --- Events (Analytics/Audit) ---
+message ListEventsRequest {
+  string entity_id = 1;
+  string entity_type = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+message ListEventsResponse {
+  repeated CommerceEvent events = 1;
+  int32 total = 2;
+}
+message CommerceEvent {
+  string event_id = 1;
+  string entity_id = 2;
+  string entity_type = 3;
+  string event_type = 4;
+  google.protobuf.Struct payload = 5;
+  google.protobuf.Timestamp created_at = 6;
+} 

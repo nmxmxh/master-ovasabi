@@ -1,12 +1,16 @@
-# Package notification
+# Package notificationpb
 
 ## Constants
 
-### NotificationService_CreateNotification_FullMethodName
+### NotificationService_SendNotification_FullMethodName
 
 ## Variables
 
-### File_api_protos_notification_v1_notification_proto
+### NotificationStatus_name
+
+Enum value maps for NotificationStatus.
+
+### File_notification_v1_notification_proto
 
 ### NotificationService_ServiceDesc
 
@@ -16,73 +20,15 @@ copy)
 
 ## Types
 
-### CreateNotificationRequest
+### AcknowledgeNotificationRequest
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use CreateNotificationRequest.ProtoReflect.Descriptor instead.
+Deprecated: Use AcknowledgeNotificationRequest.ProtoReflect.Descriptor instead.
 
-##### GetBody
-
-##### GetCampaignId
-
-##### GetChannel
-
-##### GetMasterId
-
-##### GetPayload
-
-##### GetTitle
-
-##### ProtoMessage
-
-##### ProtoReflect
-
-##### Reset
-
-##### String
-
-### CreateNotificationResponse
-
-#### Methods
-
-##### Descriptor
-
-Deprecated: Use CreateNotificationResponse.ProtoReflect.Descriptor instead.
-
-##### GetNotification
-
-##### GetSuccess
-
-##### ProtoMessage
-
-##### ProtoReflect
-
-##### Reset
-
-##### String
-
-### GetNotificationHistoryRequest
-
-GetNotificationHistoryRequest represents the request to get notification history
-
-#### Methods
-
-##### Descriptor
-
-Deprecated: Use GetNotificationHistoryRequest.ProtoReflect.Descriptor instead.
-
-##### GetEndDate
-
-##### GetPage
-
-##### GetPageSize
-
-##### GetStartDate
-
-##### GetType
+##### GetNotificationId
 
 ##### GetUserId
 
@@ -94,23 +40,85 @@ Deprecated: Use GetNotificationHistoryRequest.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### GetNotificationHistoryResponse
-
-GetNotificationHistoryResponse represents the response containing notification history
+### AcknowledgeNotificationResponse
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use GetNotificationHistoryResponse.ProtoReflect.Descriptor instead.
+Deprecated: Use AcknowledgeNotificationResponse.ProtoReflect.Descriptor instead.
 
-##### GetNotifications
+##### GetStatus
 
-##### GetPage
+##### ProtoMessage
 
-##### GetTotalCount
+##### ProtoReflect
 
-##### GetTotalPages
+##### Reset
+
+##### String
+
+### AssetChunk
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use AssetChunk.ProtoReflect.Descriptor instead.
+
+##### GetData
+
+##### GetSequence
+
+##### GetUploadId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### BroadcastEventRequest
+
+--- Broadcast/Event ---
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use BroadcastEventRequest.ProtoReflect.Descriptor instead.
+
+##### GetChannel
+
+##### GetMessage
+
+##### GetPayload
+
+##### GetScheduledAt
+
+##### GetSubject
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### BroadcastEventResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use BroadcastEventResponse.ProtoReflect.Descriptor instead.
+
+##### GetBroadcastId
+
+##### GetStatus
 
 ##### ProtoMessage
 
@@ -121,6 +129,8 @@ Deprecated: Use GetNotificationHistoryResponse.ProtoReflect.Descriptor instead.
 ##### String
 
 ### GetNotificationRequest
+
+--- Notification Management ---
 
 #### Methods
 
@@ -156,6 +166,52 @@ Deprecated: Use GetNotificationResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### ListNotificationEventsRequest
+
+--- Analytics/Events ---
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListNotificationEventsRequest.ProtoReflect.Descriptor instead.
+
+##### GetNotificationId
+
+##### GetPage
+
+##### GetPageSize
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListNotificationEventsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListNotificationEventsResponse.ProtoReflect.Descriptor instead.
+
+##### GetEvents
+
+##### GetTotal
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### ListNotificationsRequest
 
 #### Methods
@@ -164,11 +220,15 @@ Deprecated: Use GetNotificationResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ListNotificationsRequest.ProtoReflect.Descriptor instead.
 
-##### GetCampaignId
+##### GetChannel
 
 ##### GetPage
 
 ##### GetPageSize
+
+##### GetStatus
+
+##### GetUserId
 
 ##### ProtoMessage
 
@@ -204,6 +264,8 @@ Deprecated: Use ListNotificationsResponse.ProtoReflect.Descriptor instead.
 
 ### Notification
 
+--- Notification Core ---
+
 #### Methods
 
 ##### Descriptor
@@ -220,13 +282,19 @@ Deprecated: Use Notification.ProtoReflect.Descriptor instead.
 
 ##### GetId
 
-##### GetMasterId
+##### GetMetadata
 
 ##### GetPayload
 
 ##### GetRead
 
+##### GetStatus
+
 ##### GetTitle
+
+##### GetUpdatedAt
+
+##### GetUserId
 
 ##### ProtoMessage
 
@@ -236,27 +304,25 @@ Deprecated: Use Notification.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### NotificationHistory
-
-NotificationHistory represents a single notification record
+### NotificationEvent
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use NotificationHistory.ProtoReflect.Descriptor instead.
-
-##### GetContent
+Deprecated: Use NotificationEvent.ProtoReflect.Descriptor instead.
 
 ##### GetCreatedAt
 
-##### GetId
+##### GetEventId
 
-##### GetMetadata
+##### GetEventType
 
-##### GetStatus
+##### GetNotificationId
 
-##### GetType
+##### GetPayload
+
+##### GetUserId
 
 ##### ProtoMessage
 
@@ -268,7 +334,7 @@ Deprecated: Use NotificationHistory.ProtoReflect.Descriptor instead.
 
 ### NotificationPreferences
 
-NotificationPreferences represents user notification preferences
+--- Preferences ---
 
 #### Methods
 
@@ -303,18 +369,96 @@ NotificationServiceClient is the client API for NotificationService service.
 For semantics around ctx use and closing/ending streaming RPCs, please refer to
 https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 
-NotificationService manages notifications for users and campaigns
+Unified NotificationService: handles notifications, broadcasts, real-time events, and asset
+streaming
 
 ### NotificationServiceServer
 
 NotificationServiceServer is the server API for NotificationService service. All implementations
 must embed UnimplementedNotificationServiceServer for forward compatibility.
 
-NotificationService manages notifications for users and campaigns
+Unified NotificationService: handles notifications, broadcasts, real-time events, and asset
+streaming
+
+### NotificationService_StreamAssetChunksClient
+
+This type alias is provided for backwards compatibility with existing code that references the prior
+non-generic stream type by name.
+
+### NotificationService_StreamAssetChunksServer
+
+This type alias is provided for backwards compatibility with existing code that references the prior
+non-generic stream type by name.
+
+### NotificationService_SubscribeToEventsClient
+
+This type alias is provided for backwards compatibility with existing code that references the prior
+non-generic stream type by name.
+
+### NotificationService_SubscribeToEventsServer
+
+This type alias is provided for backwards compatibility with existing code that references the prior
+non-generic stream type by name.
+
+### NotificationStatus
+
+#### Methods
+
+##### Descriptor
+
+##### Enum
+
+##### EnumDescriptor
+
+Deprecated: Use NotificationStatus.Descriptor instead.
+
+##### Number
+
+##### String
+
+##### Type
+
+### PublishAssetChunkRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use PublishAssetChunkRequest.ProtoReflect.Descriptor instead.
+
+##### GetAssetId
+
+##### GetChunk
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### PublishAssetChunkResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use PublishAssetChunkResponse.ProtoReflect.Descriptor instead.
+
+##### GetStatus
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
 
 ### SendEmailRequest
 
-SendEmailRequest represents the request to send an email
+--- Channel-specific (compatibility) ---
 
 #### Methods
 
@@ -342,8 +486,6 @@ Deprecated: Use SendEmailRequest.ProtoReflect.Descriptor instead.
 
 ### SendEmailResponse
 
-SendEmailResponse represents the response from sending an email
-
 #### Methods
 
 ##### Descriptor
@@ -364,9 +506,55 @@ Deprecated: Use SendEmailResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### SendPushNotificationRequest
+### SendNotificationRequest
 
-SendPushNotificationRequest represents the request to send a push notification
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SendNotificationRequest.ProtoReflect.Descriptor instead.
+
+##### GetBody
+
+##### GetChannel
+
+##### GetMetadata
+
+##### GetPayload
+
+##### GetTitle
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### SendNotificationResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SendNotificationResponse.ProtoReflect.Descriptor instead.
+
+##### GetNotification
+
+##### GetStatus
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### SendPushNotificationRequest
 
 #### Methods
 
@@ -394,8 +582,6 @@ Deprecated: Use SendPushNotificationRequest.ProtoReflect.Descriptor instead.
 
 ### SendPushNotificationResponse
 
-SendPushNotificationResponse represents the response from sending a push notification
-
 #### Methods
 
 ##### Descriptor
@@ -417,8 +603,6 @@ Deprecated: Use SendPushNotificationResponse.ProtoReflect.Descriptor instead.
 ##### String
 
 ### SendSMSRequest
-
-SendSMSRequest represents the request to send an SMS
 
 #### Methods
 
@@ -442,8 +626,6 @@ Deprecated: Use SendSMSRequest.ProtoReflect.Descriptor instead.
 
 ### SendSMSResponse
 
-SendSMSResponse represents the response from sending an SMS
-
 #### Methods
 
 ##### Descriptor
@@ -464,6 +646,50 @@ Deprecated: Use SendSMSResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### StreamAssetChunksRequest
+
+--- Asset Streaming ---
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use StreamAssetChunksRequest.ProtoReflect.Descriptor instead.
+
+##### GetAssetId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### SubscribeToEventsRequest
+
+--- Real-time Pub/Sub ---
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SubscribeToEventsRequest.ProtoReflect.Descriptor instead.
+
+##### GetChannels
+
+##### GetFilters
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### UnimplementedNotificationServiceServer
 
 UnimplementedNotificationServiceServer must be embedded to have forward compatible implementations.
@@ -473,19 +699,29 @@ methods are called.
 
 #### Methods
 
-##### CreateNotification
+##### AcknowledgeNotification
+
+##### BroadcastEvent
 
 ##### GetNotification
 
-##### GetNotificationHistory
+##### ListNotificationEvents
 
 ##### ListNotifications
 
+##### PublishAssetChunk
+
 ##### SendEmail
+
+##### SendNotification
 
 ##### SendPushNotification
 
 ##### SendSMS
+
+##### StreamAssetChunks
+
+##### SubscribeToEvents
 
 ##### UpdateNotificationPreferences
 
@@ -496,8 +732,6 @@ service. Use of this interface is not recommended, as added methods to Notificat
 will result in compilation errors.
 
 ### UpdateNotificationPreferencesRequest
-
-UpdateNotificationPreferencesRequest represents the request to update notification preferences
 
 #### Methods
 
@@ -518,8 +752,6 @@ Deprecated: Use UpdateNotificationPreferencesRequest.ProtoReflect.Descriptor ins
 ##### String
 
 ### UpdateNotificationPreferencesResponse
-
-UpdateNotificationPreferencesResponse represents the response from updating notification preferences
 
 #### Methods
 

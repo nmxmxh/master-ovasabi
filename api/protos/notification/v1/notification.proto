@@ -2,149 +2,186 @@ syntax = "proto3";
 
 package notification.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/notification";
-
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/v1/metadata.proto";
 
-// NotificationService manages notifications for users and campaigns
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1;notificationpb";
+
+// Robust, extensible metadata for all services
+
+// Unified NotificationService: handles notifications, broadcasts, real-time events, and asset streaming
 service NotificationService {
-  rpc CreateNotification(CreateNotificationRequest) returns (CreateNotificationResponse) {}
+  // Generic notification send (channel-agnostic)
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse) {}
+  // Channel-specific sends (for compatibility)
+  rpc SendEmail(SendEmailRequest) returns (SendEmailResponse) {}
+  rpc SendSMS(SendSMSRequest) returns (SendSMSResponse) {}
+  rpc SendPushNotification(SendPushNotificationRequest) returns (SendPushNotificationResponse) {}
+  // Broadcasts
+  rpc BroadcastEvent(BroadcastEventRequest) returns (BroadcastEventResponse) {}
+  // Real-time pub/sub
+  rpc SubscribeToEvents(SubscribeToEventsRequest) returns (stream NotificationEvent) {}
+  // Asset streaming (for live events/media)
+  rpc StreamAssetChunks(StreamAssetChunksRequest) returns (stream AssetChunk) {}
+  rpc PublishAssetChunk(PublishAssetChunkRequest) returns (PublishAssetChunkResponse) {}
+  // Notification management
   rpc GetNotification(GetNotificationRequest) returns (GetNotificationResponse) {}
   rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse) {}
-  // SendEmail sends an email notification
-  rpc SendEmail(SendEmailRequest) returns (SendEmailResponse) {}
-  // SendSMS sends an SMS notification
-  rpc SendSMS(SendSMSRequest) returns (SendSMSResponse) {}
-  // SendPushNotification sends a push notification
-  rpc SendPushNotification(SendPushNotificationRequest) returns (SendPushNotificationResponse) {}
-  // GetNotificationHistory retrieves notification history for a user
-  rpc GetNotificationHistory(GetNotificationHistoryRequest) returns (GetNotificationHistoryResponse) {}
-  // UpdateNotificationPreferences updates a user's notification preferences
+  rpc AcknowledgeNotification(AcknowledgeNotificationRequest) returns (AcknowledgeNotificationResponse) {}
+  // Preferences
   rpc UpdateNotificationPreferences(UpdateNotificationPreferencesRequest) returns (UpdateNotificationPreferencesResponse) {}
+  // Analytics/events
+  rpc ListNotificationEvents(ListNotificationEventsRequest) returns (ListNotificationEventsResponse) {}
 }
 
+// --- Notification Core ---
 message Notification {
-  int32 id = 1;
-  int32 master_id = 2;
-  int32 campaign_id = 3;
-  string channel = 4; // e.g., email, sms, push
+  string id = 1;
+  string user_id = 2;
+  string campaign_id = 3;
+  string channel = 4; // email, sms, push, in_app, broadcast, etc.
   string title = 5;
   string body = 6;
-  map<string, string> payload = 7; // Flexible, JSONB-like
-  google.protobuf.Timestamp created_at = 8;
-  bool read = 9;
+  map<string, string> payload = 7;
+  NotificationStatus status = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  bool read = 11;
+  common.Metadata metadata = 12;
+}
+enum NotificationStatus {
+  NOTIFICATION_STATUS_UNSPECIFIED = 0;
+  NOTIFICATION_STATUS_PENDING = 1;
+  NOTIFICATION_STATUS_SENT = 2;
+  NOTIFICATION_STATUS_DELIVERED = 3;
+  NOTIFICATION_STATUS_FAILED = 4;
+  NOTIFICATION_STATUS_READ = 5;
 }
 
-message CreateNotificationRequest {
-  int32 master_id = 1;
-  int32 campaign_id = 2;
-  string channel = 3;
-  string title = 4;
-  string body = 5;
-  map<string, string> payload = 6;
+message SendNotificationRequest {
+  string user_id = 1;
+  string channel = 2;
+  string title = 3;
+  string body = 4;
+  map<string, string> payload = 5;
+  common.Metadata metadata = 6;
 }
-
-message CreateNotificationResponse {
+message SendNotificationResponse {
   Notification notification = 1;
-  bool success = 2;
+  string status = 2;
 }
 
-message GetNotificationRequest {
-  int32 notification_id = 1;
-}
-
-message GetNotificationResponse {
-  Notification notification = 1;
-}
-
-message ListNotificationsRequest {
-  int32 campaign_id = 1;
-  int32 page = 2;
-  int32 page_size = 3;
-}
-
-message ListNotificationsResponse {
-  repeated Notification notifications = 1;
-  int32 total_count = 2;
-  int32 page = 3;
-  int32 total_pages = 4;
-}
-
-// SendEmailRequest represents the request to send an email
+// --- Channel-specific (compatibility) ---
 message SendEmailRequest {
   string to = 1;
   string subject = 2;
   string body = 3;
-  map<string, string> metadata = 4;
+  common.Metadata metadata = 4;
   bool html = 5;
 }
-
-// SendEmailResponse represents the response from sending an email
 message SendEmailResponse {
   string message_id = 1;
   string status = 2;
   int64 sent_at = 3;
 }
-
-// SendSMSRequest represents the request to send an SMS
 message SendSMSRequest {
   string to = 1;
   string message = 2;
-  map<string, string> metadata = 3;
+  common.Metadata metadata = 3;
 }
-
-// SendSMSResponse represents the response from sending an SMS
 message SendSMSResponse {
   string message_id = 1;
   string status = 2;
   int64 sent_at = 3;
 }
-
-// SendPushNotificationRequest represents the request to send a push notification
 message SendPushNotificationRequest {
   string user_id = 1;
   string title = 2;
   string message = 3;
-  map<string, string> metadata = 4;
+  common.Metadata metadata = 4;
   string deep_link = 5;
 }
-
-// SendPushNotificationResponse represents the response from sending a push notification
 message SendPushNotificationResponse {
   string notification_id = 1;
   string status = 2;
   int64 sent_at = 3;
 }
 
-// NotificationHistory represents a single notification record
-message NotificationHistory {
-  string id = 1;
-  string type = 2;
-  string status = 3;
-  string content = 4;
-  map<string, string> metadata = 5;
-  int64 created_at = 6;
+// --- Broadcast/Event ---
+message BroadcastEventRequest {
+  string channel = 1;
+  string subject = 2;
+  string message = 3;
+  common.Metadata payload = 4;
+  google.protobuf.Timestamp scheduled_at = 5;
+}
+message BroadcastEventResponse {
+  string broadcast_id = 1;
+  string status = 2;
 }
 
-// GetNotificationHistoryRequest represents the request to get notification history
-message GetNotificationHistoryRequest {
+// --- Real-time Pub/Sub ---
+message SubscribeToEventsRequest {
   string user_id = 1;
-  int32 page = 2;
-  int32 page_size = 3;
-  string type = 4;
-  int64 start_date = 5;
-  int64 end_date = 6;
+  repeated string channels = 2;
+  common.Metadata filters = 3;
+}
+message NotificationEvent {
+  string event_id = 1;
+  string notification_id = 2;
+  string user_id = 3;
+  string event_type = 4; // delivered, read, failed, etc.
+  google.protobuf.Struct payload = 5;
+  google.protobuf.Timestamp created_at = 6;
 }
 
-// GetNotificationHistoryResponse represents the response containing notification history
-message GetNotificationHistoryResponse {
-  repeated NotificationHistory notifications = 1;
+// --- Asset Streaming ---
+message StreamAssetChunksRequest {
+  string asset_id = 1;
+}
+message AssetChunk {
+  string upload_id = 1;
+  bytes data = 2;
+  uint32 sequence = 3;
+}
+message PublishAssetChunkRequest {
+  string asset_id = 1;
+  AssetChunk chunk = 2;
+}
+message PublishAssetChunkResponse {
+  string status = 1;
+}
+
+// --- Notification Management ---
+message GetNotificationRequest {
+  string notification_id = 1;
+}
+message GetNotificationResponse {
+  Notification notification = 1;
+}
+message ListNotificationsRequest {
+  string user_id = 1;
+  string channel = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  string status = 5;
+}
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
   int32 total_count = 2;
   int32 page = 3;
   int32 total_pages = 4;
 }
+message AcknowledgeNotificationRequest {
+  string notification_id = 1;
+  string user_id = 2;
+}
+message AcknowledgeNotificationResponse {
+  string status = 1;
+}
 
-// NotificationPreferences represents user notification preferences
+// --- Preferences ---
 message NotificationPreferences {
   bool email_enabled = 1;
   bool sms_enabled = 2;
@@ -153,15 +190,23 @@ message NotificationPreferences {
   repeated string quiet_hours = 5;
   string timezone = 6;
 }
-
-// UpdateNotificationPreferencesRequest represents the request to update notification preferences
 message UpdateNotificationPreferencesRequest {
   string user_id = 1;
   NotificationPreferences preferences = 2;
 }
-
-// UpdateNotificationPreferencesResponse represents the response from updating notification preferences
 message UpdateNotificationPreferencesResponse {
   NotificationPreferences preferences = 1;
   int64 updated_at = 2;
+}
+
+// --- Analytics/Events ---
+message ListNotificationEventsRequest {
+  string user_id = 1;
+  string notification_id = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+message ListNotificationEventsResponse {
+  repeated NotificationEvent events = 1;
+  int32 total = 2;
 } 

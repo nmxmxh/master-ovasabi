@@ -2,11 +2,12 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        v5.29.2
-// source: api/protos/security/v1/security.proto
+// source: security/v1/security.proto
 
-package v0
+package securitypb
 
 import (
+	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -61,11 +62,11 @@ func (x FactorType) String() string {
 }
 
 func (FactorType) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_protos_security_v1_security_proto_enumTypes[0].Descriptor()
+	return file_security_v1_security_proto_enumTypes[0].Descriptor()
 }
 
 func (FactorType) Type() protoreflect.EnumType {
-	return &file_api_protos_security_v1_security_proto_enumTypes[0]
+	return &file_security_v1_security_proto_enumTypes[0]
 }
 
 func (x FactorType) Number() protoreflect.EnumNumber {
@@ -74,7 +75,7 @@ func (x FactorType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FactorType.Descriptor instead.
 func (FactorType) EnumDescriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{0}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{0}
 }
 
 type AuthenticationRequest struct {
@@ -88,7 +89,7 @@ type AuthenticationRequest struct {
 
 func (x *AuthenticationRequest) Reset() {
 	*x = AuthenticationRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[0]
+	mi := &file_security_v1_security_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -100,7 +101,7 @@ func (x *AuthenticationRequest) String() string {
 func (*AuthenticationRequest) ProtoMessage() {}
 
 func (x *AuthenticationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[0]
+	mi := &file_security_v1_security_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -113,7 +114,7 @@ func (x *AuthenticationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticationRequest.ProtoReflect.Descriptor instead.
 func (*AuthenticationRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{0}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AuthenticationRequest) GetIdentity() string {
@@ -141,14 +142,14 @@ type AuthenticationFactor struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          FactorType             `protobuf:"varint,1,opt,name=type,proto3,enum=security.v1.FactorType" json:"type,omitempty"`
 	Credential    []byte                 `protobuf:"bytes,2,opt,name=credential,proto3" json:"credential,omitempty"`
-	Metadata      map[string]string      `protobuf:"bytes,3,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuthenticationFactor) Reset() {
 	*x = AuthenticationFactor{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[1]
+	mi := &file_security_v1_security_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -160,7 +161,7 @@ func (x *AuthenticationFactor) String() string {
 func (*AuthenticationFactor) ProtoMessage() {}
 
 func (x *AuthenticationFactor) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[1]
+	mi := &file_security_v1_security_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -173,7 +174,7 @@ func (x *AuthenticationFactor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticationFactor.ProtoReflect.Descriptor instead.
 func (*AuthenticationFactor) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{1}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AuthenticationFactor) GetType() FactorType {
@@ -190,7 +191,7 @@ func (x *AuthenticationFactor) GetCredential() []byte {
 	return nil
 }
 
-func (x *AuthenticationFactor) GetMetadata() map[string]string {
+func (x *AuthenticationFactor) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
@@ -203,14 +204,14 @@ type SecurityContext struct {
 	ClientIp      string                 `protobuf:"bytes,2,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
 	UserAgent     string                 `protobuf:"bytes,3,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Attributes    map[string]string      `protobuf:"bytes,5,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Attributes    *v1.Metadata           `protobuf:"bytes,5,opt,name=attributes,proto3" json:"attributes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SecurityContext) Reset() {
 	*x = SecurityContext{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[2]
+	mi := &file_security_v1_security_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -222,7 +223,7 @@ func (x *SecurityContext) String() string {
 func (*SecurityContext) ProtoMessage() {}
 
 func (x *SecurityContext) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[2]
+	mi := &file_security_v1_security_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -235,7 +236,7 @@ func (x *SecurityContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityContext.ProtoReflect.Descriptor instead.
 func (*SecurityContext) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{2}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SecurityContext) GetRequestId() string {
@@ -266,7 +267,7 @@ func (x *SecurityContext) GetTimestamp() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *SecurityContext) GetAttributes() map[string]string {
+func (x *SecurityContext) GetAttributes() *v1.Metadata {
 	if x != nil {
 		return x.Attributes
 	}
@@ -279,13 +280,14 @@ type AuthenticationResponse struct {
 	Expiration    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expiration,proto3" json:"expiration,omitempty"`
 	Permissions   []string               `protobuf:"bytes,3,rep,name=permissions,proto3" json:"permissions,omitempty"`
 	SecurityScore *SecurityScore         `protobuf:"bytes,4,opt,name=security_score,json=securityScore,proto3" json:"security_score,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuthenticationResponse) Reset() {
 	*x = AuthenticationResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[3]
+	mi := &file_security_v1_security_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -297,7 +299,7 @@ func (x *AuthenticationResponse) String() string {
 func (*AuthenticationResponse) ProtoMessage() {}
 
 func (x *AuthenticationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[3]
+	mi := &file_security_v1_security_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -310,7 +312,7 @@ func (x *AuthenticationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticationResponse.ProtoReflect.Descriptor instead.
 func (*AuthenticationResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{3}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *AuthenticationResponse) GetSessionToken() string {
@@ -341,6 +343,13 @@ func (x *AuthenticationResponse) GetSecurityScore() *SecurityScore {
 	return nil
 }
 
+func (x *AuthenticationResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type SecurityScore struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	AuthenticationScore float64                `protobuf:"fixed64,1,opt,name=authentication_score,json=authenticationScore,proto3" json:"authentication_score,omitempty"`
@@ -353,7 +362,7 @@ type SecurityScore struct {
 
 func (x *SecurityScore) Reset() {
 	*x = SecurityScore{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[4]
+	mi := &file_security_v1_security_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -365,7 +374,7 @@ func (x *SecurityScore) String() string {
 func (*SecurityScore) ProtoMessage() {}
 
 func (x *SecurityScore) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[4]
+	mi := &file_security_v1_security_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -378,7 +387,7 @@ func (x *SecurityScore) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityScore.ProtoReflect.Descriptor instead.
 func (*SecurityScore) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{4}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SecurityScore) GetAuthenticationScore() float64 {
@@ -421,7 +430,7 @@ type AuthorizationRequest struct {
 
 func (x *AuthorizationRequest) Reset() {
 	*x = AuthorizationRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[5]
+	mi := &file_security_v1_security_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -433,7 +442,7 @@ func (x *AuthorizationRequest) String() string {
 func (*AuthorizationRequest) ProtoMessage() {}
 
 func (x *AuthorizationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[5]
+	mi := &file_security_v1_security_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -446,7 +455,7 @@ func (x *AuthorizationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizationRequest.ProtoReflect.Descriptor instead.
 func (*AuthorizationRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{5}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *AuthorizationRequest) GetSessionToken() string {
@@ -482,13 +491,14 @@ type AuthorizationResponse struct {
 	Authorized         bool                   `protobuf:"varint,1,opt,name=authorized,proto3" json:"authorized,omitempty"`
 	Reason             string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	ApplicablePolicies []string               `protobuf:"bytes,3,rep,name=applicable_policies,json=applicablePolicies,proto3" json:"applicable_policies,omitempty"`
+	Metadata           *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *AuthorizationResponse) Reset() {
 	*x = AuthorizationResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[6]
+	mi := &file_security_v1_security_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -500,7 +510,7 @@ func (x *AuthorizationResponse) String() string {
 func (*AuthorizationResponse) ProtoMessage() {}
 
 func (x *AuthorizationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[6]
+	mi := &file_security_v1_security_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -513,7 +523,7 @@ func (x *AuthorizationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizationResponse.ProtoReflect.Descriptor instead.
 func (*AuthorizationResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{6}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AuthorizationResponse) GetAuthorized() bool {
@@ -537,6 +547,13 @@ func (x *AuthorizationResponse) GetApplicablePolicies() []string {
 	return nil
 }
 
+func (x *AuthorizationResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type SecurityPattern struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PatternId     string                 `protobuf:"bytes,1,opt,name=pattern_id,json=patternId,proto3" json:"pattern_id,omitempty"`
@@ -546,13 +563,14 @@ type SecurityPattern struct {
 	Edges         []*GraphEdge           `protobuf:"bytes,5,rep,name=edges,proto3" json:"edges,omitempty"`
 	Constraints   map[string]string      `protobuf:"bytes,6,rep,name=constraints,proto3" json:"constraints,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Risk          *RiskAssessment        `protobuf:"bytes,7,opt,name=risk,proto3" json:"risk,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SecurityPattern) Reset() {
 	*x = SecurityPattern{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[7]
+	mi := &file_security_v1_security_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -564,7 +582,7 @@ func (x *SecurityPattern) String() string {
 func (*SecurityPattern) ProtoMessage() {}
 
 func (x *SecurityPattern) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[7]
+	mi := &file_security_v1_security_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -577,7 +595,7 @@ func (x *SecurityPattern) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityPattern.ProtoReflect.Descriptor instead.
 func (*SecurityPattern) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{7}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SecurityPattern) GetPatternId() string {
@@ -629,6 +647,13 @@ func (x *SecurityPattern) GetRisk() *RiskAssessment {
 	return nil
 }
 
+func (x *SecurityPattern) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type GraphVertex struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -640,7 +665,7 @@ type GraphVertex struct {
 
 func (x *GraphVertex) Reset() {
 	*x = GraphVertex{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[8]
+	mi := &file_security_v1_security_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -652,7 +677,7 @@ func (x *GraphVertex) String() string {
 func (*GraphVertex) ProtoMessage() {}
 
 func (x *GraphVertex) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[8]
+	mi := &file_security_v1_security_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -665,7 +690,7 @@ func (x *GraphVertex) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GraphVertex.ProtoReflect.Descriptor instead.
 func (*GraphVertex) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{8}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GraphVertex) GetId() string {
@@ -701,7 +726,7 @@ type GraphEdge struct {
 
 func (x *GraphEdge) Reset() {
 	*x = GraphEdge{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[9]
+	mi := &file_security_v1_security_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -713,7 +738,7 @@ func (x *GraphEdge) String() string {
 func (*GraphEdge) ProtoMessage() {}
 
 func (x *GraphEdge) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[9]
+	mi := &file_security_v1_security_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -726,7 +751,7 @@ func (x *GraphEdge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GraphEdge.ProtoReflect.Descriptor instead.
 func (*GraphEdge) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{9}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GraphEdge) GetSource() string {
@@ -769,7 +794,7 @@ type RiskAssessment struct {
 
 func (x *RiskAssessment) Reset() {
 	*x = RiskAssessment{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[10]
+	mi := &file_security_v1_security_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -781,7 +806,7 @@ func (x *RiskAssessment) String() string {
 func (*RiskAssessment) ProtoMessage() {}
 
 func (x *RiskAssessment) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[10]
+	mi := &file_security_v1_security_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -794,7 +819,7 @@ func (x *RiskAssessment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RiskAssessment.ProtoReflect.Descriptor instead.
 func (*RiskAssessment) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{10}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RiskAssessment) GetRiskScore() float64 {
@@ -834,14 +859,14 @@ type AuditEvent struct {
 	Action        string                 `protobuf:"bytes,5,opt,name=action,proto3" json:"action,omitempty"`
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	Context       *SecurityContext       `protobuf:"bytes,7,opt,name=context,proto3" json:"context,omitempty"`
-	Metadata      map[string]string      `protobuf:"bytes,8,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuditEvent) Reset() {
 	*x = AuditEvent{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[11]
+	mi := &file_security_v1_security_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -853,7 +878,7 @@ func (x *AuditEvent) String() string {
 func (*AuditEvent) ProtoMessage() {}
 
 func (x *AuditEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[11]
+	mi := &file_security_v1_security_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -866,7 +891,7 @@ func (x *AuditEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditEvent.ProtoReflect.Descriptor instead.
 func (*AuditEvent) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{11}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AuditEvent) GetEventId() string {
@@ -918,7 +943,7 @@ func (x *AuditEvent) GetContext() *SecurityContext {
 	return nil
 }
 
-func (x *AuditEvent) GetMetadata() map[string]string {
+func (x *AuditEvent) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
@@ -936,7 +961,7 @@ type SecurityMetricsRequest struct {
 
 func (x *SecurityMetricsRequest) Reset() {
 	*x = SecurityMetricsRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[12]
+	mi := &file_security_v1_security_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -948,7 +973,7 @@ func (x *SecurityMetricsRequest) String() string {
 func (*SecurityMetricsRequest) ProtoMessage() {}
 
 func (x *SecurityMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[12]
+	mi := &file_security_v1_security_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -961,7 +986,7 @@ func (x *SecurityMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityMetricsRequest.ProtoReflect.Descriptor instead.
 func (*SecurityMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{12}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SecurityMetricsRequest) GetStartTime() *timestamppb.Timestamp {
@@ -990,13 +1015,14 @@ type SecurityMetricsResponse struct {
 	Metrics       map[string]*MetricValue `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	OverallScore  *SecurityScore          `protobuf:"bytes,2,opt,name=overall_score,json=overallScore,proto3" json:"overall_score,omitempty"`
 	Incidents     []*SecurityIncident     `protobuf:"bytes,3,rep,name=incidents,proto3" json:"incidents,omitempty"`
+	Metadata      *v1.Metadata            `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SecurityMetricsResponse) Reset() {
 	*x = SecurityMetricsResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[13]
+	mi := &file_security_v1_security_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1008,7 +1034,7 @@ func (x *SecurityMetricsResponse) String() string {
 func (*SecurityMetricsResponse) ProtoMessage() {}
 
 func (x *SecurityMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[13]
+	mi := &file_security_v1_security_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1021,7 +1047,7 @@ func (x *SecurityMetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityMetricsResponse.ProtoReflect.Descriptor instead.
 func (*SecurityMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{13}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SecurityMetricsResponse) GetMetrics() map[string]*MetricValue {
@@ -1045,6 +1071,13 @@ func (x *SecurityMetricsResponse) GetIncidents() []*SecurityIncident {
 	return nil
 }
 
+func (x *SecurityMetricsResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type MetricValue struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Value:
@@ -1053,14 +1086,14 @@ type MetricValue struct {
 	//	*MetricValue_StringValue
 	//	*MetricValue_Distribution
 	Value         isMetricValue_Value `protobuf_oneof:"value"`
-	Labels        map[string]string   `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Labels        *v1.Metadata        `protobuf:"bytes,4,opt,name=labels,proto3" json:"labels,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *MetricValue) Reset() {
 	*x = MetricValue{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[14]
+	mi := &file_security_v1_security_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1072,7 +1105,7 @@ func (x *MetricValue) String() string {
 func (*MetricValue) ProtoMessage() {}
 
 func (x *MetricValue) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[14]
+	mi := &file_security_v1_security_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1085,7 +1118,7 @@ func (x *MetricValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricValue.ProtoReflect.Descriptor instead.
 func (*MetricValue) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{14}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *MetricValue) GetValue() isMetricValue_Value {
@@ -1122,7 +1155,7 @@ func (x *MetricValue) GetDistribution() *Distribution {
 	return nil
 }
 
-func (x *MetricValue) GetLabels() map[string]string {
+func (x *MetricValue) GetLabels() *v1.Metadata {
 	if x != nil {
 		return x.Labels
 	}
@@ -1164,7 +1197,7 @@ type Distribution struct {
 
 func (x *Distribution) Reset() {
 	*x = Distribution{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[15]
+	mi := &file_security_v1_security_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1176,7 +1209,7 @@ func (x *Distribution) String() string {
 func (*Distribution) ProtoMessage() {}
 
 func (x *Distribution) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[15]
+	mi := &file_security_v1_security_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1189,7 +1222,7 @@ func (x *Distribution) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Distribution.ProtoReflect.Descriptor instead.
 func (*Distribution) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{15}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Distribution) GetMean() float64 {
@@ -1237,7 +1270,7 @@ type TokenValidationRequest struct {
 
 func (x *TokenValidationRequest) Reset() {
 	*x = TokenValidationRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[16]
+	mi := &file_security_v1_security_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1249,7 +1282,7 @@ func (x *TokenValidationRequest) String() string {
 func (*TokenValidationRequest) ProtoMessage() {}
 
 func (x *TokenValidationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[16]
+	mi := &file_security_v1_security_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1262,7 +1295,7 @@ func (x *TokenValidationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TokenValidationRequest.ProtoReflect.Descriptor instead.
 func (*TokenValidationRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{16}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *TokenValidationRequest) GetToken() string {
@@ -1285,13 +1318,14 @@ type TokenValidationResponse struct {
 	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	Expiration    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expiration,proto3" json:"expiration,omitempty"`
 	SecurityScore *SecurityScore         `protobuf:"bytes,4,opt,name=security_score,json=securityScore,proto3" json:"security_score,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TokenValidationResponse) Reset() {
 	*x = TokenValidationResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[17]
+	mi := &file_security_v1_security_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1303,7 +1337,7 @@ func (x *TokenValidationResponse) String() string {
 func (*TokenValidationResponse) ProtoMessage() {}
 
 func (x *TokenValidationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[17]
+	mi := &file_security_v1_security_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1316,7 +1350,7 @@ func (x *TokenValidationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TokenValidationResponse.ProtoReflect.Descriptor instead.
 func (*TokenValidationResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{17}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *TokenValidationResponse) GetValid() bool {
@@ -1347,6 +1381,13 @@ func (x *TokenValidationResponse) GetSecurityScore() *SecurityScore {
 	return nil
 }
 
+func (x *TokenValidationResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type ThreatDetectionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ResourceId    string                 `protobuf:"bytes,1,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
@@ -1359,7 +1400,7 @@ type ThreatDetectionRequest struct {
 
 func (x *ThreatDetectionRequest) Reset() {
 	*x = ThreatDetectionRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[18]
+	mi := &file_security_v1_security_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1371,7 +1412,7 @@ func (x *ThreatDetectionRequest) String() string {
 func (*ThreatDetectionRequest) ProtoMessage() {}
 
 func (x *ThreatDetectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[18]
+	mi := &file_security_v1_security_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1384,7 +1425,7 @@ func (x *ThreatDetectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreatDetectionRequest.ProtoReflect.Descriptor instead.
 func (*ThreatDetectionRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{18}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ThreatDetectionRequest) GetResourceId() string {
@@ -1420,13 +1461,14 @@ type ThreatDetectionResponse struct {
 	ThreatScore     float64                `protobuf:"fixed64,1,opt,name=threat_score,json=threatScore,proto3" json:"threat_score,omitempty"`
 	DetectedThreats []*SecurityIncident    `protobuf:"bytes,2,rep,name=detected_threats,json=detectedThreats,proto3" json:"detected_threats,omitempty"`
 	Mitigations     []string               `protobuf:"bytes,3,rep,name=mitigations,proto3" json:"mitigations,omitempty"`
+	Metadata        *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ThreatDetectionResponse) Reset() {
 	*x = ThreatDetectionResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[19]
+	mi := &file_security_v1_security_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1438,7 +1480,7 @@ func (x *ThreatDetectionResponse) String() string {
 func (*ThreatDetectionResponse) ProtoMessage() {}
 
 func (x *ThreatDetectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[19]
+	mi := &file_security_v1_security_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1451,7 +1493,7 @@ func (x *ThreatDetectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreatDetectionResponse.ProtoReflect.Descriptor instead.
 func (*ThreatDetectionResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{19}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ThreatDetectionResponse) GetThreatScore() float64 {
@@ -1475,6 +1517,13 @@ func (x *ThreatDetectionResponse) GetMitigations() []string {
 	return nil
 }
 
+func (x *ThreatDetectionResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type IncidentReport struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	IncidentId    string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
@@ -1489,7 +1538,7 @@ type IncidentReport struct {
 
 func (x *IncidentReport) Reset() {
 	*x = IncidentReport{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[20]
+	mi := &file_security_v1_security_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1501,7 +1550,7 @@ func (x *IncidentReport) String() string {
 func (*IncidentReport) ProtoMessage() {}
 
 func (x *IncidentReport) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[20]
+	mi := &file_security_v1_security_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1514,7 +1563,7 @@ func (x *IncidentReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IncidentReport.ProtoReflect.Descriptor instead.
 func (*IncidentReport) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{20}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *IncidentReport) GetIncidentId() string {
@@ -1571,7 +1620,7 @@ type IncidentResponse struct {
 
 func (x *IncidentResponse) Reset() {
 	*x = IncidentResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[21]
+	mi := &file_security_v1_security_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1583,7 +1632,7 @@ func (x *IncidentResponse) String() string {
 func (*IncidentResponse) ProtoMessage() {}
 
 func (x *IncidentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[21]
+	mi := &file_security_v1_security_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1596,7 +1645,7 @@ func (x *IncidentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IncidentResponse.ProtoReflect.Descriptor instead.
 func (*IncidentResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{21}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *IncidentResponse) GetTrackingId() string {
@@ -1638,7 +1687,7 @@ type PatternRegistrationResponse struct {
 
 func (x *PatternRegistrationResponse) Reset() {
 	*x = PatternRegistrationResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[22]
+	mi := &file_security_v1_security_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1650,7 +1699,7 @@ func (x *PatternRegistrationResponse) String() string {
 func (*PatternRegistrationResponse) ProtoMessage() {}
 
 func (x *PatternRegistrationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[22]
+	mi := &file_security_v1_security_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1663,7 +1712,7 @@ func (x *PatternRegistrationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatternRegistrationResponse.ProtoReflect.Descriptor instead.
 func (*PatternRegistrationResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{22}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *PatternRegistrationResponse) GetPatternId() string {
@@ -1698,7 +1747,7 @@ type PatternValidationRequest struct {
 
 func (x *PatternValidationRequest) Reset() {
 	*x = PatternValidationRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[23]
+	mi := &file_security_v1_security_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1710,7 +1759,7 @@ func (x *PatternValidationRequest) String() string {
 func (*PatternValidationRequest) ProtoMessage() {}
 
 func (x *PatternValidationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[23]
+	mi := &file_security_v1_security_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1723,7 +1772,7 @@ func (x *PatternValidationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatternValidationRequest.ProtoReflect.Descriptor instead.
 func (*PatternValidationRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{23}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *PatternValidationRequest) GetPatternId() string {
@@ -1752,13 +1801,14 @@ type PatternValidationResponse struct {
 	Valid            bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
 	ValidationErrors []string               `protobuf:"bytes,2,rep,name=validation_errors,json=validationErrors,proto3" json:"validation_errors,omitempty"`
 	RiskAssessment   *RiskAssessment        `protobuf:"bytes,3,opt,name=risk_assessment,json=riskAssessment,proto3" json:"risk_assessment,omitempty"`
+	Metadata         *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PatternValidationResponse) Reset() {
 	*x = PatternValidationResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[24]
+	mi := &file_security_v1_security_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1770,7 +1820,7 @@ func (x *PatternValidationResponse) String() string {
 func (*PatternValidationResponse) ProtoMessage() {}
 
 func (x *PatternValidationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[24]
+	mi := &file_security_v1_security_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1783,7 +1833,7 @@ func (x *PatternValidationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatternValidationResponse.ProtoReflect.Descriptor instead.
 func (*PatternValidationResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{24}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *PatternValidationResponse) GetValid() bool {
@@ -1807,6 +1857,13 @@ func (x *PatternValidationResponse) GetRiskAssessment() *RiskAssessment {
 	return nil
 }
 
+func (x *PatternValidationResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type SecurityIncident struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	IncidentId    string                 `protobuf:"bytes,1,opt,name=incident_id,json=incidentId,proto3" json:"incident_id,omitempty"`
@@ -1822,7 +1879,7 @@ type SecurityIncident struct {
 
 func (x *SecurityIncident) Reset() {
 	*x = SecurityIncident{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[25]
+	mi := &file_security_v1_security_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1834,7 +1891,7 @@ func (x *SecurityIncident) String() string {
 func (*SecurityIncident) ProtoMessage() {}
 
 func (x *SecurityIncident) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[25]
+	mi := &file_security_v1_security_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1847,7 +1904,7 @@ func (x *SecurityIncident) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityIncident.ProtoReflect.Descriptor instead.
 func (*SecurityIncident) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{25}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SecurityIncident) GetIncidentId() string {
@@ -1914,7 +1971,7 @@ type AuditLogRequest struct {
 
 func (x *AuditLogRequest) Reset() {
 	*x = AuditLogRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[26]
+	mi := &file_security_v1_security_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1926,7 +1983,7 @@ func (x *AuditLogRequest) String() string {
 func (*AuditLogRequest) ProtoMessage() {}
 
 func (x *AuditLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[26]
+	mi := &file_security_v1_security_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1939,7 +1996,7 @@ func (x *AuditLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditLogRequest.ProtoReflect.Descriptor instead.
 func (*AuditLogRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{26}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *AuditLogRequest) GetStartTime() *timestamppb.Timestamp {
@@ -2003,7 +2060,7 @@ type AuditLogEntry struct {
 
 func (x *AuditLogEntry) Reset() {
 	*x = AuditLogEntry{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[27]
+	mi := &file_security_v1_security_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2015,7 +2072,7 @@ func (x *AuditLogEntry) String() string {
 func (*AuditLogEntry) ProtoMessage() {}
 
 func (x *AuditLogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[27]
+	mi := &file_security_v1_security_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2028,7 +2085,7 @@ func (x *AuditLogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditLogEntry.ProtoReflect.Descriptor instead.
 func (*AuditLogEntry) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{27}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *AuditLogEntry) GetEvent() *AuditEvent {
@@ -2060,14 +2117,17 @@ func (x *AuditLogEntry) GetEnrichedMetadata() map[string]string {
 }
 
 type AuthenticateRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Identity      string                  `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
+	Factors       []*AuthenticationFactor `protobuf:"bytes,2,rep,name=factors,proto3" json:"factors,omitempty"`
+	Context       *SecurityContext        `protobuf:"bytes,3,opt,name=context,proto3" json:"context,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuthenticateRequest) Reset() {
 	*x = AuthenticateRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[28]
+	mi := &file_security_v1_security_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2079,7 +2139,7 @@ func (x *AuthenticateRequest) String() string {
 func (*AuthenticateRequest) ProtoMessage() {}
 
 func (x *AuthenticateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[28]
+	mi := &file_security_v1_security_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2092,18 +2152,44 @@ func (x *AuthenticateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticateRequest.ProtoReflect.Descriptor instead.
 func (*AuthenticateRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{28}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *AuthenticateRequest) GetIdentity() string {
+	if x != nil {
+		return x.Identity
+	}
+	return ""
+}
+
+func (x *AuthenticateRequest) GetFactors() []*AuthenticationFactor {
+	if x != nil {
+		return x.Factors
+	}
+	return nil
+}
+
+func (x *AuthenticateRequest) GetContext() *SecurityContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
 }
 
 type AuthenticateResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionToken  string                 `protobuf:"bytes,1,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	Expiration    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expiration,proto3" json:"expiration,omitempty"`
+	Permissions   []string               `protobuf:"bytes,3,rep,name=permissions,proto3" json:"permissions,omitempty"`
+	SecurityScore *SecurityScore         `protobuf:"bytes,4,opt,name=security_score,json=securityScore,proto3" json:"security_score,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuthenticateResponse) Reset() {
 	*x = AuthenticateResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[29]
+	mi := &file_security_v1_security_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2115,7 +2201,7 @@ func (x *AuthenticateResponse) String() string {
 func (*AuthenticateResponse) ProtoMessage() {}
 
 func (x *AuthenticateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[29]
+	mi := &file_security_v1_security_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2128,18 +2214,57 @@ func (x *AuthenticateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticateResponse.ProtoReflect.Descriptor instead.
 func (*AuthenticateResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{29}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *AuthenticateResponse) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *AuthenticateResponse) GetExpiration() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expiration
+	}
+	return nil
+}
+
+func (x *AuthenticateResponse) GetPermissions() []string {
+	if x != nil {
+		return x.Permissions
+	}
+	return nil
+}
+
+func (x *AuthenticateResponse) GetSecurityScore() *SecurityScore {
+	if x != nil {
+		return x.SecurityScore
+	}
+	return nil
+}
+
+func (x *AuthenticateResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type AuthorizeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionToken  string                 `protobuf:"bytes,1,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	Resource      string                 `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	Action        string                 `protobuf:"bytes,3,opt,name=action,proto3" json:"action,omitempty"`
+	Context       *SecurityContext       `protobuf:"bytes,4,opt,name=context,proto3" json:"context,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuthorizeRequest) Reset() {
 	*x = AuthorizeRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[30]
+	mi := &file_security_v1_security_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2151,7 +2276,7 @@ func (x *AuthorizeRequest) String() string {
 func (*AuthorizeRequest) ProtoMessage() {}
 
 func (x *AuthorizeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[30]
+	mi := &file_security_v1_security_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2164,18 +2289,50 @@ func (x *AuthorizeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizeRequest.ProtoReflect.Descriptor instead.
 func (*AuthorizeRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{30}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *AuthorizeRequest) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *AuthorizeRequest) GetResource() string {
+	if x != nil {
+		return x.Resource
+	}
+	return ""
+}
+
+func (x *AuthorizeRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *AuthorizeRequest) GetContext() *SecurityContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
 }
 
 type AuthorizeResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Authorized         bool                   `protobuf:"varint,1,opt,name=authorized,proto3" json:"authorized,omitempty"`
+	Reason             string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	ApplicablePolicies []string               `protobuf:"bytes,3,rep,name=applicable_policies,json=applicablePolicies,proto3" json:"applicable_policies,omitempty"`
+	Metadata           *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *AuthorizeResponse) Reset() {
 	*x = AuthorizeResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[31]
+	mi := &file_security_v1_security_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2187,7 +2344,7 @@ func (x *AuthorizeResponse) String() string {
 func (*AuthorizeResponse) ProtoMessage() {}
 
 func (x *AuthorizeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[31]
+	mi := &file_security_v1_security_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2200,18 +2357,48 @@ func (x *AuthorizeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizeResponse.ProtoReflect.Descriptor instead.
 func (*AuthorizeResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{31}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *AuthorizeResponse) GetAuthorized() bool {
+	if x != nil {
+		return x.Authorized
+	}
+	return false
+}
+
+func (x *AuthorizeResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *AuthorizeResponse) GetApplicablePolicies() []string {
+	if x != nil {
+		return x.ApplicablePolicies
+	}
+	return nil
+}
+
+func (x *AuthorizeResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type ValidateTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	Context       *SecurityContext       `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ValidateTokenRequest) Reset() {
 	*x = ValidateTokenRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[32]
+	mi := &file_security_v1_security_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2223,7 +2410,7 @@ func (x *ValidateTokenRequest) String() string {
 func (*ValidateTokenRequest) ProtoMessage() {}
 
 func (x *ValidateTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[32]
+	mi := &file_security_v1_security_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2236,18 +2423,37 @@ func (x *ValidateTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidateTokenRequest.ProtoReflect.Descriptor instead.
 func (*ValidateTokenRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{32}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ValidateTokenRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *ValidateTokenRequest) GetContext() *SecurityContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
 }
 
 type ValidateTokenResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	Expiration    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expiration,proto3" json:"expiration,omitempty"`
+	SecurityScore *SecurityScore         `protobuf:"bytes,4,opt,name=security_score,json=securityScore,proto3" json:"security_score,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ValidateTokenResponse) Reset() {
 	*x = ValidateTokenResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[33]
+	mi := &file_security_v1_security_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2259,7 +2465,7 @@ func (x *ValidateTokenResponse) String() string {
 func (*ValidateTokenResponse) ProtoMessage() {}
 
 func (x *ValidateTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[33]
+	mi := &file_security_v1_security_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2272,18 +2478,57 @@ func (x *ValidateTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidateTokenResponse.ProtoReflect.Descriptor instead.
 func (*ValidateTokenResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{33}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ValidateTokenResponse) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *ValidateTokenResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ValidateTokenResponse) GetExpiration() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expiration
+	}
+	return nil
+}
+
+func (x *ValidateTokenResponse) GetSecurityScore() *SecurityScore {
+	if x != nil {
+		return x.SecurityScore
+	}
+	return nil
+}
+
+func (x *ValidateTokenResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type DetectThreatsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	ResourceId    string                 `protobuf:"bytes,1,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
+	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	Context       *SecurityContext       `protobuf:"bytes,3,opt,name=context,proto3" json:"context,omitempty"`
+	Attributes    map[string]string      `protobuf:"bytes,4,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DetectThreatsRequest) Reset() {
 	*x = DetectThreatsRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[34]
+	mi := &file_security_v1_security_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2295,7 +2540,7 @@ func (x *DetectThreatsRequest) String() string {
 func (*DetectThreatsRequest) ProtoMessage() {}
 
 func (x *DetectThreatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[34]
+	mi := &file_security_v1_security_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2308,18 +2553,50 @@ func (x *DetectThreatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectThreatsRequest.ProtoReflect.Descriptor instead.
 func (*DetectThreatsRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{34}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *DetectThreatsRequest) GetResourceId() string {
+	if x != nil {
+		return x.ResourceId
+	}
+	return ""
+}
+
+func (x *DetectThreatsRequest) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *DetectThreatsRequest) GetContext() *SecurityContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *DetectThreatsRequest) GetAttributes() map[string]string {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
 }
 
 type DetectThreatsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ThreatScore     float64                `protobuf:"fixed64,1,opt,name=threat_score,json=threatScore,proto3" json:"threat_score,omitempty"`
+	DetectedThreats []*SecurityIncident    `protobuf:"bytes,2,rep,name=detected_threats,json=detectedThreats,proto3" json:"detected_threats,omitempty"`
+	Mitigations     []string               `protobuf:"bytes,3,rep,name=mitigations,proto3" json:"mitigations,omitempty"`
+	Metadata        *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DetectThreatsResponse) Reset() {
 	*x = DetectThreatsResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[35]
+	mi := &file_security_v1_security_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2331,7 +2608,7 @@ func (x *DetectThreatsResponse) String() string {
 func (*DetectThreatsResponse) ProtoMessage() {}
 
 func (x *DetectThreatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[35]
+	mi := &file_security_v1_security_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2344,18 +2621,51 @@ func (x *DetectThreatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectThreatsResponse.ProtoReflect.Descriptor instead.
 func (*DetectThreatsResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{35}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *DetectThreatsResponse) GetThreatScore() float64 {
+	if x != nil {
+		return x.ThreatScore
+	}
+	return 0
+}
+
+func (x *DetectThreatsResponse) GetDetectedThreats() []*SecurityIncident {
+	if x != nil {
+		return x.DetectedThreats
+	}
+	return nil
+}
+
+func (x *DetectThreatsResponse) GetMitigations() []string {
+	if x != nil {
+		return x.Mitigations
+	}
+	return nil
+}
+
+func (x *DetectThreatsResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type ReportIncidentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Severity      string                 `protobuf:"bytes,2,opt,name=severity,proto3" json:"severity,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Context       *SecurityContext       `protobuf:"bytes,4,opt,name=context,proto3" json:"context,omitempty"`
+	Metadata      map[string]string      `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ReportIncidentRequest) Reset() {
 	*x = ReportIncidentRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[36]
+	mi := &file_security_v1_security_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2367,7 +2677,7 @@ func (x *ReportIncidentRequest) String() string {
 func (*ReportIncidentRequest) ProtoMessage() {}
 
 func (x *ReportIncidentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[36]
+	mi := &file_security_v1_security_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2380,18 +2690,58 @@ func (x *ReportIncidentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportIncidentRequest.ProtoReflect.Descriptor instead.
 func (*ReportIncidentRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{36}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *ReportIncidentRequest) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *ReportIncidentRequest) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *ReportIncidentRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ReportIncidentRequest) GetContext() *SecurityContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *ReportIncidentRequest) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type ReportIncidentResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TrackingId     string                 `protobuf:"bytes,1,opt,name=tracking_id,json=trackingId,proto3" json:"tracking_id,omitempty"`
+	Status         string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	ActionsTaken   []string               `protobuf:"bytes,3,rep,name=actions_taken,json=actionsTaken,proto3" json:"actions_taken,omitempty"`
+	ResolutionTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=resolution_time,json=resolutionTime,proto3" json:"resolution_time,omitempty"`
+	Metadata       *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ReportIncidentResponse) Reset() {
 	*x = ReportIncidentResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[37]
+	mi := &file_security_v1_security_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2403,7 +2753,7 @@ func (x *ReportIncidentResponse) String() string {
 func (*ReportIncidentResponse) ProtoMessage() {}
 
 func (x *ReportIncidentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[37]
+	mi := &file_security_v1_security_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2416,18 +2766,54 @@ func (x *ReportIncidentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportIncidentResponse.ProtoReflect.Descriptor instead.
 func (*ReportIncidentResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{37}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ReportIncidentResponse) GetTrackingId() string {
+	if x != nil {
+		return x.TrackingId
+	}
+	return ""
+}
+
+func (x *ReportIncidentResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ReportIncidentResponse) GetActionsTaken() []string {
+	if x != nil {
+		return x.ActionsTaken
+	}
+	return nil
+}
+
+func (x *ReportIncidentResponse) GetResolutionTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResolutionTime
+	}
+	return nil
+}
+
+func (x *ReportIncidentResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type RegisterSecurityPatternRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pattern       *SecurityPattern       `protobuf:"bytes,1,opt,name=pattern,proto3" json:"pattern,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RegisterSecurityPatternRequest) Reset() {
 	*x = RegisterSecurityPatternRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[38]
+	mi := &file_security_v1_security_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2439,7 +2825,7 @@ func (x *RegisterSecurityPatternRequest) String() string {
 func (*RegisterSecurityPatternRequest) ProtoMessage() {}
 
 func (x *RegisterSecurityPatternRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[38]
+	mi := &file_security_v1_security_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2452,18 +2838,29 @@ func (x *RegisterSecurityPatternRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterSecurityPatternRequest.ProtoReflect.Descriptor instead.
 func (*RegisterSecurityPatternRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{38}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *RegisterSecurityPatternRequest) GetPattern() *SecurityPattern {
+	if x != nil {
+		return x.Pattern
+	}
+	return nil
 }
 
 type RegisterSecurityPatternResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	PatternId          string                 `protobuf:"bytes,1,opt,name=pattern_id,json=patternId,proto3" json:"pattern_id,omitempty"`
+	Status             string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	ValidationMessages []string               `protobuf:"bytes,3,rep,name=validation_messages,json=validationMessages,proto3" json:"validation_messages,omitempty"`
+	Metadata           *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *RegisterSecurityPatternResponse) Reset() {
 	*x = RegisterSecurityPatternResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[39]
+	mi := &file_security_v1_security_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2475,7 +2872,7 @@ func (x *RegisterSecurityPatternResponse) String() string {
 func (*RegisterSecurityPatternResponse) ProtoMessage() {}
 
 func (x *RegisterSecurityPatternResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[39]
+	mi := &file_security_v1_security_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2488,18 +2885,49 @@ func (x *RegisterSecurityPatternResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterSecurityPatternResponse.ProtoReflect.Descriptor instead.
 func (*RegisterSecurityPatternResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{39}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *RegisterSecurityPatternResponse) GetPatternId() string {
+	if x != nil {
+		return x.PatternId
+	}
+	return ""
+}
+
+func (x *RegisterSecurityPatternResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *RegisterSecurityPatternResponse) GetValidationMessages() []string {
+	if x != nil {
+		return x.ValidationMessages
+	}
+	return nil
+}
+
+func (x *RegisterSecurityPatternResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type ValidatePatternRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	PatternId        string                 `protobuf:"bytes,1,opt,name=pattern_id,json=patternId,proto3" json:"pattern_id,omitempty"`
+	Context          *SecurityContext       `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
+	ValidationParams map[string]string      `protobuf:"bytes,3,rep,name=validation_params,json=validationParams,proto3" json:"validation_params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ValidatePatternRequest) Reset() {
 	*x = ValidatePatternRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[40]
+	mi := &file_security_v1_security_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2511,7 +2939,7 @@ func (x *ValidatePatternRequest) String() string {
 func (*ValidatePatternRequest) ProtoMessage() {}
 
 func (x *ValidatePatternRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[40]
+	mi := &file_security_v1_security_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2524,18 +2952,43 @@ func (x *ValidatePatternRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidatePatternRequest.ProtoReflect.Descriptor instead.
 func (*ValidatePatternRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{40}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ValidatePatternRequest) GetPatternId() string {
+	if x != nil {
+		return x.PatternId
+	}
+	return ""
+}
+
+func (x *ValidatePatternRequest) GetContext() *SecurityContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *ValidatePatternRequest) GetValidationParams() map[string]string {
+	if x != nil {
+		return x.ValidationParams
+	}
+	return nil
 }
 
 type ValidatePatternResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Valid            bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	ValidationErrors []string               `protobuf:"bytes,2,rep,name=validation_errors,json=validationErrors,proto3" json:"validation_errors,omitempty"`
+	RiskAssessment   *RiskAssessment        `protobuf:"bytes,3,opt,name=risk_assessment,json=riskAssessment,proto3" json:"risk_assessment,omitempty"`
+	Metadata         *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ValidatePatternResponse) Reset() {
 	*x = ValidatePatternResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[41]
+	mi := &file_security_v1_security_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2547,7 +3000,7 @@ func (x *ValidatePatternResponse) String() string {
 func (*ValidatePatternResponse) ProtoMessage() {}
 
 func (x *ValidatePatternResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[41]
+	mi := &file_security_v1_security_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2560,18 +3013,49 @@ func (x *ValidatePatternResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidatePatternResponse.ProtoReflect.Descriptor instead.
 func (*ValidatePatternResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{41}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *ValidatePatternResponse) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *ValidatePatternResponse) GetValidationErrors() []string {
+	if x != nil {
+		return x.ValidationErrors
+	}
+	return nil
+}
+
+func (x *ValidatePatternResponse) GetRiskAssessment() *RiskAssessment {
+	if x != nil {
+		return x.RiskAssessment
+	}
+	return nil
+}
+
+func (x *ValidatePatternResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type GetSecurityMetricsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	StartTime     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	EndTime       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	MetricTypes   []string               `protobuf:"bytes,3,rep,name=metric_types,json=metricTypes,proto3" json:"metric_types,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetSecurityMetricsRequest) Reset() {
 	*x = GetSecurityMetricsRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[42]
+	mi := &file_security_v1_security_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2583,7 +3067,7 @@ func (x *GetSecurityMetricsRequest) String() string {
 func (*GetSecurityMetricsRequest) ProtoMessage() {}
 
 func (x *GetSecurityMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[42]
+	mi := &file_security_v1_security_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2596,18 +3080,43 @@ func (x *GetSecurityMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSecurityMetricsRequest.ProtoReflect.Descriptor instead.
 func (*GetSecurityMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{42}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *GetSecurityMetricsRequest) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *GetSecurityMetricsRequest) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+func (x *GetSecurityMetricsRequest) GetMetricTypes() []string {
+	if x != nil {
+		return x.MetricTypes
+	}
+	return nil
 }
 
 type GetSecurityMetricsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Metrics       map[string]*MetricValue `protobuf:"bytes,1,rep,name=metrics,proto3" json:"metrics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	OverallScore  *SecurityScore          `protobuf:"bytes,2,opt,name=overall_score,json=overallScore,proto3" json:"overall_score,omitempty"`
+	Incidents     []*SecurityIncident     `protobuf:"bytes,3,rep,name=incidents,proto3" json:"incidents,omitempty"`
+	Metadata      *v1.Metadata            `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetSecurityMetricsResponse) Reset() {
 	*x = GetSecurityMetricsResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[43]
+	mi := &file_security_v1_security_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2619,7 +3128,7 @@ func (x *GetSecurityMetricsResponse) String() string {
 func (*GetSecurityMetricsResponse) ProtoMessage() {}
 
 func (x *GetSecurityMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[43]
+	mi := &file_security_v1_security_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2632,18 +3141,47 @@ func (x *GetSecurityMetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSecurityMetricsResponse.ProtoReflect.Descriptor instead.
 func (*GetSecurityMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{43}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *GetSecurityMetricsResponse) GetMetrics() map[string]*MetricValue {
+	if x != nil {
+		return x.Metrics
+	}
+	return nil
+}
+
+func (x *GetSecurityMetricsResponse) GetOverallScore() *SecurityScore {
+	if x != nil {
+		return x.OverallScore
+	}
+	return nil
+}
+
+func (x *GetSecurityMetricsResponse) GetIncidents() []*SecurityIncident {
+	if x != nil {
+		return x.Incidents
+	}
+	return nil
+}
+
+func (x *GetSecurityMetricsResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type RecordAuditEventRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Event         *AuditEvent            `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RecordAuditEventRequest) Reset() {
 	*x = RecordAuditEventRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[44]
+	mi := &file_security_v1_security_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2655,7 +3193,7 @@ func (x *RecordAuditEventRequest) String() string {
 func (*RecordAuditEventRequest) ProtoMessage() {}
 
 func (x *RecordAuditEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[44]
+	mi := &file_security_v1_security_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2668,18 +3206,28 @@ func (x *RecordAuditEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordAuditEventRequest.ProtoReflect.Descriptor instead.
 func (*RecordAuditEventRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{44}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *RecordAuditEventRequest) GetEvent() *AuditEvent {
+	if x != nil {
+		return x.Event
+	}
+	return nil
 }
 
 type RecordAuditEventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RecordAuditEventResponse) Reset() {
 	*x = RecordAuditEventResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[45]
+	mi := &file_security_v1_security_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2691,7 +3239,7 @@ func (x *RecordAuditEventResponse) String() string {
 func (*RecordAuditEventResponse) ProtoMessage() {}
 
 func (x *RecordAuditEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[45]
+	mi := &file_security_v1_security_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2704,18 +3252,46 @@ func (x *RecordAuditEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordAuditEventResponse.ProtoReflect.Descriptor instead.
 func (*RecordAuditEventResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{45}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *RecordAuditEventResponse) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *RecordAuditEventResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *RecordAuditEventResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type GetAuditLogRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	StartTime     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	EndTime       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	Principal     string                 `protobuf:"bytes,3,opt,name=principal,proto3" json:"principal,omitempty"`
+	Resource      string                 `protobuf:"bytes,4,opt,name=resource,proto3" json:"resource,omitempty"`
+	EventType     string                 `protobuf:"bytes,5,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	PageSize      int32                  `protobuf:"varint,6,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken     string                 `protobuf:"bytes,7,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetAuditLogRequest) Reset() {
 	*x = GetAuditLogRequest{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[46]
+	mi := &file_security_v1_security_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2727,7 +3303,7 @@ func (x *GetAuditLogRequest) String() string {
 func (*GetAuditLogRequest) ProtoMessage() {}
 
 func (x *GetAuditLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[46]
+	mi := &file_security_v1_security_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2740,18 +3316,70 @@ func (x *GetAuditLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAuditLogRequest.ProtoReflect.Descriptor instead.
 func (*GetAuditLogRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{46}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *GetAuditLogRequest) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *GetAuditLogRequest) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+func (x *GetAuditLogRequest) GetPrincipal() string {
+	if x != nil {
+		return x.Principal
+	}
+	return ""
+}
+
+func (x *GetAuditLogRequest) GetResource() string {
+	if x != nil {
+		return x.Resource
+	}
+	return ""
+}
+
+func (x *GetAuditLogRequest) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+func (x *GetAuditLogRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *GetAuditLogRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
 }
 
 type GetAuditLogResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entry         *AuditLogEntry         `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetAuditLogResponse) Reset() {
 	*x = GetAuditLogResponse{}
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[47]
+	mi := &file_security_v1_security_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2763,7 +3391,7 @@ func (x *GetAuditLogResponse) String() string {
 func (*GetAuditLogResponse) ProtoMessage() {}
 
 func (x *GetAuditLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_security_v1_security_proto_msgTypes[47]
+	mi := &file_security_v1_security_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2776,47 +3404,63 @@ func (x *GetAuditLogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAuditLogResponse.ProtoReflect.Descriptor instead.
 func (*GetAuditLogResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_security_v1_security_proto_rawDescGZIP(), []int{47}
+	return file_security_v1_security_proto_rawDescGZIP(), []int{47}
 }
 
-var File_api_protos_security_v1_security_proto protoreflect.FileDescriptor
+func (x *GetAuditLogResponse) GetEntry() *AuditLogEntry {
+	if x != nil {
+		return x.Entry
+	}
+	return nil
+}
 
-const file_api_protos_security_v1_security_proto_rawDesc = "" +
+func (x *GetAuditLogResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+func (x *GetAuditLogResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+var File_security_v1_security_proto protoreflect.FileDescriptor
+
+const file_security_v1_security_proto_rawDesc = "" +
 	"\n" +
-	"%api/protos/security/v1/security.proto\x12\vsecurity.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa8\x01\n" +
+	"\x1asecurity/v1/security.proto\x12\vsecurity.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xa8\x01\n" +
 	"\x15AuthenticationRequest\x12\x1a\n" +
 	"\bidentity\x18\x01 \x01(\tR\bidentity\x12;\n" +
 	"\afactors\x18\x02 \x03(\v2!.security.v1.AuthenticationFactorR\afactors\x126\n" +
-	"\acontext\x18\x03 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\xed\x01\n" +
+	"\acontext\x18\x03 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\x91\x01\n" +
 	"\x14AuthenticationFactor\x12+\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x17.security.v1.FactorTypeR\x04type\x12\x1e\n" +
 	"\n" +
 	"credential\x18\x02 \x01(\fR\n" +
-	"credential\x12K\n" +
-	"\bmetadata\x18\x03 \x03(\v2/.security.v1.AuthenticationFactor.MetadataEntryR\bmetadata\x1a;\n" +
-	"\rMetadataEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb3\x02\n" +
+	"credential\x12,\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\"\xd8\x01\n" +
 	"\x0fSecurityContext\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1b\n" +
 	"\tclient_ip\x18\x02 \x01(\tR\bclientIp\x12\x1d\n" +
 	"\n" +
 	"user_agent\x18\x03 \x01(\tR\tuserAgent\x128\n" +
-	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12L\n" +
+	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x120\n" +
 	"\n" +
-	"attributes\x18\x05 \x03(\v2,.security.v1.SecurityContext.AttributesEntryR\n" +
-	"attributes\x1a=\n" +
-	"\x0fAttributesEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xde\x01\n" +
+	"attributes\x18\x05 \x01(\v2\x10.common.MetadataR\n" +
+	"attributes\"\x8c\x02\n" +
 	"\x16AuthenticationResponse\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12:\n" +
 	"\n" +
 	"expiration\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expiration\x12 \n" +
 	"\vpermissions\x18\x03 \x03(\tR\vpermissions\x12A\n" +
-	"\x0esecurity_score\x18\x04 \x01(\v2\x1a.security.v1.SecurityScoreR\rsecurityScore\"\x9e\x02\n" +
+	"\x0esecurity_score\x18\x04 \x01(\v2\x1a.security.v1.SecurityScoreR\rsecurityScore\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"\x9e\x02\n" +
 	"\rSecurityScore\x121\n" +
 	"\x14authentication_score\x18\x01 \x01(\x01R\x13authenticationScore\x12!\n" +
 	"\fthreat_score\x18\x02 \x01(\x01R\vthreatScore\x12#\n" +
@@ -2829,13 +3473,14 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12\x1a\n" +
 	"\bresource\x18\x02 \x01(\tR\bresource\x12\x16\n" +
 	"\x06action\x18\x03 \x01(\tR\x06action\x126\n" +
-	"\acontext\x18\x04 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\x80\x01\n" +
+	"\acontext\x18\x04 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\xae\x01\n" +
 	"\x15AuthorizationResponse\x12\x1e\n" +
 	"\n" +
 	"authorized\x18\x01 \x01(\bR\n" +
 	"authorized\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12/\n" +
-	"\x13applicable_policies\x18\x03 \x03(\tR\x12applicablePolicies\"\x8c\x03\n" +
+	"\x13applicable_policies\x18\x03 \x03(\tR\x12applicablePolicies\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xba\x03\n" +
 	"\x0fSecurityPattern\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x01 \x01(\tR\tpatternId\x12\x12\n" +
@@ -2844,7 +3489,8 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"\bvertices\x18\x04 \x03(\v2\x18.security.v1.GraphVertexR\bvertices\x12,\n" +
 	"\x05edges\x18\x05 \x03(\v2\x16.security.v1.GraphEdgeR\x05edges\x12O\n" +
 	"\vconstraints\x18\x06 \x03(\v2-.security.v1.SecurityPattern.ConstraintsEntryR\vconstraints\x12/\n" +
-	"\x04risk\x18\a \x01(\v2\x1b.security.v1.RiskAssessmentR\x04risk\x1a>\n" +
+	"\x04risk\x18\a \x01(\v2\x1b.security.v1.RiskAssessmentR\x04risk\x12,\n" +
+	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata\x1a>\n" +
 	"\x10ConstraintsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xba\x01\n" +
@@ -2875,7 +3521,7 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"\x0efactor_weights\x18\x04 \x03(\v2..security.v1.RiskAssessment.FactorWeightsEntryR\rfactorWeights\x1a@\n" +
 	"\x12FactorWeightsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x01R\x05value:\x028\x01\"\x8a\x03\n" +
+	"\x05value\x18\x02 \x01(\x01R\x05value:\x028\x01\"\xb8\x02\n" +
 	"\n" +
 	"AuditEvent\x12\x19\n" +
 	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x1d\n" +
@@ -2885,31 +3531,26 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"\bresource\x18\x04 \x01(\tR\bresource\x12\x16\n" +
 	"\x06action\x18\x05 \x01(\tR\x06action\x128\n" +
 	"\ttimestamp\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x126\n" +
-	"\acontext\x18\a \x01(\v2\x1c.security.v1.SecurityContextR\acontext\x12A\n" +
-	"\bmetadata\x18\b \x03(\v2%.security.v1.AuditEvent.MetadataEntryR\bmetadata\x1a;\n" +
-	"\rMetadataEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xad\x01\n" +
+	"\acontext\x18\a \x01(\v2\x1c.security.v1.SecurityContextR\acontext\x12,\n" +
+	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata\"\xad\x01\n" +
 	"\x16SecurityMetricsRequest\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
 	"\bend_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
-	"\fmetric_types\x18\x03 \x03(\tR\vmetricTypes\"\xba\x02\n" +
+	"\fmetric_types\x18\x03 \x03(\tR\vmetricTypes\"\xe8\x02\n" +
 	"\x17SecurityMetricsResponse\x12K\n" +
 	"\ametrics\x18\x01 \x03(\v21.security.v1.SecurityMetricsResponse.MetricsEntryR\ametrics\x12?\n" +
 	"\roverall_score\x18\x02 \x01(\v2\x1a.security.v1.SecurityScoreR\foverallScore\x12;\n" +
-	"\tincidents\x18\x03 \x03(\v2\x1d.security.v1.SecurityIncidentR\tincidents\x1aT\n" +
+	"\tincidents\x18\x03 \x03(\v2\x1d.security.v1.SecurityIncidentR\tincidents\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x1aT\n" +
 	"\fMetricsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12.\n" +
-	"\x05value\x18\x02 \x01(\v2\x18.security.v1.MetricValueR\x05value:\x028\x01\"\x9c\x02\n" +
+	"\x05value\x18\x02 \x01(\v2\x18.security.v1.MetricValueR\x05value:\x028\x01\"\xcd\x01\n" +
 	"\vMetricValue\x12%\n" +
 	"\rnumeric_value\x18\x01 \x01(\x01H\x00R\fnumericValue\x12#\n" +
 	"\fstring_value\x18\x02 \x01(\tH\x00R\vstringValue\x12?\n" +
-	"\fdistribution\x18\x03 \x01(\v2\x19.security.v1.DistributionH\x00R\fdistribution\x12<\n" +
-	"\x06labels\x18\x04 \x03(\v2$.security.v1.MetricValue.LabelsEntryR\x06labels\x1a9\n" +
-	"\vLabelsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\a\n" +
+	"\fdistribution\x18\x03 \x01(\v2\x19.security.v1.DistributionH\x00R\fdistribution\x12(\n" +
+	"\x06labels\x18\x04 \x01(\v2\x10.common.MetadataR\x06labelsB\a\n" +
 	"\x05value\"\xec\x01\n" +
 	"\fDistribution\x12\x12\n" +
 	"\x04mean\x18\x01 \x01(\x01R\x04mean\x12\x16\n" +
@@ -2922,14 +3563,15 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\x01R\x05value:\x028\x01\"f\n" +
 	"\x16TokenValidationRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x126\n" +
-	"\acontext\x18\x02 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\xc6\x01\n" +
+	"\acontext\x18\x02 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\xf4\x01\n" +
 	"\x17TokenValidationResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12:\n" +
 	"\n" +
 	"expiration\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expiration\x12A\n" +
-	"\x0esecurity_score\x18\x04 \x01(\v2\x1a.security.v1.SecurityScoreR\rsecurityScore\"\x9d\x02\n" +
+	"\x0esecurity_score\x18\x04 \x01(\v2\x1a.security.v1.SecurityScoreR\rsecurityScore\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"\x9d\x02\n" +
 	"\x16ThreatDetectionRequest\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x12\x16\n" +
@@ -2940,11 +3582,12 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"attributes\x1a=\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa8\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd6\x01\n" +
 	"\x17ThreatDetectionResponse\x12!\n" +
 	"\fthreat_score\x18\x01 \x01(\x01R\vthreatScore\x12H\n" +
 	"\x10detected_threats\x18\x02 \x03(\v2\x1d.security.v1.SecurityIncidentR\x0fdetectedThreats\x12 \n" +
-	"\vmitigations\x18\x03 \x03(\tR\vmitigations\"\xbf\x02\n" +
+	"\vmitigations\x18\x03 \x03(\tR\vmitigations\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xbf\x02\n" +
 	"\x0eIncidentReport\x12\x1f\n" +
 	"\vincident_id\x18\x01 \x01(\tR\n" +
 	"incidentId\x12\x12\n" +
@@ -2974,11 +3617,12 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"\x11validation_params\x18\x03 \x03(\v2;.security.v1.PatternValidationRequest.ValidationParamsEntryR\x10validationParams\x1aC\n" +
 	"\x15ValidationParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa4\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd2\x01\n" +
 	"\x19PatternValidationResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x12+\n" +
 	"\x11validation_errors\x18\x02 \x03(\tR\x10validationErrors\x12D\n" +
-	"\x0frisk_assessment\x18\x03 \x01(\v2\x1b.security.v1.RiskAssessmentR\x0eriskAssessment\"\xb1\x02\n" +
+	"\x0frisk_assessment\x18\x03 \x01(\v2\x1b.security.v1.RiskAssessmentR\x0eriskAssessment\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xb1\x02\n" +
 	"\x10SecurityIncident\x12\x1f\n" +
 	"\vincident_id\x18\x01 \x01(\tR\n" +
 	"incidentId\x12\x12\n" +
@@ -3006,27 +3650,129 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"\x11enriched_metadata\x18\x04 \x03(\v20.security.v1.AuditLogEntry.EnrichedMetadataEntryR\x10enrichedMetadata\x1aC\n" +
 	"\x15EnrichedMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x15\n" +
-	"\x13AuthenticateRequest\"\x16\n" +
-	"\x14AuthenticateResponse\"\x12\n" +
-	"\x10AuthorizeRequest\"\x13\n" +
-	"\x11AuthorizeResponse\"\x16\n" +
-	"\x14ValidateTokenRequest\"\x17\n" +
-	"\x15ValidateTokenResponse\"\x16\n" +
-	"\x14DetectThreatsRequest\"\x17\n" +
-	"\x15DetectThreatsResponse\"\x17\n" +
-	"\x15ReportIncidentRequest\"\x18\n" +
-	"\x16ReportIncidentResponse\" \n" +
-	"\x1eRegisterSecurityPatternRequest\"!\n" +
-	"\x1fRegisterSecurityPatternResponse\"\x18\n" +
-	"\x16ValidatePatternRequest\"\x19\n" +
-	"\x17ValidatePatternResponse\"\x1b\n" +
-	"\x19GetSecurityMetricsRequest\"\x1c\n" +
-	"\x1aGetSecurityMetricsResponse\"\x19\n" +
-	"\x17RecordAuditEventRequest\"\x1a\n" +
-	"\x18RecordAuditEventResponse\"\x14\n" +
-	"\x12GetAuditLogRequest\"\x15\n" +
-	"\x13GetAuditLogResponse*\x92\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa6\x01\n" +
+	"\x13AuthenticateRequest\x12\x1a\n" +
+	"\bidentity\x18\x01 \x01(\tR\bidentity\x12;\n" +
+	"\afactors\x18\x02 \x03(\v2!.security.v1.AuthenticationFactorR\afactors\x126\n" +
+	"\acontext\x18\x03 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\x8a\x02\n" +
+	"\x14AuthenticateResponse\x12#\n" +
+	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12:\n" +
+	"\n" +
+	"expiration\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"expiration\x12 \n" +
+	"\vpermissions\x18\x03 \x03(\tR\vpermissions\x12A\n" +
+	"\x0esecurity_score\x18\x04 \x01(\v2\x1a.security.v1.SecurityScoreR\rsecurityScore\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"\xa3\x01\n" +
+	"\x10AuthorizeRequest\x12#\n" +
+	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12\x1a\n" +
+	"\bresource\x18\x02 \x01(\tR\bresource\x12\x16\n" +
+	"\x06action\x18\x03 \x01(\tR\x06action\x126\n" +
+	"\acontext\x18\x04 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\xaa\x01\n" +
+	"\x11AuthorizeResponse\x12\x1e\n" +
+	"\n" +
+	"authorized\x18\x01 \x01(\bR\n" +
+	"authorized\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12/\n" +
+	"\x13applicable_policies\x18\x03 \x03(\tR\x12applicablePolicies\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"d\n" +
+	"\x14ValidateTokenRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x126\n" +
+	"\acontext\x18\x02 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\"\xf2\x01\n" +
+	"\x15ValidateTokenResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12:\n" +
+	"\n" +
+	"expiration\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"expiration\x12A\n" +
+	"\x0esecurity_score\x18\x04 \x01(\v2\x1a.security.v1.SecurityScoreR\rsecurityScore\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"\x99\x02\n" +
+	"\x14DetectThreatsRequest\x12\x1f\n" +
+	"\vresource_id\x18\x01 \x01(\tR\n" +
+	"resourceId\x12\x16\n" +
+	"\x06action\x18\x02 \x01(\tR\x06action\x126\n" +
+	"\acontext\x18\x03 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\x12Q\n" +
+	"\n" +
+	"attributes\x18\x04 \x03(\v21.security.v1.DetectThreatsRequest.AttributesEntryR\n" +
+	"attributes\x1a=\n" +
+	"\x0fAttributesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd4\x01\n" +
+	"\x15DetectThreatsResponse\x12!\n" +
+	"\fthreat_score\x18\x01 \x01(\x01R\vthreatScore\x12H\n" +
+	"\x10detected_threats\x18\x02 \x03(\v2\x1d.security.v1.SecurityIncidentR\x0fdetectedThreats\x12 \n" +
+	"\vmitigations\x18\x03 \x03(\tR\vmitigations\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xac\x02\n" +
+	"\x15ReportIncidentRequest\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1a\n" +
+	"\bseverity\x18\x02 \x01(\tR\bseverity\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x126\n" +
+	"\acontext\x18\x04 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\x12L\n" +
+	"\bmetadata\x18\x05 \x03(\v20.security.v1.ReportIncidentRequest.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe9\x01\n" +
+	"\x16ReportIncidentResponse\x12\x1f\n" +
+	"\vtracking_id\x18\x01 \x01(\tR\n" +
+	"trackingId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12#\n" +
+	"\ractions_taken\x18\x03 \x03(\tR\factionsTaken\x12C\n" +
+	"\x0fresolution_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x0eresolutionTime\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"X\n" +
+	"\x1eRegisterSecurityPatternRequest\x126\n" +
+	"\apattern\x18\x01 \x01(\v2\x1c.security.v1.SecurityPatternR\apattern\"\xb7\x01\n" +
+	"\x1fRegisterSecurityPatternResponse\x12\x1d\n" +
+	"\n" +
+	"pattern_id\x18\x01 \x01(\tR\tpatternId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12/\n" +
+	"\x13validation_messages\x18\x03 \x03(\tR\x12validationMessages\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\x9c\x02\n" +
+	"\x16ValidatePatternRequest\x12\x1d\n" +
+	"\n" +
+	"pattern_id\x18\x01 \x01(\tR\tpatternId\x126\n" +
+	"\acontext\x18\x02 \x01(\v2\x1c.security.v1.SecurityContextR\acontext\x12f\n" +
+	"\x11validation_params\x18\x03 \x03(\v29.security.v1.ValidatePatternRequest.ValidationParamsEntryR\x10validationParams\x1aC\n" +
+	"\x15ValidationParamsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd0\x01\n" +
+	"\x17ValidatePatternResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12+\n" +
+	"\x11validation_errors\x18\x02 \x03(\tR\x10validationErrors\x12D\n" +
+	"\x0frisk_assessment\x18\x03 \x01(\v2\x1b.security.v1.RiskAssessmentR\x0eriskAssessment\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xb0\x01\n" +
+	"\x19GetSecurityMetricsRequest\x129\n" +
+	"\n" +
+	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
+	"\bend_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
+	"\fmetric_types\x18\x03 \x03(\tR\vmetricTypes\"\xee\x02\n" +
+	"\x1aGetSecurityMetricsResponse\x12N\n" +
+	"\ametrics\x18\x01 \x03(\v24.security.v1.GetSecurityMetricsResponse.MetricsEntryR\ametrics\x12?\n" +
+	"\roverall_score\x18\x02 \x01(\v2\x1a.security.v1.SecurityScoreR\foverallScore\x12;\n" +
+	"\tincidents\x18\x03 \x03(\v2\x1d.security.v1.SecurityIncidentR\tincidents\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x1aT\n" +
+	"\fMetricsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12.\n" +
+	"\x05value\x18\x02 \x01(\v2\x18.security.v1.MetricValueR\x05value:\x028\x01\"H\n" +
+	"\x17RecordAuditEventRequest\x12-\n" +
+	"\x05event\x18\x01 \x01(\v2\x17.security.v1.AuditEventR\x05event\"{\n" +
+	"\x18RecordAuditEventResponse\x12\x19\n" +
+	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12,\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\"\x9b\x02\n" +
+	"\x12GetAuditLogRequest\x129\n" +
+	"\n" +
+	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
+	"\bend_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12\x1c\n" +
+	"\tprincipal\x18\x03 \x01(\tR\tprincipal\x12\x1a\n" +
+	"\bresource\x18\x04 \x01(\tR\bresource\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x05 \x01(\tR\teventType\x12\x1b\n" +
+	"\tpage_size\x18\x06 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\a \x01(\tR\tpageToken\"\x9d\x01\n" +
+	"\x13GetAuditLogResponse\x120\n" +
+	"\x05entry\x18\x01 \x01(\v2\x1a.security.v1.AuditLogEntryR\x05entry\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x12,\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata*\x92\x01\n" +
 	"\n" +
 	"FactorType\x12\x1b\n" +
 	"\x17FACTOR_TYPE_UNSPECIFIED\x10\x00\x12\x18\n" +
@@ -3044,23 +3790,23 @@ const file_api_protos_security_v1_security_proto_rawDesc = "" +
 	"\x0fValidatePattern\x12#.security.v1.ValidatePatternRequest\x1a$.security.v1.ValidatePatternResponse\x12_\n" +
 	"\x10RecordAuditEvent\x12$.security.v1.RecordAuditEventRequest\x1a%.security.v1.RecordAuditEventResponse\x12R\n" +
 	"\vGetAuditLog\x12\x1f.security.v1.GetAuditLogRequest\x1a .security.v1.GetAuditLogResponse0\x01\x12e\n" +
-	"\x12GetSecurityMetrics\x12&.security.v1.GetSecurityMetricsRequest\x1a'.security.v1.GetSecurityMetricsResponseB9Z7github.com/nmxmxh/master-ovasabi/api/protos/security/v0b\x06proto3"
+	"\x12GetSecurityMetrics\x12&.security.v1.GetSecurityMetricsRequest\x1a'.security.v1.GetSecurityMetricsResponseBDZBgithub.com/nmxmxh/master-ovasabi/api/protos/security/v1;securitypbb\x06proto3"
 
 var (
-	file_api_protos_security_v1_security_proto_rawDescOnce sync.Once
-	file_api_protos_security_v1_security_proto_rawDescData []byte
+	file_security_v1_security_proto_rawDescOnce sync.Once
+	file_security_v1_security_proto_rawDescData []byte
 )
 
-func file_api_protos_security_v1_security_proto_rawDescGZIP() []byte {
-	file_api_protos_security_v1_security_proto_rawDescOnce.Do(func() {
-		file_api_protos_security_v1_security_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_protos_security_v1_security_proto_rawDesc), len(file_api_protos_security_v1_security_proto_rawDesc)))
+func file_security_v1_security_proto_rawDescGZIP() []byte {
+	file_security_v1_security_proto_rawDescOnce.Do(func() {
+		file_security_v1_security_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_security_v1_security_proto_rawDesc), len(file_security_v1_security_proto_rawDesc)))
 	})
-	return file_api_protos_security_v1_security_proto_rawDescData
+	return file_security_v1_security_proto_rawDescData
 }
 
-var file_api_protos_security_v1_security_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_protos_security_v1_security_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
-var file_api_protos_security_v1_security_proto_goTypes = []any{
+var file_security_v1_security_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_security_v1_security_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
+var file_security_v1_security_proto_goTypes = []any{
 	(FactorType)(0),                         // 0: security.v1.FactorType
 	(*AuthenticationRequest)(nil),           // 1: security.v1.AuthenticationRequest
 	(*AuthenticationFactor)(nil),            // 2: security.v1.AuthenticationFactor
@@ -3110,106 +3856,152 @@ var file_api_protos_security_v1_security_proto_goTypes = []any{
 	(*RecordAuditEventResponse)(nil),        // 46: security.v1.RecordAuditEventResponse
 	(*GetAuditLogRequest)(nil),              // 47: security.v1.GetAuditLogRequest
 	(*GetAuditLogResponse)(nil),             // 48: security.v1.GetAuditLogResponse
-	nil,                                     // 49: security.v1.AuthenticationFactor.MetadataEntry
-	nil,                                     // 50: security.v1.SecurityContext.AttributesEntry
-	nil,                                     // 51: security.v1.SecurityScore.FactorScoresEntry
-	nil,                                     // 52: security.v1.SecurityPattern.ConstraintsEntry
-	nil,                                     // 53: security.v1.GraphVertex.PropertiesEntry
-	nil,                                     // 54: security.v1.GraphEdge.PropertiesEntry
-	nil,                                     // 55: security.v1.RiskAssessment.FactorWeightsEntry
-	nil,                                     // 56: security.v1.AuditEvent.MetadataEntry
-	nil,                                     // 57: security.v1.SecurityMetricsResponse.MetricsEntry
-	nil,                                     // 58: security.v1.MetricValue.LabelsEntry
-	nil,                                     // 59: security.v1.Distribution.PercentilesEntry
-	nil,                                     // 60: security.v1.ThreatDetectionRequest.AttributesEntry
-	nil,                                     // 61: security.v1.IncidentReport.MetadataEntry
-	nil,                                     // 62: security.v1.PatternValidationRequest.ValidationParamsEntry
-	nil,                                     // 63: security.v1.AuditLogEntry.EnrichedMetadataEntry
-	(*timestamppb.Timestamp)(nil),           // 64: google.protobuf.Timestamp
+	nil,                                     // 49: security.v1.SecurityScore.FactorScoresEntry
+	nil,                                     // 50: security.v1.SecurityPattern.ConstraintsEntry
+	nil,                                     // 51: security.v1.GraphVertex.PropertiesEntry
+	nil,                                     // 52: security.v1.GraphEdge.PropertiesEntry
+	nil,                                     // 53: security.v1.RiskAssessment.FactorWeightsEntry
+	nil,                                     // 54: security.v1.SecurityMetricsResponse.MetricsEntry
+	nil,                                     // 55: security.v1.Distribution.PercentilesEntry
+	nil,                                     // 56: security.v1.ThreatDetectionRequest.AttributesEntry
+	nil,                                     // 57: security.v1.IncidentReport.MetadataEntry
+	nil,                                     // 58: security.v1.PatternValidationRequest.ValidationParamsEntry
+	nil,                                     // 59: security.v1.AuditLogEntry.EnrichedMetadataEntry
+	nil,                                     // 60: security.v1.DetectThreatsRequest.AttributesEntry
+	nil,                                     // 61: security.v1.ReportIncidentRequest.MetadataEntry
+	nil,                                     // 62: security.v1.ValidatePatternRequest.ValidationParamsEntry
+	nil,                                     // 63: security.v1.GetSecurityMetricsResponse.MetricsEntry
+	(*v1.Metadata)(nil),                     // 64: common.Metadata
+	(*timestamppb.Timestamp)(nil),           // 65: google.protobuf.Timestamp
 }
-var file_api_protos_security_v1_security_proto_depIdxs = []int32{
-	2,  // 0: security.v1.AuthenticationRequest.factors:type_name -> security.v1.AuthenticationFactor
-	3,  // 1: security.v1.AuthenticationRequest.context:type_name -> security.v1.SecurityContext
-	0,  // 2: security.v1.AuthenticationFactor.type:type_name -> security.v1.FactorType
-	49, // 3: security.v1.AuthenticationFactor.metadata:type_name -> security.v1.AuthenticationFactor.MetadataEntry
-	64, // 4: security.v1.SecurityContext.timestamp:type_name -> google.protobuf.Timestamp
-	50, // 5: security.v1.SecurityContext.attributes:type_name -> security.v1.SecurityContext.AttributesEntry
-	64, // 6: security.v1.AuthenticationResponse.expiration:type_name -> google.protobuf.Timestamp
-	5,  // 7: security.v1.AuthenticationResponse.security_score:type_name -> security.v1.SecurityScore
-	51, // 8: security.v1.SecurityScore.factor_scores:type_name -> security.v1.SecurityScore.FactorScoresEntry
-	3,  // 9: security.v1.AuthorizationRequest.context:type_name -> security.v1.SecurityContext
-	9,  // 10: security.v1.SecurityPattern.vertices:type_name -> security.v1.GraphVertex
-	10, // 11: security.v1.SecurityPattern.edges:type_name -> security.v1.GraphEdge
-	52, // 12: security.v1.SecurityPattern.constraints:type_name -> security.v1.SecurityPattern.ConstraintsEntry
-	11, // 13: security.v1.SecurityPattern.risk:type_name -> security.v1.RiskAssessment
-	53, // 14: security.v1.GraphVertex.properties:type_name -> security.v1.GraphVertex.PropertiesEntry
-	54, // 15: security.v1.GraphEdge.properties:type_name -> security.v1.GraphEdge.PropertiesEntry
-	55, // 16: security.v1.RiskAssessment.factor_weights:type_name -> security.v1.RiskAssessment.FactorWeightsEntry
-	64, // 17: security.v1.AuditEvent.timestamp:type_name -> google.protobuf.Timestamp
-	3,  // 18: security.v1.AuditEvent.context:type_name -> security.v1.SecurityContext
-	56, // 19: security.v1.AuditEvent.metadata:type_name -> security.v1.AuditEvent.MetadataEntry
-	64, // 20: security.v1.SecurityMetricsRequest.start_time:type_name -> google.protobuf.Timestamp
-	64, // 21: security.v1.SecurityMetricsRequest.end_time:type_name -> google.protobuf.Timestamp
-	57, // 22: security.v1.SecurityMetricsResponse.metrics:type_name -> security.v1.SecurityMetricsResponse.MetricsEntry
-	5,  // 23: security.v1.SecurityMetricsResponse.overall_score:type_name -> security.v1.SecurityScore
-	26, // 24: security.v1.SecurityMetricsResponse.incidents:type_name -> security.v1.SecurityIncident
-	16, // 25: security.v1.MetricValue.distribution:type_name -> security.v1.Distribution
-	58, // 26: security.v1.MetricValue.labels:type_name -> security.v1.MetricValue.LabelsEntry
-	59, // 27: security.v1.Distribution.percentiles:type_name -> security.v1.Distribution.PercentilesEntry
-	3,  // 28: security.v1.TokenValidationRequest.context:type_name -> security.v1.SecurityContext
-	64, // 29: security.v1.TokenValidationResponse.expiration:type_name -> google.protobuf.Timestamp
-	5,  // 30: security.v1.TokenValidationResponse.security_score:type_name -> security.v1.SecurityScore
-	3,  // 31: security.v1.ThreatDetectionRequest.context:type_name -> security.v1.SecurityContext
-	60, // 32: security.v1.ThreatDetectionRequest.attributes:type_name -> security.v1.ThreatDetectionRequest.AttributesEntry
-	26, // 33: security.v1.ThreatDetectionResponse.detected_threats:type_name -> security.v1.SecurityIncident
-	3,  // 34: security.v1.IncidentReport.context:type_name -> security.v1.SecurityContext
-	61, // 35: security.v1.IncidentReport.metadata:type_name -> security.v1.IncidentReport.MetadataEntry
-	64, // 36: security.v1.IncidentResponse.resolution_time:type_name -> google.protobuf.Timestamp
-	3,  // 37: security.v1.PatternValidationRequest.context:type_name -> security.v1.SecurityContext
-	62, // 38: security.v1.PatternValidationRequest.validation_params:type_name -> security.v1.PatternValidationRequest.ValidationParamsEntry
-	11, // 39: security.v1.PatternValidationResponse.risk_assessment:type_name -> security.v1.RiskAssessment
-	64, // 40: security.v1.SecurityIncident.detection_time:type_name -> google.protobuf.Timestamp
-	3,  // 41: security.v1.SecurityIncident.context:type_name -> security.v1.SecurityContext
-	11, // 42: security.v1.SecurityIncident.risk:type_name -> security.v1.RiskAssessment
-	64, // 43: security.v1.AuditLogRequest.start_time:type_name -> google.protobuf.Timestamp
-	64, // 44: security.v1.AuditLogRequest.end_time:type_name -> google.protobuf.Timestamp
-	12, // 45: security.v1.AuditLogEntry.event:type_name -> security.v1.AuditEvent
-	11, // 46: security.v1.AuditLogEntry.risk:type_name -> security.v1.RiskAssessment
-	63, // 47: security.v1.AuditLogEntry.enriched_metadata:type_name -> security.v1.AuditLogEntry.EnrichedMetadataEntry
-	15, // 48: security.v1.SecurityMetricsResponse.MetricsEntry.value:type_name -> security.v1.MetricValue
-	29, // 49: security.v1.SecurityService.Authenticate:input_type -> security.v1.AuthenticateRequest
-	31, // 50: security.v1.SecurityService.Authorize:input_type -> security.v1.AuthorizeRequest
-	33, // 51: security.v1.SecurityService.ValidateToken:input_type -> security.v1.ValidateTokenRequest
-	35, // 52: security.v1.SecurityService.DetectThreats:input_type -> security.v1.DetectThreatsRequest
-	37, // 53: security.v1.SecurityService.ReportIncident:input_type -> security.v1.ReportIncidentRequest
-	39, // 54: security.v1.SecurityService.RegisterSecurityPattern:input_type -> security.v1.RegisterSecurityPatternRequest
-	41, // 55: security.v1.SecurityService.ValidatePattern:input_type -> security.v1.ValidatePatternRequest
-	45, // 56: security.v1.SecurityService.RecordAuditEvent:input_type -> security.v1.RecordAuditEventRequest
-	47, // 57: security.v1.SecurityService.GetAuditLog:input_type -> security.v1.GetAuditLogRequest
-	43, // 58: security.v1.SecurityService.GetSecurityMetrics:input_type -> security.v1.GetSecurityMetricsRequest
-	30, // 59: security.v1.SecurityService.Authenticate:output_type -> security.v1.AuthenticateResponse
-	32, // 60: security.v1.SecurityService.Authorize:output_type -> security.v1.AuthorizeResponse
-	34, // 61: security.v1.SecurityService.ValidateToken:output_type -> security.v1.ValidateTokenResponse
-	36, // 62: security.v1.SecurityService.DetectThreats:output_type -> security.v1.DetectThreatsResponse
-	38, // 63: security.v1.SecurityService.ReportIncident:output_type -> security.v1.ReportIncidentResponse
-	40, // 64: security.v1.SecurityService.RegisterSecurityPattern:output_type -> security.v1.RegisterSecurityPatternResponse
-	42, // 65: security.v1.SecurityService.ValidatePattern:output_type -> security.v1.ValidatePatternResponse
-	46, // 66: security.v1.SecurityService.RecordAuditEvent:output_type -> security.v1.RecordAuditEventResponse
-	48, // 67: security.v1.SecurityService.GetAuditLog:output_type -> security.v1.GetAuditLogResponse
-	44, // 68: security.v1.SecurityService.GetSecurityMetrics:output_type -> security.v1.GetSecurityMetricsResponse
-	59, // [59:69] is the sub-list for method output_type
-	49, // [49:59] is the sub-list for method input_type
-	49, // [49:49] is the sub-list for extension type_name
-	49, // [49:49] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+var file_security_v1_security_proto_depIdxs = []int32{
+	2,   // 0: security.v1.AuthenticationRequest.factors:type_name -> security.v1.AuthenticationFactor
+	3,   // 1: security.v1.AuthenticationRequest.context:type_name -> security.v1.SecurityContext
+	0,   // 2: security.v1.AuthenticationFactor.type:type_name -> security.v1.FactorType
+	64,  // 3: security.v1.AuthenticationFactor.metadata:type_name -> common.Metadata
+	65,  // 4: security.v1.SecurityContext.timestamp:type_name -> google.protobuf.Timestamp
+	64,  // 5: security.v1.SecurityContext.attributes:type_name -> common.Metadata
+	65,  // 6: security.v1.AuthenticationResponse.expiration:type_name -> google.protobuf.Timestamp
+	5,   // 7: security.v1.AuthenticationResponse.security_score:type_name -> security.v1.SecurityScore
+	64,  // 8: security.v1.AuthenticationResponse.metadata:type_name -> common.Metadata
+	49,  // 9: security.v1.SecurityScore.factor_scores:type_name -> security.v1.SecurityScore.FactorScoresEntry
+	3,   // 10: security.v1.AuthorizationRequest.context:type_name -> security.v1.SecurityContext
+	64,  // 11: security.v1.AuthorizationResponse.metadata:type_name -> common.Metadata
+	9,   // 12: security.v1.SecurityPattern.vertices:type_name -> security.v1.GraphVertex
+	10,  // 13: security.v1.SecurityPattern.edges:type_name -> security.v1.GraphEdge
+	50,  // 14: security.v1.SecurityPattern.constraints:type_name -> security.v1.SecurityPattern.ConstraintsEntry
+	11,  // 15: security.v1.SecurityPattern.risk:type_name -> security.v1.RiskAssessment
+	64,  // 16: security.v1.SecurityPattern.metadata:type_name -> common.Metadata
+	51,  // 17: security.v1.GraphVertex.properties:type_name -> security.v1.GraphVertex.PropertiesEntry
+	52,  // 18: security.v1.GraphEdge.properties:type_name -> security.v1.GraphEdge.PropertiesEntry
+	53,  // 19: security.v1.RiskAssessment.factor_weights:type_name -> security.v1.RiskAssessment.FactorWeightsEntry
+	65,  // 20: security.v1.AuditEvent.timestamp:type_name -> google.protobuf.Timestamp
+	3,   // 21: security.v1.AuditEvent.context:type_name -> security.v1.SecurityContext
+	64,  // 22: security.v1.AuditEvent.metadata:type_name -> common.Metadata
+	65,  // 23: security.v1.SecurityMetricsRequest.start_time:type_name -> google.protobuf.Timestamp
+	65,  // 24: security.v1.SecurityMetricsRequest.end_time:type_name -> google.protobuf.Timestamp
+	54,  // 25: security.v1.SecurityMetricsResponse.metrics:type_name -> security.v1.SecurityMetricsResponse.MetricsEntry
+	5,   // 26: security.v1.SecurityMetricsResponse.overall_score:type_name -> security.v1.SecurityScore
+	26,  // 27: security.v1.SecurityMetricsResponse.incidents:type_name -> security.v1.SecurityIncident
+	64,  // 28: security.v1.SecurityMetricsResponse.metadata:type_name -> common.Metadata
+	16,  // 29: security.v1.MetricValue.distribution:type_name -> security.v1.Distribution
+	64,  // 30: security.v1.MetricValue.labels:type_name -> common.Metadata
+	55,  // 31: security.v1.Distribution.percentiles:type_name -> security.v1.Distribution.PercentilesEntry
+	3,   // 32: security.v1.TokenValidationRequest.context:type_name -> security.v1.SecurityContext
+	65,  // 33: security.v1.TokenValidationResponse.expiration:type_name -> google.protobuf.Timestamp
+	5,   // 34: security.v1.TokenValidationResponse.security_score:type_name -> security.v1.SecurityScore
+	64,  // 35: security.v1.TokenValidationResponse.metadata:type_name -> common.Metadata
+	3,   // 36: security.v1.ThreatDetectionRequest.context:type_name -> security.v1.SecurityContext
+	56,  // 37: security.v1.ThreatDetectionRequest.attributes:type_name -> security.v1.ThreatDetectionRequest.AttributesEntry
+	26,  // 38: security.v1.ThreatDetectionResponse.detected_threats:type_name -> security.v1.SecurityIncident
+	64,  // 39: security.v1.ThreatDetectionResponse.metadata:type_name -> common.Metadata
+	3,   // 40: security.v1.IncidentReport.context:type_name -> security.v1.SecurityContext
+	57,  // 41: security.v1.IncidentReport.metadata:type_name -> security.v1.IncidentReport.MetadataEntry
+	65,  // 42: security.v1.IncidentResponse.resolution_time:type_name -> google.protobuf.Timestamp
+	3,   // 43: security.v1.PatternValidationRequest.context:type_name -> security.v1.SecurityContext
+	58,  // 44: security.v1.PatternValidationRequest.validation_params:type_name -> security.v1.PatternValidationRequest.ValidationParamsEntry
+	11,  // 45: security.v1.PatternValidationResponse.risk_assessment:type_name -> security.v1.RiskAssessment
+	64,  // 46: security.v1.PatternValidationResponse.metadata:type_name -> common.Metadata
+	65,  // 47: security.v1.SecurityIncident.detection_time:type_name -> google.protobuf.Timestamp
+	3,   // 48: security.v1.SecurityIncident.context:type_name -> security.v1.SecurityContext
+	11,  // 49: security.v1.SecurityIncident.risk:type_name -> security.v1.RiskAssessment
+	65,  // 50: security.v1.AuditLogRequest.start_time:type_name -> google.protobuf.Timestamp
+	65,  // 51: security.v1.AuditLogRequest.end_time:type_name -> google.protobuf.Timestamp
+	12,  // 52: security.v1.AuditLogEntry.event:type_name -> security.v1.AuditEvent
+	11,  // 53: security.v1.AuditLogEntry.risk:type_name -> security.v1.RiskAssessment
+	59,  // 54: security.v1.AuditLogEntry.enriched_metadata:type_name -> security.v1.AuditLogEntry.EnrichedMetadataEntry
+	2,   // 55: security.v1.AuthenticateRequest.factors:type_name -> security.v1.AuthenticationFactor
+	3,   // 56: security.v1.AuthenticateRequest.context:type_name -> security.v1.SecurityContext
+	65,  // 57: security.v1.AuthenticateResponse.expiration:type_name -> google.protobuf.Timestamp
+	5,   // 58: security.v1.AuthenticateResponse.security_score:type_name -> security.v1.SecurityScore
+	64,  // 59: security.v1.AuthenticateResponse.metadata:type_name -> common.Metadata
+	3,   // 60: security.v1.AuthorizeRequest.context:type_name -> security.v1.SecurityContext
+	64,  // 61: security.v1.AuthorizeResponse.metadata:type_name -> common.Metadata
+	3,   // 62: security.v1.ValidateTokenRequest.context:type_name -> security.v1.SecurityContext
+	65,  // 63: security.v1.ValidateTokenResponse.expiration:type_name -> google.protobuf.Timestamp
+	5,   // 64: security.v1.ValidateTokenResponse.security_score:type_name -> security.v1.SecurityScore
+	64,  // 65: security.v1.ValidateTokenResponse.metadata:type_name -> common.Metadata
+	3,   // 66: security.v1.DetectThreatsRequest.context:type_name -> security.v1.SecurityContext
+	60,  // 67: security.v1.DetectThreatsRequest.attributes:type_name -> security.v1.DetectThreatsRequest.AttributesEntry
+	26,  // 68: security.v1.DetectThreatsResponse.detected_threats:type_name -> security.v1.SecurityIncident
+	64,  // 69: security.v1.DetectThreatsResponse.metadata:type_name -> common.Metadata
+	3,   // 70: security.v1.ReportIncidentRequest.context:type_name -> security.v1.SecurityContext
+	61,  // 71: security.v1.ReportIncidentRequest.metadata:type_name -> security.v1.ReportIncidentRequest.MetadataEntry
+	65,  // 72: security.v1.ReportIncidentResponse.resolution_time:type_name -> google.protobuf.Timestamp
+	64,  // 73: security.v1.ReportIncidentResponse.metadata:type_name -> common.Metadata
+	8,   // 74: security.v1.RegisterSecurityPatternRequest.pattern:type_name -> security.v1.SecurityPattern
+	64,  // 75: security.v1.RegisterSecurityPatternResponse.metadata:type_name -> common.Metadata
+	3,   // 76: security.v1.ValidatePatternRequest.context:type_name -> security.v1.SecurityContext
+	62,  // 77: security.v1.ValidatePatternRequest.validation_params:type_name -> security.v1.ValidatePatternRequest.ValidationParamsEntry
+	11,  // 78: security.v1.ValidatePatternResponse.risk_assessment:type_name -> security.v1.RiskAssessment
+	64,  // 79: security.v1.ValidatePatternResponse.metadata:type_name -> common.Metadata
+	65,  // 80: security.v1.GetSecurityMetricsRequest.start_time:type_name -> google.protobuf.Timestamp
+	65,  // 81: security.v1.GetSecurityMetricsRequest.end_time:type_name -> google.protobuf.Timestamp
+	63,  // 82: security.v1.GetSecurityMetricsResponse.metrics:type_name -> security.v1.GetSecurityMetricsResponse.MetricsEntry
+	5,   // 83: security.v1.GetSecurityMetricsResponse.overall_score:type_name -> security.v1.SecurityScore
+	26,  // 84: security.v1.GetSecurityMetricsResponse.incidents:type_name -> security.v1.SecurityIncident
+	64,  // 85: security.v1.GetSecurityMetricsResponse.metadata:type_name -> common.Metadata
+	12,  // 86: security.v1.RecordAuditEventRequest.event:type_name -> security.v1.AuditEvent
+	64,  // 87: security.v1.RecordAuditEventResponse.metadata:type_name -> common.Metadata
+	65,  // 88: security.v1.GetAuditLogRequest.start_time:type_name -> google.protobuf.Timestamp
+	65,  // 89: security.v1.GetAuditLogRequest.end_time:type_name -> google.protobuf.Timestamp
+	28,  // 90: security.v1.GetAuditLogResponse.entry:type_name -> security.v1.AuditLogEntry
+	64,  // 91: security.v1.GetAuditLogResponse.metadata:type_name -> common.Metadata
+	15,  // 92: security.v1.SecurityMetricsResponse.MetricsEntry.value:type_name -> security.v1.MetricValue
+	15,  // 93: security.v1.GetSecurityMetricsResponse.MetricsEntry.value:type_name -> security.v1.MetricValue
+	29,  // 94: security.v1.SecurityService.Authenticate:input_type -> security.v1.AuthenticateRequest
+	31,  // 95: security.v1.SecurityService.Authorize:input_type -> security.v1.AuthorizeRequest
+	33,  // 96: security.v1.SecurityService.ValidateToken:input_type -> security.v1.ValidateTokenRequest
+	35,  // 97: security.v1.SecurityService.DetectThreats:input_type -> security.v1.DetectThreatsRequest
+	37,  // 98: security.v1.SecurityService.ReportIncident:input_type -> security.v1.ReportIncidentRequest
+	39,  // 99: security.v1.SecurityService.RegisterSecurityPattern:input_type -> security.v1.RegisterSecurityPatternRequest
+	41,  // 100: security.v1.SecurityService.ValidatePattern:input_type -> security.v1.ValidatePatternRequest
+	45,  // 101: security.v1.SecurityService.RecordAuditEvent:input_type -> security.v1.RecordAuditEventRequest
+	47,  // 102: security.v1.SecurityService.GetAuditLog:input_type -> security.v1.GetAuditLogRequest
+	43,  // 103: security.v1.SecurityService.GetSecurityMetrics:input_type -> security.v1.GetSecurityMetricsRequest
+	30,  // 104: security.v1.SecurityService.Authenticate:output_type -> security.v1.AuthenticateResponse
+	32,  // 105: security.v1.SecurityService.Authorize:output_type -> security.v1.AuthorizeResponse
+	34,  // 106: security.v1.SecurityService.ValidateToken:output_type -> security.v1.ValidateTokenResponse
+	36,  // 107: security.v1.SecurityService.DetectThreats:output_type -> security.v1.DetectThreatsResponse
+	38,  // 108: security.v1.SecurityService.ReportIncident:output_type -> security.v1.ReportIncidentResponse
+	40,  // 109: security.v1.SecurityService.RegisterSecurityPattern:output_type -> security.v1.RegisterSecurityPatternResponse
+	42,  // 110: security.v1.SecurityService.ValidatePattern:output_type -> security.v1.ValidatePatternResponse
+	46,  // 111: security.v1.SecurityService.RecordAuditEvent:output_type -> security.v1.RecordAuditEventResponse
+	48,  // 112: security.v1.SecurityService.GetAuditLog:output_type -> security.v1.GetAuditLogResponse
+	44,  // 113: security.v1.SecurityService.GetSecurityMetrics:output_type -> security.v1.GetSecurityMetricsResponse
+	104, // [104:114] is the sub-list for method output_type
+	94,  // [94:104] is the sub-list for method input_type
+	94,  // [94:94] is the sub-list for extension type_name
+	94,  // [94:94] is the sub-list for extension extendee
+	0,   // [0:94] is the sub-list for field type_name
 }
 
-func init() { file_api_protos_security_v1_security_proto_init() }
-func file_api_protos_security_v1_security_proto_init() {
-	if File_api_protos_security_v1_security_proto != nil {
+func init() { file_security_v1_security_proto_init() }
+func file_security_v1_security_proto_init() {
+	if File_security_v1_security_proto != nil {
 		return
 	}
-	file_api_protos_security_v1_security_proto_msgTypes[14].OneofWrappers = []any{
+	file_security_v1_security_proto_msgTypes[14].OneofWrappers = []any{
 		(*MetricValue_NumericValue)(nil),
 		(*MetricValue_StringValue)(nil),
 		(*MetricValue_Distribution)(nil),
@@ -3218,18 +4010,18 @@ func file_api_protos_security_v1_security_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_protos_security_v1_security_proto_rawDesc), len(file_api_protos_security_v1_security_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_security_v1_security_proto_rawDesc), len(file_security_v1_security_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   63,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_api_protos_security_v1_security_proto_goTypes,
-		DependencyIndexes: file_api_protos_security_v1_security_proto_depIdxs,
-		EnumInfos:         file_api_protos_security_v1_security_proto_enumTypes,
-		MessageInfos:      file_api_protos_security_v1_security_proto_msgTypes,
+		GoTypes:           file_security_v1_security_proto_goTypes,
+		DependencyIndexes: file_security_v1_security_proto_depIdxs,
+		EnumInfos:         file_security_v1_security_proto_enumTypes,
+		MessageInfos:      file_security_v1_security_proto_msgTypes,
 	}.Build()
-	File_api_protos_security_v1_security_proto = out.File
-	file_api_protos_security_v1_security_proto_goTypes = nil
-	file_api_protos_security_v1_security_proto_depIdxs = nil
+	File_security_v1_security_proto = out.File
+	file_security_v1_security_proto_goTypes = nil
+	file_security_v1_security_proto_depIdxs = nil
 }

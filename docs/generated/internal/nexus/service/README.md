@@ -1,4 +1,4 @@
-# Package service
+# Package nexusservice
 
 ## Types
 
@@ -73,3 +73,10 @@ PatternValidationResult represents the result of pattern validation.
 ### StoredPattern
 
 StoredPattern represents a pattern stored in the system.
+
+## Functions
+
+### RegisterServicePattern
+
+RegisterServicePattern modularly registers a service as a pattern in the Nexus orchestrator. This
+enables orchestration, introspection, and pattern-based automation for the service in the system.

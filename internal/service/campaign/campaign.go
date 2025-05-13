@@ -11,6 +11,8 @@ import (
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/repository/campaign"
+	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -52,6 +54,14 @@ func SafeInt32(i int64) (int32, error) {
 	return int32(i), nil
 }
 
+// TODO: Implement CreateCampaign
+// Pseudocode:
+// 1. Validate campaign data
+// 2. Store campaign in DB
+// 3. Register campaign in Nexus for orchestration
+// 4. Optionally, integrate with Babel for locale-specific rules
+// 5. Return campaign details
+
 func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCampaignRequest) (*campaignpb.CreateCampaignResponse, error) {
 	log := s.log.With(
 		zap.String("operation", "create_campaign"),
@@ -65,6 +75,9 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	}
 	if req.Title == "" {
 		return nil, status.Error(codes.InvalidArgument, "title is required")
+	}
+	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 
 	// Start transaction
@@ -134,11 +147,23 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	}
 
 	// Cache the new campaign
-	if err := s.cache.Set(ctx, created.Slug, "campaign", resp, 15*time.Minute); err != nil {
-		log.Error("Failed to cache campaign",
-			zap.String("slug", created.Slug),
-			zap.Error(err))
-		// Don't fail creation if caching fails
+	if s.cache != nil && created.Metadata != nil {
+		err := pattern.CacheMetadata(ctx, s.log, s.cache, "campaign", created.Slug, created.Metadata, 10*time.Minute)
+		if err != nil {
+			s.log.Error("failed to cache metadata", zap.Error(err))
+		}
+	}
+	err = pattern.RegisterSchedule(ctx, s.log, "campaign", created.Slug, created.Metadata)
+	if err != nil {
+		s.log.Error("failed to register schedule", zap.Error(err))
+	}
+	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "campaign", created.Slug, created.Metadata)
+	if err != nil {
+		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
+	}
+	err = pattern.RegisterWithNexus(ctx, s.log, "campaign", created.Metadata)
+	if err != nil {
+		s.log.Error("failed to register with nexus", zap.Error(err))
 	}
 
 	log.Info("Campaign created successfully",
@@ -196,11 +221,23 @@ func (s *Service) GetCampaign(ctx context.Context, req *campaignpb.GetCampaignRe
 	}
 
 	// Cache the campaign
-	if err := s.cache.Set(ctx, c.Slug, "campaign", resp, 15*time.Minute); err != nil {
-		log.Error("Failed to cache campaign",
-			zap.String("slug", c.Slug),
-			zap.Error(err))
-		// Don't fail the get if caching fails
+	if s.cache != nil && c.Metadata != nil {
+		err := pattern.CacheMetadata(ctx, s.log, s.cache, "campaign", c.Slug, c.Metadata, 10*time.Minute)
+		if err != nil {
+			s.log.Error("failed to cache metadata", zap.Error(err))
+		}
+	}
+	err = pattern.RegisterSchedule(ctx, s.log, "campaign", c.Slug, c.Metadata)
+	if err != nil {
+		s.log.Error("failed to register schedule", zap.Error(err))
+	}
+	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "campaign", c.Slug, c.Metadata)
+	if err != nil {
+		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
+	}
+	err = pattern.RegisterWithNexus(ctx, s.log, "campaign", c.Metadata)
+	if err != nil {
+		s.log.Error("failed to register with nexus", zap.Error(err))
 	}
 
 	return &campaignpb.GetCampaignResponse{Campaign: resp}, nil
@@ -247,11 +284,23 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 	}
 
 	// Invalidate cache
-	if err := s.cache.Delete(ctx, existing.Slug, "campaign"); err != nil {
-		log.Error("Failed to invalidate campaign cache",
-			zap.String("slug", existing.Slug),
-			zap.Error(err))
-		// Don't fail the update if cache invalidation fails
+	if s.cache != nil && existing.Metadata != nil {
+		err := pattern.CacheMetadata(ctx, s.log, s.cache, "campaign", existing.Slug, existing.Metadata, 10*time.Minute)
+		if err != nil {
+			s.log.Error("failed to cache metadata", zap.Error(err))
+		}
+	}
+	err = pattern.RegisterSchedule(ctx, s.log, "campaign", existing.Slug, existing.Metadata)
+	if err != nil {
+		s.log.Error("failed to register schedule", zap.Error(err))
+	}
+	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "campaign", existing.Slug, existing.Metadata)
+	if err != nil {
+		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
+	}
+	err = pattern.RegisterWithNexus(ctx, s.log, "campaign", existing.Metadata)
+	if err != nil {
+		s.log.Error("failed to register with nexus", zap.Error(err))
 	}
 
 	// Get updated campaign

@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package product.v1;
+
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/product/v1;productpb";
+
+service ProductService {
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse);
+  rpc UpdateProduct(UpdateProductRequest) returns (UpdateProductResponse);
+  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse);
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse);
+  rpc UpdateInventory(UpdateInventoryRequest) returns (UpdateInventoryResponse);
+  rpc ListProductVariants(ListProductVariantsRequest) returns (ListProductVariantsResponse);
+}
+
+enum ProductType {
+  PRODUCT_TYPE_UNSPECIFIED = 0;
+  PRODUCT_TYPE_PHYSICAL = 1;
+  PRODUCT_TYPE_DIGITAL = 2;
+  PRODUCT_TYPE_SERVICE = 3;
+  PRODUCT_TYPE_SUBSCRIPTION = 4;
+}
+
+enum ProductStatus {
+  PRODUCT_STATUS_UNSPECIFIED = 0;
+  PRODUCT_STATUS_ACTIVE = 1;
+  PRODUCT_STATUS_INACTIVE = 2;
+  PRODUCT_STATUS_ARCHIVED = 3;
+}
+
+message Product {
+  string id = 1;
+  string master_id = 2;
+  string name = 3;
+  string description = 4;
+  ProductType type = 5;
+  ProductStatus status = 6;
+  repeated string tags = 7;
+  repeated ProductVariant variants = 8;
+  common.Metadata metadata = 9; // Extensible metadata for orchestration, AI/ML, etc.
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  string main_image_url = 12;
+  repeated string gallery_image_urls = 13;
+  string owner_id = 14;
+}
+
+message ProductVariant {
+  string id = 1;
+  string product_id = 2;
+  string sku = 3;
+  string name = 4;
+  double price = 5;
+  string currency = 6;
+  int32 inventory = 7;
+  map<string, string> attributes = 8;
+  bool is_default = 9;
+  string payment_type = 10;
+  double compare_at_price = 11;
+  int64 created_at = 12;
+  int64 updated_at = 13;
+  common.Metadata metadata = 14; // Extensible metadata for orchestration, AI/ML, etc.
+}
+
+message CreateProductRequest {
+  Product product = 1;
+}
+message CreateProductResponse {
+  Product product = 1;
+}
+message UpdateProductRequest {
+  Product product = 1;
+}
+message UpdateProductResponse {
+  Product product = 1;
+}
+message DeleteProductRequest {
+  string product_id = 1;
+}
+message DeleteProductResponse {
+  bool success = 1;
+}
+message GetProductRequest {
+  string product_id = 1;
+}
+message GetProductResponse {
+  Product product = 1;
+}
+message ListProductsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string owner_id = 3;
+  ProductType type = 4;
+  ProductStatus status = 5;
+  repeated string tags = 6;
+}
+message ListProductsResponse {
+  repeated Product products = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+message SearchProductsRequest {
+  string query = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  repeated string tags = 4;
+  ProductType type = 5;
+  ProductStatus status = 6;
+}
+message SearchProductsResponse {
+  repeated Product products = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+message UpdateInventoryRequest {
+  string variant_id = 1;
+  int32 delta = 2;
+}
+message UpdateInventoryResponse {
+  ProductVariant variant = 1;
+}
+message ListProductVariantsRequest {
+  string product_id = 1;
+}
+message ListProductVariantsResponse {
+  repeated ProductVariant variants = 1;
+} 

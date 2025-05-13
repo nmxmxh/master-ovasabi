@@ -14,7 +14,7 @@ Service implements the Nexus service.
 
 ##### ExecutePattern
 
-ExecutePattern validates provided arguments against required config keys.
+5. Notify affected services.
 
 ##### GetKnowledge
 
@@ -22,4 +22,4 @@ GetKnowledge retrieves knowledge from the graph.
 
 ##### RegisterPattern
 
-RegisterPattern registers a new pattern with steps.
+4. Notify affected services if needed.

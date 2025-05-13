@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.29.2
-// source: api/protos/security/v1/security.proto
+// source: security/v1/security.proto
 
-package v0
+package securitypb
 
 import (
 	context "context"
@@ -473,5 +473,5 @@ var SecurityService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/protos/security/v1/security.proto",
+	Metadata: "security/v1/security.proto",
 }

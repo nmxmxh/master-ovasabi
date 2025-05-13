@@ -10,6 +10,8 @@
 
 User represents a user in the service_user table.
 
+### UserProfile
+
 ### UserRepository
 
 UserRepository handles operations on the service_user table.
@@ -39,6 +41,10 @@ GetByUsername retrieves a user by username.
 ##### List
 
 List retrieves a paginated list of users.
+
+##### ListFlexible
+
+ListFlexible retrieves a paginated, filtered list of users with flexible search.
 
 ##### Update
 

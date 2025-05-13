@@ -1,10 +1,26 @@
 // Package server provides gRPC server implementation with monitoring, logging, and tracing capabilities.
+//
+// ## Security Enforcement via gRPC Interceptor
+//
+// - All unary gRPC requests are intercepted by SecurityUnaryServerInterceptor.
+// - The interceptor resolves SecurityService from the DI container for each request.
+// - It calls Authorize (with an empty request for now) before allowing the request to proceed.
+//   - If not authorized, the request is denied with PermissionDenied.
+//
+// - After the handler executes, RecordAuditEvent is called for audit logging.
+// - This ensures all services are monitored and enforced by SecurityService at the gRPC layer.
+// - When the proto is updated with more fields, the interceptor can extract and populate them from the request/context.
+//
+// This approach centralizes security, reduces boilerplate in each service, and ensures consistent enforcement and auditability across the platform.
 package server
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -19,13 +35,16 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 
+	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 )
 
 // UnaryServerInterceptor creates a new unary server interceptor that logs request details.
@@ -121,6 +140,50 @@ func extractServiceAndMethod(fullMethod string) (serviceName, methodName string)
 		return "unknown", "unknown"
 	}
 	return parts[0], parts[1]
+}
+
+// SecurityUnaryServerInterceptor creates a new unary server interceptor that logs request details and checks authorization.
+func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		startTime := time.Now()
+		// Extract service and method names
+		svcName, methodName := extractServiceAndMethod(info.FullMethod)
+
+		// Resolve SecurityService from DI
+		var securitySvc securitypb.SecurityServiceServer
+		if err := provider.Container().Resolve(&securitySvc); err != nil {
+			log.Error("Failed to resolve SecurityService", zap.Error(err))
+			return nil, status.Error(codes.Internal, "security service unavailable")
+		}
+
+		// Call Authorize (currently no fields in proto, so pass empty request)
+		_, authErr := securitySvc.Authorize(ctx, &securitypb.AuthorizeRequest{
+			// TODO: Populate fields when proto is updated
+		})
+		if authErr != nil {
+			log.Warn("Request not authorized", zap.String("service", svcName), zap.String("method", methodName), zap.Error(authErr))
+			return nil, status.Error(codes.PermissionDenied, "not authorized")
+		}
+
+		// Proceed to handler
+		resp, err := handler(ctx, req)
+
+		// Call RecordAuditEvent (example: you may want to fill more fields)
+		if _, auditErr := securitySvc.RecordAuditEvent(ctx, &securitypb.RecordAuditEventRequest{
+			// TODO: Fill audit event fields
+		}); auditErr != nil {
+			log.Warn("Failed to record audit event", zap.String("service", svcName), zap.String("method", methodName), zap.Error(auditErr))
+		}
+
+		duration := time.Since(startTime).Seconds()
+		log.Info("handled request (security)",
+			zap.String("service", svcName),
+			zap.String("method", methodName),
+			zap.Float64("duration_seconds", duration),
+			zap.Error(err),
+		)
+		return resp, err
+	}
 }
 
 // Run starts the main server, including gRPC, health, and metrics endpoints.
@@ -222,7 +285,6 @@ func Run() {
 		schema       interface{}
 	}{
 		{"UserService", []string{"user management", "authentication"}, nil},
-		{"AuthService", []string{"authentication", "JWT", "password management"}, nil},
 		{"NotificationService", []string{"email", "sms", "push notifications"}, nil},
 		{"BroadcastService", []string{"real-time messaging", "pub/sub"}, nil},
 		{"I18nService", []string{"internationalization", "localization"}, nil},
@@ -251,7 +313,7 @@ func Run() {
 
 	// Initialize gRPC server
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(UnaryServerInterceptor(log)),
+		grpc.ChainUnaryInterceptor(SecurityUnaryServerInterceptor(provider, log)),
 	)
 
 	// TODO: Modularize health and metrics server setup
@@ -262,9 +324,19 @@ func Run() {
 
 	// Set health status for all services
 	services := []string{
-		"auth.AuthService", "user.UserService", "notification.NotificationService", "broadcast.BroadcastService",
-		"i18n.I18NService", "quotes.QuotesService", "referral.ReferralService", "asset.AssetService",
-		"finance.FinanceService", "nexus.NexusService", "babel.BabelService",
+		"user.UserService",
+		"notification.NotificationService",
+		"commerce.CommerceService",
+		"content.ContentService",
+		"search.SearchService",
+		"admin.AdminService",
+		"analytics.AnalyticsService",
+		"contentmoderation.ContentModerationService",
+		"talent.TalentService",
+		"security.SecurityService",
+		"localization.LocalizationService",
+		"nexus.NexusService",
+		"referral.ReferralService",
 	}
 	for _, svc := range services {
 		healthServer.SetServingStatus(svc, grpc_health_v1.HealthCheckResponse_SERVING)
@@ -281,6 +353,11 @@ func Run() {
 			log.Error("Metrics server failed", zap.Error(err))
 		}
 	}()
+
+	// Start HTTP server for REST and WebSocket endpoints
+	log.Info("About to start HTTP server for REST/WebSocket")
+	StartHTTPServer(log, provider)
+	log.Info("StartHTTPServer call returned (HTTP server goroutine launched)")
 
 	// Start gRPC server
 	port := getEnvOrDefault("APP_PORT", "8080")
@@ -366,4 +443,23 @@ func createMetricsServer() *http.Server {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
+}
+
+// generateGuestID creates a pseudo-random guest session ID.
+func generateGuestID() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("guest_%d", time.Now().UnixNano()) // fallback
+	}
+	// G115: integer overflow conversion uint64 -> int64 (gosec)
+	// Ensure the value fits in int64 before conversion
+	u := binary.LittleEndian.Uint64(b[:])
+	var id int64
+	if u > uint64(math.MaxInt64) {
+		// If overflow, fallback to MaxInt64 (no logger available in this scope)
+		id = math.MaxInt64
+	} else {
+		id = int64(u)
+	}
+	return fmt.Sprintf("guest_%d", id)
 }

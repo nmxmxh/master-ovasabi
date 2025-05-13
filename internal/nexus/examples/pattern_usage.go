@@ -7,17 +7,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nmxmxh/master-ovasabi/internal/nexus"
-	"github.com/nmxmxh/master-ovasabi/internal/nexus/service"
+	nexusservice "github.com/nmxmxh/master-ovasabi/internal/nexus/service"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 )
 
 // Example of creating and using a pattern for user onboarding.
-func CreateUserOnboardingPattern() *service.OperationPattern {
-	return &service.OperationPattern{
+func CreateUserOnboardingPattern() *nexusservice.OperationPattern {
+	return &nexusservice.OperationPattern{
 		ID:          "user_onboarding",
 		Name:        "User Onboarding Flow",
 		Description: "Creates a new user with wallet and referral relationships",
-		Steps: []service.OperationStep{
+		Steps: []nexusservice.OperationStep{
 			{
 				Type:   "relationship",
 				Action: "create",
@@ -65,12 +65,12 @@ func CreateUserOnboardingPattern() *service.OperationPattern {
 }
 
 // Example of creating and using a pattern for financial transaction.
-func CreateTransactionPattern() *service.OperationPattern {
-	return &service.OperationPattern{
+func CreateTransactionPattern() *nexusservice.OperationPattern {
+	return &nexusservice.OperationPattern{
 		ID:          "financial_transaction",
 		Name:        "Financial Transaction Flow",
 		Description: "Handles a financial transaction between users with proper relationship tracking",
-		Steps: []service.OperationStep{
+		Steps: []nexusservice.OperationStep{
 			{
 				Type:       "graph",
 				Action:     "find_path",
@@ -114,18 +114,18 @@ func CreateTransactionPattern() *service.OperationPattern {
 
 // PatternManager demonstrates how to use the pattern executor.
 type PatternManager struct {
-	executor *service.PatternExecutor
+	executor *nexusservice.PatternExecutor
 }
 
 // NewPatternManager creates a new pattern manager.
 func NewPatternManager(nexusRepo nexus.Repository, masterRepo repository.MasterRepository) (*PatternManager, error) {
-	opts := service.DefaultOptions()
+	opts := nexusservice.DefaultOptions()
 	opts.MaxConcurrency = 100
 	opts.BatchSize = 1000
 	opts.RequestTimeout = 30 * time.Second
 	opts.RetryDelay = time.Second
 
-	executor := service.NewPatternExecutor(nexusRepo, masterRepo, opts)
+	executor := nexusservice.NewPatternExecutor(nexusRepo, masterRepo, opts)
 
 	// Register patterns
 	if err := executor.RegisterPattern(CreateUserOnboardingPattern()); err != nil {

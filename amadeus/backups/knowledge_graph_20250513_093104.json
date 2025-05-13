@@ -1,0 +1,436 @@
+{
+  "version": "2.0.0",
+  "last_updated": "2025-05-11T00:00:00Z",
+  "system_components": {
+    "integration_layer": {
+      "interfaces": [
+        "nexus_integration",
+        "pattern_registry",
+        "event_streams"
+      ],
+      "patterns": [
+        "identity_unification",
+        "value_exchange",
+        "data_intelligence"
+      ],
+      "services": [
+        "exchange_orchestration",
+        "wallet_gateway",
+        "incentive_management",
+        "reputation_bridge",
+        "value_router"
+      ]
+    },
+    "service_platform": {
+      "core_services": [
+        "asset",
+        "auth",
+        "babel",
+        "broadcast",
+        "campaign",
+        "i18n",
+        "nexus",
+        "notification",
+        "referral",
+        "security",
+        "user",
+        "commerce"
+      ],
+      "infrastructure": [
+        "nexus",
+        "patterns",
+        "database",
+        "redis",
+        "tracing",
+        "metrics"
+      ],
+      "interfaces": [
+        "api_gateway",
+        "grpc_services",
+        "event_bus"
+      ]
+    },
+    "token_ecosystem": {
+      "components": [
+        "exchange_orchestration",
+        "wallet_gateway",
+        "token_governance",
+        "treasury"
+      ],
+      "mechanisms": [
+        "currency_basket",
+        "UBI_distribution",
+        "staking",
+        "governance"
+      ],
+      "tokens": [
+        "OvaStable",
+        "OvaUtility"
+      ]
+    }
+  },
+  "repository_structure": {
+    "root_directories": {
+      "amadeus": {
+        "key_components": [
+          "system_knowledge_graph"
+        ],
+        "purpose": "System knowledge persistence",
+        "relationship_to_services": "meta-documentation of system relationships"
+      },
+      "api": {
+        "key_components": [
+          "protos"
+        ],
+        "purpose": "API definitions and contracts",
+        "relationship_to_services": "defines service interfaces",
+        "subdirectories": {
+          "protos": {
+            "purpose": "Protocol buffer definitions",
+            "service_mapping": {
+              "asset": "asset management services",
+              "auth": "authentication services",
+              "babel": "i18n and pricing services",
+              "broadcast": "messaging and notification",
+              "campaign": "marketing campaigns",
+              "finance": "financial operations",
+              "i18n": "internationalization",
+              "nexus": "orchestration and patterns",
+              "notification": "user notifications",
+              "quotes": "price quotes and estimation",
+              "referral": "referral program",
+              "security": "security and compliance",
+              "user": "user management"
+            }
+          }
+        }
+      },
+      "cmd": {
+        "key_components": [
+          "server"
+        ],
+        "purpose": "Application entry points",
+        "relationship_to_services": "service initialization and configuration"
+      },
+      "config": {
+        "affects": [
+          "service_behavior",
+          "environment_settings"
+        ],
+        "purpose": "Configuration files",
+        "relationship_to_services": "service configuration"
+      },
+      "database": {
+        "key_components": [
+          "migrations"
+        ],
+        "purpose": "Database related files",
+        "relationship_to_services": "data persistence layer"
+      },
+      "docs": {
+        "key_components": [
+          "api",
+          "architecture",
+          "deployment",
+          "development"
+        ],
+        "knowledge_base": "patterns, services, integrations",
+        "purpose": "Documentation",
+        "relationship_to_services": "documents service design and usage"
+      },
+      "internal": {
+        "key_components": [
+          "nexus",
+          "repository",
+          "server",
+          "service",
+          "shared"
+        ],
+        "nexus_location": "internal/nexus",
+        "purpose": "Private application code",
+        "relationship_to_services": "service implementations",
+        "services_location": "internal/service"
+      },
+      "pkg": {
+        "key_components": [
+          "di",
+          "errors",
+          "logger",
+          "metrics",
+          "models",
+          "redis",
+          "tracing"
+        ],
+        "purpose": "Public packages",
+        "relationship_to_services": "reusable components across services"
+      },
+      "tools": {
+        "key_components": [
+          "codegen",
+          "docgen",
+          "lint",
+          "protoc"
+        ],
+        "purpose": "Development tools",
+        "relationship_to_services": "service development support"
+      }
+    }
+  },
+  "services": {
+    "core_services": {
+      "asset": {
+        "integration_points": [
+          "user",
+          "security",
+          "babel",
+          "nexus"
+        ],
+        "location": "internal/service/asset",
+        "purpose": "Manages digital assets, documents, and multimedia content"
+      },
+      "auth": {
+        "integration_points": [
+          "user",
+          "security",
+          "nexus"
+        ],
+        "location": "internal/service/auth",
+        "purpose": "Authentication, authorization, and session management"
+      },
+      "babel": {
+        "integration_points": [
+          "quotes",
+          "finance",
+          "user",
+          "campaign"
+        ],
+        "location": "internal/service/babel",
+        "purpose": "i18n, pricing, and translation logic"
+      },
+      "broadcast": {
+        "integration_points": [
+          "user",
+          "notification",
+          "nexus"
+        ],
+        "location": "internal/service/broadcast",
+        "purpose": "Real-time messaging, pub/sub, and streaming"
+      },
+      "campaign": {
+        "integration_points": [
+          "user",
+          "notification",
+          "babel",
+          "nexus"
+        ],
+        "location": "internal/service/campaign",
+        "purpose": "Campaign management and analytics"
+      },
+      "commerce": {
+        "integration_points": [
+          "user",
+          "notification",
+          "product",
+          "nexus",
+          "analytics",
+          "localization"
+        ],
+        "location": "internal/service/commerce",
+        "purpose": "Handles quotes, orders, payments, transactions, and balances in a unified commerce service (consolidated from quotes, finance, billing, order, payment)"
+      },
+      "finance": {
+        "integration_points": [
+          "user",
+          "notification",
+          "babel",
+          "nexus"
+        ],
+        "location": "internal/service/finance",
+        "purpose": "Handles financial transactions, wallets, and payment processing"
+      },
+      "i18n": {
+        "integration_points": [
+          "babel",
+          "user"
+        ],
+        "location": "internal/service/i18n",
+        "purpose": "Localization and translation"
+      },
+      "nexus": {
+        "integration_points": [
+          "all_services",
+          "amadeus"
+        ],
+        "location": "internal/service/nexus",
+        "purpose": "Orchestration and pattern engine"
+      },
+      "notification": {
+        "integration_points": [
+          "user",
+          "broadcast",
+          "nexus"
+        ],
+        "location": "internal/service/notification",
+        "purpose": "Multi-channel notifications and templates"
+      },
+      "referral": {
+        "integration_points": [
+          "user",
+          "notification",
+          "finance",
+          "nexus"
+        ],
+        "location": "internal/service/referral",
+        "purpose": "Referral tracking, rewards, and fraud prevention"
+      },
+      "security": {
+        "integration_points": [
+          "all_services",
+          "auth",
+          "nexus"
+        ],
+        "location": "internal/service/security",
+        "purpose": "Policies, audit, and compliance"
+      },
+      "user": {
+        "integration_points": [
+          "auth",
+          "security",
+          "babel",
+          "nexus"
+        ],
+        "location": "internal/service/user",
+        "purpose": "User management, profiles, and RBAC"
+      }
+    },
+    "token_services": {
+      "token_service": {
+        "integration_points": [
+          "finance_service",
+          "exchange_orchestration_service"
+        ],
+        "location": "internal/service/token",
+        "patterns_used": [
+          "token_lifecycle_pattern"
+        ],
+        "purpose": "Manages token issuance, transfers, and balances",
+        "repositories": [
+          "token_repository",
+          "balance_repository"
+        ],
+        "service_integration": "service rewards, premium features"
+      }
+    }
+  },
+  "nexus": {
+    "core_components": {
+      "pattern_registry": {
+        "interfaces": [
+          "RegisterPattern",
+          "FindPattern",
+          "ExecutePattern"
+        ],
+        "location": "internal/nexus/service/pattern",
+        "purpose": "Stores and manages all system patterns, including service orchestration patterns",
+        "relationship_to_services": "provides patterns for service composition and orchestration",
+        "storage": "database with redis cache"
+      }
+    }
+  },
+  "patterns": {
+    "core_patterns": {
+      "service_pattern": {
+        "composition_potential": "High - enables orchestration, introspection, and automation for all services",
+        "integration_points": [
+          "nexus",
+          "amadeus"
+        ],
+        "location": "internal/nexus/service/pattern_store.go",
+        "purpose": "Registers each service as a pattern for orchestration and automation",
+        "services_used": [
+          "asset",
+          "auth",
+          "babel",
+          "broadcast",
+          "campaign",
+          "i18n",
+          "nexus",
+          "notification",
+          "referral",
+          "security",
+          "user",
+          "commerce"
+        ]
+      },
+      "user_creation_pattern": {
+        "composition_potential": "High - enables consistent user onboarding, event tracking, and relationship mapping across the platform.",
+        "integration_points": [
+          "auth",
+          "security",
+          "notification",
+          "commerce",
+          "nexus"
+        ],
+        "location": "internal/service/user",
+        "purpose": "Standardized pattern for user creation, registration, and relationship tracking in the knowledge graph.",
+        "services_used": [
+          "user"
+        ]
+      }
+    }
+  },
+  "database_practices": {
+    "architecture": {
+      "primary_database": {
+        "location": "database/",
+        "migration_strategy": "Up/down versioned migrations",
+        "purpose": "Primary persistent storage",
+        "relationship_to_services": "All services use for persistent storage",
+        "technology": "PostgreSQL"
+      }
+    }
+  },
+  "redis_practices": {
+    "architecture": {
+      "deployment_model": {
+        "configuration_location": "redis.conf",
+        "primary": "Redis Cluster for high availability",
+        "purpose": "Caching, session management, real-time features",
+        "relationship_to_services": "Used by all services for performance optimization"
+      }
+    }
+  },
+  "amadeus_integration": {
+    "integration_points": {
+      "nexus_integration": {
+        "implementation": "Nexus pattern that updates knowledge graph on system changes",
+        "pattern": "service_pattern",
+        "purpose": "Maintain system knowledge graph alongside patterns"
+      },
+      "service_integration": {
+        "implementation": "Service event hooks that update knowledge graph",
+        "integration_services": [
+          "asset",
+          "auth",
+          "babel",
+          "broadcast",
+          "campaign",
+          "i18n",
+          "nexus",
+          "notification",
+          "referral",
+          "security",
+          "user",
+          "commerce"
+        ],
+        "purpose": "Capture service interaction knowledge"
+      }
+    },
+    "knowledge_management": {
+      "real_time_updates": "Event-driven updates from system activities",
+      "versioning": "Git-based version history of knowledge graph",
+      "visualization": "Dynamic generation of system visualization from graph data"
+    },
+    "purpose": "Knowledge persistence and system evolution tracking"
+  }
+}

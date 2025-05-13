@@ -21,11 +21,33 @@ The project follows a clean architecture approach with clear separation of conce
   - Health checks and readiness probes
 
 - **Service Implementation**
+
   - gRPC service with interceptors
   - Dependency injection
   - Interface-based design
   - Comprehensive error handling
   - Request context management
+
+- Modular, concurrent service registration using dependency injection (DI)
+- Each service is automatically registered as a pattern in the Nexus orchestrator for orchestration
+  and introspection
+- Robust error handling for all registration and orchestration steps
+
+The Provider struct now includes a patternStore field, which manages pattern orchestration
+registration in Nexus.
+
+## Canonical Metadata Pattern
+
+All services now use a central, extensible `common.Metadata` message for all metadata fields. This
+enables:
+
+- Consistent, discoverable metadata across all services
+- Service-specific extensibility via the `service_specific` field
+- Efficient storage and querying with Postgres `jsonb`
+- Intrinsic scheduling and orchestration via the Scheduler service and Postgres triggers
+- Knowledge graph and AI/ML integration
+
+See the Amadeus context for full documentation and best practices.
 
 ## Getting Started
 
@@ -91,7 +113,7 @@ The project follows a clean architecture approach with clear separation of conce
 ├── docs/              # Documentation
 ├── internal/          # Private application code
 │   ├── server/       # gRPC server implementation
-│   └── service/      # Service implementations
+│   └── service/      # Service implementations (User, Notification, Content, Commerce, etc.)
 ├── pkg/               # Public packages
 │   ├── logger/       # Logging package
 │   ├── metrics/      # Metrics package
@@ -156,6 +178,7 @@ This command will generate Go code for all proto files in the following director
 - api/protos/quotes/
 - api/protos/referral/
 - api/protos/user/
+- api/protos/content/
 
 ### Creating a New Service
 
@@ -165,7 +188,7 @@ To create a new service with proto files:
 make new-service
 ```
 
-When prompted, enter your service name (e.g., payment, inventory). This will:
+When prompted, enter your service name (e.g., payment, inventory, content). This will:
 
 1. Create a new directory in api/protos/<service_name>
 2. Generate a basic proto file template

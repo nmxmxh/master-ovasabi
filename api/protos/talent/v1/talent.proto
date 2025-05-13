@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package talent.v1;
+
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1;talentpb";
+
+service TalentService {
+  rpc CreateTalentProfile(CreateTalentProfileRequest) returns (CreateTalentProfileResponse);
+  rpc UpdateTalentProfile(UpdateTalentProfileRequest) returns (UpdateTalentProfileResponse);
+  rpc DeleteTalentProfile(DeleteTalentProfileRequest) returns (DeleteTalentProfileResponse);
+  rpc GetTalentProfile(GetTalentProfileRequest) returns (GetTalentProfileResponse);
+  rpc ListTalentProfiles(ListTalentProfilesRequest) returns (ListTalentProfilesResponse);
+  rpc SearchTalentProfiles(SearchTalentProfilesRequest) returns (SearchTalentProfilesResponse);
+  rpc BookTalent(BookTalentRequest) returns (BookTalentResponse);
+  rpc ListBookings(ListBookingsRequest) returns (ListBookingsResponse);
+}
+
+
+message TalentProfile {
+  string id = 1;
+  string master_id = 2;
+  string user_id = 3;
+  string display_name = 4;
+  string bio = 5;
+  repeated string skills = 6;
+  repeated string tags = 7;
+  string location = 8;
+  string avatar_url = 9;
+  repeated Experience experiences = 10;
+  repeated Education educations = 11;
+  int64 created_at = 12;
+  int64 updated_at = 13;
+  common.Metadata metadata = 14;
+}
+
+message Experience {
+  string company = 1;
+  string title = 2;
+  string description = 3;
+  int64 start_date = 4;
+  int64 end_date = 5;
+  common.Metadata metadata = 6;
+}
+
+message Education {
+  string institution = 1;
+  string degree = 2;
+  string field_of_study = 3;
+  int64 start_date = 4;
+  int64 end_date = 5;
+  common.Metadata metadata = 6;
+}
+
+message Booking {
+  string id = 1;
+  string talent_id = 2;
+  string user_id = 3;
+  string status = 4;
+  int64 start_time = 5;
+  int64 end_time = 6;
+  string notes = 7;
+  int64 created_at = 8;
+  common.Metadata metadata = 9;
+}
+
+message CreateTalentProfileRequest { TalentProfile profile = 1; }
+message CreateTalentProfileResponse { TalentProfile profile = 1; }
+message UpdateTalentProfileRequest { TalentProfile profile = 1; }
+message UpdateTalentProfileResponse { TalentProfile profile = 1; }
+message DeleteTalentProfileRequest { string profile_id = 1; }
+message DeleteTalentProfileResponse { bool success = 1; }
+message GetTalentProfileRequest { string profile_id = 1; }
+message GetTalentProfileResponse { TalentProfile profile = 1; }
+message ListTalentProfilesRequest { int32 page = 1; int32 page_size = 2; repeated string skills = 3; repeated string tags = 4; string location = 5; }
+message ListTalentProfilesResponse { repeated TalentProfile profiles = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+message SearchTalentProfilesRequest { string query = 1; int32 page = 2; int32 page_size = 3; repeated string skills = 4; repeated string tags = 5; string location = 6; }
+message SearchTalentProfilesResponse { repeated TalentProfile profiles = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+message BookTalentRequest {
+  string talent_id = 1;
+  string user_id = 2;
+  int64 start_time = 3;
+  int64 end_time = 4;
+  string notes = 5;
+  common.Metadata metadata = 6;
+}
+message BookTalentResponse { Booking booking = 1; }
+message ListBookingsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; }
+message ListBookingsResponse { repeated Booking bookings = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; } 

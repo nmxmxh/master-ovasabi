@@ -6,19 +6,27 @@
 
 #### Methods
 
-##### CreateNotification
+##### AcknowledgeNotification
+
+##### BroadcastEvent
 
 ##### GetNotification
 
-##### GetNotificationHistory
+##### ListNotificationEvents
 
 ##### ListNotifications
 
 ##### SendEmail
 
+##### SendNotification
+
 ##### SendPushNotification
 
 ##### SendSMS
+
+##### StreamAssetChunks
+
+##### SubscribeToEvents
 
 ##### UpdateNotificationPreferences
 

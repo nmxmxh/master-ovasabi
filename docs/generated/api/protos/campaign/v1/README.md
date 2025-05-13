@@ -11,7 +11,7 @@
 CampaignService_ServiceDesc is the grpc.ServiceDesc for CampaignService service. It's only intended
 for direct use with grpc.RegisterService, and not to be introspected or modified (even as a copy)
 
-### File_api_protos_campaign_v1_campaign_proto
+### File_campaign_v1_campaign_proto
 
 ## Types
 
@@ -38,6 +38,8 @@ Deprecated: Use Campaign.ProtoReflect.Descriptor instead.
 ##### GetSlug
 
 ##### GetStartDate
+
+##### GetStatus
 
 ##### GetTitle
 

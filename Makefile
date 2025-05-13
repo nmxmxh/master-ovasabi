@@ -103,7 +103,7 @@ dev:
 	$(GOCMD) run ./cmd/server
 
 # Docker Compose Commands
-docker-build:
+docker-build: proto
 	$(DOCKER_COMPOSE) build
 
 docker-up:
@@ -153,20 +153,23 @@ docker-build-scan-ci: docker-build trivy-scan-ci
 # Always run this from the repo root.
 proto:
 	@echo "Generating protobuf code for latest proto versions only..."
-	@for service_dir in $(shell find $(PROTO_PATH) -mindepth 1 -maxdepth 1 -type d); do \
-		latest_version_dir=$$(ls -d $$service_dir/v*/ | sort -V | tail -n 1); \
+	@for proto_dir in $(shell find $(PROTO_PATH) -mindepth 1 -maxdepth 1 -type d); do \
+		latest_version_dir=$$(ls -d $$proto_dir/v*/ 2>/dev/null | sort -V | tail -n 1); \
 		if [ -d "$$latest_version_dir" ]; then \
 			echo "Processing protos in $$latest_version_dir..."; \
-			protoc \
-				--proto_path=. \
-				--go_out=$(PROTO_GO_OUT) \
-				--go_opt=$(PROTO_GO_OPT) \
-				--go-grpc_out=$(PROTO_GRPC_OUT) \
-				--go-grpc_opt=$(PROTO_GRPC_OPT) \
-				$$latest_version_dir/*.proto; \
+			for proto_file in $$(find $$latest_version_dir -name '*.proto'); do \
+				protoc \
+					-I=$(PROTO_PATH) \
+					--go_out=$(PROTO_PATH) \
+					--go_opt=paths=source_relative \
+					--go-grpc_out=$(PROTO_PATH) \
+					--go-grpc_opt=paths=source_relative \
+					$$proto_file; \
+				done; \
 		fi \
 	done
 	@echo "Protobuf code generation complete"
+# This ensures generated Go files are placed alongside their proto files (in-place)
 
 # Generate swagger documentation
 swagger:

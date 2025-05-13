@@ -7,7 +7,7 @@ import (
 
 	"github.com/nmxmxh/master-ovasabi/amadeus/nexus/pattern"
 	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
-	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v1"
+	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
 	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
@@ -23,7 +23,7 @@ type Service struct {
 	kgPattern     *pattern.KnowledgeGraphPattern
 	userPattern   *pattern.UserCreationPattern
 	userService   userpb.UserServiceServer
-	assetService  assetpb.AssetServiceServer
+	mediaService  mediapb.MediaServiceServer
 	notifyService notificationpb.NotificationServiceServer
 }
 
@@ -32,16 +32,16 @@ func NewService(
 	logger *zap.Logger,
 	cache *redis.Cache,
 	userSvc userpb.UserServiceServer,
-	assetSvc assetpb.AssetServiceServer,
+	mediaSvc mediapb.MediaServiceServer,
 	notifySvc notificationpb.NotificationServiceServer,
 ) *Service {
 	return &Service{
 		logger:        logger,
 		cache:         cache,
 		kgPattern:     pattern.NewKnowledgeGraphPattern(),
-		userPattern:   pattern.NewUserCreationPattern(userSvc, assetSvc, notifySvc),
+		userPattern:   pattern.NewUserCreationPattern(userSvc, mediaSvc, notifySvc),
 		userService:   userSvc,
-		assetService:  assetSvc,
+		mediaService:  mediaSvc,
 		notifyService: notifySvc,
 	}
 }
@@ -56,7 +56,7 @@ type PatternDefinition struct {
 // Add a map to store registered patterns.
 var patternRegistry = make(map[string]PatternDefinition)
 
-// RegisterPattern registers a new pattern with steps.
+// 4. Notify affected services if needed.
 func (s *Service) RegisterPattern(_ context.Context, req *nexuspb.RegisterPatternRequest) (*nexuspb.RegisterPatternResponse, error) {
 	s.logger.Info("Registering pattern (structured)",
 		zap.String("pattern_name", req.PatternName),
@@ -75,7 +75,7 @@ func (s *Service) RegisterPattern(_ context.Context, req *nexuspb.RegisterPatter
 	}, nil
 }
 
-// ExecutePattern validates provided arguments against required config keys.
+// 5. Notify affected services.
 func (s *Service) ExecutePattern(_ context.Context, req *nexuspb.ExecutePatternRequest) (*nexuspb.ExecutePatternResponse, error) {
 	pat, ok := patternRegistry[req.PatternName]
 	if !ok {

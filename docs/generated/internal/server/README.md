@@ -3,6 +3,22 @@
 Package server provides gRPC server implementation with monitoring, logging, and tracing
 capabilities.
 
+## Security Enforcement via gRPC Interceptor
+
+- All unary gRPC requests are intercepted by SecurityUnaryServerInterceptor.
+- The interceptor resolves SecurityService from the DI container for each request.
+- It calls Authorize (with an empty request for now) before allowing the request to proceed.
+
+  - If not authorized, the request is denied with PermissionDenied.
+
+- After the handler executes, RecordAuditEvent is called for audit logging.
+- This ensures all services are monitored and enforced by SecurityService at the gRPC layer.
+- When the proto is updated with more fields, the interceptor can extract and populate them from the
+  request/context.
+
+This approach centralizes security, reduces boilerplate in each service, and ensures consistent
+enforcement and auditability across the platform.
+
 ## Variables
 
 ### ErrServiceDegraded
@@ -10,6 +26,8 @@ capabilities.
 Common errors.
 
 ## Types
+
+### CampaignWebSocketBus
 
 ### KGHooks
 
@@ -79,13 +97,34 @@ KGUpdateType represents the type of knowledge graph update.
 
 ##### Stop
 
+### WebSocketBus
+
+### WebSocketEvent
+
 ## Functions
 
 ### RegisterAllServices
 
+RegisterAllServices registers all gRPC services with the server.
+
+### RegisterMediaUploadHandlers
+
+RegisterMediaUploadHandlers registers all media upload endpoints to the mux.
+
+### RegisterWebSocketHandlers
+
 ### Run
 
 Run starts the main server, including gRPC, health, and metrics endpoints.
+
+### SecurityUnaryServerInterceptor
+
+SecurityUnaryServerInterceptor creates a new unary server interceptor that logs request details and
+checks authorization.
+
+### StartHTTPServer
+
+StartHTTPServer sets up and starts the HTTP server in a goroutine.
 
 ### StreamServerInterceptor
 

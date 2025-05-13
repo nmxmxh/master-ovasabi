@@ -110,9 +110,13 @@ The application uses a hybrid concurrency model:
    - Business metrics
 
 3. **Logging**
+
    - Structured logging
    - Log aggregation
    - Log levels
+
+4. **ContentService**: Dynamic content, comments, reactions, FTS, and engagement. Integrates with
+   User, Notification, Search, and ContentModeration services for orchestration and compliance.
 
 ## Data Flow
 

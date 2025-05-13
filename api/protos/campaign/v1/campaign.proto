@@ -2,9 +2,10 @@ syntax = "proto3";
 
 package campaign.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/campaign";
-
 import "google/protobuf/timestamp.proto";
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/campaign";
 
 message Campaign {
   int32 id = 1;
@@ -14,9 +15,10 @@ message Campaign {
   string ranking_formula = 5;
   google.protobuf.Timestamp start_date = 6;
   google.protobuf.Timestamp end_date = 7;
-  string metadata = 8;
-  google.protobuf.Timestamp created_at = 9;
-  google.protobuf.Timestamp updated_at = 10;
+  string status = 8;
+  common.Metadata metadata = 9; // Robust, extensible metadata
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
 }
 
 message CreateCampaignRequest {
@@ -26,7 +28,7 @@ message CreateCampaignRequest {
   string ranking_formula = 4;
   google.protobuf.Timestamp start_date = 5;
   google.protobuf.Timestamp end_date = 6;
-  string metadata = 7;
+  common.Metadata metadata = 7;
 }
 
 message CreateCampaignResponse {

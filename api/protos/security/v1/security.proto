@@ -2,9 +2,10 @@ syntax = "proto3";
 
 package security.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/security/v0";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/security/v1;securitypb";
 
 import "google/protobuf/timestamp.proto";
+import "common/v1/metadata.proto";
 
 service SecurityService {
     // Identity and Access Management
@@ -37,7 +38,7 @@ message AuthenticationRequest {
 message AuthenticationFactor {
     FactorType type = 1;
     bytes credential = 2;
-    map<string, string> metadata = 3;
+    common.Metadata metadata = 3;
 }
 
 enum FactorType {
@@ -53,7 +54,7 @@ message SecurityContext {
     string client_ip = 2;
     string user_agent = 3;
     google.protobuf.Timestamp timestamp = 4;
-    map<string, string> attributes = 5;
+    common.Metadata attributes = 5;
 }
 
 message AuthenticationResponse {
@@ -61,6 +62,7 @@ message AuthenticationResponse {
     google.protobuf.Timestamp expiration = 2;
     repeated string permissions = 3;
     SecurityScore security_score = 4;
+    common.Metadata metadata = 5;
 }
 
 message SecurityScore {
@@ -81,6 +83,7 @@ message AuthorizationResponse {
     bool authorized = 1;
     string reason = 2;
     repeated string applicable_policies = 3;
+    common.Metadata metadata = 4;
 }
 
 message SecurityPattern {
@@ -91,6 +94,7 @@ message SecurityPattern {
     repeated GraphEdge edges = 5;
     map<string, string> constraints = 6;
     RiskAssessment risk = 7;
+    common.Metadata metadata = 8;
 }
 
 message GraphVertex {
@@ -121,7 +125,7 @@ message AuditEvent {
     string action = 5;
     google.protobuf.Timestamp timestamp = 6;
     SecurityContext context = 7;
-    map<string, string> metadata = 8;
+    common.Metadata metadata = 8;
 }
 
 message SecurityMetricsRequest {
@@ -134,6 +138,7 @@ message SecurityMetricsResponse {
     map<string, MetricValue> metrics = 1;
     SecurityScore overall_score = 2;
     repeated SecurityIncident incidents = 3;
+    common.Metadata metadata = 4;
 }
 
 message MetricValue {
@@ -142,7 +147,7 @@ message MetricValue {
         string string_value = 2;
         Distribution distribution = 3;
     }
-    map<string, string> labels = 4;
+    common.Metadata labels = 4;
 }
 
 message Distribution {
@@ -163,6 +168,7 @@ message TokenValidationResponse {
     string reason = 2;
     google.protobuf.Timestamp expiration = 3;
     SecurityScore security_score = 4;
+    common.Metadata metadata = 5;
 }
 
 message ThreatDetectionRequest {
@@ -176,6 +182,7 @@ message ThreatDetectionResponse {
     double threat_score = 1;
     repeated SecurityIncident detected_threats = 2;
     repeated string mitigations = 3;
+    common.Metadata metadata = 4;
 }
 
 message IncidentReport {
@@ -210,6 +217,7 @@ message PatternValidationResponse {
     bool valid = 1;
     repeated string validation_errors = 2;
     RiskAssessment risk_assessment = 3;
+    common.Metadata metadata = 4;
 }
 
 message SecurityIncident {
@@ -240,81 +248,137 @@ message AuditLogEntry {
 }
 
 message AuthenticateRequest {
-    // TODO: define fields
+    string identity = 1;
+    repeated AuthenticationFactor factors = 2;
+    SecurityContext context = 3;
 }
 
 message AuthenticateResponse {
-    // TODO: define fields
+    string session_token = 1;
+    google.protobuf.Timestamp expiration = 2;
+    repeated string permissions = 3;
+    SecurityScore security_score = 4;
+    common.Metadata metadata = 5;
 }
 
 message AuthorizeRequest {
-    // TODO: define fields
+    string session_token = 1;
+    string resource = 2;
+    string action = 3;
+    SecurityContext context = 4;
 }
 
 message AuthorizeResponse {
-    // TODO: define fields
+    bool authorized = 1;
+    string reason = 2;
+    repeated string applicable_policies = 3;
+    common.Metadata metadata = 4;
 }
 
 message ValidateTokenRequest {
-    // TODO: define fields
+    string token = 1;
+    SecurityContext context = 2;
 }
 
 message ValidateTokenResponse {
-    // TODO: define fields
+    bool valid = 1;
+    string reason = 2;
+    google.protobuf.Timestamp expiration = 3;
+    SecurityScore security_score = 4;
+    common.Metadata metadata = 5;
 }
 
 message DetectThreatsRequest {
-    // TODO: define fields
+    string resource_id = 1;
+    string action = 2;
+    SecurityContext context = 3;
+    map<string, string> attributes = 4;
 }
 
 message DetectThreatsResponse {
-    // TODO: define fields
+    double threat_score = 1;
+    repeated SecurityIncident detected_threats = 2;
+    repeated string mitigations = 3;
+    common.Metadata metadata = 4;
 }
 
 message ReportIncidentRequest {
-    // TODO: define fields
+    string type = 1;
+    string severity = 2;
+    string description = 3;
+    SecurityContext context = 4;
+    map<string, string> metadata = 5;
 }
 
 message ReportIncidentResponse {
-    // TODO: define fields
+    string tracking_id = 1;
+    string status = 2;
+    repeated string actions_taken = 3;
+    google.protobuf.Timestamp resolution_time = 4;
+    common.Metadata metadata = 5;
 }
 
 message RegisterSecurityPatternRequest {
-    // TODO: define fields
+    SecurityPattern pattern = 1;
 }
 
 message RegisterSecurityPatternResponse {
-    // TODO: define fields
+    string pattern_id = 1;
+    string status = 2;
+    repeated string validation_messages = 3;
+    common.Metadata metadata = 4;
 }
 
 message ValidatePatternRequest {
-    // TODO: define fields
+    string pattern_id = 1;
+    SecurityContext context = 2;
+    map<string, string> validation_params = 3;
 }
 
 message ValidatePatternResponse {
-    // TODO: define fields
+    bool valid = 1;
+    repeated string validation_errors = 2;
+    RiskAssessment risk_assessment = 3;
+    common.Metadata metadata = 4;
 }
 
 message GetSecurityMetricsRequest {
-    // TODO: define fields
+    google.protobuf.Timestamp start_time = 1;
+    google.protobuf.Timestamp end_time = 2;
+    repeated string metric_types = 3;
 }
 
 message GetSecurityMetricsResponse {
-    // TODO: define fields
+    map<string, MetricValue> metrics = 1;
+    SecurityScore overall_score = 2;
+    repeated SecurityIncident incidents = 3;
+    common.Metadata metadata = 4;
 }
 
 message RecordAuditEventRequest {
-    // TODO: define fields
+    AuditEvent event = 1;
 }
 
 message RecordAuditEventResponse {
-    // TODO: define fields
+    string event_id = 1;
+    string status = 2;
+    common.Metadata metadata = 3;
 }
 
 message GetAuditLogRequest {
-    // TODO: define fields
+    google.protobuf.Timestamp start_time = 1;
+    google.protobuf.Timestamp end_time = 2;
+    string principal = 3;
+    string resource = 4;
+    string event_type = 5;
+    int32 page_size = 6;
+    string page_token = 7;
 }
 
 message GetAuditLogResponse {
-    // TODO: define fields
+    AuditLogEntry entry = 1;
+    string next_page_token = 2;
+    common.Metadata metadata = 3;
 }
+
+// Robust, extensible metadata for all services

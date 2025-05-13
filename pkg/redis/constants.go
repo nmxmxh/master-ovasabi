@@ -36,6 +36,14 @@ const (
 	ContextRate         = "rate"
 	ContextPattern      = "pattern" // Pattern related data
 	ContextNexus        = "nexus"   // Nexus related data
+	// Added for service cache configs:.
+	ContextLocalization      = "localization"
+	ContextAdmin             = "admin"
+	ContextContentModeration = "contentmoderation"
+	ContextTalent            = "talent"
+	ContextProduct           = "product"
+	ContextMedia             = "media"
+	ContextCommerce          = "commerce"
 )
 
 // TTL constants defines the time-to-live durations for different types of data.

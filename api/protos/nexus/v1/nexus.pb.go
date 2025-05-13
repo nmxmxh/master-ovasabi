@@ -2,11 +2,12 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        v5.29.2
-// source: api/protos/nexus/v1/nexus.proto
+// source: nexus/v1/nexus.proto
 
 package nexuspb
 
 import (
+	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -32,7 +33,7 @@ type ExecutePatternRequest struct {
 
 func (x *ExecutePatternRequest) Reset() {
 	*x = ExecutePatternRequest{}
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[0]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -44,7 +45,7 @@ func (x *ExecutePatternRequest) String() string {
 func (*ExecutePatternRequest) ProtoMessage() {}
 
 func (x *ExecutePatternRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[0]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +58,7 @@ func (x *ExecutePatternRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutePatternRequest.ProtoReflect.Descriptor instead.
 func (*ExecutePatternRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_nexus_v1_nexus_proto_rawDescGZIP(), []int{0}
+	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ExecutePatternRequest) GetPatternName() string {
@@ -86,7 +87,7 @@ type ExecutePatternResponse struct {
 
 func (x *ExecutePatternResponse) Reset() {
 	*x = ExecutePatternResponse{}
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[1]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -98,7 +99,7 @@ func (x *ExecutePatternResponse) String() string {
 func (*ExecutePatternResponse) ProtoMessage() {}
 
 func (x *ExecutePatternResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[1]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -111,7 +112,7 @@ func (x *ExecutePatternResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutePatternResponse.ProtoReflect.Descriptor instead.
 func (*ExecutePatternResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_nexus_v1_nexus_proto_rawDescGZIP(), []int{1}
+	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ExecutePatternResponse) GetStatus() string {
@@ -147,7 +148,7 @@ type RegisterPatternRequest struct {
 
 func (x *RegisterPatternRequest) Reset() {
 	*x = RegisterPatternRequest{}
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[2]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -159,7 +160,7 @@ func (x *RegisterPatternRequest) String() string {
 func (*RegisterPatternRequest) ProtoMessage() {}
 
 func (x *RegisterPatternRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[2]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -172,7 +173,7 @@ func (x *RegisterPatternRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterPatternRequest.ProtoReflect.Descriptor instead.
 func (*RegisterPatternRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_nexus_v1_nexus_proto_rawDescGZIP(), []int{2}
+	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RegisterPatternRequest) GetPatternName() string {
@@ -207,7 +208,7 @@ type RegisterPatternResponse struct {
 
 func (x *RegisterPatternResponse) Reset() {
 	*x = RegisterPatternResponse{}
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[3]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -219,7 +220,7 @@ func (x *RegisterPatternResponse) String() string {
 func (*RegisterPatternResponse) ProtoMessage() {}
 
 func (x *RegisterPatternResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[3]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -232,7 +233,7 @@ func (x *RegisterPatternResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterPatternResponse.ProtoReflect.Descriptor instead.
 func (*RegisterPatternResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_nexus_v1_nexus_proto_rawDescGZIP(), []int{3}
+	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RegisterPatternResponse) GetStatus() string {
@@ -259,7 +260,7 @@ type GetKnowledgeRequest struct {
 
 func (x *GetKnowledgeRequest) Reset() {
 	*x = GetKnowledgeRequest{}
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[4]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -271,7 +272,7 @@ func (x *GetKnowledgeRequest) String() string {
 func (*GetKnowledgeRequest) ProtoMessage() {}
 
 func (x *GetKnowledgeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[4]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -284,7 +285,7 @@ func (x *GetKnowledgeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetKnowledgeRequest.ProtoReflect.Descriptor instead.
 func (*GetKnowledgeRequest) Descriptor() ([]byte, []int) {
-	return file_api_protos_nexus_v1_nexus_proto_rawDescGZIP(), []int{4}
+	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetKnowledgeRequest) GetPath() string {
@@ -305,7 +306,7 @@ type GetKnowledgeResponse struct {
 
 func (x *GetKnowledgeResponse) Reset() {
 	*x = GetKnowledgeResponse{}
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[5]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -317,7 +318,7 @@ func (x *GetKnowledgeResponse) String() string {
 func (*GetKnowledgeResponse) ProtoMessage() {}
 
 func (x *GetKnowledgeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[5]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -330,7 +331,7 @@ func (x *GetKnowledgeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetKnowledgeResponse.ProtoReflect.Descriptor instead.
 func (*GetKnowledgeResponse) Descriptor() ([]byte, []int) {
-	return file_api_protos_nexus_v1_nexus_proto_rawDescGZIP(), []int{5}
+	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetKnowledgeResponse) GetStatus() string {
@@ -354,13 +355,14 @@ type PatternStep struct {
 	RequiredArgs  []string               `protobuf:"bytes,3,rep,name=required_args,json=requiredArgs,proto3" json:"required_args,omitempty"`
 	OptionalArgs  []string               `protobuf:"bytes,4,rep,name=optional_args,json=optionalArgs,proto3" json:"optional_args,omitempty"`
 	Params        map[string]string      `protobuf:"bytes,5,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for orchestration, AI/ML, etc.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PatternStep) Reset() {
 	*x = PatternStep{}
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[6]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -372,7 +374,7 @@ func (x *PatternStep) String() string {
 func (*PatternStep) ProtoMessage() {}
 
 func (x *PatternStep) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[6]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -385,7 +387,7 @@ func (x *PatternStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatternStep.ProtoReflect.Descriptor instead.
 func (*PatternStep) Descriptor() ([]byte, []int) {
-	return file_api_protos_nexus_v1_nexus_proto_rawDescGZIP(), []int{6}
+	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PatternStep) GetService() string {
@@ -423,17 +425,25 @@ func (x *PatternStep) GetParams() map[string]string {
 	return nil
 }
 
+func (x *PatternStep) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 type PatternDefinition struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PatternName   string                 `protobuf:"bytes,1,opt,name=pattern_name,json=patternName,proto3" json:"pattern_name,omitempty"`
 	Steps         []*PatternStep         `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for orchestration, AI/ML, etc.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PatternDefinition) Reset() {
 	*x = PatternDefinition{}
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[7]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -445,7 +455,7 @@ func (x *PatternDefinition) String() string {
 func (*PatternDefinition) ProtoMessage() {}
 
 func (x *PatternDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_api_protos_nexus_v1_nexus_proto_msgTypes[7]
+	mi := &file_nexus_v1_nexus_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -458,7 +468,7 @@ func (x *PatternDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatternDefinition.ProtoReflect.Descriptor instead.
 func (*PatternDefinition) Descriptor() ([]byte, []int) {
-	return file_api_protos_nexus_v1_nexus_proto_rawDescGZIP(), []int{7}
+	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PatternDefinition) GetPatternName() string {
@@ -475,11 +485,18 @@ func (x *PatternDefinition) GetSteps() []*PatternStep {
 	return nil
 }
 
-var File_api_protos_nexus_v1_nexus_proto protoreflect.FileDescriptor
+func (x *PatternDefinition) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
 
-const file_api_protos_nexus_v1_nexus_proto_rawDesc = "" +
+var File_nexus_v1_nexus_proto protoreflect.FileDescriptor
+
+const file_nexus_v1_nexus_proto_rawDesc = "" +
 	"\n" +
-	"\x1fapi/protos/nexus/v1/nexus.proto\x12\bnexus.v1\"\xca\x01\n" +
+	"\x14nexus/v1/nexus.proto\x12\bnexus.v1\x1a\x18common/v1/metadata.proto\"\xca\x01\n" +
 	"\x15ExecutePatternRequest\x12!\n" +
 	"\fpattern_name\x18\x01 \x01(\tR\vpatternName\x12O\n" +
 	"\n" +
@@ -509,38 +526,40 @@ const file_api_protos_nexus_v1_nexus_proto_rawDesc = "" +
 	"\x04data\x18\x02 \x03(\v2(.nexus.v1.GetKnowledgeResponse.DataEntryR\x04data\x1a7\n" +
 	"\tDataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xff\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xad\x02\n" +
 	"\vPatternStep\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\x12#\n" +
 	"\rrequired_args\x18\x03 \x03(\tR\frequiredArgs\x12#\n" +
 	"\roptional_args\x18\x04 \x03(\tR\foptionalArgs\x129\n" +
-	"\x06params\x18\x05 \x03(\v2!.nexus.v1.PatternStep.ParamsEntryR\x06params\x1a9\n" +
+	"\x06params\x18\x05 \x03(\v2!.nexus.v1.PatternStep.ParamsEntryR\x06params\x12,\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x1a9\n" +
 	"\vParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"c\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x01\n" +
 	"\x11PatternDefinition\x12!\n" +
 	"\fpattern_name\x18\x01 \x01(\tR\vpatternName\x12+\n" +
-	"\x05steps\x18\x02 \x03(\v2\x15.nexus.v1.PatternStepR\x05steps2\x90\x02\n" +
+	"\x05steps\x18\x02 \x03(\v2\x15.nexus.v1.PatternStepR\x05steps\x12,\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata2\x90\x02\n" +
 	"\fNexusService\x12U\n" +
 	"\x0eExecutePattern\x12\x1f.nexus.v1.ExecutePatternRequest\x1a .nexus.v1.ExecutePatternResponse\"\x00\x12X\n" +
 	"\x0fRegisterPattern\x12 .nexus.v1.RegisterPatternRequest\x1a!.nexus.v1.RegisterPatternResponse\"\x00\x12O\n" +
 	"\fGetKnowledge\x12\x1d.nexus.v1.GetKnowledgeRequest\x1a\x1e.nexus.v1.GetKnowledgeResponse\"\x00B>Z<github.com/nmxmxh/master-ovasabi/api/protos/nexus/v0;nexuspbb\x06proto3"
 
 var (
-	file_api_protos_nexus_v1_nexus_proto_rawDescOnce sync.Once
-	file_api_protos_nexus_v1_nexus_proto_rawDescData []byte
+	file_nexus_v1_nexus_proto_rawDescOnce sync.Once
+	file_nexus_v1_nexus_proto_rawDescData []byte
 )
 
-func file_api_protos_nexus_v1_nexus_proto_rawDescGZIP() []byte {
-	file_api_protos_nexus_v1_nexus_proto_rawDescOnce.Do(func() {
-		file_api_protos_nexus_v1_nexus_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_protos_nexus_v1_nexus_proto_rawDesc), len(file_api_protos_nexus_v1_nexus_proto_rawDesc)))
+func file_nexus_v1_nexus_proto_rawDescGZIP() []byte {
+	file_nexus_v1_nexus_proto_rawDescOnce.Do(func() {
+		file_nexus_v1_nexus_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_nexus_v1_nexus_proto_rawDesc), len(file_nexus_v1_nexus_proto_rawDesc)))
 	})
-	return file_api_protos_nexus_v1_nexus_proto_rawDescData
+	return file_nexus_v1_nexus_proto_rawDescData
 }
 
-var file_api_protos_nexus_v1_nexus_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
-var file_api_protos_nexus_v1_nexus_proto_goTypes = []any{
+var file_nexus_v1_nexus_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_nexus_v1_nexus_proto_goTypes = []any{
 	(*ExecutePatternRequest)(nil),   // 0: nexus.v1.ExecutePatternRequest
 	(*ExecutePatternResponse)(nil),  // 1: nexus.v1.ExecutePatternResponse
 	(*RegisterPatternRequest)(nil),  // 2: nexus.v1.RegisterPatternRequest
@@ -553,47 +572,50 @@ var file_api_protos_nexus_v1_nexus_proto_goTypes = []any{
 	nil,                             // 9: nexus.v1.ExecutePatternResponse.ResultEntry
 	nil,                             // 10: nexus.v1.GetKnowledgeResponse.DataEntry
 	nil,                             // 11: nexus.v1.PatternStep.ParamsEntry
+	(*v1.Metadata)(nil),             // 12: common.Metadata
 }
-var file_api_protos_nexus_v1_nexus_proto_depIdxs = []int32{
+var file_nexus_v1_nexus_proto_depIdxs = []int32{
 	8,  // 0: nexus.v1.ExecutePatternRequest.parameters:type_name -> nexus.v1.ExecutePatternRequest.ParametersEntry
 	9,  // 1: nexus.v1.ExecutePatternResponse.result:type_name -> nexus.v1.ExecutePatternResponse.ResultEntry
 	6,  // 2: nexus.v1.RegisterPatternRequest.steps:type_name -> nexus.v1.PatternStep
 	10, // 3: nexus.v1.GetKnowledgeResponse.data:type_name -> nexus.v1.GetKnowledgeResponse.DataEntry
 	11, // 4: nexus.v1.PatternStep.params:type_name -> nexus.v1.PatternStep.ParamsEntry
-	6,  // 5: nexus.v1.PatternDefinition.steps:type_name -> nexus.v1.PatternStep
-	0,  // 6: nexus.v1.NexusService.ExecutePattern:input_type -> nexus.v1.ExecutePatternRequest
-	2,  // 7: nexus.v1.NexusService.RegisterPattern:input_type -> nexus.v1.RegisterPatternRequest
-	4,  // 8: nexus.v1.NexusService.GetKnowledge:input_type -> nexus.v1.GetKnowledgeRequest
-	1,  // 9: nexus.v1.NexusService.ExecutePattern:output_type -> nexus.v1.ExecutePatternResponse
-	3,  // 10: nexus.v1.NexusService.RegisterPattern:output_type -> nexus.v1.RegisterPatternResponse
-	5,  // 11: nexus.v1.NexusService.GetKnowledge:output_type -> nexus.v1.GetKnowledgeResponse
-	9,  // [9:12] is the sub-list for method output_type
-	6,  // [6:9] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	12, // 5: nexus.v1.PatternStep.metadata:type_name -> common.Metadata
+	6,  // 6: nexus.v1.PatternDefinition.steps:type_name -> nexus.v1.PatternStep
+	12, // 7: nexus.v1.PatternDefinition.metadata:type_name -> common.Metadata
+	0,  // 8: nexus.v1.NexusService.ExecutePattern:input_type -> nexus.v1.ExecutePatternRequest
+	2,  // 9: nexus.v1.NexusService.RegisterPattern:input_type -> nexus.v1.RegisterPatternRequest
+	4,  // 10: nexus.v1.NexusService.GetKnowledge:input_type -> nexus.v1.GetKnowledgeRequest
+	1,  // 11: nexus.v1.NexusService.ExecutePattern:output_type -> nexus.v1.ExecutePatternResponse
+	3,  // 12: nexus.v1.NexusService.RegisterPattern:output_type -> nexus.v1.RegisterPatternResponse
+	5,  // 13: nexus.v1.NexusService.GetKnowledge:output_type -> nexus.v1.GetKnowledgeResponse
+	11, // [11:14] is the sub-list for method output_type
+	8,  // [8:11] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
-func init() { file_api_protos_nexus_v1_nexus_proto_init() }
-func file_api_protos_nexus_v1_nexus_proto_init() {
-	if File_api_protos_nexus_v1_nexus_proto != nil {
+func init() { file_nexus_v1_nexus_proto_init() }
+func file_nexus_v1_nexus_proto_init() {
+	if File_nexus_v1_nexus_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_protos_nexus_v1_nexus_proto_rawDesc), len(file_api_protos_nexus_v1_nexus_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_nexus_v1_nexus_proto_rawDesc), len(file_nexus_v1_nexus_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_api_protos_nexus_v1_nexus_proto_goTypes,
-		DependencyIndexes: file_api_protos_nexus_v1_nexus_proto_depIdxs,
-		MessageInfos:      file_api_protos_nexus_v1_nexus_proto_msgTypes,
+		GoTypes:           file_nexus_v1_nexus_proto_goTypes,
+		DependencyIndexes: file_nexus_v1_nexus_proto_depIdxs,
+		MessageInfos:      file_nexus_v1_nexus_proto_msgTypes,
 	}.Build()
-	File_api_protos_nexus_v1_nexus_proto = out.File
-	file_api_protos_nexus_v1_nexus_proto_goTypes = nil
-	file_api_protos_nexus_v1_nexus_proto_depIdxs = nil
+	File_nexus_v1_nexus_proto = out.File
+	file_nexus_v1_nexus_proto_goTypes = nil
+	file_nexus_v1_nexus_proto_depIdxs = nil
 }

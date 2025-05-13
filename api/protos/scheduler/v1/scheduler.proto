@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package scheduler.v1;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1;schedulerpb";
+
+import "common/v1/metadata.proto";
+
+service SchedulerService {
+  rpc CreateJob(CreateJobRequest) returns (CreateJobResponse);
+  rpc UpdateJob(UpdateJobRequest) returns (UpdateJobResponse);
+  rpc DeleteJob(DeleteJobRequest) returns (DeleteJobResponse);
+  rpc ListJobs(ListJobsRequest) returns (ListJobsResponse);
+  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+  rpc RunJob(RunJobRequest) returns (RunJobResponse);
+  rpc ListJobRuns(ListJobRunsRequest) returns (ListJobRunsResponse);
+}
+
+enum TriggerType {
+  TRIGGER_TYPE_UNSPECIFIED = 0;
+  TRIGGER_TYPE_CRON = 1;
+  TRIGGER_TYPE_INTERVAL = 2;
+  TRIGGER_TYPE_CDC = 3;
+}
+
+message CDCTrigger {
+  string table = 1;
+  string event_type = 2; // insert, update, delete
+  string filter = 3; // e.g., JSONPath or SQL WHERE
+}
+
+// Robust, extensible metadata for all services
+
+message Job {
+  string id = 1;
+  string name = 2;
+  string schedule = 3; // cron or interval expression
+  string payload = 4;
+  string status = 5; // active, paused, disabled
+  common.Metadata metadata = 6;
+  string last_run_id = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+  TriggerType trigger_type = 10;
+  CDCTrigger cdc_trigger = 11;
+}
+
+message CreateJobRequest {
+  Job job = 1;
+}
+message CreateJobResponse {
+  Job job = 1;
+}
+message UpdateJobRequest {
+  Job job = 1;
+}
+message UpdateJobResponse {
+  Job job = 1;
+}
+message DeleteJobRequest {
+  string job_id = 1;
+}
+message DeleteJobResponse {
+  bool success = 1;
+}
+message ListJobsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string status = 3;
+}
+message ListJobsResponse {
+  repeated Job jobs = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+message GetJobRequest {
+  string job_id = 1;
+}
+message GetJobResponse {
+  Job job = 1;
+}
+message RunJobRequest {
+  string job_id = 1;
+}
+message RunJobResponse {
+  JobRun run = 1;
+}
+message ListJobRunsRequest {
+  string job_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+message ListJobRunsResponse {
+  repeated JobRun runs = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+
+message JobRun {
+  string id = 1;
+  string job_id = 2;
+  int64 started_at = 3;
+  int64 finished_at = 4;
+  string status = 5; // success, failed, running
+  string result = 6;
+  string error = 7;
+  common.Metadata metadata = 8;
+} 

@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package content.v1;
+
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/content/v1;contentpb";
+
+// Robust, extensible metadata for all services
+
+service ContentService {
+  rpc CreateContent(CreateContentRequest) returns (ContentResponse);
+  rpc GetContent(GetContentRequest) returns (ContentResponse);
+  rpc UpdateContent(UpdateContentRequest) returns (ContentResponse);
+  rpc DeleteContent(DeleteContentRequest) returns (DeleteContentResponse);
+  rpc ListContent(ListContentRequest) returns (ListContentResponse);
+  rpc SearchContent(SearchContentRequest) returns (ListContentResponse);
+  rpc AddComment(AddCommentRequest) returns (CommentResponse);
+  rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
+  rpc AddReaction(AddReactionRequest) returns (ReactionResponse);
+  rpc ListReactions(ListReactionsRequest) returns (ListReactionsResponse);
+  rpc LogContentEvent(LogContentEventRequest) returns (LogContentEventResponse);
+  // Moderation hooks (stub)
+  rpc ModerateContent(ModerateContentRequest) returns (ModerateContentResponse);
+  // TODO: Add more for comments, moderation, etc.
+}
+
+message Content {
+  string id = 1;
+  string master_id = 2; // UUID reference to master table
+  string author_id = 3;
+  string type = 4; // "article", "micro", "video", "story", etc.
+  string title = 5;
+  string body = 6;
+  repeated string media_urls = 7;
+  common.Metadata metadata = 8;
+  repeated string tags = 9;
+  string parent_id = 10; // for comments/replies
+  string visibility = 11; // "public", "private", etc.
+  int64 created_at = 12;
+  int64 updated_at = 13;
+  int32 comment_count = 14;
+  map<string, int32> reaction_counts = 15;
+  reserved 16 to 19;
+}
+
+message Comment {
+  string id = 1;
+  string content_id = 2;
+  string master_id = 3;
+  string author_id = 4;
+  string body = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+  common.Metadata metadata = 8;
+  reserved 9 to 19;
+}
+
+message ContentEvent {
+  string id = 1;
+  string content_id = 2;
+  string master_id = 3;
+  string event_type = 4;
+  string user_id = 5;
+  int64 occurred_at = 6;
+  map<string, string> payload = 7;
+  reserved 8 to 19;
+}
+
+message CreateContentRequest { Content content = 1; }
+message GetContentRequest { string id = 1; }
+message UpdateContentRequest { Content content = 1; }
+message DeleteContentRequest { string id = 1; }
+message ListContentRequest {
+  string author_id = 1;
+  string type = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  repeated string tags = 5;
+  common.Metadata metadata = 6;
+  string search_query = 7;
+  string parent_id = 8;
+  string visibility = 9;
+  reserved 10 to 19;
+}
+message SearchContentRequest {
+  string query = 1;
+  repeated string tags = 2;
+  common.Metadata metadata = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+  reserved 6 to 19;
+}
+message ListContentResponse { repeated Content contents = 1; int32 total = 2; }
+
+message AddCommentRequest { string content_id = 1; string author_id = 2; string body = 3; common.Metadata metadata = 4; }
+message CommentResponse { Comment comment = 1; }
+message ListCommentsRequest { string content_id = 1; int32 page = 2; int32 page_size = 3; }
+message ListCommentsResponse { repeated Comment comments = 1; int32 total = 2; }
+message DeleteCommentRequest { string comment_id = 1; }
+message DeleteCommentResponse { bool success = 1; }
+
+message AddReactionRequest { string content_id = 1; string user_id = 2; string reaction = 3; }
+message ReactionResponse { string content_id = 1; string reaction = 2; int32 count = 3; }
+message ListReactionsRequest { string content_id = 1; }
+message ListReactionsResponse { repeated ReactionResponse reactions = 1; }
+
+message LogContentEventRequest { ContentEvent event = 1; }
+message LogContentEventResponse { bool success = 1; }
+
+// Moderation hooks (stub)
+message ModerateContentRequest { string content_id = 1; string action = 2; string moderator_id = 3; string reason = 4; }
+message ModerateContentResponse { bool success = 1; string status = 2; }
+
+message ContentResponse { Content content = 1; }
+message DeleteContentResponse { bool success = 1; } 

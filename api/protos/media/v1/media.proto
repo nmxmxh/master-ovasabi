@@ -1,0 +1,284 @@
+syntax = "proto3";
+
+package media.v1;
+
+option go_package = "master-ovasabi/api/protos/media/v1;mediav1";
+
+import "google/protobuf/timestamp.proto";
+import "common/v1/metadata.proto";
+
+// MediaService handles storage and retrieval of media files (images, videos, 3D assets, etc.)
+service MediaService {
+  // Upload a small media file (< 500KB) in a single request
+  rpc UploadLightMedia(UploadLightMediaRequest) returns (UploadLightMediaResponse);
+
+  // Start a heavy media upload session (> 500KB)
+  rpc StartHeavyMediaUpload(StartHeavyMediaUploadRequest) returns (StartHeavyMediaUploadResponse);
+
+  // Stream chunks for a heavy media upload
+  rpc StreamMediaChunk(StreamMediaChunkRequest) returns (StreamMediaChunkResponse);
+
+  // Complete a heavy media upload
+  rpc CompleteMediaUpload(CompleteMediaUploadRequest) returns (CompleteMediaUploadResponse);
+
+  // Get media metadata
+  rpc GetMedia(GetMediaRequest) returns (GetMediaResponse);
+
+  // Stream media content
+  rpc StreamMediaContent(StreamMediaContentRequest) returns (StreamMediaContentResponse);
+
+  // Delete a media file
+  rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
+
+  // List user media with pagination
+  rpc ListUserMedia(ListUserMediaRequest) returns (ListUserMediaResponse);
+
+  // List system media with pagination
+  rpc ListSystemMedia(ListSystemMediaRequest) returns (ListSystemMediaResponse);
+
+  // Subscribe to user media updates stream
+  rpc SubscribeToUserMedia(SubscribeToUserMediaRequest) returns (SubscribeToUserMediaResponse);
+
+  // Subscribe to system media updates stream
+  rpc SubscribeToSystemMedia(SubscribeToSystemMediaRequest) returns (SubscribeToSystemMediaResponse);
+
+  // Broadcast a system media file to all subscribers
+  rpc BroadcastSystemMedia(BroadcastSystemMediaRequest) returns (BroadcastSystemMediaResponse);
+}
+
+// Media represents a media file and its metadata
+message Media {
+  // Unique identifier
+  string id = 1;
+
+  // UUID reference to master table
+  string master_id = 2;
+
+  // Owner user ID
+  string user_id = 3;
+
+  // Media type (light/heavy)
+  MediaType type = 4;
+
+  // Media name
+  string name = 5;
+
+  // MIME type
+  string mime_type = 6;
+
+  // Size in bytes
+  int64 size = 7;
+
+  // Binary data for light media
+  bytes data = 8;
+
+  // URL for heavy media
+  string url = 9;
+
+  // Whether this is a system media
+  bool is_system = 10;
+
+  // Creation timestamp
+  google.protobuf.Timestamp created_at = 11;
+
+  // Last update timestamp
+  google.protobuf.Timestamp updated_at = 12;
+
+  // Deletion timestamp (if soft deleted)
+  google.protobuf.Timestamp deleted_at = 13;
+
+  // Additional metadata
+  common.Metadata metadata = 14;
+}
+
+// Media types
+enum MediaType {
+  MEDIA_TYPE_UNSPECIFIED = 0;
+  MEDIA_TYPE_LIGHT = 1;  // < 500KB, stored in DB
+  MEDIA_TYPE_HEAVY = 2;  // >= 500KB, stored externally
+}
+
+// Robust, extensible metadata for all services
+
+// Request to upload a light media
+message UploadLightMediaRequest {
+  string user_id = 1;
+  string name = 2;
+  string mime_type = 3;
+  int64 size = 4;
+  bytes data = 5;
+  common.Metadata metadata = 6;
+}
+
+// Response for uploading a light media
+message UploadLightMediaResponse {
+  Media media = 1;
+  string status = 2;
+  string error = 3;
+}
+
+// Request to start a heavy media upload
+message StartHeavyMediaUploadRequest {
+  string user_id = 1;
+  string name = 2;
+  string mime_type = 3;
+  int64 size = 4;
+  common.Metadata metadata = 5;
+}
+
+// Response for starting a heavy media upload
+message StartHeavyMediaUploadResponse {
+  string upload_id = 1;
+  int32 chunk_size = 2;
+  int32 chunks_total = 3;
+  string status = 4;
+  string error = 5;
+}
+
+// Chunk of media data for streaming
+message MediaChunk {
+  string upload_id = 1;
+  bytes data = 2;
+  uint32 sequence = 3;
+  string checksum = 4;
+}
+
+// Request to stream media chunks
+message StreamMediaChunkRequest {
+  string upload_id = 1;
+  MediaChunk chunk = 2;
+}
+
+// Response for streaming media chunks
+message StreamMediaChunkResponse {
+  string upload_id = 1;
+  uint32 sequence = 2;
+  string status = 3;
+  string error = 4;
+}
+
+// Request to complete an media upload
+message CompleteMediaUploadRequest {
+  string upload_id = 1;
+  string user_id = 2;
+}
+
+// Response for completing an media upload
+message CompleteMediaUploadResponse {
+  Media media = 1;
+  string status = 2;
+  string error = 3;
+}
+
+// Request to get an media
+message GetMediaRequest {
+  string id = 1;
+  string user_id = 2;
+}
+
+// Response for getting an media
+message GetMediaResponse {
+  Media media = 1;
+  string status = 2;
+  string error = 3;
+}
+
+// Request to stream media content
+message StreamMediaContentRequest {
+  string id = 1;
+  string user_id = 2;
+  int64 offset = 3;
+  int64 length = 4;
+}
+
+// Response for streaming media content
+message StreamMediaContentResponse {
+  bytes data = 1;
+  int64 offset = 2;
+  int64 length = 3;
+  bool end_of_stream = 4;
+  string status = 5;
+  string error = 6;
+}
+
+// Request to delete an media
+message DeleteMediaRequest {
+  string id = 1;
+  string user_id = 2;
+}
+
+// Response for deleting an media
+message DeleteMediaResponse {
+  string id = 1;
+  string status = 2;
+  string error = 3;
+}
+
+// Request to list user media
+message ListUserMediaRequest {
+  string user_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  common.Metadata filters = 4;
+}
+
+// Response for listing user media
+message ListUserMediaResponse {
+  repeated Media media = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  string status = 4;
+  string error = 5;
+}
+
+// Request to list system media
+message ListSystemMediaRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  common.Metadata filters = 3;
+}
+
+// Response for listing system media
+message ListSystemMediaResponse {
+  repeated Media media = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  string status = 4;
+  string error = 5;
+}
+
+// Request to subscribe to user media updates
+message SubscribeToUserMediaRequest {
+  string user_id = 1;
+}
+
+// Response for subscribing to user media updates
+message SubscribeToUserMediaResponse {
+  repeated Media media = 1;
+  string status = 2;
+  string error = 3;
+}
+
+// Request to subscribe to system media updates
+message SubscribeToSystemMediaRequest {
+  // Optionally, add filters or admin fields
+}
+
+// Response for subscribing to system media updates
+message SubscribeToSystemMediaResponse {
+  repeated Media media = 1;
+  string status = 2;
+  string error = 3;
+}
+
+// Request to broadcast a system media
+message BroadcastSystemMediaRequest {
+  string id = 1;
+  string user_id = 2;
+}
+
+// Response for broadcasting a system media
+message BroadcastSystemMediaResponse {
+  string status = 1;
+  string error = 2;
+}

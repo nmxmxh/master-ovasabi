@@ -21,5 +21,7 @@ improvement, and the role of documentation and feedback.
 
 ## System Diagram
 
-> _[Insert a diagram showing the feedback loop: code → test → document → review → improve, > > > >
-> highlighting continuous improvement in backend development.]_
+> \_[Insert a diagram showing the feedback loop: code → test → document → review →
+> improve, > > > > >
+>
+> > highlighting continuous improvement in backend development.]\_

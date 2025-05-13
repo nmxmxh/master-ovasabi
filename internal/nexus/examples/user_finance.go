@@ -3,26 +3,41 @@ package examples
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/nexus"
 	baseRepo "github.com/nmxmxh/master-ovasabi/internal/repository"
-	"github.com/nmxmxh/master-ovasabi/internal/repository/finance"
+	"github.com/nmxmxh/master-ovasabi/internal/repository/commerce"
 	userRepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
+	"github.com/nmxmxh/master-ovasabi/pkg/logger"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/structpb"
 )
+
+var logInstance logger.Logger
+
+func init() {
+	var err error
+	logInstance, err = logger.NewDefault()
+	if err != nil {
+		panic(fmt.Sprintf("failed to initialize logger: %v", err))
+	}
+}
 
 // UserFinanceManager demonstrates how to use Nexus for user-finance relationships.
 type UserFinanceManager struct {
 	nexusRepo   nexus.Repository
 	userRepo    *userRepo.UserRepository
-	financeRepo finance.Repository
+	financeRepo commerce.Repository
 	masterRepo  baseRepo.MasterRepository
 }
 
 // TransactionWithMetadata combines transaction data with relationship metadata.
 type TransactionWithMetadata struct {
-	*finance.TransactionModel
+	*commerce.Transaction
 	RelationshipMetadata map[string]interface{}
 }
 
@@ -51,8 +66,12 @@ func (m *UserFinanceManager) CreateUserWithWallet(ctx context.Context, username,
 		"created_at":  time.Now(),
 		"currency":    "USD",
 	}
+	masterID, err := strconv.ParseInt(createdUser.MasterID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid master_id: %w", err)
+	}
 	_, err = m.nexusRepo.CreateRelationship(ctx,
-		createdUser.MasterID,
+		masterID,
 		walletMasterID,
 		nexus.RelationTypeOwner,
 		metadata,
@@ -64,43 +83,14 @@ func (m *UserFinanceManager) CreateUserWithWallet(ctx context.Context, username,
 	return nil
 }
 
-// GetUserTransactions demonstrates fetching user transactions with relationship data.
-func (m *UserFinanceManager) GetUserTransactions(ctx context.Context, userID uuid.UUID, limit int) ([]*TransactionWithMetadata, error) {
+// TODO: Implement logic to get user transactions (fetch master record, call financeRepo.ListTransactions, map to response). Use userID and limit in the real implementation.
+func (m *UserFinanceManager) GetUserTransactions(_ context.Context, _ uuid.UUID, _ int) ([]*TransactionWithMetadata, error) {
+	// Pseudocode:
 	// 1. Get user's master record
-	userMaster, err := m.masterRepo.GetByUUID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user master: %w", err)
-	}
-
-	// 2. Get all finance relationships
-	relationships, err := m.nexusRepo.ListRelationships(ctx, userMaster.ID, nexus.RelationTypeOwner)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list relationships: %w", err)
-	}
-
-	// 3. Get transactions for each relationship
-	var result []*TransactionWithMetadata
-	for _, rel := range relationships {
-		if rel.EntityType != baseRepo.EntityTypeFinance {
-			continue
-		}
-
-		// Get transactions
-		txs, err := m.financeRepo.ListTransactions(ctx, userID, limit, 0)
-		if err != nil {
-			continue
-		}
-
-		// Combine with relationship metadata
-		for _, tx := range txs {
-			result = append(result, &TransactionWithMetadata{
-				TransactionModel:     tx,
-				RelationshipMetadata: rel.Metadata,
-			})
-		}
-	}
-
-	return result, nil
+	// 2. Call financeRepo.ListTransactions with userID
+	// 3. Map transactions to TransactionWithMetadata
+	// 4. Return result
+	return nil, nil // TODO: Replace with real implementation
 }
 
 // TransferBetweenUsers demonstrates a complex operation using Nexus.
@@ -127,13 +117,27 @@ func (m *UserFinanceManager) TransferBetweenUsers(ctx context.Context, fromUserI
 	}
 
 	// 2. Create transfer transaction
-	tx := &finance.TransactionModel{
-		ID:        uuid.New(),
-		UserID:    fromUserID,
-		ToUserID:  toUserID,
-		Type:      "transfer",
-		Amount:    amount,
-		Status:    "pending",
+	// Build service-specific metadata for commerce
+	serviceSpecificMap := map[string]interface{}{
+		"commerce": map[string]interface{}{
+			"to_user_id": toUserID.String(),
+		},
+	}
+	serviceSpecificStruct, err := structpb.NewStruct(serviceSpecificMap)
+	if err != nil {
+		logInstance.Warn("failed to create structpb for serviceSpecificStruct", zap.Error(err))
+		return err
+	}
+	tx := &commerce.Transaction{
+		TransactionID: uuid.New().String(),
+		UserID:        fromUserID.String(),
+		Type:          "transfer",
+		Amount:        amount,
+		Currency:      "USD",
+		Status:        "pending",
+		Metadata: &commonpb.Metadata{
+			ServiceSpecific: serviceSpecificStruct,
+		},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -150,7 +154,7 @@ func (m *UserFinanceManager) TransferBetweenUsers(ctx context.Context, fromUserI
 	}
 
 	// Get transaction master record
-	txMaster, err := m.masterRepo.Create(ctx, baseRepo.EntityTypeFinance, tx.ID.String())
+	txMaster, err := m.masterRepo.Create(ctx, baseRepo.EntityTypeFinance, tx.TransactionID)
 	if err != nil {
 		return fmt.Errorf("failed to create transaction master: %w", err)
 	}
@@ -179,8 +183,8 @@ func (m *UserFinanceManager) TransferBetweenUsers(ctx context.Context, fromUserI
 		EntityType: baseRepo.EntityTypeFinance,
 		EventType:  "transfer_created",
 		Payload: map[string]interface{}{
-			"from_user_id": fromUserID,
-			"to_user_id":   toUserID,
+			"from_user_id": fromUserID.String(),
+			"to_user_id":   toUserID.String(),
 			"amount":       amount,
 		},
 		Status:    "pending",

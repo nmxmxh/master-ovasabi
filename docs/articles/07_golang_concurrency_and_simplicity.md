@@ -22,5 +22,6 @@ and real-world concurrency patterns in OVASABI.
 
 ## System Diagram
 
-> _[Insert a diagram of Go's concurrency model—goroutines, channels, and how they orchestrate > > >
-> > backend tasks in OVASABI.]_
+> \_[Insert a diagram of Go's concurrency model—goroutines, channels, and how they orchestrate > > >
+>
+> > backend tasks in OVASABI.]\_

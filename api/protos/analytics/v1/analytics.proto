@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package analytics.v1;
+
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1;analyticspb";
+
+service AnalyticsService {
+  rpc TrackEvent(TrackEventRequest) returns (TrackEventResponse);
+  rpc BatchTrackEvents(BatchTrackEventsRequest) returns (BatchTrackEventsResponse);
+  rpc GetUserEvents(GetUserEventsRequest) returns (GetUserEventsResponse);
+  rpc GetProductEvents(GetProductEventsRequest) returns (GetProductEventsResponse);
+  rpc GetReport(GetReportRequest) returns (GetReportResponse);
+  rpc ListReports(ListReportsRequest) returns (ListReportsResponse);
+}
+
+message Event {
+  string id = 1;
+  string master_id = 2; // Master ID for analytics/unified queries
+  string user_id = 3;
+  string event_type = 4;
+  string entity_id = 5;
+  string entity_type = 6;
+  map<string, string> properties = 7;
+  int64 timestamp = 8;
+  common.Metadata metadata = 9; // Extensible metadata for orchestration, AI/ML, etc.
+}
+
+message TrackEventRequest { Event event = 1; }
+message TrackEventResponse { bool success = 1; }
+message BatchTrackEventsRequest { repeated Event events = 1; }
+message BatchTrackEventsResponse { int32 success_count = 1; int32 failure_count = 2; }
+
+message GetUserEventsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; }
+message GetUserEventsResponse { repeated Event events = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+
+message GetProductEventsRequest { string product_id = 1; int32 page = 2; int32 page_size = 3; }
+message GetProductEventsResponse { repeated Event events = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+
+message GetReportRequest { string report_id = 1; }
+message GetReportResponse { Report report = 1; }
+message ListReportsRequest { int32 page = 1; int32 page_size = 2; }
+message ListReportsResponse { repeated Report reports = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+
+message Report {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  map<string, string> parameters = 4;
+  bytes data = 5;
+  int64 created_at = 6;
+} 

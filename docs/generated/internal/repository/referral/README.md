@@ -20,6 +20,10 @@ Repository handles database operations for referrals.
 
 Create inserts a new referral record.
 
+##### GetByCode
+
+GetByCode retrieves a referral by referral_code.
+
 ##### GetByID
 
 GetByID retrieves a referral by ID.

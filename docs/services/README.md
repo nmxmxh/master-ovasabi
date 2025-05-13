@@ -46,10 +46,11 @@ graph TD
 
 5. **Dependency Injection & Provider Pattern**
 
-   - All services are registered and resolved via a central Provider using a DI container
-     (`internal/service/provider.go`).
-   - Modular registration ensures each service is only registered once.
-   - Health and metrics are managed centrally and exposed for observability.
+   - Modular, concurrent service registration ensures each service is only registered once and is
+     tracked in the Nexus orchestrator for orchestration and introspection.
+   - The Provider manages all dependencies and now includes a patternStore for pattern orchestration
+     registration in Nexus.
+   - Robust error handling ensures all registration and orchestration steps are logged and managed.
 
 6. **Babel & Location-Based Pricing**
    - The Babel service provides i18n and dynamic, location-based pricing rules.
@@ -70,6 +71,9 @@ graph TD
   - [Notification Service](./notification/README.md)
   - [Quotes Service](./quotes/README.md)
   - [Referral Service](./referral/README.md)
+  - **ContentService**: Dynamic content (articles, micro-posts, video), comments, reactions, and
+    full-text search. Orchestrates with UserService for author info, NotificationService for
+    engagement, SearchService for indexing, and ContentModerationService for compliance.
 
 ## Best Practices
 

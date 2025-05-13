@@ -6,7 +6,7 @@
 
 ## Variables
 
-### File_api_protos_referral_v1_referral_proto
+### File_referral_v1_referral_proto
 
 ### ReferralService_ServiceDesc
 
@@ -28,6 +28,8 @@ Deprecated: Use CreateReferralRequest.ProtoReflect.Descriptor instead.
 ##### GetCampaignId
 
 ##### GetDeviceHash
+
+##### GetMetadata
 
 ##### GetReferrerMasterId
 
@@ -111,7 +113,7 @@ GetReferralStatsRequest contains the user identifier
 
 Deprecated: Use GetReferralStatsRequest.ProtoReflect.Descriptor instead.
 
-##### GetUserId
+##### GetMasterId
 
 ##### ProtoMessage
 
@@ -132,6 +134,8 @@ GetReferralStatsResponse contains referral statistics
 Deprecated: Use GetReferralStatsResponse.ProtoReflect.Descriptor instead.
 
 ##### GetActiveReferrals
+
+##### GetGeneratedAt
 
 ##### GetReferrals
 
@@ -165,11 +169,17 @@ Deprecated: Use Referral.ProtoReflect.Descriptor instead.
 
 ##### GetId
 
+##### GetMetadata
+
 ##### GetReferralCode
+
+##### GetReferredMasterId
 
 ##### GetReferrerMasterId
 
 ##### GetSuccessful
+
+##### GetUpdatedAt
 
 ##### ProtoMessage
 
@@ -193,9 +203,11 @@ Deprecated: Use ReferralDetail.ProtoReflect.Descriptor instead.
 
 ##### GetIsActive
 
+##### GetMetadata
+
 ##### GetReferralCode
 
-##### GetReferredUserId
+##### GetReferredMasterId
 
 ##### GetRewardPoints
 

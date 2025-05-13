@@ -212,3 +212,50 @@ analytics:
 **Remember:**  
 Every database change must be reviewed for compliance with these practices.  
 If in doubt, consult a senior engineer or DBA before proceeding.
+
+---
+
+## Advanced Strategies for Archiving, Partitioning, and Long-Term Analytics
+
+For a comprehensive architectural overview, see
+[Master-Client-Service-Event Pattern](../architecture/master_client_event_pattern.md).
+
+### Automated Archiving & Partitioning
+
+- Use PostgreSQL table partitioning (e.g., via
+  [pg_partman](https://github.com/pgpartman/pg_partman)) for large event/log tables.
+- Schedule jobs to move old partitions to archive tables or export to cold storage (S3, GCS, etc.).
+- Provide CLI/admin tools for on-demand archiving and retrieval.
+
+### Retention Policies
+
+- Define and document retention policies for each event/log type (e.g., 90 days for analytics, 1
+  year for audit).
+- Use background jobs to purge or archive expired data.
+- Make retention policies configurable per table/type.
+
+### Immutable Audit/Event Logging
+
+- Use append-only tables or WORM storage for audit logs.
+- Restrict DELETE/UPDATE permissions at the DB level for these tables.
+
+### Data Lake Integration
+
+- Schedule regular exports of event/log data to a data warehouse (BigQuery, Redshift, Snowflake) for
+  deep analytics and ML.
+- Use CDC (Change Data Capture) tools for near-real-time export if needed.
+
+### Monitoring & Index Review
+
+- Monitor table sizes, partition count, and index bloat.
+- Set up alerts for table growth and slow queries.
+- Periodically analyze and optimize indexes as data grows.
+
+### Documentation Automation
+
+- Use tools to auto-generate ER diagrams and data lineage docs from the live schema.
+
+---
+
+**See also:** [Master-Client-Service-Event Pattern](../architecture/master_client_event_pattern.md)
+for rationale, trade-offs, and further best practices.

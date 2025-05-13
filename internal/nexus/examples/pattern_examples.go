@@ -2,25 +2,110 @@ package examples
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nmxmxh/master-ovasabi/internal/nexus"
-	"github.com/nmxmxh/master-ovasabi/internal/nexus/service"
-	"github.com/nmxmxh/master-ovasabi/internal/repository"
 )
 
+// --- Minimal type definitions for examples ---.
+type PatternOrigin string
+
+const (
+	PatternOriginSystem PatternOrigin = "system"
+	PatternOriginUser   PatternOrigin = "user"
+)
+
+type PatternCategory string
+
+const (
+	CategoryFinance      PatternCategory = "finance"
+	CategoryUser         PatternCategory = "user"
+	CategoryNotification PatternCategory = "notification"
+	CategoryAnalytics    PatternCategory = "analytics"
+	CategorySecurity     PatternCategory = "security"
+)
+
+type OperationStep struct {
+	Type       string                 `json:"type"`
+	Action     string                 `json:"action"`
+	Parameters map[string]interface{} `json:"parameters"`
+	DependsOn  []string               `json:"depends_on,omitempty"`
+	Retries    int                    `json:"retries"`
+	Timeout    time.Duration          `json:"timeout"`
+}
+
+type StoredPattern struct {
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Version     int                    `json:"version"`
+	Origin      PatternOrigin          `json:"origin"`
+	Category    PatternCategory        `json:"category"`
+	Steps       []OperationStep        `json:"steps"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	CreatedBy   string                 `json:"created_by"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+	IsActive    bool                   `json:"is_active"`
+	UsageCount  int64                  `json:"usage_count"`
+	SuccessRate float64                `json:"success_rate"`
+}
+
+// --- End minimal type definitions ---
+
+// --- Additional minimal stubs for examples ---
+
+// RelationType and EntityType stubs.
+const (
+	RelationTypeLinked     = "linked"
+	RelationTypeMember     = "member"
+	EntityTypeFinance      = "finance"
+	EntityTypeNotification = "notification"
+)
+
+type PatternStore struct{}
+
+func (ps *PatternStore) GetPattern(_ context.Context, _ string) (*StoredPattern, error) {
+	// TODO: implement GetPattern logic
+	return nil, errors.New("not implemented")
+}
+
+func (ps *PatternStore) UpdatePatternStats(_ context.Context, _ string, _ bool) error {
+	// TODO: implement UpdatePatternStats logic
+	return errors.New("not implemented")
+}
+
+func (ps *PatternStore) ListPatterns(_ context.Context, _ map[string]interface{}) ([]*StoredPattern, error) {
+	// TODO: implement ListPatterns logic
+	return nil, errors.New("not implemented")
+}
+
+func (ps *PatternStore) StorePattern(_ context.Context, _ *StoredPattern) error {
+	// TODO: implement StorePattern logic
+	return errors.New("not implemented")
+}
+
+type PatternExecutor struct{}
+
+func (pe *PatternExecutor) ExecutePattern(_ context.Context, _ string, _ map[string]interface{}) (map[string]interface{}, error) {
+	// TODO: implement ExecutePattern logic
+	return nil, errors.New("not implemented")
+}
+
+// --- End additional minimal stubs ---
+
 // Example of a system-defined financial transaction pattern.
-func CreateSystemTransactionPattern() *service.StoredPattern {
-	return &service.StoredPattern{
+func CreateSystemTransactionPattern() *StoredPattern {
+	return &StoredPattern{
 		ID:          uuid.New().String(),
 		Name:        "Standard Financial Transaction",
 		Description: "System-defined pattern for handling financial transactions",
 		Version:     1,
-		Origin:      service.PatternOriginSystem,
-		Category:    service.CategoryFinance,
-		Steps: []service.OperationStep{
+		Origin:      PatternOriginSystem,
+		Category:    CategoryFinance,
+		Steps: []OperationStep{
 			{
 				Type:   "graph",
 				Action: "find_path",
@@ -34,7 +119,7 @@ func CreateSystemTransactionPattern() *service.StoredPattern {
 				Type:   "relationship",
 				Action: "create",
 				Parameters: map[string]interface{}{
-					"type": string(nexus.RelationTypeLinked),
+					"type": string(RelationTypeLinked),
 					"metadata": map[string]interface{}{
 						"transaction_type": "transfer",
 						"status":           "pending",
@@ -48,7 +133,7 @@ func CreateSystemTransactionPattern() *service.StoredPattern {
 				Type:   "event",
 				Action: "publish",
 				Parameters: map[string]interface{}{
-					"entity_type": string(repository.EntityTypeFinance),
+					"entity_type": string(EntityTypeFinance),
 					"event_type":  "transaction_created",
 				},
 				DependsOn: []string{"create"},
@@ -71,20 +156,20 @@ func CreateSystemTransactionPattern() *service.StoredPattern {
 }
 
 // Example of a user-defined notification pattern.
-func CreateUserNotificationPattern(userID string) *service.StoredPattern {
-	return &service.StoredPattern{
+func CreateUserNotificationPattern(userID string) *StoredPattern {
+	return &StoredPattern{
 		ID:          uuid.New().String(),
 		Name:        "Custom User Notification",
 		Description: "User-defined pattern for handling custom notifications",
 		Version:     1,
-		Origin:      service.PatternOriginUser,
-		Category:    service.CategoryNotification,
-		Steps: []service.OperationStep{
+		Origin:      PatternOriginUser,
+		Category:    CategoryNotification,
+		Steps: []OperationStep{
 			{
 				Type:   "relationship",
 				Action: "list",
 				Parameters: map[string]interface{}{
-					"type": string(nexus.RelationTypeMember),
+					"type": string(RelationTypeMember),
 				},
 				Retries: 2,
 				Timeout: 5 * time.Second,
@@ -93,7 +178,7 @@ func CreateUserNotificationPattern(userID string) *service.StoredPattern {
 				Type:   "event",
 				Action: "publish",
 				Parameters: map[string]interface{}{
-					"entity_type": string(repository.EntityTypeNotification),
+					"entity_type": string(EntityTypeNotification),
 					"event_type":  "custom_notification",
 					"payload": map[string]interface{}{
 						"template": "user_custom",
@@ -121,12 +206,12 @@ func CreateUserNotificationPattern(userID string) *service.StoredPattern {
 
 // PatternExecutionManager demonstrates how to use the pattern store and executor.
 type PatternExecutionManager struct {
-	store    *service.PatternStore
-	executor *service.PatternExecutor
+	store    *PatternStore
+	executor *PatternExecutor
 }
 
 // NewPatternExecutionManager creates a new pattern execution manager.
-func NewPatternExecutionManager(store *service.PatternStore, executor *service.PatternExecutor) *PatternExecutionManager {
+func NewPatternExecutionManager(store *PatternStore, executor *PatternExecutor) *PatternExecutionManager {
 	return &PatternExecutionManager{
 		store:    store,
 		executor: executor,
@@ -155,25 +240,25 @@ func (m *PatternExecutionManager) ExecuteUserPattern(ctx context.Context, patter
 }
 
 // ListUserPatterns demonstrates listing patterns by user.
-func (m *PatternExecutionManager) ListUserPatterns(ctx context.Context, userID string) ([]*service.StoredPattern, error) {
+func (m *PatternExecutionManager) ListUserPatterns(ctx context.Context, userID string) ([]*StoredPattern, error) {
 	filters := map[string]interface{}{
-		"origin":  service.PatternOriginUser,
+		"origin":  PatternOriginUser,
 		"user_id": userID,
 	}
 	return m.store.ListPatterns(ctx, filters)
 }
 
 // ListSystemPatterns demonstrates listing system patterns by category.
-func (m *PatternExecutionManager) ListSystemPatterns(ctx context.Context, category service.PatternCategory) ([]*service.StoredPattern, error) {
+func (m *PatternExecutionManager) ListSystemPatterns(ctx context.Context, category PatternCategory) ([]*StoredPattern, error) {
 	filters := map[string]interface{}{
-		"origin":   service.PatternOriginSystem,
+		"origin":   PatternOriginSystem,
 		"category": category,
 	}
 	return m.store.ListPatterns(ctx, filters)
 }
 
 // Example usage of creating and executing patterns.
-func ExamplePatternUsage(ctx context.Context, store *service.PatternStore, executor *service.PatternExecutor) error {
+func ExamplePatternUsage(ctx context.Context, store *PatternStore, executor *PatternExecutor) error {
 	manager := NewPatternExecutionManager(store, executor)
 
 	// Create and store a system pattern
@@ -204,7 +289,7 @@ func ExamplePatternUsage(ctx context.Context, store *service.PatternStore, execu
 	}
 
 	// List system patterns for finance category
-	if _, err := manager.ListSystemPatterns(ctx, service.CategoryFinance); err != nil {
+	if _, err := manager.ListSystemPatterns(ctx, CategoryFinance); err != nil {
 		return err
 	}
 

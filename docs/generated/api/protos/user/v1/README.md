@@ -1,4 +1,4 @@
-# Package userv0
+# Package userv1
 
 ## Constants
 
@@ -10,7 +10,7 @@
 
 Enum value maps for UserStatus.
 
-### File_api_protos_user_v1_user_proto
+### File_user_v1_user_proto
 
 ### UserService_ServiceDesc
 
@@ -18,6 +18,78 @@ UserService_ServiceDesc is the grpc.ServiceDesc for UserService service. It's on
 direct use with grpc.RegisterService, and not to be introspected or modified (even as a copy)
 
 ## Types
+
+### AssignRoleRequest
+
+--- RBAC & Permissions ---
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use AssignRoleRequest.ProtoReflect.Descriptor instead.
+
+##### GetRole
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### AssignRoleResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use AssignRoleResponse.ProtoReflect.Descriptor instead.
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### AuditLog
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use AuditLog.ProtoReflect.Descriptor instead.
+
+##### GetAction
+
+##### GetId
+
+##### GetMasterId
+
+##### GetMetadata
+
+##### GetOccurredAt
+
+##### GetPayload
+
+##### GetResource
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
 
 ### CreateReferralRequest
 
@@ -61,9 +133,51 @@ Deprecated: Use CreateReferralResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### CreateSessionRequest
+
+--- Session Management ---
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use CreateSessionRequest.ProtoReflect.Descriptor instead.
+
+##### GetDeviceInfo
+
+##### GetPassword
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### CreateSessionResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use CreateSessionResponse.ProtoReflect.Descriptor instead.
+
+##### GetSession
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### CreateUserRequest
 
-CreateUserRequest represents the request to create a new user
+--- User Management Requests/Responses (existing, updated for UUID) ---
 
 #### Methods
 
@@ -93,8 +207,6 @@ Deprecated: Use CreateUserRequest.ProtoReflect.Descriptor instead.
 
 ### CreateUserResponse
 
-CreateUserResponse represents the response from creating a user
-
 #### Methods
 
 ##### Descriptor
@@ -112,8 +224,6 @@ Deprecated: Use CreateUserResponse.ProtoReflect.Descriptor instead.
 ##### String
 
 ### DeleteUserRequest
-
-DeleteUserRequest represents the request to delete a user
 
 #### Methods
 
@@ -135,8 +245,6 @@ Deprecated: Use DeleteUserRequest.ProtoReflect.Descriptor instead.
 
 ### DeleteUserResponse
 
-DeleteUserResponse represents the response from deleting a user
-
 #### Methods
 
 ##### Descriptor
@@ -153,9 +261,79 @@ Deprecated: Use DeleteUserResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### GetUserByUsernameRequest
+### GetSessionRequest
 
-GetUserByUsernameRequest represents the request to get user information by username
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use GetSessionRequest.ProtoReflect.Descriptor instead.
+
+##### GetSessionId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### GetSessionResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use GetSessionResponse.ProtoReflect.Descriptor instead.
+
+##### GetSession
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### GetUserByEmailRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use GetUserByEmailRequest.ProtoReflect.Descriptor instead.
+
+##### GetEmail
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### GetUserByEmailResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use GetUserByEmailResponse.ProtoReflect.Descriptor instead.
+
+##### GetUser
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### GetUserByUsernameRequest
 
 #### Methods
 
@@ -175,8 +353,6 @@ Deprecated: Use GetUserByUsernameRequest.ProtoReflect.Descriptor instead.
 
 ### GetUserByUsernameResponse
 
-GetUserByUsernameResponse represents the response containing user information by username
-
 #### Methods
 
 ##### Descriptor
@@ -194,8 +370,6 @@ Deprecated: Use GetUserByUsernameResponse.ProtoReflect.Descriptor instead.
 ##### String
 
 ### GetUserRequest
-
-GetUserRequest represents the request to get user information
 
 #### Methods
 
@@ -215,8 +389,6 @@ Deprecated: Use GetUserRequest.ProtoReflect.Descriptor instead.
 
 ### GetUserResponse
 
-GetUserResponse represents the response containing user information
-
 #### Methods
 
 ##### Descriptor
@@ -233,9 +405,279 @@ Deprecated: Use GetUserResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### ListUsersRequest
+### InitiateMFARequest
 
-ListUsersRequest represents the request to list users
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use InitiateMFARequest.ProtoReflect.Descriptor instead.
+
+##### GetMfaType
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### InitiateMFAResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use InitiateMFAResponse.ProtoReflect.Descriptor instead.
+
+##### GetChallengeId
+
+##### GetInitiated
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### InitiateSSORequest
+
+--- SSO, MFA, SCIM Extensibility (placeholders) ---
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use InitiateSSORequest.ProtoReflect.Descriptor instead.
+
+##### GetProvider
+
+##### GetRedirectUri
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### InitiateSSOResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use InitiateSSOResponse.ProtoReflect.Descriptor instead.
+
+##### GetSsoUrl
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListAuditLogsRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListAuditLogsRequest.ProtoReflect.Descriptor instead.
+
+##### GetPage
+
+##### GetPageSize
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListAuditLogsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListAuditLogsResponse.ProtoReflect.Descriptor instead.
+
+##### GetLogs
+
+##### GetTotalCount
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListPermissionsRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListPermissionsRequest.ProtoReflect.Descriptor instead.
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListPermissionsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListPermissionsResponse.ProtoReflect.Descriptor instead.
+
+##### GetPermissions
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListRolesRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListRolesRequest.ProtoReflect.Descriptor instead.
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListRolesResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListRolesResponse.ProtoReflect.Descriptor instead.
+
+##### GetRoles
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListSessionsRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListSessionsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
+
+##### GetSessions
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListUserEventsRequest
+
+--- Audit/Event Log ---
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListUserEventsRequest.ProtoReflect.Descriptor instead.
+
+##### GetPage
+
+##### GetPageSize
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListUserEventsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListUserEventsResponse.ProtoReflect.Descriptor instead.
+
+##### GetEvents
+
+##### GetTotalCount
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListUsersRequest
 
 #### Methods
 
@@ -245,13 +687,19 @@ Deprecated: Use ListUsersRequest.ProtoReflect.Descriptor instead.
 
 ##### GetFilters
 
+##### GetMetadata
+
 ##### GetPage
 
 ##### GetPageSize
 
+##### GetSearchQuery
+
 ##### GetSortBy
 
 ##### GetSortDesc
+
+##### GetTags
 
 ##### ProtoMessage
 
@@ -262,8 +710,6 @@ Deprecated: Use ListUsersRequest.ProtoReflect.Descriptor instead.
 ##### String
 
 ### ListUsersResponse
-
-ListUsersResponse represents the response containing a list of users
 
 #### Methods
 
@@ -288,6 +734,8 @@ Deprecated: Use ListUsersResponse.ProtoReflect.Descriptor instead.
 ##### String
 
 ### RegisterInterestRequest
+
+--- Legacy/Platform-specific ---
 
 #### Methods
 
@@ -327,6 +775,150 @@ Deprecated: Use RegisterInterestResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### RemoveRoleRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RemoveRoleRequest.ProtoReflect.Descriptor instead.
+
+##### GetRole
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### RemoveRoleResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RemoveRoleResponse.ProtoReflect.Descriptor instead.
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### RevokeSessionRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RevokeSessionRequest.ProtoReflect.Descriptor instead.
+
+##### GetSessionId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### RevokeSessionResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RevokeSessionResponse.ProtoReflect.Descriptor instead.
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### Session
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use Session.ProtoReflect.Descriptor instead.
+
+##### GetAccessToken
+
+##### GetCreatedAt
+
+##### GetDeviceInfo
+
+##### GetExpiresAt
+
+##### GetId
+
+##### GetIpAddress
+
+##### GetMetadata
+
+##### GetRefreshToken
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### SyncSCIMRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SyncSCIMRequest.ProtoReflect.Descriptor instead.
+
+##### GetScimPayload
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### SyncSCIMResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SyncSCIMResponse.ProtoReflect.Descriptor instead.
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### UnimplementedUserServiceServer
 
 UnimplementedUserServiceServer must be embedded to have forward compatible implementations.
@@ -336,19 +928,47 @@ methods are called.
 
 #### Methods
 
+##### AssignRole
+
 ##### CreateReferral
+
+##### CreateSession
 
 ##### CreateUser
 
 ##### DeleteUser
 
+##### GetSession
+
 ##### GetUser
 
+##### GetUserByEmail
+
 ##### GetUserByUsername
+
+##### InitiateMFA
+
+##### InitiateSSO
+
+##### ListAuditLogs
+
+##### ListPermissions
+
+##### ListRoles
+
+##### ListSessions
+
+##### ListUserEvents
 
 ##### ListUsers
 
 ##### RegisterInterest
+
+##### RemoveRole
+
+##### RevokeSession
+
+##### SyncSCIM
 
 ##### UpdatePassword
 
@@ -363,8 +983,6 @@ this interface is not recommended, as added methods to UserServiceServer will re
 errors.
 
 ### UpdatePasswordRequest
-
-UpdatePasswordRequest represents the request to update a user's password
 
 #### Methods
 
@@ -388,8 +1006,6 @@ Deprecated: Use UpdatePasswordRequest.ProtoReflect.Descriptor instead.
 
 ### UpdatePasswordResponse
 
-UpdatePasswordResponse represents the response from updating a password
-
 #### Methods
 
 ##### Descriptor
@@ -409,8 +1025,6 @@ Deprecated: Use UpdatePasswordResponse.ProtoReflect.Descriptor instead.
 ##### String
 
 ### UpdateProfileRequest
-
-UpdateProfileRequest represents the request to update a user's profile
 
 #### Methods
 
@@ -434,8 +1048,6 @@ Deprecated: Use UpdateProfileRequest.ProtoReflect.Descriptor instead.
 
 ### UpdateProfileResponse
 
-UpdateProfileResponse represents the response from updating a profile
-
 #### Methods
 
 ##### Descriptor
@@ -453,8 +1065,6 @@ Deprecated: Use UpdateProfileResponse.ProtoReflect.Descriptor instead.
 ##### String
 
 ### UpdateUserRequest
-
-UpdateUserRequest represents the request to update user information
 
 #### Methods
 
@@ -478,8 +1088,6 @@ Deprecated: Use UpdateUserRequest.ProtoReflect.Descriptor instead.
 
 ### UpdateUserResponse
 
-UpdateUserResponse represents the response from updating user information
-
 #### Methods
 
 ##### Descriptor
@@ -498,8 +1106,6 @@ Deprecated: Use UpdateUserResponse.ProtoReflect.Descriptor instead.
 
 ### User
 
-User represents a user in the system
-
 #### Methods
 
 ##### Descriptor
@@ -512,17 +1118,29 @@ Deprecated: Use User.ProtoReflect.Descriptor instead.
 
 ##### GetEmail
 
+##### GetExternalIds
+
 ##### GetId
 
 ##### GetLocation
+
+##### GetMasterId
 
 ##### GetMetadata
 
 ##### GetPasswordHash
 
+##### GetProfile
+
 ##### GetReferralCode
 
 ##### GetReferredBy
+
+##### GetRoles
+
+##### GetStatus
+
+##### GetTags
 
 ##### GetUpdatedAt
 
@@ -536,9 +1154,39 @@ Deprecated: Use User.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### UserProfile
+### UserEvent
 
-UserProfile contains additional user information
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use UserEvent.ProtoReflect.Descriptor instead.
+
+##### GetDescription
+
+##### GetEventType
+
+##### GetId
+
+##### GetMasterId
+
+##### GetMetadata
+
+##### GetOccurredAt
+
+##### GetPayload
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### UserProfile
 
 #### Methods
 
@@ -577,18 +1225,16 @@ UserServiceClient is the client API for UserService service.
 For semantics around ctx use and closing/ending streaming RPCs, please refer to
 https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 
-UserService handles user management operations
+UserService handles user management, authentication, RBAC, and audit operations
 
 ### UserServiceServer
 
 UserServiceServer is the server API for UserService service. All implementations must embed
 UnimplementedUserServiceServer for forward compatibility.
 
-UserService handles user management operations
+UserService handles user management, authentication, RBAC, and audit operations
 
 ### UserStatus
-
-UserStatus represents the user's account status
 
 #### Methods
 

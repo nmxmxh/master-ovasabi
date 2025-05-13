@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nexus.v1;
 
+import "common/v1/metadata.proto";
+
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v0;nexuspb";
 
 // NexusService provides pattern-based orchestration and knowledge graph management
@@ -59,9 +61,11 @@ message PatternStep {
   repeated string required_args = 3;
   repeated string optional_args = 4;
   map<string, string> params = 5;
+  common.Metadata metadata = 6; // Extensible metadata for orchestration, AI/ML, etc.
 }
 
 message PatternDefinition {
   string pattern_name = 1;
   repeated PatternStep steps = 2;
+  common.Metadata metadata = 3; // Extensible metadata for orchestration, AI/ML, etc.
 } 

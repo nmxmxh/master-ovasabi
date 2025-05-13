@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.29.2
-// source: api/protos/user/v1/user.proto
+// source: user/v1/user.proto
 
-package userv0
+package userv1
 
 import (
 	context "context"
@@ -22,11 +22,25 @@ const (
 	UserService_CreateUser_FullMethodName        = "/user.v1.UserService/CreateUser"
 	UserService_GetUser_FullMethodName           = "/user.v1.UserService/GetUser"
 	UserService_GetUserByUsername_FullMethodName = "/user.v1.UserService/GetUserByUsername"
+	UserService_GetUserByEmail_FullMethodName    = "/user.v1.UserService/GetUserByEmail"
 	UserService_UpdateUser_FullMethodName        = "/user.v1.UserService/UpdateUser"
 	UserService_DeleteUser_FullMethodName        = "/user.v1.UserService/DeleteUser"
 	UserService_ListUsers_FullMethodName         = "/user.v1.UserService/ListUsers"
 	UserService_UpdatePassword_FullMethodName    = "/user.v1.UserService/UpdatePassword"
 	UserService_UpdateProfile_FullMethodName     = "/user.v1.UserService/UpdateProfile"
+	UserService_CreateSession_FullMethodName     = "/user.v1.UserService/CreateSession"
+	UserService_GetSession_FullMethodName        = "/user.v1.UserService/GetSession"
+	UserService_RevokeSession_FullMethodName     = "/user.v1.UserService/RevokeSession"
+	UserService_ListSessions_FullMethodName      = "/user.v1.UserService/ListSessions"
+	UserService_AssignRole_FullMethodName        = "/user.v1.UserService/AssignRole"
+	UserService_RemoveRole_FullMethodName        = "/user.v1.UserService/RemoveRole"
+	UserService_ListRoles_FullMethodName         = "/user.v1.UserService/ListRoles"
+	UserService_ListPermissions_FullMethodName   = "/user.v1.UserService/ListPermissions"
+	UserService_ListUserEvents_FullMethodName    = "/user.v1.UserService/ListUserEvents"
+	UserService_ListAuditLogs_FullMethodName     = "/user.v1.UserService/ListAuditLogs"
+	UserService_InitiateSSO_FullMethodName       = "/user.v1.UserService/InitiateSSO"
+	UserService_InitiateMFA_FullMethodName       = "/user.v1.UserService/InitiateMFA"
+	UserService_SyncSCIM_FullMethodName          = "/user.v1.UserService/SyncSCIM"
 	UserService_RegisterInterest_FullMethodName  = "/user.v1.UserService/RegisterInterest"
 	UserService_CreateReferral_FullMethodName    = "/user.v1.UserService/CreateReferral"
 )
@@ -35,27 +49,37 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// UserService handles user management operations
+// UserService handles user management, authentication, RBAC, and audit operations
 type UserServiceClient interface {
-	// CreateUser creates a new user
+	// --- User Management ---
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*CreateUserResponse, error)
-	// GetUser retrieves user information
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
-	// GetUserByUsername retrieves user information by username
 	GetUserByUsername(ctx context.Context, in *GetUserByUsernameRequest, opts ...grpc.CallOption) (*GetUserByUsernameResponse, error)
-	// UpdateUser updates user information
+	GetUserByEmail(ctx context.Context, in *GetUserByEmailRequest, opts ...grpc.CallOption) (*GetUserByEmailResponse, error)
 	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*UpdateUserResponse, error)
-	// DeleteUser deletes a user
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*DeleteUserResponse, error)
-	// ListUsers retrieves a list of users
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
-	// UpdatePassword updates a user's password
 	UpdatePassword(ctx context.Context, in *UpdatePasswordRequest, opts ...grpc.CallOption) (*UpdatePasswordResponse, error)
-	// UpdateProfile updates a user's profile information
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*UpdateProfileResponse, error)
-	// RegisterInterest registers interest in a campaign
+	// --- Session Management ---
+	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
+	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
+	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error)
+	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
+	// --- RBAC & Permissions ---
+	AssignRole(ctx context.Context, in *AssignRoleRequest, opts ...grpc.CallOption) (*AssignRoleResponse, error)
+	RemoveRole(ctx context.Context, in *RemoveRoleRequest, opts ...grpc.CallOption) (*RemoveRoleResponse, error)
+	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
+	ListPermissions(ctx context.Context, in *ListPermissionsRequest, opts ...grpc.CallOption) (*ListPermissionsResponse, error)
+	// --- Audit/Event Log ---
+	ListUserEvents(ctx context.Context, in *ListUserEventsRequest, opts ...grpc.CallOption) (*ListUserEventsResponse, error)
+	ListAuditLogs(ctx context.Context, in *ListAuditLogsRequest, opts ...grpc.CallOption) (*ListAuditLogsResponse, error)
+	// --- SSO, MFA, SCIM Extensibility (placeholders for future expansion) ---
+	InitiateSSO(ctx context.Context, in *InitiateSSORequest, opts ...grpc.CallOption) (*InitiateSSOResponse, error)
+	InitiateMFA(ctx context.Context, in *InitiateMFARequest, opts ...grpc.CallOption) (*InitiateMFAResponse, error)
+	SyncSCIM(ctx context.Context, in *SyncSCIMRequest, opts ...grpc.CallOption) (*SyncSCIMResponse, error)
+	// --- Legacy/Platform-specific ---
 	RegisterInterest(ctx context.Context, in *RegisterInterestRequest, opts ...grpc.CallOption) (*RegisterInterestResponse, error)
-	// CreateReferral creates a referral code for a campaign
 	CreateReferral(ctx context.Context, in *CreateReferralRequest, opts ...grpc.CallOption) (*CreateReferralResponse, error)
 }
 
@@ -91,6 +115,16 @@ func (c *userServiceClient) GetUserByUsername(ctx context.Context, in *GetUserBy
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUserByUsernameResponse)
 	err := c.cc.Invoke(ctx, UserService_GetUserByUsername_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetUserByEmail(ctx context.Context, in *GetUserByEmailRequest, opts ...grpc.CallOption) (*GetUserByEmailResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserByEmailResponse)
+	err := c.cc.Invoke(ctx, UserService_GetUserByEmail_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +181,136 @@ func (c *userServiceClient) UpdateProfile(ctx context.Context, in *UpdateProfile
 	return out, nil
 }
 
+func (c *userServiceClient) CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateSessionResponse)
+	err := c.cc.Invoke(ctx, UserService_CreateSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSessionResponse)
+	err := c.cc.Invoke(ctx, UserService_GetSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeSessionResponse)
+	err := c.cc.Invoke(ctx, UserService_RevokeSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSessionsResponse)
+	err := c.cc.Invoke(ctx, UserService_ListSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) AssignRole(ctx context.Context, in *AssignRoleRequest, opts ...grpc.CallOption) (*AssignRoleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AssignRoleResponse)
+	err := c.cc.Invoke(ctx, UserService_AssignRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RemoveRole(ctx context.Context, in *RemoveRoleRequest, opts ...grpc.CallOption) (*RemoveRoleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveRoleResponse)
+	err := c.cc.Invoke(ctx, UserService_RemoveRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRolesResponse)
+	err := c.cc.Invoke(ctx, UserService_ListRoles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListPermissions(ctx context.Context, in *ListPermissionsRequest, opts ...grpc.CallOption) (*ListPermissionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPermissionsResponse)
+	err := c.cc.Invoke(ctx, UserService_ListPermissions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListUserEvents(ctx context.Context, in *ListUserEventsRequest, opts ...grpc.CallOption) (*ListUserEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserEventsResponse)
+	err := c.cc.Invoke(ctx, UserService_ListUserEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListAuditLogs(ctx context.Context, in *ListAuditLogsRequest, opts ...grpc.CallOption) (*ListAuditLogsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAuditLogsResponse)
+	err := c.cc.Invoke(ctx, UserService_ListAuditLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) InitiateSSO(ctx context.Context, in *InitiateSSORequest, opts ...grpc.CallOption) (*InitiateSSOResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InitiateSSOResponse)
+	err := c.cc.Invoke(ctx, UserService_InitiateSSO_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) InitiateMFA(ctx context.Context, in *InitiateMFARequest, opts ...grpc.CallOption) (*InitiateMFAResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InitiateMFAResponse)
+	err := c.cc.Invoke(ctx, UserService_InitiateMFA_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) SyncSCIM(ctx context.Context, in *SyncSCIMRequest, opts ...grpc.CallOption) (*SyncSCIMResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncSCIMResponse)
+	err := c.cc.Invoke(ctx, UserService_SyncSCIM_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) RegisterInterest(ctx context.Context, in *RegisterInterestRequest, opts ...grpc.CallOption) (*RegisterInterestResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RegisterInterestResponse)
@@ -171,27 +335,37 @@ func (c *userServiceClient) CreateReferral(ctx context.Context, in *CreateReferr
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
 //
-// UserService handles user management operations
+// UserService handles user management, authentication, RBAC, and audit operations
 type UserServiceServer interface {
-	// CreateUser creates a new user
+	// --- User Management ---
 	CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error)
-	// GetUser retrieves user information
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
-	// GetUserByUsername retrieves user information by username
 	GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*GetUserByUsernameResponse, error)
-	// UpdateUser updates user information
+	GetUserByEmail(context.Context, *GetUserByEmailRequest) (*GetUserByEmailResponse, error)
 	UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error)
-	// DeleteUser deletes a user
 	DeleteUser(context.Context, *DeleteUserRequest) (*DeleteUserResponse, error)
-	// ListUsers retrieves a list of users
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
-	// UpdatePassword updates a user's password
 	UpdatePassword(context.Context, *UpdatePasswordRequest) (*UpdatePasswordResponse, error)
-	// UpdateProfile updates a user's profile information
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*UpdateProfileResponse, error)
-	// RegisterInterest registers interest in a campaign
+	// --- Session Management ---
+	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
+	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
+	RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error)
+	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
+	// --- RBAC & Permissions ---
+	AssignRole(context.Context, *AssignRoleRequest) (*AssignRoleResponse, error)
+	RemoveRole(context.Context, *RemoveRoleRequest) (*RemoveRoleResponse, error)
+	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
+	ListPermissions(context.Context, *ListPermissionsRequest) (*ListPermissionsResponse, error)
+	// --- Audit/Event Log ---
+	ListUserEvents(context.Context, *ListUserEventsRequest) (*ListUserEventsResponse, error)
+	ListAuditLogs(context.Context, *ListAuditLogsRequest) (*ListAuditLogsResponse, error)
+	// --- SSO, MFA, SCIM Extensibility (placeholders for future expansion) ---
+	InitiateSSO(context.Context, *InitiateSSORequest) (*InitiateSSOResponse, error)
+	InitiateMFA(context.Context, *InitiateMFARequest) (*InitiateMFAResponse, error)
+	SyncSCIM(context.Context, *SyncSCIMRequest) (*SyncSCIMResponse, error)
+	// --- Legacy/Platform-specific ---
 	RegisterInterest(context.Context, *RegisterInterestRequest) (*RegisterInterestResponse, error)
-	// CreateReferral creates a referral code for a campaign
 	CreateReferral(context.Context, *CreateReferralRequest) (*CreateReferralResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
@@ -212,6 +386,9 @@ func (UnimplementedUserServiceServer) GetUser(context.Context, *GetUserRequest) 
 func (UnimplementedUserServiceServer) GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*GetUserByUsernameResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserByUsername not implemented")
 }
+func (UnimplementedUserServiceServer) GetUserByEmail(context.Context, *GetUserByEmailRequest) (*GetUserByEmailResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserByEmail not implemented")
+}
 func (UnimplementedUserServiceServer) UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
 }
@@ -226,6 +403,45 @@ func (UnimplementedUserServiceServer) UpdatePassword(context.Context, *UpdatePas
 }
 func (UnimplementedUserServiceServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*UpdateProfileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateProfile not implemented")
+}
+func (UnimplementedUserServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateSession not implemented")
+}
+func (UnimplementedUserServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSession not implemented")
+}
+func (UnimplementedUserServiceServer) RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeSession not implemented")
+}
+func (UnimplementedUserServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSessions not implemented")
+}
+func (UnimplementedUserServiceServer) AssignRole(context.Context, *AssignRoleRequest) (*AssignRoleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AssignRole not implemented")
+}
+func (UnimplementedUserServiceServer) RemoveRole(context.Context, *RemoveRoleRequest) (*RemoveRoleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveRole not implemented")
+}
+func (UnimplementedUserServiceServer) ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRoles not implemented")
+}
+func (UnimplementedUserServiceServer) ListPermissions(context.Context, *ListPermissionsRequest) (*ListPermissionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPermissions not implemented")
+}
+func (UnimplementedUserServiceServer) ListUserEvents(context.Context, *ListUserEventsRequest) (*ListUserEventsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserEvents not implemented")
+}
+func (UnimplementedUserServiceServer) ListAuditLogs(context.Context, *ListAuditLogsRequest) (*ListAuditLogsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAuditLogs not implemented")
+}
+func (UnimplementedUserServiceServer) InitiateSSO(context.Context, *InitiateSSORequest) (*InitiateSSOResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitiateSSO not implemented")
+}
+func (UnimplementedUserServiceServer) InitiateMFA(context.Context, *InitiateMFARequest) (*InitiateMFAResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitiateMFA not implemented")
+}
+func (UnimplementedUserServiceServer) SyncSCIM(context.Context, *SyncSCIMRequest) (*SyncSCIMResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SyncSCIM not implemented")
 }
 func (UnimplementedUserServiceServer) RegisterInterest(context.Context, *RegisterInterestRequest) (*RegisterInterestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterInterest not implemented")
@@ -304,6 +520,24 @@ func _UserService_GetUserByUsername_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).GetUserByUsername(ctx, req.(*GetUserByUsernameRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetUserByEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserByEmailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetUserByEmail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetUserByEmail_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetUserByEmail(ctx, req.(*GetUserByEmailRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -398,6 +632,240 @@ func _UserService_UpdateProfile_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_CreateSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreateSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreateSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreateSession(ctx, req.(*CreateSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetSession(ctx, req.(*GetSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RevokeSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RevokeSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RevokeSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RevokeSession(ctx, req.(*RevokeSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListSessions(ctx, req.(*ListSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_AssignRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AssignRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).AssignRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_AssignRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).AssignRole(ctx, req.(*AssignRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RemoveRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RemoveRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RemoveRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RemoveRole(ctx, req.(*RemoveRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListRoles(ctx, req.(*ListRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListPermissions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPermissionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListPermissions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListPermissions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListPermissions(ctx, req.(*ListPermissionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListUserEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListUserEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListUserEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListUserEvents(ctx, req.(*ListUserEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListAuditLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAuditLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListAuditLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListAuditLogs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListAuditLogs(ctx, req.(*ListAuditLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_InitiateSSO_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitiateSSORequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).InitiateSSO(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_InitiateSSO_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).InitiateSSO(ctx, req.(*InitiateSSORequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_InitiateMFA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitiateMFARequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).InitiateMFA(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_InitiateMFA_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).InitiateMFA(ctx, req.(*InitiateMFARequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_SyncSCIM_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncSCIMRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SyncSCIM(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SyncSCIM_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SyncSCIM(ctx, req.(*SyncSCIMRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_RegisterInterest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterInterestRequest)
 	if err := dec(in); err != nil {
@@ -454,6 +922,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_GetUserByUsername_Handler,
 		},
 		{
+			MethodName: "GetUserByEmail",
+			Handler:    _UserService_GetUserByEmail_Handler,
+		},
+		{
 			MethodName: "UpdateUser",
 			Handler:    _UserService_UpdateUser_Handler,
 		},
@@ -474,6 +946,58 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_UpdateProfile_Handler,
 		},
 		{
+			MethodName: "CreateSession",
+			Handler:    _UserService_CreateSession_Handler,
+		},
+		{
+			MethodName: "GetSession",
+			Handler:    _UserService_GetSession_Handler,
+		},
+		{
+			MethodName: "RevokeSession",
+			Handler:    _UserService_RevokeSession_Handler,
+		},
+		{
+			MethodName: "ListSessions",
+			Handler:    _UserService_ListSessions_Handler,
+		},
+		{
+			MethodName: "AssignRole",
+			Handler:    _UserService_AssignRole_Handler,
+		},
+		{
+			MethodName: "RemoveRole",
+			Handler:    _UserService_RemoveRole_Handler,
+		},
+		{
+			MethodName: "ListRoles",
+			Handler:    _UserService_ListRoles_Handler,
+		},
+		{
+			MethodName: "ListPermissions",
+			Handler:    _UserService_ListPermissions_Handler,
+		},
+		{
+			MethodName: "ListUserEvents",
+			Handler:    _UserService_ListUserEvents_Handler,
+		},
+		{
+			MethodName: "ListAuditLogs",
+			Handler:    _UserService_ListAuditLogs_Handler,
+		},
+		{
+			MethodName: "InitiateSSO",
+			Handler:    _UserService_InitiateSSO_Handler,
+		},
+		{
+			MethodName: "InitiateMFA",
+			Handler:    _UserService_InitiateMFA_Handler,
+		},
+		{
+			MethodName: "SyncSCIM",
+			Handler:    _UserService_SyncSCIM_Handler,
+		},
+		{
 			MethodName: "RegisterInterest",
 			Handler:    _UserService_RegisterInterest_Handler,
 		},
@@ -483,5 +1007,5 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/protos/user/v1/user.proto",
+	Metadata: "user/v1/user.proto",
 }

@@ -1,6 +1,16 @@
 # Package examples
 
+## Constants
+
+### RelationTypeLinked
+
+RelationType and EntityType stubs.
+
 ## Types
+
+### OperationStep
+
+### PatternCategory
 
 ### PatternExecutionManager
 
@@ -20,6 +30,12 @@ ListSystemPatterns demonstrates listing system patterns by category.
 
 ListUserPatterns demonstrates listing patterns by user.
 
+### PatternExecutor
+
+#### Methods
+
+##### ExecutePattern
+
 ### PatternManager
 
 PatternManager demonstrates how to use the pattern executor.
@@ -33,6 +49,24 @@ ExecuteTransaction demonstrates how to execute the transaction pattern.
 ##### ExecuteUserOnboarding
 
 ExecuteUserOnboarding demonstrates how to execute the user onboarding pattern.
+
+### PatternOrigin
+
+--- Minimal type definitions for examples ---.
+
+### PatternStore
+
+#### Methods
+
+##### GetPattern
+
+##### ListPatterns
+
+##### StorePattern
+
+##### UpdatePatternStats
+
+### StoredPattern
 
 ### TransactionWithMetadata
 
@@ -54,7 +88,8 @@ GetUserFinancialGraph demonstrates getting a complete financial relationship gra
 
 ##### GetUserTransactions
 
-GetUserTransactions demonstrates fetching user transactions with relationship data.
+TODO: Implement logic to get user transactions (fetch master record, call
+financeRepo.ListTransactions, map to response). Use userID and limit in the real implementation.
 
 ##### TransferBetweenUsers
 
@@ -62,17 +97,9 @@ TransferBetweenUsers demonstrates a complex operation using Nexus.
 
 ## Functions
 
-### CreateSystemTransactionPattern
-
-Example of a system-defined financial transaction pattern.
-
 ### CreateTransactionPattern
 
 Example of creating and using a pattern for financial transaction.
-
-### CreateUserNotificationPattern
-
-Example of a user-defined notification pattern.
 
 ### CreateUserOnboardingPattern
 

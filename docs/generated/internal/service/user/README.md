@@ -12,6 +12,14 @@ Service implements the UserService gRPC interface.
 
 #### Methods
 
+##### AssignRole
+
+##### CreateReferral
+
+##### CreateSession
+
+--- Add stubs for all unimplemented proto RPCs ---.
+
 ##### CreateUser
 
 CreateUser creates a new user following the Master-Client-Service-Event pattern.
@@ -20,17 +28,45 @@ CreateUser creates a new user following the Master-Client-Service-Event pattern.
 
 DeleteUser removes a user and its master record.
 
+##### GetSession
+
 ##### GetUser
 
 GetUser retrieves user information.
+
+##### GetUserByEmail
+
+GetUserByEmail retrieves user information by email.
 
 ##### GetUserByUsername
 
 GetUserByUsername retrieves user information by username.
 
+##### InitiateMFA
+
+##### InitiateSSO
+
+##### ListAuditLogs
+
+##### ListPermissions
+
+##### ListRoles
+
+##### ListSessions
+
+##### ListUserEvents
+
 ##### ListUsers
 
 ListUsers retrieves a list of users with pagination and filtering.
+
+##### RegisterInterest
+
+##### RemoveRole
+
+##### RevokeSession
+
+##### SyncSCIM
 
 ##### UpdatePassword
 

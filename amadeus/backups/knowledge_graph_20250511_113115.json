@@ -1,0 +1,319 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2023-10-19T12:00:00Z",
+  "system_components": {
+    "integration_layer": {
+      "interfaces": [
+        "nexus_integration",
+        "pattern_registry",
+        "event_streams"
+      ],
+      "patterns": [
+        "identity_unification",
+        "value_exchange",
+        "data_intelligence"
+      ],
+      "services": [
+        "exchange_orchestration",
+        "wallet_gateway",
+        "incentive_management",
+        "reputation_bridge",
+        "value_router"
+      ]
+    },
+    "service_platform": {
+      "core_services": [
+        "user",
+        "finance",
+        "asset",
+        "marketplace",
+        "notification",
+        "referral",
+        "campaign",
+        "quotes"
+      ],
+      "infrastructure": [
+        "nexus",
+        "patterns",
+        "database",
+        "redis",
+        "tracing",
+        "metrics"
+      ],
+      "interfaces": [
+        "api_gateway",
+        "grpc_services",
+        "event_bus"
+      ]
+    },
+    "token_ecosystem": {
+      "components": [
+        "exchange_orchestration",
+        "wallet_gateway",
+        "token_governance",
+        "treasury"
+      ],
+      "mechanisms": [
+        "currency_basket",
+        "UBI_distribution",
+        "staking",
+        "governance"
+      ],
+      "tokens": [
+        "OvaStable",
+        "OvaUtility"
+      ]
+    }
+  },
+  "repository_structure": {
+    "root_directories": {
+      "amadeus": {
+        "key_components": [
+          "system_knowledge_graph"
+        ],
+        "purpose": "System knowledge persistence",
+        "relationship_to_services": "meta-documentation of system relationships"
+      },
+      "api": {
+        "key_components": [
+          "protos"
+        ],
+        "purpose": "API definitions and contracts",
+        "relationship_to_services": "defines service interfaces",
+        "subdirectories": {
+          "protos": {
+            "purpose": "Protocol buffer definitions",
+            "service_mapping": {
+              "asset": "asset management services",
+              "auth": "authentication services",
+              "broadcast": "messaging and notification",
+              "campaign": "marketing campaigns",
+              "finance": "financial operations",
+              "i18n": "internationalization",
+              "notification": "user notifications",
+              "quotes": "price quotes and estimation",
+              "referral": "referral program",
+              "user": "user management"
+            }
+          }
+        }
+      },
+      "cmd": {
+        "key_components": [
+          "server"
+        ],
+        "purpose": "Application entry points",
+        "relationship_to_services": "service initialization and configuration"
+      },
+      "config": {
+        "affects": [
+          "service_behavior",
+          "environment_settings"
+        ],
+        "purpose": "Configuration files",
+        "relationship_to_services": "service configuration"
+      },
+      "database": {
+        "key_components": [
+          "migrations"
+        ],
+        "purpose": "Database related files",
+        "relationship_to_services": "data persistence layer"
+      },
+      "docs": {
+        "key_components": [
+          "api",
+          "architecture",
+          "deployment",
+          "development"
+        ],
+        "knowledge_base": "patterns, services, integrations",
+        "purpose": "Documentation",
+        "relationship_to_services": "documents service design and usage"
+      },
+      "internal": {
+        "key_components": [
+          "nexus",
+          "repository",
+          "server",
+          "service",
+          "shared"
+        ],
+        "nexus_location": "internal/nexus",
+        "purpose": "Private application code",
+        "relationship_to_services": "service implementations",
+        "services_location": "internal/service"
+      },
+      "pkg": {
+        "key_components": [
+          "di",
+          "errors",
+          "logger",
+          "metrics",
+          "models",
+          "redis",
+          "tracing"
+        ],
+        "purpose": "Public packages",
+        "relationship_to_services": "reusable components across services"
+      },
+      "tools": {
+        "key_components": [
+          "codegen",
+          "docgen",
+          "lint",
+          "protoc"
+        ],
+        "purpose": "Development tools",
+        "relationship_to_services": "service development support"
+      }
+    }
+  },
+  "services": {
+    "core_services": {
+      "asset_service": {
+        "integration_points": [
+          "user_service",
+          "marketplace_service"
+        ],
+        "location": "internal/service/asset",
+        "patterns_used": [
+          "content_management_pattern"
+        ],
+        "purpose": "Manages digital assets, documents, and multimedia content",
+        "repositories": [
+          "asset_repository"
+        ],
+        "token_integration": "asset tokenization, NFT capabilities"
+      },
+      "finance_service": {
+        "integration_points": [
+          "user_service",
+          "exchange_orchestration_service"
+        ],
+        "location": "internal/service/finance",
+        "patterns_used": [
+          "value_exchange_pattern"
+        ],
+        "purpose": "Handles financial transactions, wallets, and payment processing",
+        "repositories": [
+          "transaction_repository",
+          "wallet_repository",
+          "payment_repository"
+        ],
+        "token_integration": "token transactions, fiat-token exchange"
+      },
+      "user_service": {
+        "integration_points": [
+          "auth_service",
+          "referral_service",
+          "notification_service"
+        ],
+        "location": "internal/service/user",
+        "patterns_used": [
+          "identity_unification_pattern"
+        ],
+        "purpose": "Manages user identity, profiles, and authentication",
+        "repositories": [
+          "user_repository"
+        ],
+        "token_integration": "wallet association, governance participation"
+      }
+    },
+    "token_services": {
+      "token_service": {
+        "integration_points": [
+          "finance_service",
+          "exchange_orchestration_service"
+        ],
+        "location": "internal/service/token",
+        "patterns_used": [
+          "token_lifecycle_pattern"
+        ],
+        "purpose": "Manages token issuance, transfers, and balances",
+        "repositories": [
+          "token_repository",
+          "balance_repository"
+        ],
+        "service_integration": "service rewards, premium features"
+      }
+    }
+  },
+  "nexus": {
+    "core_components": {
+      "pattern_registry": {
+        "interfaces": [
+          "RegisterPattern",
+          "FindPattern",
+          "ExecutePattern"
+        ],
+        "location": "internal/nexus/service/pattern",
+        "purpose": "Stores and manages all system patterns",
+        "relationship_to_services": "provides patterns for service composition",
+        "storage": "database with redis cache"
+      }
+    }
+  },
+  "patterns": {
+    "core_patterns": {
+      "identity_unification_pattern": {
+        "composition_potential": "High - foundation for many other patterns",
+        "integration_points": [
+          "user_profile",
+          "wallet_address",
+          "authentication"
+        ],
+        "location": "internal/nexus/patterns/identity",
+        "purpose": "Creates unified identity spanning service and token domains",
+        "services_used": [
+          "user_service",
+          "auth_service",
+          "wallet_gateway_service"
+        ]
+      }
+    }
+  },
+  "database_practices": {
+    "architecture": {
+      "primary_database": {
+        "location": "database/",
+        "migration_strategy": "Up/down versioned migrations",
+        "purpose": "Primary persistent storage",
+        "relationship_to_services": "All services use for persistent storage",
+        "technology": "PostgreSQL"
+      }
+    }
+  },
+  "redis_practices": {
+    "architecture": {
+      "deployment_model": {
+        "configuration_location": "redis.conf",
+        "primary": "Redis Cluster for high availability",
+        "purpose": "Caching, session management, real-time features",
+        "relationship_to_services": "Used by all services for performance optimization"
+      }
+    }
+  },
+  "amadeus_integration": {
+    "integration_points": {
+      "nexus_integration": {
+        "implementation": "Nexus pattern that updates knowledge graph on system changes",
+        "pattern": "knowledge_graph_pattern",
+        "purpose": "Maintain system knowledge graph alongside patterns"
+      },
+      "service_integration": {
+        "implementation": "Service event hooks that update knowledge graph",
+        "integration_services": [
+          "all_services"
+        ],
+        "purpose": "Capture service interaction knowledge"
+      }
+    },
+    "knowledge_management": {
+      "real_time_updates": "Event-driven updates from system activities",
+      "versioning": "Git-based version history of knowledge graph",
+      "visualization": "Dynamic generation of system visualization from graph data"
+    },
+    "purpose": "Knowledge persistence and system evolution tracking"
+  }
+}

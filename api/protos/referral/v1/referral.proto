@@ -5,6 +5,9 @@ package referral.v1;
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/referral";
 
 import "google/protobuf/timestamp.proto";
+import "common/v1/metadata.proto";
+
+// Robust, extensible metadata for all services
 
 // ReferralService manages user referrals and rewards
 service ReferralService {
@@ -18,20 +21,24 @@ service ReferralService {
 
 // Referral contains information about a referral
 message Referral {
-  int32 id = 1;
-  int32 referrer_master_id = 2;
-  int32 campaign_id = 3;
-  string device_hash = 4;
-  string referral_code = 5;
-  bool successful = 6;
-  google.protobuf.Timestamp created_at = 7;
+  int64 id = 1; // Primary key for the referral record
+  string referrer_master_id = 2; // UUID of the user who referred
+  string referred_master_id = 3; // UUID of the user who was referred (if registered)
+  int64 campaign_id = 4; // Campaign associated with the referral
+  string device_hash = 5; // Device identifier for fraud prevention
+  string referral_code = 6; // Unique referral code
+  bool successful = 7; // Whether the referral was successful
+  google.protobuf.Timestamp created_at = 8; // Creation timestamp
+  google.protobuf.Timestamp updated_at = 9; // Last update timestamp
+  common.Metadata metadata = 10; // Extensible metadata for future use
 }
 
 // CreateReferralRequest contains referral creation parameters
 message CreateReferralRequest {
-  int32 referrer_master_id = 1;
-  int32 campaign_id = 2;
-  string device_hash = 3;
+  string referrer_master_id = 1; // UUID of the user who is referring
+  int64 campaign_id = 2; // Campaign ID
+  string device_hash = 3; // Device identifier
+  common.Metadata metadata = 4; // Optional metadata
 }
 
 // CreateReferralResponse contains the created referral code
@@ -52,7 +59,7 @@ message GetReferralResponse {
 
 // GetReferralStatsRequest contains the user identifier
 message GetReferralStatsRequest {
-  string user_id = 1;
+  string master_id = 1; // UUID of the user
 }
 
 // GetReferralStatsResponse contains referral statistics
@@ -61,13 +68,15 @@ message GetReferralStatsResponse {
   int32 active_referrals = 2;
   int32 total_rewards = 3;
   repeated ReferralDetail referrals = 4;
+  google.protobuf.Timestamp generated_at = 5; // When the stats were generated
 }
 
 // ReferralDetail contains information about a specific referral
 message ReferralDetail {
   string referral_code = 1;
-  string referred_user_id = 2;
-  int64 created_at = 3;
+  string referred_master_id = 2; // UUID of the referred user
+  google.protobuf.Timestamp created_at = 3;
   bool is_active = 4;
   int32 reward_points = 5;
+  common.Metadata metadata = 6; // Extensible metadata
 } 

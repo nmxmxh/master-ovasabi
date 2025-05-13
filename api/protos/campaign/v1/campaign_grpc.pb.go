@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.29.2
-// source: api/protos/campaign/v1/campaign.proto
+// source: campaign/v1/campaign.proto
 
 package campaign
 
@@ -269,5 +269,5 @@ var CampaignService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/protos/campaign/v1/campaign.proto",
+	Metadata: "campaign/v1/campaign.proto",
 }

@@ -2,59 +2,73 @@ syntax = "proto3";
 
 package user.v1;
 
-option go_package = "master-ovasabi/api/protos/user/v0;userv0";
-
 import "google/protobuf/timestamp.proto";
+import "common/v1/metadata.proto";
 
-// UserService handles user management operations
+option go_package = "master-ovasabi/api/protos/user/v1;userv1";
+
+// UserService handles user management, authentication, RBAC, and audit operations
 service UserService {
-  // CreateUser creates a new user
+  // --- User Management ---
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {}
-  
-  // GetUser retrieves user information
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
-  
-  // GetUserByUsername retrieves user information by username
   rpc GetUserByUsername(GetUserByUsernameRequest) returns (GetUserByUsernameResponse) {}
-  
-  // UpdateUser updates user information
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {}
-  
-  // DeleteUser deletes a user
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {}
-  
-  // ListUsers retrieves a list of users
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {}
-  
-  // UpdatePassword updates a user's password
   rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse) {}
-  
-  // UpdateProfile updates a user's profile information
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse) {}
-  
-  // RegisterInterest registers interest in a campaign
+
+  // --- Session Management ---
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse) {}
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {}
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse) {}
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {}
+
+  // --- RBAC & Permissions ---
+  rpc AssignRole(AssignRoleRequest) returns (AssignRoleResponse) {}
+  rpc RemoveRole(RemoveRoleRequest) returns (RemoveRoleResponse) {}
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse) {}
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse) {}
+
+  // --- Audit/Event Log ---
+  rpc ListUserEvents(ListUserEventsRequest) returns (ListUserEventsResponse) {}
+  rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse) {}
+
+  // --- SSO, MFA, SCIM Extensibility (placeholders for future expansion) ---
+  rpc InitiateSSO(InitiateSSORequest) returns (InitiateSSOResponse) {}
+  rpc InitiateMFA(InitiateMFARequest) returns (InitiateMFAResponse) {}
+  rpc SyncSCIM(SyncSCIMRequest) returns (SyncSCIMResponse) {}
+
+  // --- Legacy/Platform-specific ---
   rpc RegisterInterest(RegisterInterestRequest) returns (RegisterInterestResponse) {}
-  
-  // CreateReferral creates a referral code for a campaign
   rpc CreateReferral(CreateReferralRequest) returns (CreateReferralResponse) {}
 }
 
-// User represents a user in the system
+// --- Core Entities ---
+
 message User {
-  int32 id = 1;
-  string username = 2;
-  string email = 3;
-  string referral_code = 4;
-  string referred_by = 5;
-  string device_hash = 6;
-  string location = 7;
-  google.protobuf.Timestamp created_at = 8;
-  google.protobuf.Timestamp updated_at = 9;
-  string password_hash = 10; // Stores the hashed password
-  map<string, string> metadata = 11;
+  string id = 1; // UUID
+  string master_id = 2; // For analytics/unified queries
+  string username = 3;
+  string email = 4;
+  string referral_code = 5;
+  string referred_by = 6;
+  string device_hash = 7;
+  string location = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  string password_hash = 11;
+  common.Metadata metadata = 12;
+  UserProfile profile = 13;
+  repeated string roles = 14;
+  UserStatus status = 15;
+  repeated string tags = 16;
+  map<string, string> external_ids = 17;
+  reserved 18 to 29;
 }
 
-// UserProfile contains additional user information
 message UserProfile {
   string first_name = 1;
   string last_name = 2;
@@ -64,9 +78,9 @@ message UserProfile {
   string timezone = 7;
   string language = 8;
   map<string, string> custom_fields = 9;
+  reserved 10 to 19;
 }
 
-// UserStatus represents the user's account status
 enum UserStatus {
   USER_STATUS_UNSPECIFIED = 0;
   USER_STATUS_ACTIVE = 1;
@@ -75,123 +89,149 @@ enum UserStatus {
   USER_STATUS_PENDING = 4;
 }
 
-// CreateUserRequest represents the request to create a new user
+// --- User Management Requests/Responses (existing, updated for UUID) ---
 message CreateUserRequest {
   string username = 1;
   string email = 2;
   string password = 3;
   UserProfile profile = 4;
   repeated string roles = 5;
-  map<string, string> metadata = 6;
+  common.Metadata metadata = 6;
 }
-
-// CreateUserResponse represents the response from creating a user
-message CreateUserResponse {
+message CreateUserResponse { User user = 1; }
+message GetUserRequest { string user_id = 1; }
+message GetUserResponse { User user = 1; }
+message GetUserByUsernameRequest { string username = 1; }
+message GetUserByUsernameResponse { User user = 1; }
+message GetUserByEmailRequest {
+  string email = 1;
+}
+message GetUserByEmailResponse {
   User user = 1;
 }
-
-// GetUserRequest represents the request to get user information
-message GetUserRequest {
-  string user_id = 1;
-}
-
-// GetUserResponse represents the response containing user information
-message GetUserResponse {
-  User user = 1;
-}
-
-// GetUserByUsernameRequest represents the request to get user information by username
-message GetUserByUsernameRequest {
-  string username = 1;
-}
-
-// GetUserByUsernameResponse represents the response containing user information by username
-message GetUserByUsernameResponse {
-  User user = 1;
-}
-
-// UpdateUserRequest represents the request to update user information
 message UpdateUserRequest {
   string user_id = 1;
   User user = 2;
   repeated string fields_to_update = 3;
 }
-
-// UpdateUserResponse represents the response from updating user information
-message UpdateUserResponse {
-  User user = 1;
-}
-
-// DeleteUserRequest represents the request to delete a user
-message DeleteUserRequest {
-  string user_id = 1;
-  bool hard_delete = 2;
-}
-
-// DeleteUserResponse represents the response from deleting a user
-message DeleteUserResponse {
-  bool success = 1;
-}
-
-// ListUsersRequest represents the request to list users
+message UpdateUserResponse { User user = 1; }
+message DeleteUserRequest { string user_id = 1; bool hard_delete = 2; }
+message DeleteUserResponse { bool success = 1; }
 message ListUsersRequest {
   int32 page = 1;
   int32 page_size = 2;
   string sort_by = 3;
   bool sort_desc = 4;
-  map<string, string> filters = 5;
+  common.Metadata filters = 5;
+  string search_query = 6;
+  repeated string tags = 7;
+  common.Metadata metadata = 8;
+  reserved 9 to 19;
 }
-
-// ListUsersResponse represents the response containing a list of users
 message ListUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
   int32 page = 3;
   int32 total_pages = 4;
 }
-
-// UpdatePasswordRequest represents the request to update a user's password
 message UpdatePasswordRequest {
   string user_id = 1;
   string current_password = 2;
   string new_password = 3;
 }
-
-// UpdatePasswordResponse represents the response from updating a password
-message UpdatePasswordResponse {
-  bool success = 1;
-  int64 updated_at = 2;
-}
-
-// UpdateProfileRequest represents the request to update a user's profile
+message UpdatePasswordResponse { bool success = 1; int64 updated_at = 2; }
 message UpdateProfileRequest {
   string user_id = 1;
   UserProfile profile = 2;
   repeated string fields_to_update = 3;
 }
+message UpdateProfileResponse { User user = 1; }
 
-// UpdateProfileResponse represents the response from updating a profile
-message UpdateProfileResponse {
-  User user = 1;
+// --- Session Management ---
+message CreateSessionRequest {
+  string user_id = 1;
+  string password = 2;
+  string device_info = 3;
+}
+message CreateSessionResponse {
+  Session session = 1;
+}
+message GetSessionRequest { string session_id = 1; }
+message GetSessionResponse { Session session = 1; }
+message RevokeSessionRequest { string session_id = 1; }
+message RevokeSessionResponse { bool success = 1; }
+message ListSessionsRequest { string user_id = 1; }
+message ListSessionsResponse { repeated Session sessions = 1; }
+
+message Session {
+  string id = 1;
+  string user_id = 2;
+  string device_info = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  string refresh_token = 6;
+  string access_token = 7;
+  string ip_address = 8;
+  common.Metadata metadata = 9;
+  reserved 10 to 19;
 }
 
-message RegisterInterestRequest {
-  string email = 1;
-  string device_hash = 2;
-  string location = 3;
+// --- RBAC & Permissions ---
+message AssignRoleRequest {
+  string user_id = 1;
+  string role = 2;
+}
+message AssignRoleResponse { bool success = 1; }
+message RemoveRoleRequest {
+  string user_id = 1;
+  string role = 2;
+}
+message RemoveRoleResponse { bool success = 1; }
+message ListRolesRequest { string user_id = 1; }
+message ListRolesResponse { repeated string roles = 1; }
+message ListPermissionsRequest { string user_id = 1; }
+message ListPermissionsResponse { repeated string permissions = 1; }
+
+// --- Audit/Event Log ---
+message ListUserEventsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; }
+message ListUserEventsResponse { repeated UserEvent events = 1; int32 total_count = 2; }
+message ListAuditLogsRequest { int32 page = 1; int32 page_size = 2; }
+message ListAuditLogsResponse { repeated AuditLog logs = 1; int32 total_count = 2; }
+
+message UserEvent {
+  string id = 1;
+  string user_id = 2;
+  string master_id = 3;
+  string event_type = 4;
+  string description = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+  common.Metadata metadata = 7;
+  map<string, string> payload = 8;
+  reserved 9 to 19;
 }
 
-message RegisterInterestResponse {
-  User user = 1;
+message AuditLog {
+  string id = 1;
+  string user_id = 2;
+  string master_id = 3;
+  string action = 4;
+  string resource = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+  common.Metadata metadata = 7;
+  map<string, string> payload = 8;
+  reserved 9 to 19;
 }
 
-message CreateReferralRequest {
-  int32 user_id = 1;
-  string campaign_slug = 2;
-  string device_hash = 3;
-}
+// --- SSO, MFA, SCIM Extensibility (placeholders) ---
+message InitiateSSORequest { string provider = 1; string redirect_uri = 2; }
+message InitiateSSOResponse { string sso_url = 1; }
+message InitiateMFARequest { string user_id = 1; string mfa_type = 2; }
+message InitiateMFAResponse { bool initiated = 1; string challenge_id = 2; }
+message SyncSCIMRequest { string scim_payload = 1; }
+message SyncSCIMResponse { bool success = 1; }
 
-message CreateReferralResponse {
-  string referral_code = 1;
-  bool success = 2;
-} 
+// --- Legacy/Platform-specific ---
+message RegisterInterestRequest { string email = 1; string device_hash = 2; string location = 3; }
+message RegisterInterestResponse { User user = 1; }
+message CreateReferralRequest { string user_id = 1; string campaign_slug = 2; string device_hash = 3; }
+message CreateReferralResponse { string referral_code = 1; bool success = 2; } 

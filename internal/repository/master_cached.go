@@ -49,7 +49,7 @@ func generateCacheKey(pattern string, entityType EntityType, limit int) string {
 func (r *CachedMasterRepository) generateLockKey(entityType EntityType, id interface{}) string {
 	return fmt.Sprintf("%s:%s:lock:%s:%v",
 		redis.NamespaceLock,
-		redis.ContextMaster,
+		ContextMaster,
 		strings.ToLower(string(entityType)),
 		id)
 }
@@ -96,7 +96,7 @@ func (r *CachedMasterRepository) invalidatePatterns(ctx context.Context, pattern
 	for _, p := range patterns {
 		pattern := fmt.Sprintf("%s:%s:%s_*",
 			redis.NamespaceSearch,
-			redis.ContextMaster,
+			ContextMaster,
 			strings.ToLower(string(p.EntityType)))
 
 		if err := r.cache.DeletePattern(ctx, pattern); err != nil {
@@ -177,7 +177,7 @@ type searchStats struct {
 func (r *CachedMasterRepository) updateSearchStats(ctx context.Context, pattern string) {
 	statsKey := fmt.Sprintf("%s:%s:stats:%s",
 		redis.NamespaceSearch,
-		redis.ContextMaster,
+		ContextMaster,
 		pattern)
 
 	var stats searchStats
@@ -268,3 +268,6 @@ func (r *CachedMasterRepository) List(ctx context.Context, limit, offset int) ([
 func (r *CachedMasterRepository) GetByUUID(ctx context.Context, id uuid.UUID) (*Master, error) {
 	return r.repo.GetByUUID(ctx, id)
 }
+
+// For redis.ContextMaster, if not defined in pkg/redis, define here:.
+const ContextMaster = "master"

@@ -4,42 +4,74 @@ import (
 	"database/sql"
 	"fmt"
 
-	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v1"
-	authpb "github.com/nmxmxh/master-ovasabi/api/protos/auth/v1"
-	babelpb "github.com/nmxmxh/master-ovasabi/api/protos/babel/v1"
-	broadcastpb "github.com/nmxmxh/master-ovasabi/api/protos/broadcast/v1"
-	financepb "github.com/nmxmxh/master-ovasabi/api/protos/finance/v1"
-	i18npb "github.com/nmxmxh/master-ovasabi/api/protos/i18n/v1"
+	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
+	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
+	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
+	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
+	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
+	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
+	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
+	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
 	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
-	quotespb "github.com/nmxmxh/master-ovasabi/api/protos/quotes/v1"
+	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
+	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
+	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
+	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
+	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	assetrepo "github.com/nmxmxh/master-ovasabi/internal/repository/asset"
-	babel "github.com/nmxmxh/master-ovasabi/internal/repository/babel"
-	broadcastrepo "github.com/nmxmxh/master-ovasabi/internal/repository/broadcast"
-	financerepo "github.com/nmxmxh/master-ovasabi/internal/repository/finance"
-	i18nrepo "github.com/nmxmxh/master-ovasabi/internal/repository/i18n"
+	adminrepo "github.com/nmxmxh/master-ovasabi/internal/repository/admin"
+	analyticsrepo "github.com/nmxmxh/master-ovasabi/internal/repository/analytics"
+	commerce "github.com/nmxmxh/master-ovasabi/internal/repository/commerce"
+	contentrepo "github.com/nmxmxh/master-ovasabi/internal/repository/content"
+	contentmoderationrepo "github.com/nmxmxh/master-ovasabi/internal/repository/contentmoderation"
+	localizationrepo "github.com/nmxmxh/master-ovasabi/internal/repository/localization"
 	notificationrepo "github.com/nmxmxh/master-ovasabi/internal/repository/notification"
-	quotesrepo "github.com/nmxmxh/master-ovasabi/internal/repository/quotes"
 	referralrepo "github.com/nmxmxh/master-ovasabi/internal/repository/referral"
+	searchrepo "github.com/nmxmxh/master-ovasabi/internal/repository/search"
+	talentrepo "github.com/nmxmxh/master-ovasabi/internal/repository/talent"
 	userrepo "github.com/nmxmxh/master-ovasabi/internal/repository/user"
-	"github.com/nmxmxh/master-ovasabi/internal/service/asset"
-	"github.com/nmxmxh/master-ovasabi/internal/service/auth"
-	babelsvc "github.com/nmxmxh/master-ovasabi/internal/service/babel"
-	"github.com/nmxmxh/master-ovasabi/internal/service/broadcast"
-	financeservice "github.com/nmxmxh/master-ovasabi/internal/service/finance"
-	"github.com/nmxmxh/master-ovasabi/internal/service/i18n"
-	"github.com/nmxmxh/master-ovasabi/internal/service/nexus"
+	adminservice "github.com/nmxmxh/master-ovasabi/internal/service/admin"
+	analyticsservice "github.com/nmxmxh/master-ovasabi/internal/service/analytics"
+	commerceservice "github.com/nmxmxh/master-ovasabi/internal/service/commerce"
+	contentservice "github.com/nmxmxh/master-ovasabi/internal/service/content"
+	contentmoderationservice "github.com/nmxmxh/master-ovasabi/internal/service/contentmoderation"
+	"github.com/nmxmxh/master-ovasabi/internal/service/localization"
+	nexusservice "github.com/nmxmxh/master-ovasabi/internal/service/nexus"
 	"github.com/nmxmxh/master-ovasabi/internal/service/notification"
-	quotesservice "github.com/nmxmxh/master-ovasabi/internal/service/quotes"
 	referralservice "github.com/nmxmxh/master-ovasabi/internal/service/referral"
+	searchsvc "github.com/nmxmxh/master-ovasabi/internal/service/search"
+	securityservice "github.com/nmxmxh/master-ovasabi/internal/service/security"
+	talentservice "github.com/nmxmxh/master-ovasabi/internal/service/talent"
 	userservice "github.com/nmxmxh/master-ovasabi/internal/service/user"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
+
+/*
+Provider/DI Registration Pattern (Modern, Extensible, DRY)
+---------------------------------------------------------
+
+This file implements the centralized Provider pattern for service registration and dependency injection (DI) across the platform. It ensures all services are registered, resolved, and composed in a DRY, maintainable, and extensible way.
+
+Key Features:
+- **Centralized Service Registration:** All gRPC services are registered with a DI container, ensuring single-point, modular registration and easy dependency management.
+- **Repository & Cache Integration:** Each service can specify its repository constructor and (optionally) a cache name for Redis-backed caching.
+- **Multi-Dependency Support:** Services with multiple or cross-service dependencies (e.g., ContentService, NotificationService) use custom registration functions to resolve all required dependencies from the DI container.
+- **Extensible Pattern:** To add a new service, define its repository and (optionally) cache, then add a registration entry. For complex dependencies, use a custom registration function.
+- **Consistent Error Handling:** All registration errors are logged and wrapped for traceability.
+- **Self-Documenting:** The registration pattern is discoverable and enforced as a standard for all new services.
+
+Standard for New Service/Provider Files:
+1. Document the registration pattern and DI approach at the top of the file.
+2. Describe how to add new services, including repository, cache, and dependency resolution.
+3. Note any special patterns for multi-dependency or cross-service orchestration.
+4. Ensure all registration and error handling is consistent and logged.
+5. Reference this comment as the standard for all new service/provider files.
+*/
 
 // Provider manages service instances and their dependencies.
 type Provider struct {
@@ -48,115 +80,28 @@ type Provider struct {
 	redisClient   *redis.Client
 	redisProvider *redis.Provider
 
-	container           *di.Container
-	authService         authpb.AuthServiceServer
-	userService         userpb.UserServiceServer
-	notificationService notificationpb.NotificationServiceServer
-	broadcastService    broadcastpb.BroadcastServiceServer
-	i18nService         i18npb.I18NServiceServer
-	quotesService       quotespb.QuotesServiceServer
-	referralService     referralpb.ReferralServiceServer
-	assetService        assetpb.AssetServiceServer
-	financeService      financepb.FinanceServiceServer
-	nexusService        nexuspb.NexusServiceServer
-	babelService        babelpb.BabelServiceServer
+	container                *di.Container
+	userService              userpb.UserServiceServer
+	notificationService      notificationpb.NotificationServiceServer
+	referralService          referralpb.ReferralServiceServer
+	nexusService             nexuspb.NexusServiceServer
+	localizationService      localizationpb.LocalizationServiceServer
+	searchService            searchpb.SearchServiceServer
+	commerceService          commercepb.CommerceServiceServer
+	adminService             adminpb.AdminServiceServer
+	analyticsService         analyticspb.AnalyticsServiceServer
+	contentModerationService contentmoderationpb.ContentModerationServiceServer
+	talentService            talentpb.TalentServiceServer
+	contentService           contentpb.ContentServiceServer
 }
 
 // NewProvider creates a new service provider.
 func NewProvider(log *zap.Logger, db *sql.DB, redisConfig redis.Config) (*Provider, error) {
-	redisClient, err := redis.NewClient(redisConfig, log)
+	redisProvider, redisClient, err := NewRedisProvider(log, redisConfig)
 	if err != nil {
-		log.Error("Failed to create Redis client", zap.Error(err))
+		log.Error("Failed to create Redis provider/client", zap.Error(err))
 		return nil, err
 	}
-
-	// Create Redis provider
-	redisProvider := redis.NewProvider(log)
-
-	// Register cache configurations with explicit Redis connection information
-	redisAddr := fmt.Sprintf("%s:%s", redisConfig.Host, redisConfig.Port)
-	log.Info("Using Redis configuration",
-		zap.String("host", redisConfig.Host),
-		zap.String("port", redisConfig.Port),
-		zap.String("addr", redisAddr))
-
-	redisProvider.RegisterCache("user", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   redis.ContextUser,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("auth", &redis.Options{
-		Namespace: redis.NamespaceSession,
-		Context:   redis.ContextAuth,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("notification", &redis.Options{
-		Namespace: redis.NamespaceQueue,
-		Context:   redis.ContextNotification,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("broadcast", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   redis.ContextBroadcast,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("i18n", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   redis.ContextI18n,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("quotes", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   redis.ContextQuotes,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("referral", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   redis.ContextReferral,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("asset", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   redis.ContextAsset,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("finance", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   redis.ContextFinance,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("nexus", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   redis.ContextNexus,
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
-	redisProvider.RegisterCache("babel", &redis.Options{
-		Namespace: redis.NamespaceCache,
-		Context:   "babel",
-		Addr:      redisAddr,
-		Password:  redisConfig.Password,
-		DB:        redisConfig.DB,
-	})
 
 	p := &Provider{
 		log:           log,
@@ -177,182 +122,199 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisConfig redis.Config) (*Provid
 	return p, nil
 }
 
-// Add logging to trace service registration.
 func (p *Provider) registerServices() error {
-	p.log.Info("Registering UserService")
+	p.log.Info("Registering services (DRY pattern)")
 	masterRepo := repository.NewMasterRepository(p.db, p.log)
-	userRepo := userrepo.NewUserRepository(p.db, masterRepo)
-	if err := p.container.Register((*userpb.UserServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache, err := p.redisProvider.GetCache("user")
+	userCache, err := p.redisProvider.GetCache("user")
+	if err != nil {
+		return fmt.Errorf("provider: failed to get user cache: %w", err)
+	}
+	cachedMasterRepo := repository.NewCachedMasterRepository(masterRepo, userCache, p.log)
+
+	if err := p.container.Register((*securitypb.SecurityServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		securityCache, err := p.redisProvider.GetCache("security")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user cache: %w", err)
+			return nil, fmt.Errorf("provider: failed to get security cache: %w", err)
 		}
-		return userservice.NewUserService(p.log, userRepo, cache), nil
+		return securityservice.NewService(p.log, securityCache), nil
+	}); err != nil {
+		p.log.Error("Failed to register SecurityService", zap.Error(err))
+		return err
+	}
+
+	if err := p.container.Register((*userpb.UserServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		userRepo := userrepo.NewUserRepository(p.db, cachedMasterRepo)
+		return userservice.NewUserService(p.log, userRepo, userCache), nil
 	}); err != nil {
 		p.log.Error("Failed to register UserService", zap.Error(err))
 		return err
 	}
 
-	p.log.Info("Registering AuthService")
-	if err := p.container.Register((*authpb.AuthServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		var userSvc userpb.UserServiceServer
-		if err := p.container.Resolve(&userSvc); err != nil {
-			p.log.Error("Failed to resolve UserService for AuthService", zap.Error(err))
-			return nil, err
-		}
-		cache, err := p.redisProvider.GetCache("auth")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get auth cache: %w", err)
-		}
-		return auth.NewService(p.log, userSvc, cache), nil
-	}); err != nil {
-		p.log.Error("Failed to register AuthService", zap.Error(err))
-		return err
-	}
-
-	p.log.Info("Registering NotificationService")
-	notificationRepo := notificationrepo.NewNotificationRepository(p.db, masterRepo)
 	if err := p.container.Register((*notificationpb.NotificationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache, err := p.redisProvider.GetCache("notification")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get notification cache: %w", err)
-		}
-		return notification.NewNotificationService(p.log, notificationRepo, cache), nil
+		notificationRepo := notificationrepo.NewNotificationRepository(p.db, masterRepo)
+		return notification.NewNotificationService(p.log, notificationRepo, userCache), nil
 	}); err != nil {
 		p.log.Error("Failed to register NotificationService", zap.Error(err))
 		return err
 	}
 
-	p.log.Info("Registering BroadcastService")
-	broadcastRepo := broadcastrepo.NewBroadcastRepository(p.db, masterRepo)
-	if err := p.container.Register((*broadcastpb.BroadcastServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache, err := p.redisProvider.GetCache("broadcast")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get broadcast cache: %w", err)
-		}
-		return broadcast.NewService(p.log, broadcastRepo, cache), nil
-	}); err != nil {
-		p.log.Error("Failed to register BroadcastService", zap.Error(err))
-		return err
-	}
-
-	p.log.Info("Registering I18nService")
-	i18nRepo := i18nrepo.NewRepository(p.db, masterRepo)
-	if err := p.container.Register((*i18npb.I18NServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache, err := p.redisProvider.GetCache("i18n")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get i18n cache: %w", err)
-		}
-		return i18n.NewService(p.log, i18nRepo, cache), nil
-	}); err != nil {
-		p.log.Error("Failed to register I18nService", zap.Error(err))
-		return err
-	}
-
-	p.log.Info("Registering QuotesService")
-	quotesRepo := quotesrepo.NewQuoteRepository(p.db, masterRepo)
-	if err := p.container.Register((*quotespb.QuotesServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache, err := p.redisProvider.GetCache("quotes")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get quotes cache: %w", err)
-		}
-		return quotesservice.NewQuotesService(p.log, quotesRepo, cache), nil
-	}); err != nil {
-		p.log.Error("Failed to register QuotesService", zap.Error(err))
-		return err
-	}
-
-	p.log.Info("Registering ReferralService")
-	referralRepo := referralrepo.NewReferralRepository(p.db, masterRepo)
 	if err := p.container.Register((*referralpb.ReferralServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache, err := p.redisProvider.GetCache("referral")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get referral cache: %w", err)
-		}
-		return referralservice.NewReferralService(p.log, referralRepo, cache), nil
+		referralRepo := referralrepo.NewReferralRepository(p.db, masterRepo)
+		return referralservice.NewReferralService(p.log, referralRepo, userCache), nil
 	}); err != nil {
 		p.log.Error("Failed to register ReferralService", zap.Error(err))
 		return err
 	}
 
-	p.log.Info("Registering AssetService")
-	assetRepo := assetrepo.InitRepository(p.db, p.log)
-	if err := p.container.Register((*assetpb.AssetServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		cache, err := p.redisProvider.GetCache("asset")
+	if err := p.container.Register((*localizationpb.LocalizationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		localizationRepo := localizationrepo.NewLocalizationRepository(p.db)
+		localizationCache, err := p.redisProvider.GetCache("localization")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get asset cache: %w", err)
+			return nil, fmt.Errorf("provider: failed to get localization cache: %w", err)
 		}
-		return asset.InitService(p.log, assetRepo, cache), nil
+		return localization.NewService(p.log, localizationRepo, localizationCache), nil
 	}); err != nil {
-		p.log.Error("Failed to register AssetService", zap.Error(err))
+		p.log.Error("Failed to register LocalizationService", zap.Error(err))
 		return err
 	}
 
-	p.log.Info("Registering FinanceService")
-
-	// Create the finance repository
-	financeRepo := financerepo.New(p.db, p.log)
-
-	// Get the cache for finance
-	financeCache, err := p.redisProvider.GetCache("finance")
-	if err != nil {
-		return fmt.Errorf("failed to get finance cache: %w", err)
-	}
-
-	// Wrap with cache
-	cachedRepo := financerepo.NewCachedRepository(financeRepo, financeCache, p.log)
-
-	// Register the service with the DI container
-	if err := p.container.Register(
-		(*financepb.FinanceServiceServer)(nil),
-		func(_ *di.Container) (interface{}, error) {
-			return financeservice.New(cachedRepo, masterRepo, financeCache, p.log), nil
-		},
-	); err != nil {
-		p.log.Error("Failed to register FinanceService", zap.Error(err))
+	if err := p.container.Register((*searchpb.SearchServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		searchRepo := searchrepo.NewRepository(p.db)
+		searchCache, err := p.redisProvider.GetCache("search")
+		if err != nil {
+			return nil, fmt.Errorf("provider: failed to get search cache: %w", err)
+		}
+		return searchsvc.NewService(p.log, searchRepo, searchCache), nil
+	}); err != nil {
+		p.log.Error("Failed to register SearchService", zap.Error(err))
 		return err
 	}
 
-	p.log.Info("Registering NexusService")
+	if err := p.container.Register((*adminpb.AdminServiceServer)(nil), func(c *di.Container) (interface{}, error) {
+		adminRepo := adminrepo.NewPostgresRepository(p.db)
+		var userClient userpb.UserServiceClient
+		if err := c.Resolve(&userClient); err != nil {
+			return nil, fmt.Errorf("provider: failed to resolve UserServiceClient for AdminService: %w", err)
+		}
+		return adminservice.NewAdminService(p.log, adminRepo, userClient), nil
+	}); err != nil {
+		p.log.Error("Failed to register AdminService", zap.Error(err))
+		return err
+	}
+
+	if err := p.container.Register((*analyticspb.AnalyticsServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		analyticsRepo := analyticsrepo.NewPostgresRepository(p.db)
+		return analyticsservice.NewAnalyticsService(p.log, analyticsRepo), nil
+	}); err != nil {
+		p.log.Error("Failed to register AnalyticsService", zap.Error(err))
+		return err
+	}
+
+	if err := p.container.Register((*contentmoderationpb.ContentModerationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		contentModerationRepo := contentmoderationrepo.NewPostgresRepository()
+		return contentmoderationservice.NewContentModerationService(p.log, contentModerationRepo), nil
+	}); err != nil {
+		p.log.Error("Failed to register ContentModerationService", zap.Error(err))
+		return err
+	}
+
+	if err := p.container.Register((*talentpb.TalentServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		talentRepo := talentrepo.NewPostgresRepository(p.db)
+		talentCache, err := p.redisProvider.GetCache("talent")
+		if err != nil {
+			return nil, fmt.Errorf("provider: failed to get talent cache: %w", err)
+		}
+		return talentservice.NewTalentService(p.log, talentRepo, talentCache), nil
+	}); err != nil {
+		p.log.Error("Failed to register TalentService", zap.Error(err))
+		return err
+	}
+
+	if err := p.container.Register((*commercepb.CommerceServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		commerceRepo := commerce.NewRepository(p.db)
+		commerceCache, err := p.redisProvider.GetCache("commerce")
+		if err != nil {
+			return nil, fmt.Errorf("provider: failed to get commerce cache: %w", err)
+		}
+		return commerceservice.NewService(p.log, commerceRepo, commerceCache), nil
+	}); err != nil {
+		p.log.Error("Failed to register CommerceService", zap.Error(err))
+		return err
+	}
+
 	if err := p.container.Register((*nexuspb.NexusServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		// Get required services
 		var userSvc userpb.UserServiceServer
 		if err := p.container.Resolve(&userSvc); err != nil {
-			return nil, fmt.Errorf("failed to resolve UserService for NexusService: %w", err)
+			return nil, fmt.Errorf("provider: failed to resolve UserService for NexusService: %w", err)
 		}
-
-		var assetSvc assetpb.AssetServiceServer
-		if err := p.container.Resolve(&assetSvc); err != nil {
-			return nil, fmt.Errorf("failed to resolve AssetService for NexusService: %w", err)
-		}
-
 		var notifySvc notificationpb.NotificationServiceServer
 		if err := p.container.Resolve(&notifySvc); err != nil {
-			return nil, fmt.Errorf("failed to resolve NotificationService for NexusService: %w", err)
+			return nil, fmt.Errorf("provider: failed to resolve NotificationService for NexusService: %w", err)
 		}
-
-		// Get Nexus cache
 		cache, err := p.redisProvider.GetCache("nexus")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get nexus cache: %w", err)
+			return nil, fmt.Errorf("provider: failed to get nexus cache: %w", err)
 		}
-
-		return nexus.NewService(p.log, cache, userSvc, assetSvc, notifySvc), nil
+		return nexusservice.NewService(p.log, cache, userSvc, nil, notifySvc), nil
 	}); err != nil {
 		p.log.Error("Failed to register NexusService", zap.Error(err))
-		return err
+		return fmt.Errorf("provider: failed to register NexusService: %w", err)
 	}
 
-	p.log.Info("Registering BabelService")
-	if err := p.container.Register((*babelpb.BabelServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		repo := &babel.Repository{DB: p.db}
-		cache, err := p.redisProvider.GetCache("babel")
-		if err != nil {
-			return nil, fmt.Errorf("failed to get babel cache: %w", err)
+	if err := p.container.Register((*contentpb.ContentServiceServer)(nil), func(c *di.Container) (interface{}, error) {
+		var userSvc userpb.UserServiceServer
+		if err := c.Resolve(&userSvc); err != nil {
+			return nil, fmt.Errorf("provider: failed to resolve UserService for ContentService: %w", err)
 		}
-		return babelsvc.NewService(repo, cache, p.log), nil
+		var notificationSvc notificationpb.NotificationServiceServer
+		if err := c.Resolve(&notificationSvc); err != nil {
+			return nil, fmt.Errorf("provider: failed to resolve NotificationService for ContentService: %w", err)
+		}
+		var searchSvc searchpb.SearchServiceServer
+		if err := c.Resolve(&searchSvc); err != nil {
+			return nil, fmt.Errorf("provider: failed to resolve SearchService for ContentService: %w", err)
+		}
+		var moderationSvc contentmoderationpb.ContentModerationServiceServer
+		if err := c.Resolve(&moderationSvc); err != nil {
+			return nil, fmt.Errorf("provider: failed to resolve ContentModerationService for ContentService: %w", err)
+		}
+		contentRepo := contentrepo.NewRepository(p.db)
+		return contentservice.NewContentService(p.log, contentRepo, userSvc, notificationSvc, searchSvc, moderationSvc), nil
 	}); err != nil {
-		p.log.Error("Failed to register BabelService", zap.Error(err))
+		p.log.Error("Failed to register ContentService", zap.Error(err))
+		return fmt.Errorf("provider: failed to register ContentService: %w", err)
+	}
+
+	// MediaService registration
+	if err := p.container.Register((*mediapb.MediaServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		// TODO: Implement media repository and service if not present
+		return nil, fmt.Errorf("MediaService not implemented yet")
+	}); err != nil {
+		p.log.Error("Failed to register MediaService", zap.Error(err))
+		return err
+	}
+	// ProductService registration
+	if err := p.container.Register((*productpb.ProductServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		// TODO: Implement product repository and service if not present
+		return nil, fmt.Errorf("ProductService not implemented yet")
+	}); err != nil {
+		p.log.Error("Failed to register ProductService", zap.Error(err))
+		return err
+	}
+	// SchedulerService registration
+	if err := p.container.Register((*schedulerpb.SchedulerServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		// TODO: Implement scheduler repository and service if not present
+		return nil, fmt.Errorf("SchedulerService not implemented yet")
+	}); err != nil {
+		p.log.Error("Failed to register SchedulerService", zap.Error(err))
+		return err
+	}
+	// CampaignService registration
+	if err := p.container.Register((*campaignpb.CampaignServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
+		// TODO: Implement campaign repository and service if not present
+		return nil, fmt.Errorf("CampaignService not implemented yet")
+	}); err != nil {
+		p.log.Error("Failed to register CampaignService", zap.Error(err))
 		return err
 	}
 
@@ -368,16 +330,6 @@ func (p *Provider) Close() error {
 		p.log.Error("Failed to close Redis client", zap.Error(err))
 	}
 	return nil
-}
-
-// Auth returns the AuthService instance.
-func (p *Provider) Auth() authpb.AuthServiceServer {
-	if p.authService == nil {
-		if err := p.container.MustResolve(&p.authService); err != nil {
-			p.log.Fatal("Failed to resolve auth service", zap.Error(err))
-		}
-	}
-	return p.authService
 }
 
 // User returns the UserService instance.
@@ -400,36 +352,6 @@ func (p *Provider) Notification() notificationpb.NotificationServiceServer {
 	return p.notificationService
 }
 
-// Broadcast returns the BroadcastService instance.
-func (p *Provider) Broadcast() broadcastpb.BroadcastServiceServer {
-	if p.broadcastService == nil {
-		if err := p.container.MustResolve(&p.broadcastService); err != nil {
-			p.log.Fatal("Failed to resolve broadcast service", zap.Error(err))
-		}
-	}
-	return p.broadcastService
-}
-
-// I18n returns the I18nService instance.
-func (p *Provider) I18n() i18npb.I18NServiceServer {
-	if p.i18nService == nil {
-		if err := p.container.MustResolve(&p.i18nService); err != nil {
-			p.log.Fatal("Failed to resolve i18n service", zap.Error(err))
-		}
-	}
-	return p.i18nService
-}
-
-// Quotes returns the QuotesService instance.
-func (p *Provider) Quotes() quotespb.QuotesServiceServer {
-	if p.quotesService == nil {
-		if err := p.container.MustResolve(&p.quotesService); err != nil {
-			p.log.Fatal("Failed to resolve quotes service", zap.Error(err))
-		}
-	}
-	return p.quotesService
-}
-
 // Referrals returns the ReferralService instance.
 func (p *Provider) Referrals() referralpb.ReferralServiceServer {
 	if p.referralService == nil {
@@ -438,26 +360,6 @@ func (p *Provider) Referrals() referralpb.ReferralServiceServer {
 		}
 	}
 	return p.referralService
-}
-
-// Asset returns the AssetService instance.
-func (p *Provider) Asset() assetpb.AssetServiceServer {
-	if p.assetService == nil {
-		if err := p.container.MustResolve(&p.assetService); err != nil {
-			p.log.Fatal("Failed to resolve asset service", zap.Error(err))
-		}
-	}
-	return p.assetService
-}
-
-// Finance returns the FinanceService instance.
-func (p *Provider) Finance() financepb.FinanceServiceServer {
-	if p.financeService == nil {
-		if err := p.container.MustResolve(&p.financeService); err != nil {
-			p.log.Fatal("Failed to resolve finance service", zap.Error(err))
-		}
-	}
-	return p.financeService
 }
 
 // Nexus returns the NexusServiceServer instance.
@@ -470,17 +372,34 @@ func (p *Provider) Nexus() nexuspb.NexusServiceServer {
 	return p.nexusService
 }
 
-// Babel returns the BabelService instance.
-func (p *Provider) Babel() babelpb.BabelServiceServer {
-	if p.babelService == nil {
-		repo := &babel.Repository{DB: p.db}
-		cache, err := p.redisProvider.GetCache("babel")
-		if err != nil {
-			p.log.Fatal("Failed to get babel cache", zap.Error(err))
+// Localization returns the LocalizationService instance.
+func (p *Provider) Localization() localizationpb.LocalizationServiceServer {
+	if p.localizationService == nil {
+		if err := p.container.MustResolve(&p.localizationService); err != nil {
+			p.log.Fatal("Failed to resolve localization service", zap.Error(err))
 		}
-		p.babelService = babelsvc.NewService(repo, cache, p.log)
 	}
-	return p.babelService
+	return p.localizationService
+}
+
+// Search returns the SearchService instance.
+func (p *Provider) Search() searchpb.SearchServiceServer {
+	if p.searchService == nil {
+		if err := p.container.MustResolve(&p.searchService); err != nil {
+			p.log.Fatal("Failed to resolve search service", zap.Error(err))
+		}
+	}
+	return p.searchService
+}
+
+// Commerce returns the CommerceService instance.
+func (p *Provider) Commerce() commercepb.CommerceServiceServer {
+	if p.commerceService == nil {
+		if err := p.container.MustResolve(&p.commerceService); err != nil {
+			p.log.Fatal("Failed to resolve commerce service", zap.Error(err))
+		}
+	}
+	return p.commerceService
 }
 
 // RedisClient returns the underlying Redis client.
@@ -491,4 +410,54 @@ func (p *Provider) RedisClient() *redis.Client {
 // Container returns the DI container.
 func (p *Provider) Container() *di.Container {
 	return p.container
+}
+
+// Admin returns the AdminService instance.
+func (p *Provider) Admin() adminpb.AdminServiceServer {
+	if p.adminService == nil {
+		if err := p.container.MustResolve(&p.adminService); err != nil {
+			p.log.Fatal("Failed to resolve admin service", zap.Error(err))
+		}
+	}
+	return p.adminService
+}
+
+// Analytics returns the AnalyticsService instance.
+func (p *Provider) Analytics() analyticspb.AnalyticsServiceServer {
+	if p.analyticsService == nil {
+		if err := p.container.MustResolve(&p.analyticsService); err != nil {
+			p.log.Fatal("Failed to resolve analytics service", zap.Error(err))
+		}
+	}
+	return p.analyticsService
+}
+
+// ContentModeration returns the ContentModerationService instance.
+func (p *Provider) ContentModeration() contentmoderationpb.ContentModerationServiceServer {
+	if p.contentModerationService == nil {
+		if err := p.container.MustResolve(&p.contentModerationService); err != nil {
+			p.log.Fatal("Failed to resolve content moderation service", zap.Error(err))
+		}
+	}
+	return p.contentModerationService
+}
+
+// Talent returns the TalentService instance.
+func (p *Provider) Talent() talentpb.TalentServiceServer {
+	if p.talentService == nil {
+		if err := p.container.MustResolve(&p.talentService); err != nil {
+			p.log.Fatal("Failed to resolve talent service", zap.Error(err))
+		}
+	}
+	return p.talentService
+}
+
+// Content returns the ContentService instance.
+func (p *Provider) Content() contentpb.ContentServiceServer {
+	if p.contentService == nil {
+		if err := p.container.MustResolve(&p.contentService); err != nil {
+			p.log.Fatal("Failed to resolve content service", zap.Error(err))
+		}
+	}
+	return p.contentService
 }

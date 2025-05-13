@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "metadata": {
     "title": "OVASABI Advanced Knowledge Graph System",
-    "description": "Comprehensive knowledge graph system integrating perspective-aware AI, advanced querying, and language model fusion",
-    "lastUpdated": "2024-04-30",
+    "description": "Comprehensive knowledge graph system integrating perspective-aware AI, advanced querying, and language model fusion. Always refer to the Amadeus context and knowledge graph documentation before implementing or updating any service.",
+    "lastUpdated": "2025-05-11",
     "references": [
       {
         "title": "Neural-Symbolic Integration for Knowledge Graph Reasoning",
@@ -19,6 +19,21 @@
       }
     ]
   },
+  "core_services": [
+    {"name": "asset", "purpose": "Manages digital assets, documents, and multimedia content", "integration_points": ["user", "security", "babel", "nexus"]},
+    {"name": "auth", "purpose": "Authentication, authorization, and session management", "integration_points": ["user", "security", "nexus"]},
+    {"name": "babel", "purpose": "i18n, pricing, and translation logic", "integration_points": ["quotes", "finance", "user", "campaign"]},
+    {"name": "broadcast", "purpose": "Real-time messaging, pub/sub, and streaming", "integration_points": ["user", "notification", "nexus"]},
+    {"name": "campaign", "purpose": "Campaign management and analytics", "integration_points": ["user", "notification", "babel", "nexus"]},
+    {"name": "finance", "purpose": "Handles financial transactions, wallets, and payment processing", "integration_points": ["user", "notification", "babel", "nexus"]},
+    {"name": "i18n", "purpose": "Localization and translation", "integration_points": ["babel", "user"]},
+    {"name": "nexus", "purpose": "Orchestration and pattern engine", "integration_points": ["all_services", "amadeus"]},
+    {"name": "notification", "purpose": "Multi-channel notifications and templates", "integration_points": ["user", "broadcast", "nexus"]},
+    {"name": "quotes", "purpose": "Quote generation, pricing, and history", "integration_points": ["user", "babel", "finance", "nexus"]},
+    {"name": "referral", "purpose": "Referral tracking, rewards, and fraud prevention", "integration_points": ["user", "notification", "finance", "nexus"]},
+    {"name": "security", "purpose": "Policies, audit, and compliance", "integration_points": ["all_services", "auth", "nexus"]},
+    {"name": "user", "purpose": "User management, profiles, and RBAC", "integration_points": ["auth", "security", "babel", "nexus"]}
+  ],
   "knowledgeGraphConfig": {
     "embeddingModels": {
       "default": {
@@ -169,7 +184,7 @@
       "Explainable AI integration"
     ]
   },
-  "last_updated": "2025-04-30T20:16:23Z",
+  "last_updated": "2025-05-11T00:00:00Z",
   "advanced_configuration": {
     "ai_integration": {
       "language_models": {

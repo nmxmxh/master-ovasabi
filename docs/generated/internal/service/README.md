@@ -1,48 +1,16 @@
 # Package service
 
-Package service implements the business logic for gRPC services.
+## Variables
+
+### ServiceCacheConfigs
+
+ServiceCacheConfigs is the central list of all service cache configs.
 
 ## Types
 
-### AuthService
+### CacheConfig
 
-AuthService is an alias for the gRPC server interface.
-
-### BroadcastService
-
-BroadcastService is an alias for the gRPC server interface.
-
-### Container
-
-ServiceContainer defines the interface for accessing all service implementations.
-
-### EchoService
-
-EchoService implements the EchoService gRPC service. It provides a simple echo functionality that
-returns the same message that was sent in the request.
-
-#### Methods
-
-##### Echo
-
-Echo implements the Echo RPC method. It simply returns the message that was sent in the request.
-Parameters:
-
-- ctx: Context for the request
-- req: The echo request containing the message to echo
-
-Returns:
-
-- interface{}: Response containing the echoed message (placeholder)
-- error: Any error that occurred during processing
-
-### I18nService
-
-I18nService is an alias for the gRPC server interface.
-
-### NotificationService
-
-NotificationService handles sending notifications.
+CacheConfig defines the configuration for a service cache.
 
 ### Provider
 
@@ -50,37 +18,37 @@ Provider manages service instances and their dependencies.
 
 #### Methods
 
-##### Asset
+##### Admin
 
-Asset returns the AssetService instance.
+Admin returns the AdminService instance.
 
-##### Auth
+##### Analytics
 
-Auth returns the AuthService instance.
-
-##### Babel
-
-Babel returns the BabelService instance.
-
-##### Broadcast
-
-Broadcast returns the BroadcastService instance.
+Analytics returns the AnalyticsService instance.
 
 ##### Close
 
 Close closes all resources.
 
+##### Commerce
+
+Commerce returns the CommerceService instance.
+
 ##### Container
 
 Container returns the DI container.
 
-##### Finance
+##### Content
 
-Finance returns the FinanceService instance.
+Content returns the ContentService instance.
 
-##### I18n
+##### ContentModeration
 
-I18n returns the I18nService instance.
+ContentModeration returns the ContentModerationService instance.
+
+##### Localization
+
+Localization returns the LocalizationService instance.
 
 ##### Nexus
 
@@ -90,10 +58,6 @@ Nexus returns the NexusServiceServer instance.
 
 Notification returns the NotificationService instance.
 
-##### Quotes
-
-Quotes returns the QuotesService instance.
-
 ##### RedisClient
 
 RedisClient returns the underlying Redis client.
@@ -102,26 +66,22 @@ RedisClient returns the underlying Redis client.
 
 Referrals returns the ReferralService instance.
 
+##### Search
+
+Search returns the SearchService instance.
+
+##### Talent
+
+Talent returns the TalentService instance.
+
 ##### User
 
 User returns the UserService instance.
 
-### Quote
+## Functions
 
-Quote represents a financial quote.
+### NewRedisProvider
 
-### ReferralStats
-
-ReferralStats represents referral statistics.
-
-### Registry
-
-Registry defines the interface for service registration.
-
-### User
-
-User is an alias for the models.User type.
-
-### UserService
-
-UserService handles user management.
+NewRedisProvider initializes the Redis provider and registers all caches for all services in a
+modular fashion. This function is used by the Provider to set up Redis-backed caching for DI and
+orchestration.

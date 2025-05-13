@@ -5,29 +5,43 @@ import (
 	"fmt"
 
 	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
-	assetpb "github.com/nmxmxh/master-ovasabi/api/protos/asset/v1"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	mediav1 "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/logger"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/structpb"
 )
+
+var logInstance logger.Logger
+
+func init() {
+	var err error
+	logInstance, err = logger.NewDefault()
+	if err != nil {
+		panic(fmt.Sprintf("failed to initialize logger: %v", err))
+	}
+}
 
 // UserCreationPattern handles the complete user creation flow.
 type UserCreationPattern struct {
 	knowledgeGraph *kg.KnowledgeGraph
 	userService    userpb.UserServiceServer
-	assetService   assetpb.AssetServiceServer
+	mediaService   mediav1.MediaServiceServer
 	notifyService  notificationpb.NotificationServiceServer
 }
 
 // NewUserCreationPattern creates a new UserCreationPattern.
 func NewUserCreationPattern(
 	userSvc userpb.UserServiceServer,
-	assetSvc assetpb.AssetServiceServer,
+	mediaSvc mediav1.MediaServiceServer,
 	notifySvc notificationpb.NotificationServiceServer,
 ) *UserCreationPattern {
 	return &UserCreationPattern{
 		knowledgeGraph: kg.DefaultKnowledgeGraph(),
 		userService:    userSvc,
-		assetService:   assetSvc,
+		mediaService:   mediaSvc,
 		notifyService:  notifySvc,
 	}
 }
@@ -63,14 +77,21 @@ func (p *UserCreationPattern) Execute(ctx context.Context, params map[string]int
 
 	// Step 3: Send welcome notifications
 	// Email notification
+	emailMeta, err := structpb.NewStruct(map[string]interface{}{
+		"user_id": userResp.User.Id,
+		"type":    "welcome_email",
+	})
+	if err != nil {
+		logInstance.Warn("failed to create structpb for emailMeta", zap.Error(err))
+		return nil, err
+	}
 	emailReq := &notificationpb.SendEmailRequest{
 		To:      userResp.User.Email,
 		Subject: "Welcome to OVASABI",
 		Body:    fmt.Sprintf("Welcome %s! Thank you for joining OVASABI.", userResp.User.Username),
 		Html:    true,
-		Metadata: map[string]string{
-			"user_id": fmt.Sprintf("%d", userResp.User.Id),
-			"type":    "welcome_email",
+		Metadata: &commonpb.Metadata{
+			ServiceSpecific: emailMeta,
 		},
 	}
 	if _, err := p.notifyService.SendEmail(ctx, emailReq); err != nil {
@@ -78,12 +99,19 @@ func (p *UserCreationPattern) Execute(ctx context.Context, params map[string]int
 	}
 
 	// Push notification
+	pushMeta, err := structpb.NewStruct(map[string]interface{}{
+		"type": "welcome_push",
+	})
+	if err != nil {
+		logInstance.Warn("failed to create structpb for pushMeta", zap.Error(err))
+		return nil, err
+	}
 	pushReq := &notificationpb.SendPushNotificationRequest{
-		UserId:  fmt.Sprintf("%d", userResp.User.Id),
+		UserId:  userResp.User.Id,
 		Title:   "Welcome to OVASABI",
 		Message: fmt.Sprintf("Welcome %s! Your account has been created successfully.", userResp.User.Username),
-		Metadata: map[string]string{
-			"type": "welcome_push",
+		Metadata: &commonpb.Metadata{
+			ServiceSpecific: pushMeta,
 		},
 	}
 	if _, err := p.notifyService.SendPushNotification(ctx, pushReq); err != nil {
@@ -106,7 +134,7 @@ func (p *UserCreationPattern) Execute(ctx context.Context, params map[string]int
 		},
 	}
 
-	if err := p.knowledgeGraph.AddPattern("user_creation", fmt.Sprintf("%d", userResp.User.Id), patternInfo); err != nil {
+	if err := p.knowledgeGraph.AddPattern("user_creation", userResp.User.Id, patternInfo); err != nil {
 		return nil, fmt.Errorf("failed to track pattern: %w", err)
 	}
 

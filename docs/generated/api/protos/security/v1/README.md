@@ -1,4 +1,4 @@
-# Package v0
+# Package securitypb
 
 ## Constants
 
@@ -10,7 +10,7 @@
 
 Enum value maps for FactorType.
 
-### File_api_protos_security_v1_security_proto
+### File_security_v1_security_proto
 
 ### SecurityService_ServiceDesc
 
@@ -113,6 +113,12 @@ Deprecated: Use AuditLogRequest.ProtoReflect.Descriptor instead.
 
 Deprecated: Use AuthenticateRequest.ProtoReflect.Descriptor instead.
 
+##### GetContext
+
+##### GetFactors
+
+##### GetIdentity
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -128,6 +134,16 @@ Deprecated: Use AuthenticateRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use AuthenticateResponse.ProtoReflect.Descriptor instead.
+
+##### GetExpiration
+
+##### GetMetadata
+
+##### GetPermissions
+
+##### GetSecurityScore
+
+##### GetSessionToken
 
 ##### ProtoMessage
 
@@ -191,6 +207,8 @@ Deprecated: Use AuthenticationResponse.ProtoReflect.Descriptor instead.
 
 ##### GetExpiration
 
+##### GetMetadata
+
 ##### GetPermissions
 
 ##### GetSecurityScore
@@ -241,6 +259,8 @@ Deprecated: Use AuthorizationResponse.ProtoReflect.Descriptor instead.
 
 ##### GetAuthorized
 
+##### GetMetadata
+
 ##### GetReason
 
 ##### ProtoMessage
@@ -259,6 +279,14 @@ Deprecated: Use AuthorizationResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use AuthorizeRequest.ProtoReflect.Descriptor instead.
 
+##### GetAction
+
+##### GetContext
+
+##### GetResource
+
+##### GetSessionToken
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -274,6 +302,14 @@ Deprecated: Use AuthorizeRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use AuthorizeResponse.ProtoReflect.Descriptor instead.
+
+##### GetApplicablePolicies
+
+##### GetAuthorized
+
+##### GetMetadata
+
+##### GetReason
 
 ##### ProtoMessage
 
@@ -291,6 +327,14 @@ Deprecated: Use AuthorizeResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use DetectThreatsRequest.ProtoReflect.Descriptor instead.
 
+##### GetAction
+
+##### GetAttributes
+
+##### GetContext
+
+##### GetResourceId
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -306,6 +350,14 @@ Deprecated: Use DetectThreatsRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use DetectThreatsResponse.ProtoReflect.Descriptor instead.
+
+##### GetDetectedThreats
+
+##### GetMetadata
+
+##### GetMitigations
+
+##### GetThreatScore
 
 ##### ProtoMessage
 
@@ -367,6 +419,20 @@ Deprecated: Use FactorType.Descriptor instead.
 
 Deprecated: Use GetAuditLogRequest.ProtoReflect.Descriptor instead.
 
+##### GetEndTime
+
+##### GetEventType
+
+##### GetPageSize
+
+##### GetPageToken
+
+##### GetPrincipal
+
+##### GetResource
+
+##### GetStartTime
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -382,6 +448,12 @@ Deprecated: Use GetAuditLogRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use GetAuditLogResponse.ProtoReflect.Descriptor instead.
+
+##### GetEntry
+
+##### GetMetadata
+
+##### GetNextPageToken
 
 ##### ProtoMessage
 
@@ -399,6 +471,12 @@ Deprecated: Use GetAuditLogResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use GetSecurityMetricsRequest.ProtoReflect.Descriptor instead.
 
+##### GetEndTime
+
+##### GetMetricTypes
+
+##### GetStartTime
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -414,6 +492,14 @@ Deprecated: Use GetSecurityMetricsRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use GetSecurityMetricsResponse.ProtoReflect.Descriptor instead.
+
+##### GetIncidents
+
+##### GetMetadata
+
+##### GetMetrics
+
+##### GetOverallScore
 
 ##### ProtoMessage
 
@@ -605,6 +691,8 @@ Deprecated: Use PatternValidationRequest.ProtoReflect.Descriptor instead.
 
 Deprecated: Use PatternValidationResponse.ProtoReflect.Descriptor instead.
 
+##### GetMetadata
+
 ##### GetRiskAssessment
 
 ##### GetValid
@@ -627,6 +715,8 @@ Deprecated: Use PatternValidationResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use RecordAuditEventRequest.ProtoReflect.Descriptor instead.
 
+##### GetEvent
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -642,6 +732,12 @@ Deprecated: Use RecordAuditEventRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use RecordAuditEventResponse.ProtoReflect.Descriptor instead.
+
+##### GetEventId
+
+##### GetMetadata
+
+##### GetStatus
 
 ##### ProtoMessage
 
@@ -659,6 +755,8 @@ Deprecated: Use RecordAuditEventResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use RegisterSecurityPatternRequest.ProtoReflect.Descriptor instead.
 
+##### GetPattern
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -674,6 +772,14 @@ Deprecated: Use RegisterSecurityPatternRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use RegisterSecurityPatternResponse.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetPatternId
+
+##### GetStatus
+
+##### GetValidationMessages
 
 ##### ProtoMessage
 
@@ -691,6 +797,16 @@ Deprecated: Use RegisterSecurityPatternResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ReportIncidentRequest.ProtoReflect.Descriptor instead.
 
+##### GetContext
+
+##### GetDescription
+
+##### GetMetadata
+
+##### GetSeverity
+
+##### GetType
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -706,6 +822,16 @@ Deprecated: Use ReportIncidentRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use ReportIncidentResponse.ProtoReflect.Descriptor instead.
+
+##### GetActionsTaken
+
+##### GetMetadata
+
+##### GetResolutionTime
+
+##### GetStatus
+
+##### GetTrackingId
 
 ##### ProtoMessage
 
@@ -827,6 +953,8 @@ Deprecated: Use SecurityMetricsResponse.ProtoReflect.Descriptor instead.
 
 ##### GetIncidents
 
+##### GetMetadata
+
 ##### GetMetrics
 
 ##### GetOverallScore
@@ -852,6 +980,8 @@ Deprecated: Use SecurityPattern.ProtoReflect.Descriptor instead.
 ##### GetDescription
 
 ##### GetEdges
+
+##### GetMetadata
 
 ##### GetName
 
@@ -949,6 +1079,8 @@ Deprecated: Use ThreatDetectionResponse.ProtoReflect.Descriptor instead.
 
 ##### GetDetectedThreats
 
+##### GetMetadata
+
 ##### GetMitigations
 
 ##### GetThreatScore
@@ -990,6 +1122,8 @@ Deprecated: Use TokenValidationRequest.ProtoReflect.Descriptor instead.
 Deprecated: Use TokenValidationResponse.ProtoReflect.Descriptor instead.
 
 ##### GetExpiration
+
+##### GetMetadata
 
 ##### GetReason
 
@@ -1048,6 +1182,12 @@ compilation errors.
 
 Deprecated: Use ValidatePatternRequest.ProtoReflect.Descriptor instead.
 
+##### GetContext
+
+##### GetPatternId
+
+##### GetValidationParams
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -1063,6 +1203,14 @@ Deprecated: Use ValidatePatternRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use ValidatePatternResponse.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetRiskAssessment
+
+##### GetValid
+
+##### GetValidationErrors
 
 ##### ProtoMessage
 
@@ -1080,6 +1228,10 @@ Deprecated: Use ValidatePatternResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ValidateTokenRequest.ProtoReflect.Descriptor instead.
 
+##### GetContext
+
+##### GetToken
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -1095,6 +1247,16 @@ Deprecated: Use ValidateTokenRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use ValidateTokenResponse.ProtoReflect.Descriptor instead.
+
+##### GetExpiration
+
+##### GetMetadata
+
+##### GetReason
+
+##### GetSecurityScore
+
+##### GetValid
 
 ##### ProtoMessage
 

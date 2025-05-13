@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package contentmoderation.v1;
+
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1;contentmoderationpb";
+
+service ContentModerationService {
+  rpc SubmitContentForModeration(SubmitContentForModerationRequest) returns (SubmitContentForModerationResponse);
+  rpc GetModerationResult(GetModerationResultRequest) returns (GetModerationResultResponse);
+  rpc ListFlaggedContent(ListFlaggedContentRequest) returns (ListFlaggedContentResponse);
+  rpc ApproveContent(ApproveContentRequest) returns (ApproveContentResponse);
+  rpc RejectContent(RejectContentRequest) returns (RejectContentResponse);
+}
+
+enum ModerationStatus {
+  MODERATION_STATUS_UNSPECIFIED = 0;
+  MODERATION_STATUS_PENDING = 1;
+  MODERATION_STATUS_APPROVED = 2;
+  MODERATION_STATUS_REJECTED = 3;
+  MODERATION_STATUS_FLAGGED = 4;
+}
+
+// Robust, extensible metadata for all services
+
+message ModerationResult {
+  string id = 1;
+  string content_id = 2;
+  string user_id = 3;
+  ModerationStatus status = 4;
+  string reason = 5;
+  map<string, float> scores = 6; // e.g., toxicity, spam, etc.
+  int64 created_at = 7;
+  int64 updated_at = 8;
+  common.Metadata metadata = 9;
+}
+
+message SubmitContentForModerationRequest {
+  string content_id = 1;
+  string user_id = 2;
+  string content_type = 3;
+  string content = 4;
+}
+message SubmitContentForModerationResponse {
+  ModerationResult result = 1;
+}
+message GetModerationResultRequest {
+  string content_id = 1;
+}
+message GetModerationResultResponse {
+  ModerationResult result = 1;
+}
+message ListFlaggedContentRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string status = 3;
+}
+message ListFlaggedContentResponse {
+  repeated ModerationResult results = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+message ApproveContentRequest {
+  string content_id = 1;
+}
+message ApproveContentResponse {
+  ModerationResult result = 1;
+}
+message RejectContentRequest {
+  string content_id = 1;
+  string reason = 2;
+}
+message RejectContentResponse {
+  ModerationResult result = 1;
+} 

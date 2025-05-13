@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1;adminpb";
+
+service AdminService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+
+  rpc CreateRole(CreateRoleRequest) returns (CreateRoleResponse);
+  rpc UpdateRole(UpdateRoleRequest) returns (UpdateRoleResponse);
+  rpc DeleteRole(DeleteRoleRequest) returns (DeleteRoleResponse);
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+
+  rpc AssignRole(AssignRoleRequest) returns (AssignRoleResponse);
+  rpc RevokeRole(RevokeRoleRequest) returns (RevokeRoleResponse);
+
+  rpc GetAuditLogs(GetAuditLogsRequest) returns (GetAuditLogsResponse);
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+  rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse);
+}
+
+message User {
+  string id = 1;
+  string master_id = 2; // Master ID for analytics/unified queries
+  string email = 3;
+  string name = 4;
+  repeated string roles = 5;
+  bool is_active = 6;
+  int64 created_at = 7;
+  int64 updated_at = 8;
+  string user_id = 9;
+  common.Metadata metadata = 10; // Extensible metadata for analytics, orchestration, etc.
+}
+
+message Role {
+  string id = 1;
+  string master_id = 2; // Master ID for analytics/unified queries
+  string name = 3;
+  repeated string permissions = 4;
+  common.Metadata metadata = 5; // Extensible metadata for analytics, orchestration, etc.
+}
+
+message AuditLog {
+  string id = 1;
+  string master_id = 2; // Master ID for analytics/unified queries
+  string user_id = 3;
+  string action = 4;
+  string resource = 5;
+  string details = 6;
+  int64 timestamp = 7;
+  common.Metadata metadata = 8; // Extensible metadata for analytics, orchestration, etc.
+}
+
+message Settings {
+  map<string, string> values = 1;
+  common.Metadata metadata = 2; // Extensible metadata for analytics, orchestration, etc.
+}
+
+// User management
+message CreateUserRequest { User user = 1; }
+message CreateUserResponse { User user = 1; }
+message UpdateUserRequest { User user = 1; }
+message UpdateUserResponse { User user = 1; }
+message DeleteUserRequest { string user_id = 1; }
+message DeleteUserResponse { bool success = 1; }
+message ListUsersRequest { int32 page = 1; int32 page_size = 2; }
+message ListUsersResponse { repeated User users = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+message GetUserRequest { string user_id = 1; }
+message GetUserResponse { User user = 1; }
+
+// Role management
+message CreateRoleRequest { Role role = 1; }
+message CreateRoleResponse { Role role = 1; }
+message UpdateRoleRequest { Role role = 1; }
+message UpdateRoleResponse { Role role = 1; }
+message DeleteRoleRequest { string role_id = 1; }
+message DeleteRoleResponse { bool success = 1; }
+message ListRolesRequest { int32 page = 1; int32 page_size = 2; }
+message ListRolesResponse { repeated Role roles = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+
+// Role assignment
+message AssignRoleRequest { string user_id = 1; string role_id = 2; }
+message AssignRoleResponse { bool success = 1; }
+message RevokeRoleRequest { string user_id = 1; string role_id = 2; }
+message RevokeRoleResponse { bool success = 1; }
+
+// Audit logs
+message GetAuditLogsRequest { int32 page = 1; int32 page_size = 2; string user_id = 3; string action = 4; }
+message GetAuditLogsResponse { repeated AuditLog logs = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+
+// Settings
+message GetSettingsRequest {}
+message GetSettingsResponse { Settings settings = 1; }
+message UpdateSettingsRequest { Settings settings = 1; }
+message UpdateSettingsResponse { Settings settings = 1; } 
