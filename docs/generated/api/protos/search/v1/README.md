@@ -1,8 +1,8 @@
-# Package searchpb
+# Package search
 
 ## Constants
 
-### SearchService_SearchEntities_FullMethodName
+### SearchService_Search_FullMethodName
 
 ## Variables
 
@@ -15,37 +15,9 @@ direct use with grpc.RegisterService, and not to be introspected or modified (ev
 
 ## Types
 
-### EntityResult
-
-#### Methods
-
-##### Descriptor
-
-Deprecated: Use EntityResult.ProtoReflect.Descriptor instead.
-
-##### GetEntityId
-
-##### GetEntityType
-
-##### GetMetadata
-
-##### GetName
-
-##### GetRank
-
-##### GetSimilarity
-
-##### GetSummary
-
-##### ProtoMessage
-
-##### ProtoReflect
-
-##### Reset
-
-##### String
-
 ### SearchRequest
+
+Request for a search query.
 
 #### Methods
 
@@ -53,23 +25,17 @@ Deprecated: Use EntityResult.ProtoReflect.Descriptor instead.
 
 Deprecated: Use SearchRequest.ProtoReflect.Descriptor instead.
 
-##### GetEntityType
-
-##### GetFields
-
-##### GetFuzzy
-
-##### GetLanguage
-
-##### GetMasterId
+##### GetCampaignId
 
 ##### GetMetadata
 
-##### GetPage
+##### GetPageNumber
 
 ##### GetPageSize
 
 ##### GetQuery
+
+##### GetTypes
 
 ##### ProtoMessage
 
@@ -81,11 +47,19 @@ Deprecated: Use SearchRequest.ProtoReflect.Descriptor instead.
 
 ### SearchResponse
 
+Response for a search query.
+
 #### Methods
 
 ##### Descriptor
 
 Deprecated: Use SearchResponse.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetPageNumber
+
+##### GetPageSize
 
 ##### GetResults
 
@@ -101,6 +75,8 @@ Deprecated: Use SearchResponse.ProtoReflect.Descriptor instead.
 
 ### SearchResult
 
+A single search result.
+
 #### Methods
 
 ##### Descriptor
@@ -109,17 +85,13 @@ Deprecated: Use SearchResult.ProtoReflect.Descriptor instead.
 
 ##### GetEntityType
 
-##### GetId
+##### GetFields
 
-##### GetMasterId
+##### GetId
 
 ##### GetMetadata
 
 ##### GetScore
-
-##### GetSnippet
-
-##### GetTitle
 
 ##### ProtoMessage
 
@@ -136,10 +108,64 @@ SearchServiceClient is the client API for SearchService service.
 For semantics around ctx use and closing/ending streaming RPCs, please refer to
 https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 
+SearchService provides unified, metadata-driven search across all major entities.
+
 ### SearchServiceServer
 
 SearchServiceServer is the server API for SearchService service. All implementations must embed
 UnimplementedSearchServiceServer for forward compatibility.
+
+SearchService provides unified, metadata-driven search across all major entities.
+
+### SuggestRequest
+
+Request for suggestions/autocomplete.
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SuggestRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetLimit
+
+##### GetMetadata
+
+##### GetPrefix
+
+##### GetTypes
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### SuggestResponse
+
+Response for suggestions/autocomplete.
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SuggestResponse.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetSuggestions
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
 
 ### UnimplementedSearchServiceServer
 
@@ -150,7 +176,9 @@ methods are called.
 
 #### Methods
 
-##### SearchEntities
+##### Search
+
+##### Suggest
 
 ### UnsafeSearchServiceServer
 

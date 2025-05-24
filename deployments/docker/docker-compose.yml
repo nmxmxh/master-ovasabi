@@ -21,19 +21,24 @@ services:
       CONFIG_PATH: /app/config/config.yaml
       DB_HOST: postgres
       DB_PORT: '${DB_PORT:-5432}'
-      DB_USER: '${DB_USER:-postgres}'
-      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
-      DB_NAME: '${DB_NAME:-master_ovasabi}'
+      DB_USER: 'postgres'
+      DB_PASSWORD: 'postgres'
+      DB_NAME: 'master_ovasabi'
       REDIS_HOST: '${REDIS_HOST:-redis}'
       REDIS_PORT: '${REDIS_PORT:-6379}'
-      ADMIN_USER: '${ADMIN_USER:-okhai}'
-      ADMIN_PASSWORD: '${ADMIN_PASSWORD:-@Osiano1995}'
+      ADMIN_USER: 'okhai'
+      ADMIN_PASSWORD: '@Osiano1995'
+      NEXUS_GRPC_ADDR: 'nexus:50052'
+      HTTP_PORT: ':8090'
+      METRICS_PORT: ':9090'
     volumes:
       - ./config:/app/config:ro
       - ./amadeus/knowledge_graph.json:/app/amadeus/knowledge_graph.json
       - ./amadeus/backups:/app/amadeus/backups
       # Proto codegen for Go is now in-place; no need to mount gen/go
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres-init:
         condition: service_completed_successfully
       redis:
@@ -77,11 +82,11 @@ services:
       POSTGRES_USER: '${POSTGRES_USER:-postgres}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
       POSTGRES_DB: '${POSTGRES_DB:-master_ovasabi}'
-      DB_USER: '${DB_USER:-postgres}'
-      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
-      DB_NAME: '${DB_NAME:-master_ovasabi}'
-      ADMIN_USER: '${ADMIN_USER:-okhai}'
-      ADMIN_PASSWORD: '${ADMIN_PASSWORD:-@Osiano1995}'
+      DB_USER: 'postgres'
+      DB_PASSWORD: 'postgres'
+      DB_NAME: 'master_ovasabi'
+      ADMIN_USER: 'okhai'
+      ADMIN_PASSWORD: '@Osiano1995'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     command: ['postgres', '-c', 'listen_addresses=*', '-c', 'max_connections=100']
@@ -104,6 +109,12 @@ services:
       - ovasabi-network
     env_file:
       - ../../.env
+    environment:
+      DB_USER: 'postgres'
+      DB_PASSWORD: 'postgres'
+      DB_NAME: 'master_ovasabi'
+      ADMIN_USER: 'okhai'
+      ADMIN_PASSWORD: '@Osiano1995'
 
   postgres-init:
     image: postgres:15-alpine
@@ -137,6 +148,27 @@ services:
     image: libretranslate/libretranslate:latest
     ports:
       - '5002:5000'
+    restart: unless-stopped
+
+  nexus:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.nexus
+    ports:
+      - '50052:50052'
+      - '9090:9090'
+    environment:
+      APP_ENV: '${APP_ENV:-development}'
+      LOG_LEVEL: info
+      SERVICE_NAME: nexus
+      NEXUS_GRPC_ADDR: ':50052'
+      METRICS_PORT: ':9090'
+      REDIS_PASSWORD: '${REDIS_PASSWORD:-@Osiano1995}'
+    networks:
+      - ovasabi-network
+    depends_on:
+      - redis
+      - postgres
     restart: unless-stopped
 
 volumes:

@@ -1,12 +1,109 @@
 # Package security
 
+## Variables
+
+### SecurityEventRegistry
+
 ## Types
+
+### AuditEntry
+
+### BadActorMetadata
+
+### ComplianceIssue
+
+### ComplianceMetadata
+
+### ComplianceStandard
+
+### Event
+
+### EventEmitter
+
+EventEmitter defines the interface for emitting events in the security service.
+
+### EventHandlerFunc
+
+### EventMetadata
+
+### EventRegistry
+
+### EventSubscription
+
+### FrequencyMetadata
+
+### Identity
+
+### Incident
+
+### LocationMetadata
+
+### Master
+
+### Pattern
+
+### Repository
+
+#### Methods
+
+##### CreateIdentity
+
+Identity.
+
+##### CreateMaster
+
+Master.
+
+##### GetEvents
+
+##### GetIdentity
+
+##### GetIncident
+
+##### GetMaster
+
+##### GetPattern
+
+##### GetRiskAssessment
+
+##### GetSecurityMetrics
+
+Analytics.
+
+##### ListIncidents
+
+##### ListPatterns
+
+##### RecordEvent
+
+Event.
+
+##### RecordIncident
+
+Incident.
+
+##### RegisterPattern
+
+Pattern.
+
+##### UpdateIdentityRiskScore
+
+##### UpdateIncidentResolution
+
+##### UpdateMaster
+
+### RepositoryItf
 
 ### Service
 
-Service implements the SecurityServiceServer interface.
+Service implements the SecurityServiceServer interface with rich metadata handling and repository
+integration.
 
 #### Methods
+
+##### AuditEvent
+
+AuditEvent logs a security-related event.
 
 ##### Authenticate
 
@@ -20,30 +117,26 @@ Authorize checks if a session token is allowed to perform an action on a resourc
 
 DetectThreats analyzes a request for potential threats.
 
-##### GetAuditLog
+##### QueryEvents
 
-GetAuditLog streams audit log entries.
+QueryEvents streams security events (audit log entries).
 
-##### GetSecurityMetrics
+##### ValidateCredential
 
-GetSecurityMetrics returns security metrics and incidents.
+ValidateCredential checks if a credential is valid and returns its status.
 
-##### RecordAuditEvent
+### ServiceMetadata
 
-RecordAuditEvent logs a security-related event.
+ServiceMetadata holds all security service-specific metadata fields.
 
-##### RegisterSecurityPattern
+## Functions
 
-RegisterSecurityPattern registers a new security pattern.
+### Register
 
-##### ReportIncident
+Register registers the security service with the DI container and event bus support.
 
-ReportIncident records a security incident.
+### ServiceMetadataToStruct
 
-##### ValidatePattern
+ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
 
-ValidatePattern checks if a security pattern is valid.
-
-##### ValidateToken
-
-ValidateToken checks if a token is valid and returns its status.
+### StartEventSubscribers

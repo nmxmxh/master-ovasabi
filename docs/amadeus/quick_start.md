@@ -1,4 +1,11 @@
-# Amadeus Knowledge Graph Quick Start Guide
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 This guide will help you get started quickly with Amadeus Knowledge Graph.
 
@@ -7,7 +14,6 @@ This guide will help you get started quickly with Amadeus Knowledge Graph.
 First, build the Knowledge Graph CLI tool:
 
 ```bash
-# From the repository root
 go build -o bin/kgcli amadeus/cmd/kgcli/main.go
 ```
 
@@ -16,13 +22,10 @@ go build -o bin/kgcli amadeus/cmd/kgcli/main.go
 Use the CLI tool to explore the existing knowledge graph:
 
 ```bash
-# View system components
 bin/kgcli get --path system_components
 
-# View core services
 bin/kgcli get --path services.core_services
 
-# View patterns
 bin/kgcli get --path patterns
 ```
 
@@ -184,8 +187,7 @@ Register the knowledge graph pattern with Nexus:
 
 ```go
 import (
-    "github.com/nmxmxh/master-ovasabi/amadeus/nexus/pattern"
-    nexuspattern "github.com/nmxmxh/master-ovasabi/internal/nexus/service/pattern"
+    "github.com/nmxmxh/master-ovasabi/internal/nexus/service/pattern"
 )
 
 func registerPatterns() {
@@ -193,7 +195,7 @@ func registerPatterns() {
     kgPattern := pattern.NewKnowledgeGraphPattern()
 
     // Register with Nexus pattern registry
-    nexuspattern.Registry().Register("knowledge_graph_pattern", kgPattern)
+    pattern.Registry().Register("knowledge_graph_pattern", kgPattern)
 }
 ```
 
@@ -210,7 +212,7 @@ func updateRelationship(ctx context.Context) error {
         "target_id":     "user_service",
     }
 
-    _, err := nexuspattern.Registry().Execute(ctx, "knowledge_graph_pattern", params)
+    _, err := pattern.Registry().Execute(ctx, "knowledge_graph_pattern", params)
     return err
 }
 ```
@@ -220,10 +222,8 @@ func updateRelationship(ctx context.Context) error {
 Generate visual representations of the knowledge graph:
 
 ```bash
-# Generate service architecture diagram
 bin/kgcli visualize --format mermaid --section services --output docs/diagrams/services.mmd
 
-# Generate pattern diagram
 bin/kgcli visualize --format mermaid --section patterns --output docs/diagrams/patterns.mmd
 ```
 

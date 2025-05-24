@@ -1,0 +1,183 @@
+package nexus
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+)
+
+// CanonicalEvent wraps the existing Event struct and adds extensibility for multi-event orchestration and metadata.
+type CanonicalEvent struct {
+	ID          uuid.UUID                 `json:"id" db:"id"`
+	MasterID    int64                     `json:"master_id" db:"master_id"`
+	EntityType  repository.EntityType     `json:"entity_type" db:"entity_type"`
+	EventType   string                    `json:"event_type" db:"event_type"`
+	Payload     map[string]interface{}    `json:"payload" db:"payload"`
+	Metadata    *metadata.ServiceMetadata `json:"metadata" db:"metadata"`
+	Status      string                    `json:"status" db:"status"`
+	CreatedAt   time.Time                 `json:"created_at" db:"created_at"`
+	ProcessedAt *time.Time                `json:"processed_at" db:"processed_at"`
+	PatternID   *string                   `json:"pattern_id,omitempty" db:"pattern_id"` // For pattern-based orchestration
+	Step        *string                   `json:"step,omitempty" db:"step"`             // For multi-step events
+	Retries     int                       `json:"retries" db:"retries"`
+	Error       *string                   `json:"error,omitempty" db:"error"`
+}
+
+// EventRepository defines the interface for event persistence and orchestration.
+type EventRepository interface {
+	SaveEvent(ctx context.Context, event *CanonicalEvent) error
+	GetEvent(ctx context.Context, id uuid.UUID) (*CanonicalEvent, error)
+	ListEventsByMaster(ctx context.Context, masterID int64) ([]*CanonicalEvent, error)
+	ListPendingEvents(ctx context.Context, entityType repository.EntityType) ([]*CanonicalEvent, error)
+	UpdateEventStatus(ctx context.Context, id uuid.UUID, status string, errMsg *string) error
+	ListEventsByPattern(ctx context.Context, patternID string) ([]*CanonicalEvent, error)
+}
+
+// SQLEventRepository is a SQL-backed implementation of EventRepository.
+type SQLEventRepository struct {
+	db *sql.DB
+}
+
+func NewSQLEventRepository(db *sql.DB) *SQLEventRepository {
+	return &SQLEventRepository{db: db}
+}
+
+func (r *SQLEventRepository) SaveEvent(ctx context.Context, event *CanonicalEvent) error {
+	metaBytes, err := json.Marshal(event.Metadata)
+	if err != nil {
+		return err
+	}
+	payloadBytes, err := json.Marshal(event.Payload)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `
+		INSERT INTO service_event (
+			id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+	`,
+		event.ID, event.MasterID, event.EntityType, event.EventType, payloadBytes, metaBytes, event.Status, event.CreatedAt, event.ProcessedAt, event.PatternID, event.Step, event.Retries, event.Error,
+	)
+	return err
+}
+
+func (r *SQLEventRepository) GetEvent(ctx context.Context, id uuid.UUID) (*CanonicalEvent, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
+		FROM service_event WHERE id = $1
+	`, id)
+	var event CanonicalEvent
+	var payloadBytes, metaBytes []byte
+	if err := row.Scan(&event.ID, &event.MasterID, &event.EntityType, &event.EventType, &payloadBytes, &metaBytes, &event.Status, &event.CreatedAt, &event.ProcessedAt, &event.PatternID, &event.Step, &event.Retries, &event.Error); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
+
+func (r *SQLEventRepository) ListEventsByMaster(ctx context.Context, masterID int64) ([]*CanonicalEvent, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
+		FROM service_event WHERE master_id = $1 ORDER BY created_at DESC
+	`, masterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []*CanonicalEvent
+	for rows.Next() {
+		var event CanonicalEvent
+		var payloadBytes, metaBytes []byte
+		if err := rows.Scan(&event.ID, &event.MasterID, &event.EntityType, &event.EventType, &payloadBytes, &metaBytes, &event.Status, &event.CreatedAt, &event.ProcessedAt, &event.PatternID, &event.Step, &event.Retries, &event.Error); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
+			return nil, err
+		}
+		events = append(events, &event)
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return events, nil
+}
+
+func (r *SQLEventRepository) ListPendingEvents(ctx context.Context, entityType repository.EntityType) ([]*CanonicalEvent, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
+		FROM service_event WHERE entity_type = $1 AND status = 'pending' ORDER BY created_at ASC
+	`, entityType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []*CanonicalEvent
+	for rows.Next() {
+		var event CanonicalEvent
+		var payloadBytes, metaBytes []byte
+		if err := rows.Scan(&event.ID, &event.MasterID, &event.EntityType, &event.EventType, &payloadBytes, &metaBytes, &event.Status, &event.CreatedAt, &event.ProcessedAt, &event.PatternID, &event.Step, &event.Retries, &event.Error); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
+			return nil, err
+		}
+		events = append(events, &event)
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return events, nil
+}
+
+func (r *SQLEventRepository) UpdateEventStatus(ctx context.Context, id uuid.UUID, status string, errMsg *string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE service_event SET status = $1, error = $2, processed_at = NOW() WHERE id = $3
+	`, status, errMsg, id)
+	return err
+}
+
+func (r *SQLEventRepository) ListEventsByPattern(ctx context.Context, patternID string) ([]*CanonicalEvent, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
+		FROM service_event WHERE pattern_id = $1 ORDER BY created_at ASC
+	`, patternID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []*CanonicalEvent
+	for rows.Next() {
+		var event CanonicalEvent
+		var payloadBytes, metaBytes []byte
+		if err := rows.Scan(&event.ID, &event.MasterID, &event.EntityType, &event.EventType, &payloadBytes, &metaBytes, &event.Status, &event.CreatedAt, &event.ProcessedAt, &event.PatternID, &event.Step, &event.Retries, &event.Error); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
+			return nil, err
+		}
+		events = append(events, &event)
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return events, nil
+}

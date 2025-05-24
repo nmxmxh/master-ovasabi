@@ -1,4 +1,10 @@
-# Communication Standards for OVASABI Platform
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
 
 > **Reference:** See [Amadeus Context](../amadeus/amadeus_context.md) for system-wide architecture,
 > metadata, and service integration patterns.

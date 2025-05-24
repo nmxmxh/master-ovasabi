@@ -25,19 +25,21 @@ const (
 type TalentProfile struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      string                 `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID reference to master table
+	MasterUuid    string                 `protobuf:"bytes,9,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
 	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	DisplayName   string                 `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	Bio           string                 `protobuf:"bytes,5,opt,name=bio,proto3" json:"bio,omitempty"`
 	Skills        []string               `protobuf:"bytes,6,rep,name=skills,proto3" json:"skills,omitempty"`
 	Tags          []string               `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty"`
 	Location      string                 `protobuf:"bytes,8,opt,name=location,proto3" json:"location,omitempty"`
-	AvatarUrl     string                 `protobuf:"bytes,9,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
-	Experiences   []*Experience          `protobuf:"bytes,10,rep,name=experiences,proto3" json:"experiences,omitempty"`
-	Educations    []*Education           `protobuf:"bytes,11,rep,name=educations,proto3" json:"educations,omitempty"`
-	CreatedAt     int64                  `protobuf:"varint,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     int64                  `protobuf:"varint,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,14,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	AvatarUrl     string                 `protobuf:"bytes,10,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	Experiences   []*Experience          `protobuf:"bytes,11,rep,name=experiences,proto3" json:"experiences,omitempty"`
+	Educations    []*Education           `protobuf:"bytes,12,rep,name=educations,proto3" json:"educations,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     int64                  `protobuf:"varint,14,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,15,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,16,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -79,9 +81,16 @@ func (x *TalentProfile) GetId() string {
 	return ""
 }
 
-func (x *TalentProfile) GetMasterId() string {
+func (x *TalentProfile) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
+	}
+	return 0
+}
+
+func (x *TalentProfile) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
 	}
 	return ""
 }
@@ -168,6 +177,13 @@ func (x *TalentProfile) GetMetadata() *v1.Metadata {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *TalentProfile) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type Experience struct {
@@ -349,6 +365,7 @@ type Booking struct {
 	Notes         string                 `protobuf:"bytes,7,opt,name=notes,proto3" json:"notes,omitempty"`
 	CreatedAt     int64                  `protobuf:"varint,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -446,9 +463,17 @@ func (x *Booking) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *Booking) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type CreateTalentProfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profile       *TalentProfile         `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -490,9 +515,17 @@ func (x *CreateTalentProfileRequest) GetProfile() *TalentProfile {
 	return nil
 }
 
+func (x *CreateTalentProfileRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type CreateTalentProfileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profile       *TalentProfile         `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -534,9 +567,17 @@ func (x *CreateTalentProfileResponse) GetProfile() *TalentProfile {
 	return nil
 }
 
+func (x *CreateTalentProfileResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type UpdateTalentProfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profile       *TalentProfile         `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -578,9 +619,17 @@ func (x *UpdateTalentProfileRequest) GetProfile() *TalentProfile {
 	return nil
 }
 
+func (x *UpdateTalentProfileRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type UpdateTalentProfileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profile       *TalentProfile         `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -622,9 +671,17 @@ func (x *UpdateTalentProfileResponse) GetProfile() *TalentProfile {
 	return nil
 }
 
+func (x *UpdateTalentProfileResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type DeleteTalentProfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProfileId     string                 `protobuf:"bytes,1,opt,name=profile_id,json=profileId,proto3" json:"profile_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -666,9 +723,17 @@ func (x *DeleteTalentProfileRequest) GetProfileId() string {
 	return ""
 }
 
+func (x *DeleteTalentProfileRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type DeleteTalentProfileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -710,9 +775,17 @@ func (x *DeleteTalentProfileResponse) GetSuccess() bool {
 	return false
 }
 
+func (x *DeleteTalentProfileResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type GetTalentProfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProfileId     string                 `protobuf:"bytes,1,opt,name=profile_id,json=profileId,proto3" json:"profile_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -754,9 +827,17 @@ func (x *GetTalentProfileRequest) GetProfileId() string {
 	return ""
 }
 
+func (x *GetTalentProfileRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type GetTalentProfileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profile       *TalentProfile         `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -798,6 +879,13 @@ func (x *GetTalentProfileResponse) GetProfile() *TalentProfile {
 	return nil
 }
 
+func (x *GetTalentProfileResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type ListTalentProfilesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
@@ -805,6 +893,7 @@ type ListTalentProfilesRequest struct {
 	Skills        []string               `protobuf:"bytes,3,rep,name=skills,proto3" json:"skills,omitempty"`
 	Tags          []string               `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty"`
 	Location      string                 `protobuf:"bytes,5,opt,name=location,proto3" json:"location,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -874,12 +963,20 @@ func (x *ListTalentProfilesRequest) GetLocation() string {
 	return ""
 }
 
+func (x *ListTalentProfilesRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type ListTalentProfilesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profiles      []*TalentProfile       `protobuf:"bytes,1,rep,name=profiles,proto3" json:"profiles,omitempty"`
 	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
 	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	TotalPages    int32                  `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -942,6 +1039,13 @@ func (x *ListTalentProfilesResponse) GetTotalPages() int32 {
 	return 0
 }
 
+func (x *ListTalentProfilesResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type SearchTalentProfilesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
@@ -950,6 +1054,7 @@ type SearchTalentProfilesRequest struct {
 	Skills        []string               `protobuf:"bytes,4,rep,name=skills,proto3" json:"skills,omitempty"`
 	Tags          []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
 	Location      string                 `protobuf:"bytes,6,opt,name=location,proto3" json:"location,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1026,12 +1131,20 @@ func (x *SearchTalentProfilesRequest) GetLocation() string {
 	return ""
 }
 
+func (x *SearchTalentProfilesRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type SearchTalentProfilesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profiles      []*TalentProfile       `protobuf:"bytes,1,rep,name=profiles,proto3" json:"profiles,omitempty"`
 	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
 	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	TotalPages    int32                  `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1094,6 +1207,13 @@ func (x *SearchTalentProfilesResponse) GetTotalPages() int32 {
 	return 0
 }
 
+func (x *SearchTalentProfilesResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type BookTalentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TalentId      string                 `protobuf:"bytes,1,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`
@@ -1102,6 +1222,7 @@ type BookTalentRequest struct {
 	EndTime       int64                  `protobuf:"varint,4,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	Notes         string                 `protobuf:"bytes,5,opt,name=notes,proto3" json:"notes,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1178,9 +1299,17 @@ func (x *BookTalentRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *BookTalentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type BookTalentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Booking       *Booking               `protobuf:"bytes,1,opt,name=booking,proto3" json:"booking,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1222,11 +1351,19 @@ func (x *BookTalentResponse) GetBooking() *Booking {
 	return nil
 }
 
+func (x *BookTalentResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type ListBookingsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1282,12 +1419,20 @@ func (x *ListBookingsRequest) GetPageSize() int32 {
 	return 0
 }
 
+func (x *ListBookingsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type ListBookingsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Bookings      []*Booking             `protobuf:"bytes,1,rep,name=bookings,proto3" json:"bookings,omitempty"`
 	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
 	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	TotalPages    int32                  `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1350,14 +1495,23 @@ func (x *ListBookingsResponse) GetTotalPages() int32 {
 	return 0
 }
 
+func (x *ListBookingsResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 var File_talent_v1_talent_proto protoreflect.FileDescriptor
 
 const file_talent_v1_talent_proto_rawDesc = "" +
 	"\n" +
-	"\x16talent/v1/talent.proto\x12\ttalent.v1\x1a\x18common/v1/metadata.proto\"\xcc\x03\n" +
+	"\x16talent/v1/talent.proto\x12\ttalent.v1\x1a\x18common/v1/metadata.proto\"\x8e\x04\n" +
 	"\rTalentProfile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tmaster_id\x18\x02 \x01(\tR\bmasterId\x12\x17\n" +
+	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\t \x01(\tR\n" +
+	"masterUuid\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12!\n" +
 	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12\x10\n" +
 	"\x03bio\x18\x05 \x01(\tR\x03bio\x12\x16\n" +
@@ -1365,17 +1519,19 @@ const file_talent_v1_talent_proto_rawDesc = "" +
 	"\x04tags\x18\a \x03(\tR\x04tags\x12\x1a\n" +
 	"\blocation\x18\b \x01(\tR\blocation\x12\x1d\n" +
 	"\n" +
-	"avatar_url\x18\t \x01(\tR\tavatarUrl\x127\n" +
-	"\vexperiences\x18\n" +
-	" \x03(\v2\x15.talent.v1.ExperienceR\vexperiences\x124\n" +
+	"avatar_url\x18\n" +
+	" \x01(\tR\tavatarUrl\x127\n" +
+	"\vexperiences\x18\v \x03(\v2\x15.talent.v1.ExperienceR\vexperiences\x124\n" +
 	"\n" +
-	"educations\x18\v \x03(\v2\x14.talent.v1.EducationR\n" +
+	"educations\x18\f \x03(\v2\x14.talent.v1.EducationR\n" +
 	"educations\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\f \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\r \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\x03R\tupdatedAt\x12,\n" +
-	"\bmetadata\x18\x0e \x01(\v2\x10.common.MetadataR\bmetadata\"\xc6\x01\n" +
+	"updated_at\x18\x0e \x01(\x03R\tupdatedAt\x12,\n" +
+	"\bmetadata\x18\x0f \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x10 \x01(\x03R\n" +
+	"campaignId\"\xc6\x01\n" +
 	"\n" +
 	"Experience\x12\x18\n" +
 	"\acompany\x18\x01 \x01(\tR\acompany\x12\x14\n" +
@@ -1392,7 +1548,7 @@ const file_talent_v1_talent_proto_rawDesc = "" +
 	"\n" +
 	"start_date\x18\x04 \x01(\x03R\tstartDate\x12\x19\n" +
 	"\bend_date\x18\x05 \x01(\x03R\aendDate\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"\x84\x02\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"\xa5\x02\n" +
 	"\aBooking\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttalent_id\x18\x02 \x01(\tR\btalentId\x12\x17\n" +
@@ -1404,52 +1560,79 @@ const file_talent_v1_talent_proto_rawDesc = "" +
 	"\x05notes\x18\a \x01(\tR\x05notes\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\b \x01(\x03R\tcreatedAt\x12,\n" +
-	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\"P\n" +
+	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\n" +
+	" \x01(\x03R\n" +
+	"campaignId\"q\n" +
 	"\x1aCreateTalentProfileRequest\x122\n" +
-	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\"Q\n" +
+	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"r\n" +
 	"\x1bCreateTalentProfileResponse\x122\n" +
-	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\"P\n" +
+	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"q\n" +
 	"\x1aUpdateTalentProfileRequest\x122\n" +
-	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\"Q\n" +
+	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"r\n" +
 	"\x1bUpdateTalentProfileResponse\x122\n" +
-	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\";\n" +
+	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"\\\n" +
 	"\x1aDeleteTalentProfileRequest\x12\x1d\n" +
 	"\n" +
-	"profile_id\x18\x01 \x01(\tR\tprofileId\"7\n" +
+	"profile_id\x18\x01 \x01(\tR\tprofileId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"X\n" +
 	"\x1bDeleteTalentProfileResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"8\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"Y\n" +
 	"\x17GetTalentProfileRequest\x12\x1d\n" +
 	"\n" +
-	"profile_id\x18\x01 \x01(\tR\tprofileId\"N\n" +
+	"profile_id\x18\x01 \x01(\tR\tprofileId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"o\n" +
 	"\x18GetTalentProfileResponse\x122\n" +
-	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\"\x94\x01\n" +
+	"\aprofile\x18\x01 \x01(\v2\x18.talent.v1.TalentProfileR\aprofile\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"\xb5\x01\n" +
 	"\x19ListTalentProfilesRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x16\n" +
 	"\x06skills\x18\x03 \x03(\tR\x06skills\x12\x12\n" +
 	"\x04tags\x18\x04 \x03(\tR\x04tags\x12\x1a\n" +
-	"\blocation\x18\x05 \x01(\tR\blocation\"\xa8\x01\n" +
+	"\blocation\x18\x05 \x01(\tR\blocation\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"\xc9\x01\n" +
 	"\x1aListTalentProfilesResponse\x124\n" +
 	"\bprofiles\x18\x01 \x03(\v2\x18.talent.v1.TalentProfileR\bprofiles\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\xac\x01\n" +
+	"totalPages\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"\xcd\x01\n" +
 	"\x1bSearchTalentProfilesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x16\n" +
 	"\x06skills\x18\x04 \x03(\tR\x06skills\x12\x12\n" +
 	"\x04tags\x18\x05 \x03(\tR\x04tags\x12\x1a\n" +
-	"\blocation\x18\x06 \x01(\tR\blocation\"\xaa\x01\n" +
+	"\blocation\x18\x06 \x01(\tR\blocation\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"\xcb\x01\n" +
 	"\x1cSearchTalentProfilesResponse\x124\n" +
 	"\bprofiles\x18\x01 \x03(\v2\x18.talent.v1.TalentProfileR\bprofiles\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\xc7\x01\n" +
+	"totalPages\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"\xe8\x01\n" +
 	"\x11BookTalentRequest\x12\x1b\n" +
 	"\ttalent_id\x18\x01 \x01(\tR\btalentId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1d\n" +
@@ -1457,20 +1640,28 @@ const file_talent_v1_talent_proto_rawDesc = "" +
 	"start_time\x18\x03 \x01(\x03R\tstartTime\x12\x19\n" +
 	"\bend_time\x18\x04 \x01(\x03R\aendTime\x12\x14\n" +
 	"\x05notes\x18\x05 \x01(\tR\x05notes\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"B\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"c\n" +
 	"\x12BookTalentResponse\x12,\n" +
-	"\abooking\x18\x01 \x01(\v2\x12.talent.v1.BookingR\abooking\"_\n" +
+	"\abooking\x18\x01 \x01(\v2\x12.talent.v1.BookingR\abooking\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"\x80\x01\n" +
 	"\x13ListBookingsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"\x9c\x01\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"\xbd\x01\n" +
 	"\x14ListBookingsResponse\x12.\n" +
 	"\bbookings\x18\x01 \x03(\v2\x12.talent.v1.BookingR\bbookings\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages2\x86\x06\n" +
+	"totalPages\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId2\x86\x06\n" +
 	"\rTalentService\x12d\n" +
 	"\x13CreateTalentProfile\x12%.talent.v1.CreateTalentProfileRequest\x1a&.talent.v1.CreateTalentProfileResponse\x12d\n" +
 	"\x13UpdateTalentProfile\x12%.talent.v1.UpdateTalentProfileRequest\x1a&.talent.v1.UpdateTalentProfileResponse\x12d\n" +

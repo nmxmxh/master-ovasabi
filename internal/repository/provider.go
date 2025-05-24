@@ -19,7 +19,7 @@ func NewProvider(db *sql.DB, log *zap.Logger) *Provider {
 		db:  db,
 		log: log,
 	}
-	provider.masterRepo = NewMasterRepository(db, log)
+	provider.masterRepo = NewRepository(db, log)
 	return provider
 }
 

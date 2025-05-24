@@ -30,13 +30,11 @@ This document summarizes actionable strategies for reducing Docker image size, i
 ## Example: Go App Multi-Stage Dockerfile
 
 ```dockerfile
-# Build stage
 FROM golang:1.21-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN go build -o master-ovasabi ./cmd/server
 
-# Final image
 FROM alpine:3.19
 WORKDIR /app
 COPY --from=builder /app/master-ovasabi ./master-ovasabi

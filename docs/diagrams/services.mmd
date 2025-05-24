@@ -1,33 +1,53 @@
-```mermaid
 graph TD
-    A[API Gateway] --> B[Auth Service]
-    A --> C[User Service]
-    A --> D[Asset Service]
-    A --> E[Campaign Service]
-    A --> F[Finance Service]
-    A --> G[Notification Service]
-    A --> H[Referral Service]
-    A --> I[Quotes Service]
-    A --> J[I18n Service]
-    A --> K[Broadcast Service]
-
-    subgraph Data Store
-        L[(Database)]
-        M[(Redis)]
-        N[(File Storage)]
-    end
-
-    B --> L
-    C --> L
-    D --> L
-    D --> N
-    E --> L
-    F --> L
-    G --> L
-    G --> M
-    H --> L
-    I --> L
-    J --> L
-    K --> L
-    K --> M
-``` 
+    core_services_referral["referral"]
+    core_services_localization["localization"]
+    core_services_talent["talent"]
+    core_services_product["product"]
+    core_services_commerce["commerce"]
+    core_services_user["user"]
+    core_services_campaign["campaign"]
+    core_services_content["content"]
+    core_services_contentmoderation["contentmoderation"]
+    core_services_messaging["messaging"]
+    core_services_security["security"]
+    core_services_search["search"]
+    core_services_admin["admin"]
+    core_services_analytics["analytics"]
+    core_services_nexus["nexus"]
+    core_services_notification["notification"]
+    core_services_commerce --> core_services_user
+    core_services_commerce --> core_services_notification
+    core_services_commerce --> core_services_localization
+    core_services_user --> core_services_security
+    core_services_user --> core_services_localization
+    core_services_campaign --> core_services_user
+    core_services_campaign --> core_services_notification
+    core_services_campaign --> core_services_localization
+    core_services_content --> core_services_user
+    core_services_content --> core_services_notification
+    core_services_content --> core_services_search
+    core_services_content --> core_services_contentmoderation
+    core_services_contentmoderation --> core_services_content
+    core_services_contentmoderation --> core_services_user
+    core_services_messaging --> core_services_user
+    all_services["all_services"]
+    core_services_security --> all_services
+    core_services_search --> core_services_content
+    core_services_search --> core_services_user
+    core_services_search --> core_services_campaign
+    core_services_search --> core_services_nexus
+    core_services_admin --> core_services_user
+    core_services_admin --> core_services_security
+    core_services_admin --> core_services_nexus
+    core_services_analytics --> core_services_user
+    core_services_analytics --> core_services_content
+    core_services_analytics --> core_services_product
+    all_services["all_services"]
+    core_services_nexus --> all_services
+    core_services_notification --> core_services_user
+    core_services_referral --> core_services_user
+    core_services_referral --> core_services_notification
+    core_services_referral --> core_services_commerce
+    core_services_talent --> core_services_user
+    core_services_product --> core_services_commerce
+    core_services_product --> core_services_user

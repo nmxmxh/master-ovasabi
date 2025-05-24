@@ -14,69 +14,15 @@ CacheConfig defines the configuration for a service cache.
 
 ### Provider
 
-Provider manages service instances and their dependencies.
-
 #### Methods
 
-##### Admin
+##### EmitEvent
 
-Admin returns the AdminService instance.
+EmitEvent emits an event to the Nexus event bus.
 
-##### Analytics
+##### SubscribeEvents
 
-Analytics returns the AnalyticsService instance.
-
-##### Close
-
-Close closes all resources.
-
-##### Commerce
-
-Commerce returns the CommerceService instance.
-
-##### Container
-
-Container returns the DI container.
-
-##### Content
-
-Content returns the ContentService instance.
-
-##### ContentModeration
-
-ContentModeration returns the ContentModerationService instance.
-
-##### Localization
-
-Localization returns the LocalizationService instance.
-
-##### Nexus
-
-Nexus returns the NexusServiceServer instance.
-
-##### Notification
-
-Notification returns the NotificationService instance.
-
-##### RedisClient
-
-RedisClient returns the underlying Redis client.
-
-##### Referrals
-
-Referrals returns the ReferralService instance.
-
-##### Search
-
-Search returns the SearchService instance.
-
-##### Talent
-
-Talent returns the TalentService instance.
-
-##### User
-
-User returns the UserService instance.
+SubscribeEvents subscribes to events from the Nexus event bus.
 
 ## Functions
 

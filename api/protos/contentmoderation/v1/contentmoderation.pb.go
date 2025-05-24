@@ -191,6 +191,8 @@ type SubmitContentForModerationRequest struct {
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	ContentType   string                 `protobuf:"bytes,3,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
 	Content       string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -253,6 +255,20 @@ func (x *SubmitContentForModerationRequest) GetContent() string {
 	return ""
 }
 
+func (x *SubmitContentForModerationRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *SubmitContentForModerationRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type SubmitContentForModerationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Result        *ModerationResult      `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
@@ -300,6 +316,7 @@ func (x *SubmitContentForModerationResponse) GetResult() *ModerationResult {
 type GetModerationResultRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContentId     string                 `protobuf:"bytes,1,opt,name=content_id,json=contentId,proto3" json:"content_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -339,6 +356,13 @@ func (x *GetModerationResultRequest) GetContentId() string {
 		return x.ContentId
 	}
 	return ""
+}
+
+func (x *GetModerationResultRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type GetModerationResultResponse struct {
@@ -390,6 +414,7 @@ type ListFlaggedContentRequest struct {
 	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -443,6 +468,13 @@ func (x *ListFlaggedContentRequest) GetStatus() string {
 		return x.Status
 	}
 	return ""
+}
+
+func (x *ListFlaggedContentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type ListFlaggedContentResponse struct {
@@ -516,6 +548,8 @@ func (x *ListFlaggedContentResponse) GetTotalPages() int32 {
 type ApproveContentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContentId     string                 `protobuf:"bytes,1,opt,name=content_id,json=contentId,proto3" json:"content_id,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -555,6 +589,20 @@ func (x *ApproveContentRequest) GetContentId() string {
 		return x.ContentId
 	}
 	return ""
+}
+
+func (x *ApproveContentRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *ApproveContentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type ApproveContentResponse struct {
@@ -605,6 +653,8 @@ type RejectContentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContentId     string                 `protobuf:"bytes,1,opt,name=content_id,json=contentId,proto3" json:"content_id,omitempty"`
 	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -653,6 +703,20 @@ func (x *RejectContentRequest) GetReason() string {
 	return ""
 }
 
+func (x *RejectContentRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *RejectContentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type RejectContentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Result        *ModerationResult      `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
@@ -697,6 +761,122 @@ func (x *RejectContentResponse) GetResult() *ModerationResult {
 	return nil
 }
 
+type ContentModeration struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ContentId     string                 `protobuf:"bytes,2,opt,name=content_id,json=contentId,proto3" json:"content_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status        ModerationStatus       `protobuf:"varint,4,opt,name=status,proto3,enum=contentmoderation.v1.ModerationStatus" json:"status,omitempty"`
+	Reason        string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	Scores        map[string]float32     `protobuf:"bytes,6,rep,name=scores,proto3" json:"scores,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"fixed32,2,opt,name=value"` // e.g., toxicity, spam, etc.
+	CreatedAt     int64                  `protobuf:"varint,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     int64                  `protobuf:"varint,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContentModeration) Reset() {
+	*x = ContentModeration{}
+	mi := &file_contentmoderation_v1_contentmoderation_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContentModeration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContentModeration) ProtoMessage() {}
+
+func (x *ContentModeration) ProtoReflect() protoreflect.Message {
+	mi := &file_contentmoderation_v1_contentmoderation_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContentModeration.ProtoReflect.Descriptor instead.
+func (*ContentModeration) Descriptor() ([]byte, []int) {
+	return file_contentmoderation_v1_contentmoderation_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ContentModeration) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ContentModeration) GetContentId() string {
+	if x != nil {
+		return x.ContentId
+	}
+	return ""
+}
+
+func (x *ContentModeration) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ContentModeration) GetStatus() ModerationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ModerationStatus_MODERATION_STATUS_UNSPECIFIED
+}
+
+func (x *ContentModeration) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ContentModeration) GetScores() map[string]float32 {
+	if x != nil {
+		return x.Scores
+	}
+	return nil
+}
+
+func (x *ContentModeration) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *ContentModeration) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *ContentModeration) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *ContentModeration) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 var File_contentmoderation_v1_contentmoderation_proto protoreflect.FileDescriptor
 
 const file_contentmoderation_v1_contentmoderation_proto_rawDesc = "" +
@@ -717,42 +897,74 @@ const file_contentmoderation_v1_contentmoderation_proto_rawDesc = "" +
 	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x1a9\n" +
 	"\vScoresEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x02R\x05value:\x028\x01\"\x98\x01\n" +
+	"\x05value\x18\x02 \x01(\x02R\x05value:\x028\x01\"\xe7\x01\n" +
 	"!SubmitContentForModerationRequest\x12\x1d\n" +
 	"\n" +
 	"content_id\x18\x01 \x01(\tR\tcontentId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12!\n" +
 	"\fcontent_type\x18\x03 \x01(\tR\vcontentType\x12\x18\n" +
-	"\acontent\x18\x04 \x01(\tR\acontent\"d\n" +
+	"\acontent\x18\x04 \x01(\tR\acontent\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"d\n" +
 	"\"SubmitContentForModerationResponse\x12>\n" +
-	"\x06result\x18\x01 \x01(\v2&.contentmoderation.v1.ModerationResultR\x06result\";\n" +
+	"\x06result\x18\x01 \x01(\v2&.contentmoderation.v1.ModerationResultR\x06result\"\\\n" +
 	"\x1aGetModerationResultRequest\x12\x1d\n" +
 	"\n" +
-	"content_id\x18\x01 \x01(\tR\tcontentId\"]\n" +
+	"content_id\x18\x01 \x01(\tR\tcontentId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"]\n" +
 	"\x1bGetModerationResultResponse\x12>\n" +
-	"\x06result\x18\x01 \x01(\v2&.contentmoderation.v1.ModerationResultR\x06result\"d\n" +
+	"\x06result\x18\x01 \x01(\v2&.contentmoderation.v1.ModerationResultR\x06result\"\x85\x01\n" +
 	"\x19ListFlaggedContentRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x16\n" +
-	"\x06status\x18\x03 \x01(\tR\x06status\"\xb4\x01\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"\xb4\x01\n" +
 	"\x1aListFlaggedContentResponse\x12@\n" +
 	"\aresults\x18\x01 \x03(\v2&.contentmoderation.v1.ModerationResultR\aresults\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"6\n" +
+	"totalPages\"\x85\x01\n" +
 	"\x15ApproveContentRequest\x12\x1d\n" +
 	"\n" +
-	"content_id\x18\x01 \x01(\tR\tcontentId\"X\n" +
+	"content_id\x18\x01 \x01(\tR\tcontentId\x12,\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x03 \x01(\x03R\n" +
+	"campaignId\"X\n" +
 	"\x16ApproveContentResponse\x12>\n" +
-	"\x06result\x18\x01 \x01(\v2&.contentmoderation.v1.ModerationResultR\x06result\"M\n" +
+	"\x06result\x18\x01 \x01(\v2&.contentmoderation.v1.ModerationResultR\x06result\"\x9c\x01\n" +
 	"\x14RejectContentRequest\x12\x1d\n" +
 	"\n" +
 	"content_id\x18\x01 \x01(\tR\tcontentId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"W\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12,\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"W\n" +
 	"\x15RejectContentResponse\x12>\n" +
-	"\x06result\x18\x01 \x01(\v2&.contentmoderation.v1.ModerationResultR\x06result*\xb3\x01\n" +
+	"\x06result\x18\x01 \x01(\v2&.contentmoderation.v1.ModerationResultR\x06result\"\xc8\x03\n" +
+	"\x11ContentModeration\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"content_id\x18\x02 \x01(\tR\tcontentId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12>\n" +
+	"\x06status\x18\x04 \x01(\x0e2&.contentmoderation.v1.ModerationStatusR\x06status\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\x12K\n" +
+	"\x06scores\x18\x06 \x03(\v23.contentmoderation.v1.ContentModeration.ScoresEntryR\x06scores\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\a \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\x03R\tupdatedAt\x12,\n" +
+	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\n" +
+	" \x01(\x03R\n" +
+	"campaignId\x1a9\n" +
+	"\vScoresEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x02R\x05value:\x028\x01*\xb3\x01\n" +
 	"\x10ModerationStatus\x12!\n" +
 	"\x1dMODERATION_STATUS_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19MODERATION_STATUS_PENDING\x10\x01\x12\x1e\n" +
@@ -779,7 +991,7 @@ func file_contentmoderation_v1_contentmoderation_proto_rawDescGZIP() []byte {
 }
 
 var file_contentmoderation_v1_contentmoderation_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_contentmoderation_v1_contentmoderation_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_contentmoderation_v1_contentmoderation_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_contentmoderation_v1_contentmoderation_proto_goTypes = []any{
 	(ModerationStatus)(0),                      // 0: contentmoderation.v1.ModerationStatus
 	(*ModerationResult)(nil),                   // 1: contentmoderation.v1.ModerationResult
@@ -793,33 +1005,41 @@ var file_contentmoderation_v1_contentmoderation_proto_goTypes = []any{
 	(*ApproveContentResponse)(nil),             // 9: contentmoderation.v1.ApproveContentResponse
 	(*RejectContentRequest)(nil),               // 10: contentmoderation.v1.RejectContentRequest
 	(*RejectContentResponse)(nil),              // 11: contentmoderation.v1.RejectContentResponse
-	nil,                                        // 12: contentmoderation.v1.ModerationResult.ScoresEntry
-	(*v1.Metadata)(nil),                        // 13: common.Metadata
+	(*ContentModeration)(nil),                  // 12: contentmoderation.v1.ContentModeration
+	nil,                                        // 13: contentmoderation.v1.ModerationResult.ScoresEntry
+	nil,                                        // 14: contentmoderation.v1.ContentModeration.ScoresEntry
+	(*v1.Metadata)(nil),                        // 15: common.Metadata
 }
 var file_contentmoderation_v1_contentmoderation_proto_depIdxs = []int32{
 	0,  // 0: contentmoderation.v1.ModerationResult.status:type_name -> contentmoderation.v1.ModerationStatus
-	12, // 1: contentmoderation.v1.ModerationResult.scores:type_name -> contentmoderation.v1.ModerationResult.ScoresEntry
-	13, // 2: contentmoderation.v1.ModerationResult.metadata:type_name -> common.Metadata
-	1,  // 3: contentmoderation.v1.SubmitContentForModerationResponse.result:type_name -> contentmoderation.v1.ModerationResult
-	1,  // 4: contentmoderation.v1.GetModerationResultResponse.result:type_name -> contentmoderation.v1.ModerationResult
-	1,  // 5: contentmoderation.v1.ListFlaggedContentResponse.results:type_name -> contentmoderation.v1.ModerationResult
-	1,  // 6: contentmoderation.v1.ApproveContentResponse.result:type_name -> contentmoderation.v1.ModerationResult
-	1,  // 7: contentmoderation.v1.RejectContentResponse.result:type_name -> contentmoderation.v1.ModerationResult
-	2,  // 8: contentmoderation.v1.ContentModerationService.SubmitContentForModeration:input_type -> contentmoderation.v1.SubmitContentForModerationRequest
-	4,  // 9: contentmoderation.v1.ContentModerationService.GetModerationResult:input_type -> contentmoderation.v1.GetModerationResultRequest
-	6,  // 10: contentmoderation.v1.ContentModerationService.ListFlaggedContent:input_type -> contentmoderation.v1.ListFlaggedContentRequest
-	8,  // 11: contentmoderation.v1.ContentModerationService.ApproveContent:input_type -> contentmoderation.v1.ApproveContentRequest
-	10, // 12: contentmoderation.v1.ContentModerationService.RejectContent:input_type -> contentmoderation.v1.RejectContentRequest
-	3,  // 13: contentmoderation.v1.ContentModerationService.SubmitContentForModeration:output_type -> contentmoderation.v1.SubmitContentForModerationResponse
-	5,  // 14: contentmoderation.v1.ContentModerationService.GetModerationResult:output_type -> contentmoderation.v1.GetModerationResultResponse
-	7,  // 15: contentmoderation.v1.ContentModerationService.ListFlaggedContent:output_type -> contentmoderation.v1.ListFlaggedContentResponse
-	9,  // 16: contentmoderation.v1.ContentModerationService.ApproveContent:output_type -> contentmoderation.v1.ApproveContentResponse
-	11, // 17: contentmoderation.v1.ContentModerationService.RejectContent:output_type -> contentmoderation.v1.RejectContentResponse
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	13, // 1: contentmoderation.v1.ModerationResult.scores:type_name -> contentmoderation.v1.ModerationResult.ScoresEntry
+	15, // 2: contentmoderation.v1.ModerationResult.metadata:type_name -> common.Metadata
+	15, // 3: contentmoderation.v1.SubmitContentForModerationRequest.metadata:type_name -> common.Metadata
+	1,  // 4: contentmoderation.v1.SubmitContentForModerationResponse.result:type_name -> contentmoderation.v1.ModerationResult
+	1,  // 5: contentmoderation.v1.GetModerationResultResponse.result:type_name -> contentmoderation.v1.ModerationResult
+	1,  // 6: contentmoderation.v1.ListFlaggedContentResponse.results:type_name -> contentmoderation.v1.ModerationResult
+	15, // 7: contentmoderation.v1.ApproveContentRequest.metadata:type_name -> common.Metadata
+	1,  // 8: contentmoderation.v1.ApproveContentResponse.result:type_name -> contentmoderation.v1.ModerationResult
+	15, // 9: contentmoderation.v1.RejectContentRequest.metadata:type_name -> common.Metadata
+	1,  // 10: contentmoderation.v1.RejectContentResponse.result:type_name -> contentmoderation.v1.ModerationResult
+	0,  // 11: contentmoderation.v1.ContentModeration.status:type_name -> contentmoderation.v1.ModerationStatus
+	14, // 12: contentmoderation.v1.ContentModeration.scores:type_name -> contentmoderation.v1.ContentModeration.ScoresEntry
+	15, // 13: contentmoderation.v1.ContentModeration.metadata:type_name -> common.Metadata
+	2,  // 14: contentmoderation.v1.ContentModerationService.SubmitContentForModeration:input_type -> contentmoderation.v1.SubmitContentForModerationRequest
+	4,  // 15: contentmoderation.v1.ContentModerationService.GetModerationResult:input_type -> contentmoderation.v1.GetModerationResultRequest
+	6,  // 16: contentmoderation.v1.ContentModerationService.ListFlaggedContent:input_type -> contentmoderation.v1.ListFlaggedContentRequest
+	8,  // 17: contentmoderation.v1.ContentModerationService.ApproveContent:input_type -> contentmoderation.v1.ApproveContentRequest
+	10, // 18: contentmoderation.v1.ContentModerationService.RejectContent:input_type -> contentmoderation.v1.RejectContentRequest
+	3,  // 19: contentmoderation.v1.ContentModerationService.SubmitContentForModeration:output_type -> contentmoderation.v1.SubmitContentForModerationResponse
+	5,  // 20: contentmoderation.v1.ContentModerationService.GetModerationResult:output_type -> contentmoderation.v1.GetModerationResultResponse
+	7,  // 21: contentmoderation.v1.ContentModerationService.ListFlaggedContent:output_type -> contentmoderation.v1.ListFlaggedContentResponse
+	9,  // 22: contentmoderation.v1.ContentModerationService.ApproveContent:output_type -> contentmoderation.v1.ApproveContentResponse
+	11, // 23: contentmoderation.v1.ContentModerationService.RejectContent:output_type -> contentmoderation.v1.RejectContentResponse
+	19, // [19:24] is the sub-list for method output_type
+	14, // [14:19] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_contentmoderation_v1_contentmoderation_proto_init() }
@@ -833,7 +1053,7 @@ func file_contentmoderation_v1_contentmoderation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_contentmoderation_v1_contentmoderation_proto_rawDesc), len(file_contentmoderation_v1_contentmoderation_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

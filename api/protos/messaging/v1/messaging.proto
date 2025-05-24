@@ -1,0 +1,387 @@
+syntax = "proto3";
+
+package messaging.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1;messagingpb";
+
+// --- Messaging Service: Robust, Extensible, Real-Time ---
+service MessagingService {
+  // --- Direct & Group Messaging ---
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse) {}
+  rpc SendGroupMessage(SendGroupMessageRequest) returns (SendGroupMessageResponse) {}
+  rpc EditMessage(EditMessageRequest) returns (EditMessageResponse) {}
+  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse) {}
+  rpc ReactToMessage(ReactToMessageRequest) returns (ReactToMessageResponse) {}
+
+  // --- Retrieval ---
+  rpc GetMessage(GetMessageRequest) returns (GetMessageResponse) {}
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {}
+  rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse) {}
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse) {}
+
+  // --- Real-Time Streaming ---
+  rpc StreamMessages(StreamMessagesRequest) returns (stream MessageEvent) {}
+  rpc StreamTyping(StreamTypingRequest) returns (stream TypingEvent) {}
+  rpc StreamPresence(StreamPresenceRequest) returns (stream PresenceEvent) {}
+
+  // --- Read/Delivery/Ack ---
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse) {}
+  rpc MarkAsDelivered(MarkAsDeliveredRequest) returns (MarkAsDeliveredResponse) {}
+  rpc AcknowledgeMessage(AcknowledgeMessageRequest) returns (AcknowledgeMessageResponse) {}
+
+  // --- Group Management ---
+  rpc CreateChatGroup(CreateChatGroupRequest) returns (CreateChatGroupResponse) {}
+  rpc AddChatGroupMember(AddChatGroupMemberRequest) returns (AddChatGroupMemberResponse) {}
+  rpc RemoveChatGroupMember(RemoveChatGroupMemberRequest) returns (RemoveChatGroupMemberResponse) {}
+  rpc ListChatGroupMembers(ListChatGroupMembersRequest) returns (ListChatGroupMembersResponse) {}
+
+  // --- Preferences ---
+  rpc UpdateMessagingPreferences(UpdateMessagingPreferencesRequest) returns (UpdateMessagingPreferencesResponse) {}
+
+  // --- Analytics/Events ---
+  rpc ListMessageEvents(ListMessageEventsRequest) returns (ListMessageEventsResponse) {}
+}
+
+// --- Core Entities ---
+message Message {
+  string id = 1;
+  string thread_id = 2;
+  string conversation_id = 3;
+  string chat_group_id = 4;
+  string sender_id = 5;
+  repeated string recipient_ids = 6;
+  string content = 7;
+  MessageType type = 8;
+  repeated Attachment attachments = 9;
+  repeated Reaction reactions = 10;
+  MessageStatus status = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  bool edited = 14;
+  bool deleted = 15;
+  common.Metadata metadata = 16;
+  int64 campaign_id = 17; // campaign/tenant context
+}
+
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_TEXT = 1;
+  MESSAGE_TYPE_IMAGE = 2;
+  MESSAGE_TYPE_VIDEO = 3;
+  MESSAGE_TYPE_FILE = 4;
+  MESSAGE_TYPE_SYSTEM = 5;
+  MESSAGE_TYPE_REPLY = 6;
+  MESSAGE_TYPE_FORWARD = 7;
+}
+
+enum MessageStatus {
+  MESSAGE_STATUS_UNSPECIFIED = 0;
+  MESSAGE_STATUS_SENT = 1;
+  MESSAGE_STATUS_DELIVERED = 2;
+  MESSAGE_STATUS_READ = 3;
+  MESSAGE_STATUS_FAILED = 4;
+  MESSAGE_STATUS_DELETED = 5;
+}
+
+message Thread {
+  string id = 1;
+  repeated string participant_ids = 2;
+  string subject = 3;
+  repeated string message_ids = 4;
+  common.Metadata metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message Conversation {
+  string id = 1;
+  repeated string participant_ids = 2;
+  string chat_group_id = 3;
+  repeated string thread_ids = 4;
+  common.Metadata metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ChatGroup {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string member_ids = 4;
+  map<string, string> roles = 5; // user_id -> role
+  common.Metadata metadata = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message Reaction {
+  string user_id = 1;
+  string emoji = 2;
+  google.protobuf.Timestamp reacted_at = 3;
+  common.Metadata metadata = 4;
+}
+
+message Attachment {
+  string id = 1;
+  string url = 2;
+  string type = 3;
+  string filename = 4;
+  int64 size = 5;
+  common.Metadata metadata = 6;
+}
+
+// --- Requests/Responses ---
+message SendMessageRequest {
+  string thread_id = 1;
+  string conversation_id = 2;
+  string chat_group_id = 3;
+  string sender_id = 4;
+  repeated string recipient_ids = 5;
+  string content = 6;
+  MessageType type = 7;
+  repeated Attachment attachments = 8;
+  common.Metadata metadata = 9;
+  int64 campaign_id = 10; // campaign/tenant context
+}
+message SendMessageResponse { Message message = 1; }
+
+message SendGroupMessageRequest {
+  string chat_group_id = 1;
+  string sender_id = 2;
+  string content = 3;
+  MessageType type = 4;
+  repeated Attachment attachments = 5;
+  common.Metadata metadata = 6;
+  int64 campaign_id = 7; // campaign/tenant context
+}
+message SendGroupMessageResponse { Message message = 1; }
+
+message EditMessageRequest {
+  string message_id = 1;
+  string editor_id = 2;
+  string new_content = 3;
+  repeated Attachment new_attachments = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6; // campaign/tenant context
+}
+message EditMessageResponse { Message message = 1; }
+
+message DeleteMessageRequest {
+  string message_id = 1;
+  string requester_id = 2;
+  common.Metadata metadata = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
+message DeleteMessageResponse { bool success = 1; }
+
+message ReactToMessageRequest {
+  string message_id = 1;
+  string user_id = 2;
+  string emoji = 3;
+  common.Metadata metadata = 4;
+  int64 campaign_id = 5; // campaign/tenant context
+}
+message ReactToMessageResponse { Message message = 1; }
+
+message GetMessageRequest { string message_id = 1; }
+message GetMessageResponse { Message message = 1; }
+
+message ListMessagesRequest {
+  string thread_id = 1;
+  string conversation_id = 2;
+  string chat_group_id = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+  common.Metadata filters = 6;
+  common.Metadata metadata = 7;
+  int64 campaign_id = 8; // campaign/tenant context
+}
+message ListMessagesResponse {
+  repeated Message messages = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+
+message ListThreadsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  common.Metadata filters = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6; // campaign/tenant context
+}
+message ListThreadsResponse {
+  repeated Thread threads = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+
+message ListConversationsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  common.Metadata filters = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6; // campaign/tenant context
+}
+message ListConversationsResponse {
+  repeated Conversation conversations = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+
+// --- Real-Time Streaming ---
+message StreamMessagesRequest {
+  string user_id = 1;
+  repeated string conversation_ids = 2;
+  repeated string chat_group_ids = 3;
+  common.Metadata filters = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6; // campaign/tenant context
+}
+message MessageEvent {
+  string event_id = 1;
+  string message_id = 2;
+  string thread_id = 3;
+  string conversation_id = 4;
+  string chat_group_id = 5;
+  string event_type = 6; // sent, delivered, read, edited, deleted, reaction, etc.
+  google.protobuf.Struct payload = 7;
+  google.protobuf.Timestamp created_at = 8;
+  int64 campaign_id = 9; // campaign/tenant context
+}
+
+message StreamTypingRequest {
+  string user_id = 1;
+  string conversation_id = 2;
+  string chat_group_id = 3;
+  common.Metadata metadata = 4;
+  int64 campaign_id = 5; // campaign/tenant context
+}
+message TypingEvent {
+  string user_id = 1;
+  string conversation_id = 2;
+  string chat_group_id = 3;
+  bool is_typing = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  int64 campaign_id = 6; // campaign/tenant context
+}
+
+message StreamPresenceRequest {
+  string user_id = 1;
+  common.Metadata metadata = 2;
+  int64 campaign_id = 3; // campaign/tenant context
+}
+message PresenceEvent {
+  string user_id = 1;
+  string status = 2; // online, offline, away, dnd
+  google.protobuf.Timestamp timestamp = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
+
+// --- Read/Delivery/Ack ---
+message MarkAsReadRequest {
+  string message_id = 1;
+  string user_id = 2;
+  common.Metadata metadata = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
+message MarkAsReadResponse { bool success = 1; }
+
+message MarkAsDeliveredRequest {
+  string message_id = 1;
+  string user_id = 2;
+  common.Metadata metadata = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
+message MarkAsDeliveredResponse { bool success = 1; }
+
+message AcknowledgeMessageRequest {
+  string message_id = 1;
+  string user_id = 2;
+  common.Metadata metadata = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
+message AcknowledgeMessageResponse { bool success = 1; }
+
+// --- Group Management ---
+message CreateChatGroupRequest {
+  string name = 1;
+  string description = 2;
+  repeated string member_ids = 3;
+  map<string, string> roles = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6; // campaign/tenant context
+}
+message CreateChatGroupResponse { ChatGroup chat_group = 1; }
+message AddChatGroupMemberRequest {
+  string chat_group_id = 1;
+  string user_id = 2;
+  string role = 3;
+  common.Metadata metadata = 4;
+  int64 campaign_id = 5; // campaign/tenant context
+}
+message AddChatGroupMemberResponse { ChatGroup chat_group = 1; }
+message RemoveChatGroupMemberRequest {
+  string chat_group_id = 1;
+  string user_id = 2;
+  common.Metadata metadata = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
+message RemoveChatGroupMemberResponse { ChatGroup chat_group = 1; }
+message ListChatGroupMembersRequest {
+  string chat_group_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  common.Metadata metadata = 4;
+  int64 campaign_id = 5; // campaign/tenant context
+}
+message ListChatGroupMembersResponse {
+  repeated string member_ids = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+
+// --- Preferences ---
+message MessagingPreferences {
+  bool mute = 1;
+  bool archive = 2;
+  map<string, bool> notification_types = 3;
+  repeated string quiet_hours = 4;
+  string timezone = 5;
+  common.Metadata metadata = 6;
+  int64 campaign_id = 7; // campaign/tenant context
+}
+message UpdateMessagingPreferencesRequest {
+  string user_id = 1;
+  MessagingPreferences preferences = 2;
+  int64 campaign_id = 3; // campaign/tenant context
+}
+message UpdateMessagingPreferencesResponse {
+  MessagingPreferences preferences = 1;
+  int64 updated_at = 2;
+}
+
+// --- Analytics/Events ---
+message ListMessageEventsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  common.Metadata filters = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6; // campaign/tenant context
+}
+message ListMessageEventsResponse {
+  repeated MessageEvent events = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+} 

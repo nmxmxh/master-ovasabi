@@ -1,0 +1,1884 @@
+{
+  "version": "2.0.0",
+  "last_updated": "2025-05-11T00:00:00Z",
+  "system_components": {
+    "integration_layer": {
+      "interfaces": [
+        "nexus_integration",
+        "pattern_registry",
+        "event_streams"
+      ],
+      "patterns": [
+        "identity_unification",
+        "value_exchange",
+        "data_intelligence"
+      ],
+      "services": [
+        "exchange_orchestration",
+        "wallet_gateway",
+        "incentive_management",
+        "reputation_bridge",
+        "value_router"
+      ]
+    },
+    "service_platform": {
+      "core_services": [
+        "asset",
+        "auth",
+        "babel",
+        "broadcast",
+        "campaign",
+        "i18n",
+        "nexus",
+        "notification",
+        "referral",
+        "security",
+        "user",
+        "commerce"
+      ],
+      "infrastructure": [
+        "nexus",
+        "patterns",
+        "database",
+        "redis",
+        "tracing",
+        "metrics"
+      ],
+      "interfaces": [
+        "api_gateway",
+        "grpc_services",
+        "event_bus"
+      ]
+    },
+    "token_ecosystem": {
+      "components": [
+        "exchange_orchestration",
+        "wallet_gateway",
+        "token_governance",
+        "treasury"
+      ],
+      "mechanisms": [
+        "currency_basket",
+        "UBI_distribution",
+        "staking",
+        "governance"
+      ],
+      "tokens": [
+        "OvaStable",
+        "OvaUtility"
+      ]
+    }
+  },
+  "repository_structure": {
+    "root_directories": {
+      "amadeus": {
+        "key_components": [
+          "system_knowledge_graph"
+        ],
+        "purpose": "System knowledge persistence",
+        "relationship_to_services": "meta-documentation of system relationships"
+      },
+      "api": {
+        "key_components": [
+          "protos"
+        ],
+        "purpose": "API definitions and contracts",
+        "relationship_to_services": "defines service interfaces",
+        "subdirectories": {
+          "protos": {
+            "purpose": "Protocol buffer definitions",
+            "service_mapping": {
+              "asset": "asset management services",
+              "auth": "authentication services",
+              "babel": "i18n and pricing services",
+              "broadcast": "messaging and notification",
+              "campaign": "marketing campaigns",
+              "finance": "financial operations",
+              "i18n": "internationalization",
+              "nexus": "orchestration and patterns",
+              "notification": "user notifications",
+              "quotes": "price quotes and estimation",
+              "referral": "referral program",
+              "security": "security and compliance",
+              "user": "user management"
+            }
+          }
+        }
+      },
+      "cmd": {
+        "key_components": [
+          "server"
+        ],
+        "purpose": "Application entry points",
+        "relationship_to_services": "service initialization and configuration"
+      },
+      "config": {
+        "affects": [
+          "service_behavior",
+          "environment_settings"
+        ],
+        "purpose": "Configuration files",
+        "relationship_to_services": "service configuration"
+      },
+      "database": {
+        "key_components": [
+          "migrations"
+        ],
+        "purpose": "Database related files",
+        "relationship_to_services": "data persistence layer"
+      },
+      "docs": {
+        "key_components": [
+          "api",
+          "architecture",
+          "deployment",
+          "development"
+        ],
+        "knowledge_base": "patterns, services, integrations",
+        "purpose": "Documentation",
+        "relationship_to_services": "documents service design and usage"
+      },
+      "internal": {
+        "key_components": [
+          "nexus",
+          "repository",
+          "server",
+          "service",
+          "shared"
+        ],
+        "nexus_location": "internal/nexus",
+        "purpose": "Private application code",
+        "relationship_to_services": "service implementations",
+        "services_location": "internal/service"
+      },
+      "pkg": {
+        "key_components": [
+          "di",
+          "errors",
+          "logger",
+          "metrics",
+          "models",
+          "redis",
+          "tracing"
+        ],
+        "purpose": "Public packages",
+        "relationship_to_services": "reusable components across services"
+      },
+      "tools": {
+        "key_components": [
+          "codegen",
+          "docgen",
+          "lint",
+          "protoc"
+        ],
+        "purpose": "Development tools",
+        "relationship_to_services": "service development support"
+      }
+    }
+  },
+  "services": {
+    "core_services": {
+      "admin": {
+        "action_map": {
+          "assign_role": {
+            "proto_method": "AssignRole",
+            "request_model": "AssignRoleRequest",
+            "response_model": "AssignRoleResponse",
+            "rest_required_fields": [
+              "user_id",
+              "role_id"
+            ]
+          },
+          "create_role": {
+            "proto_method": "CreateRole",
+            "request_model": "CreateRoleRequest",
+            "response_model": "CreateRoleResponse",
+            "rest_required_fields": [
+              "name",
+              "metadata"
+            ]
+          },
+          "create_user": {
+            "proto_method": "CreateUser",
+            "request_model": "CreateUserRequest",
+            "response_model": "CreateUserResponse",
+            "rest_required_fields": [
+              "email",
+              "name",
+              "metadata"
+            ]
+          },
+          "delete_role": {
+            "proto_method": "DeleteRole",
+            "request_model": "DeleteRoleRequest",
+            "response_model": "DeleteRoleResponse",
+            "rest_required_fields": [
+              "role_id"
+            ]
+          },
+          "delete_user": {
+            "proto_method": "DeleteUser",
+            "request_model": "DeleteUserRequest",
+            "response_model": "DeleteUserResponse",
+            "rest_required_fields": [
+              "user_id"
+            ]
+          },
+          "get_user": {
+            "proto_method": "GetUser",
+            "request_model": "GetUserRequest",
+            "response_model": "GetUserResponse",
+            "rest_required_fields": [
+              "user_id"
+            ]
+          },
+          "list_roles": {
+            "proto_method": "ListRoles",
+            "request_model": "ListRolesRequest",
+            "response_model": "ListRolesResponse",
+            "rest_required_fields": [
+              "page",
+              "page_size"
+            ]
+          },
+          "list_users": {
+            "proto_method": "ListUsers",
+            "request_model": "ListUsersRequest",
+            "response_model": "ListUsersResponse",
+            "rest_required_fields": [
+              "page",
+              "page_size"
+            ]
+          },
+          "revoke_role": {
+            "proto_method": "RevokeRole",
+            "request_model": "RevokeRoleRequest",
+            "response_model": "RevokeRoleResponse",
+            "rest_required_fields": [
+              "user_id",
+              "role_id"
+            ]
+          },
+          "update_role": {
+            "proto_method": "UpdateRole",
+            "request_model": "UpdateRoleRequest",
+            "response_model": "UpdateRoleResponse",
+            "rest_required_fields": [
+              "role_id",
+              "name",
+              "metadata"
+            ]
+          },
+          "update_user": {
+            "proto_method": "UpdateUser",
+            "request_model": "UpdateUserRequest",
+            "response_model": "UpdateUserResponse",
+            "rest_required_fields": [
+              "user_id",
+              "name",
+              "email",
+              "metadata"
+            ]
+          }
+        },
+        "capabilities": [
+          "admin_mgmt",
+          "role_mgmt",
+          "audit",
+          "impersonation",
+          "settings",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "user",
+          "security",
+          "nexus"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_user",
+              "update_user",
+              "delete_user",
+              "get_user",
+              "list_users",
+              "create_role",
+              "update_role",
+              "delete_role",
+              "list_roles",
+              "assign_role",
+              "revoke_role"
+            ],
+            "description": "Composable admin operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/admin_ops"
+          }
+        ],
+        "health_check": "/health/admin",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/admin",
+        "models": [
+          "User",
+          "Role",
+          "AuditLog",
+          "Settings",
+          "CreateUserRequest",
+          "CreateUserResponse",
+          "UpdateUserRequest",
+          "UpdateUserResponse",
+          "DeleteUserRequest",
+          "DeleteUserResponse",
+          "ListUsersRequest",
+          "ListUsersResponse",
+          "GetUserRequest",
+          "GetUserResponse",
+          "CreateRoleRequest",
+          "CreateRoleResponse",
+          "UpdateRoleRequest",
+          "UpdateRoleResponse",
+          "DeleteRoleRequest",
+          "DeleteRoleResponse",
+          "ListRolesRequest",
+          "ListRolesResponse",
+          "AssignRoleRequest",
+          "AssignRoleResponse",
+          "RevokeRoleRequest",
+          "RevokeRoleResponse",
+          "GetAuditLogsRequest",
+          "GetAuditLogsResponse",
+          "GetSettingsRequest",
+          "GetSettingsResponse",
+          "UpdateSettingsRequest",
+          "UpdateSettingsResponse",
+          "CheckPermissionRequest",
+          "CheckPermissionResponse"
+        ],
+        "name": "admin",
+        "schema": {
+          "methods": [
+            "CreateUser",
+            "UpdateUser",
+            "DeleteUser",
+            "ListUsers",
+            "GetUser",
+            "CreateRole",
+            "UpdateRole",
+            "DeleteRole",
+            "ListRoles",
+            "AssignRole",
+            "RevokeRole",
+            "GetAuditLogs",
+            "GetSettings",
+            "UpdateSettings",
+            "CheckPermission"
+          ],
+          "proto_path": "api/protos/admin/v1/admin.proto"
+        },
+        "version": "v1"
+      },
+      "analytics": {
+        "action_map": {
+          "batch_track_events": {
+            "proto_method": "BatchTrackEvents",
+            "request_model": "BatchTrackEventsRequest",
+            "response_model": "BatchTrackEventsResponse",
+            "rest_required_fields": [
+              "events"
+            ]
+          },
+          "capture_event": {
+            "proto_method": "CaptureEvent",
+            "request_model": "CaptureEventRequest",
+            "response_model": "CaptureEventResponse",
+            "rest_required_fields": [
+              "event_type",
+              "user_id",
+              "user_email",
+              "properties",
+              "groups",
+              "context",
+              "gdpr_obscure"
+            ]
+          },
+          "enrich_event_metadata": {
+            "proto_method": "EnrichEventMetadata",
+            "request_model": "EnrichEventMetadataRequest",
+            "response_model": "EnrichEventMetadataResponse",
+            "rest_required_fields": [
+              "event_id",
+              "new_fields"
+            ]
+          },
+          "get_product_events": {
+            "proto_method": "GetProductEvents",
+            "request_model": "GetProductEventsRequest",
+            "response_model": "GetProductEventsResponse",
+            "rest_required_fields": [
+              "product_id",
+              "page",
+              "page_size"
+            ]
+          },
+          "get_report": {
+            "proto_method": "GetReport",
+            "request_model": "GetReportRequest",
+            "response_model": "GetReportResponse",
+            "rest_required_fields": [
+              "report_id",
+              "parameters"
+            ]
+          },
+          "get_user_events": {
+            "proto_method": "GetUserEvents",
+            "request_model": "GetUserEventsRequest",
+            "response_model": "GetUserEventsResponse",
+            "rest_required_fields": [
+              "user_id",
+              "page",
+              "page_size"
+            ]
+          },
+          "list_events": {
+            "proto_method": "ListEvents",
+            "request_model": "ListEventsRequest",
+            "response_model": "ListEventsResponse",
+            "rest_required_fields": []
+          },
+          "list_reports": {
+            "proto_method": "ListReports",
+            "request_model": "ListReportsRequest",
+            "response_model": "ListReportsResponse",
+            "rest_required_fields": [
+              "page",
+              "page_size"
+            ]
+          },
+          "track_event": {
+            "proto_method": "TrackEvent",
+            "request_model": "TrackEventRequest",
+            "response_model": "TrackEventResponse",
+            "rest_required_fields": [
+              "event"
+            ]
+          }
+        },
+        "capabilities": [
+          "event",
+          "usage",
+          "reporting",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "user",
+          "content",
+          "product"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "capture_event",
+              "list_events",
+              "enrich_event_metadata",
+              "track_event",
+              "batch_track_events",
+              "get_user_events",
+              "get_product_events",
+              "get_report",
+              "list_reports"
+            ],
+            "description": "Composable analytics operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/analytics_ops"
+          }
+        ],
+        "health_check": "/health/analytics",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/analytics",
+        "models": [
+          "Event",
+          "TrackEventRequest",
+          "TrackEventResponse",
+          "BatchTrackEventsRequest",
+          "BatchTrackEventsResponse",
+          "GetUserEventsRequest",
+          "GetUserEventsResponse",
+          "GetProductEventsRequest",
+          "GetProductEventsResponse",
+          "GetReportRequest",
+          "GetReportResponse",
+          "ListReportsRequest",
+          "ListReportsResponse",
+          "Report",
+          "CaptureEventRequest",
+          "CaptureEventResponse",
+          "AnalyticsEvent",
+          "ListEventsRequest",
+          "ListEventsResponse",
+          "EnrichEventMetadataRequest",
+          "EnrichEventMetadataResponse"
+        ],
+        "name": "analytics",
+        "schema": {
+          "methods": [
+            "TrackEvent",
+            "BatchTrackEvents",
+            "GetUserEvents",
+            "GetProductEvents",
+            "GetReport",
+            "ListReports",
+            "CaptureEvent",
+            "ListEvents",
+            "EnrichEventMetadata"
+          ],
+          "proto_path": "api/protos/analytics/v1/analytics.proto"
+        },
+        "version": "v1"
+      },
+      "campaign": {
+        "action_map": {
+          "create_campaign": {
+            "proto_method": "CreateCampaign",
+            "request_model": "CreateCampaignRequest",
+            "response_model": "CreateCampaignResponse"
+          },
+          "list_campaigns": {
+            "proto_method": "ListCampaigns",
+            "request_model": "ListCampaignsRequest",
+            "response_model": "ListCampaignsResponse"
+          },
+          "update_campaign": {
+            "proto_method": "UpdateCampaign",
+            "request_model": "UpdateCampaignRequest",
+            "response_model": "UpdateCampaignResponse"
+          }
+        },
+        "capabilities": [
+          "campaign_mgmt",
+          "analytics",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "user",
+          "notification",
+          "localization"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_campaign",
+              "update_campaign",
+              "list_campaigns"
+            ],
+            "description": "Composable campaign operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/campaign_ops"
+          }
+        ],
+        "health_check": "/health/campaign",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/campaign",
+        "models": [
+          "Campaign",
+          "CreateCampaignRequest",
+          "UpdateCampaignRequest",
+          "DeleteCampaignRequest",
+          "ListCampaignsRequest"
+        ],
+        "name": "campaign",
+        "schema": {
+          "methods": [
+            "CreateCampaign",
+            "GetCampaign",
+            "UpdateCampaign",
+            "DeleteCampaign",
+            "ListCampaigns"
+          ],
+          "proto_path": "api/protos/campaign/v1/campaign.proto"
+        },
+        "version": "v1"
+      },
+      "commerce": {
+        "action_map": {
+          "create_order": {
+            "proto_method": "CreateOrder",
+            "request_model": "CreateOrderRequest",
+            "response_model": "CreateOrderResponse",
+            "rest_required_fields": [
+              "user_id",
+              "items",
+              "currency",
+              "metadata"
+            ]
+          },
+          "create_quote": {
+            "proto_method": "CreateQuote",
+            "request_model": "CreateQuoteRequest",
+            "response_model": "CreateQuoteResponse",
+            "rest_required_fields": [
+              "user_id",
+              "product_id",
+              "amount",
+              "currency",
+              "metadata"
+            ]
+          },
+          "get_order": {
+            "proto_method": "GetOrder",
+            "request_model": "GetOrderRequest",
+            "response_model": "GetOrderResponse",
+            "rest_required_fields": [
+              "order_id"
+            ]
+          },
+          "get_quote": {
+            "proto_method": "GetQuote",
+            "request_model": "GetQuoteRequest",
+            "response_model": "GetQuoteResponse",
+            "rest_required_fields": [
+              "quote_id"
+            ]
+          },
+          "initiate_payment": {
+            "proto_method": "InitiatePayment",
+            "request_model": "InitiatePaymentRequest",
+            "response_model": "InitiatePaymentResponse",
+            "rest_required_fields": [
+              "order_id",
+              "user_id",
+              "amount",
+              "currency",
+              "method",
+              "metadata"
+            ]
+          }
+        },
+        "capabilities": [
+          "orders",
+          "payments",
+          "billing",
+          "pricing",
+          "rewards",
+          "quotes",
+          "transactions",
+          "marketplace",
+          "exchange",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "user",
+          "notification",
+          "localization"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_quote",
+              "get_quote",
+              "create_order",
+              "get_order",
+              "initiate_payment"
+            ],
+            "description": "Composable commerce operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/commerce_ops"
+          }
+        ],
+        "health_check": "/health/commerce",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/commerce",
+        "models": [
+          "Quote",
+          "CreateQuoteRequest",
+          "CreateQuoteResponse",
+          "GetQuoteRequest",
+          "GetQuoteResponse",
+          "Order",
+          "OrderItem",
+          "CreateOrderRequest",
+          "CreateOrderResponse",
+          "GetOrderRequest",
+          "GetOrderResponse",
+          "InitiatePaymentRequest",
+          "InitiatePaymentResponse",
+          "Payment"
+        ],
+        "name": "commerce",
+        "schema": {
+          "methods": [
+            "CreateQuote",
+            "GetQuote",
+            "ListQuotes",
+            "CreateOrder",
+            "GetOrder",
+            "ListOrders",
+            "UpdateOrderStatus",
+            "InitiatePayment",
+            "ConfirmPayment",
+            "RefundPayment",
+            "GetTransaction",
+            "ListTransactions",
+            "GetBalance",
+            "ListBalances",
+            "ListEvents",
+            "CreateInvestmentAccount",
+            "GetInvestmentAccount",
+            "PlaceInvestmentOrder",
+            "GetPortfolio",
+            "ListAssets",
+            "ListPortfolios",
+            "CreateBankAccount",
+            "InitiateBankTransfer",
+            "GetBankStatement",
+            "CreateListing",
+            "PlaceMarketplaceOrder",
+            "MakeOffer",
+            "ListListings",
+            "PlaceExchangeOrder",
+            "GetExchangeRate",
+            "ListExchangePairs",
+            "CreateExchangePair",
+            "CreateExchangeRate"
+          ],
+          "proto_path": "api/protos/commerce/v1/commerce.proto"
+        },
+        "version": "v1"
+      },
+      "content": {
+        "action_map": {
+          "add_reaction": {
+            "proto_method": "AddReaction",
+            "request_model": "AddReactionRequest",
+            "response_model": "ReactionResponse"
+          },
+          "create_content": {
+            "proto_method": "CreateContent",
+            "request_model": "CreateContentRequest",
+            "response_model": "ContentResponse"
+          },
+          "delete_content": {
+            "proto_method": "DeleteContent",
+            "request_model": "DeleteContentRequest",
+            "response_model": "DeleteContentResponse"
+          },
+          "get_content": {
+            "proto_method": "GetContent",
+            "request_model": "GetContentRequest",
+            "response_model": "ContentResponse"
+          },
+          "list_content": {
+            "proto_method": "ListContent",
+            "request_model": "ListContentRequest",
+            "response_model": "ListContentResponse"
+          },
+          "update_content": {
+            "proto_method": "UpdateContent",
+            "request_model": "UpdateContentRequest",
+            "response_model": "ContentResponse"
+          }
+        },
+        "capabilities": [
+          "articles",
+          "micro_posts",
+          "video",
+          "comments",
+          "reactions",
+          "fts",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "user",
+          "notification",
+          "search",
+          "contentmoderation"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_content",
+              "update_content",
+              "delete_content",
+              "get_content",
+              "list_content",
+              "add_reaction"
+            ],
+            "description": "Composable content operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/content_ops"
+          }
+        ],
+        "health_check": "/health/content",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/content",
+        "models": [
+          "Content",
+          "Comment",
+          "ContentEvent",
+          "CreateContentRequest",
+          "UpdateContentRequest",
+          "DeleteContentRequest",
+          "ListContentRequest",
+          "SearchContentRequest",
+          "AddCommentRequest",
+          "AddReactionRequest"
+        ],
+        "name": "content",
+        "schema": {
+          "methods": [
+            "CreateContent",
+            "GetContent",
+            "UpdateContent",
+            "DeleteContent",
+            "ListContent",
+            "SearchContent",
+            "AddComment",
+            "ListComments",
+            "DeleteComment",
+            "AddReaction",
+            "ListReactions",
+            "LogContentEvent",
+            "ModerateContent"
+          ],
+          "proto_path": "api/protos/content/v1/content.proto"
+        },
+        "version": "v1"
+      },
+      "contentmoderation": {
+        "action_map": {
+          "approve_content": {
+            "proto_method": "ApproveContent",
+            "request_model": "ApproveContentRequest",
+            "response_model": "ApproveContentResponse",
+            "rest_required_fields": [
+              "content_id",
+              "metadata"
+            ]
+          },
+          "get_moderation_result": {
+            "proto_method": "GetModerationResult",
+            "request_model": "GetModerationResultRequest",
+            "response_model": "GetModerationResultResponse",
+            "rest_required_fields": [
+              "content_id"
+            ]
+          },
+          "list_flagged_content": {
+            "proto_method": "ListFlaggedContent",
+            "request_model": "ListFlaggedContentRequest",
+            "response_model": "ListFlaggedContentResponse",
+            "rest_required_fields": [
+              "page",
+              "page_size",
+              "status"
+            ]
+          },
+          "reject_content": {
+            "proto_method": "RejectContent",
+            "request_model": "RejectContentRequest",
+            "response_model": "RejectContentResponse",
+            "rest_required_fields": [
+              "content_id",
+              "reason",
+              "metadata"
+            ]
+          },
+          "submit_content_for_moderation": {
+            "proto_method": "SubmitContentForModeration",
+            "request_model": "SubmitContentForModerationRequest",
+            "response_model": "SubmitContentForModerationResponse",
+            "rest_required_fields": [
+              "content_id",
+              "user_id",
+              "content_type",
+              "content",
+              "metadata"
+            ]
+          }
+        },
+        "capabilities": [
+          "moderation",
+          "compliance",
+          "flagging",
+          "review",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "content",
+          "user"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "submit_content_for_moderation",
+              "get_moderation_result",
+              "list_flagged_content",
+              "approve_content",
+              "reject_content"
+            ],
+            "description": "Composable content moderation operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/contentmoderation_ops"
+          }
+        ],
+        "health_check": "/health/contentmoderation",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/contentmoderation",
+        "models": [
+          "ModerationResult",
+          "SubmitContentForModerationRequest",
+          "SubmitContentForModerationResponse",
+          "GetModerationResultRequest",
+          "GetModerationResultResponse",
+          "ListFlaggedContentRequest",
+          "ListFlaggedContentResponse",
+          "ApproveContentRequest",
+          "ApproveContentResponse",
+          "RejectContentRequest",
+          "RejectContentResponse"
+        ],
+        "name": "contentmoderation",
+        "schema": {
+          "methods": [
+            "SubmitContentForModeration",
+            "GetModerationResult",
+            "ListFlaggedContent",
+            "ApproveContent",
+            "RejectContent"
+          ],
+          "proto_path": "api/protos/contentmoderation/v1/contentmoderation.proto"
+        },
+        "version": "v1"
+      },
+      "localization": {
+        "capabilities": [
+          "i18n",
+          "translation",
+          "locale_based_pricing"
+        ],
+        "dependencies": [],
+        "endpoints": [],
+        "health_check": "/health/localization",
+        "metrics": "/metrics/localization",
+        "models": [],
+        "name": "localization",
+        "schema": {},
+        "version": "v1"
+      },
+      "messaging": {
+        "action_map": {
+          "list_messages": {
+            "proto_method": "ListMessages",
+            "request_model": "ListMessagesRequest",
+            "response_model": "ListMessagesResponse",
+            "rest_required_fields": [
+              "thread_id",
+              "conversation_id",
+              "chat_group_id",
+              "page",
+              "page_size",
+              "metadata"
+            ]
+          },
+          "send_message": {
+            "proto_method": "SendMessage",
+            "request_model": "SendMessageRequest",
+            "response_model": "SendMessageResponse",
+            "rest_required_fields": [
+              "thread_id",
+              "conversation_id",
+              "chat_group_id",
+              "sender_id",
+              "recipient_ids",
+              "content",
+              "type",
+              "metadata"
+            ]
+          },
+          "update_preferences": {
+            "proto_method": "UpdateMessagingPreferences",
+            "request_model": "UpdateMessagingPreferencesRequest",
+            "response_model": "UpdateMessagingPreferencesResponse",
+            "rest_required_fields": [
+              "user_id",
+              "preferences"
+            ]
+          }
+        },
+        "capabilities": [
+          "direct_messaging",
+          "group_messaging",
+          "threads",
+          "conversations",
+          "chat_groups",
+          "reactions",
+          "preferences",
+          "analytics_events",
+          "real_time_streaming",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "user"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "send_message",
+              "list_messages",
+              "update_preferences"
+            ],
+            "description": "Composable messaging operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/messaging_ops"
+          }
+        ],
+        "health_check": "/health/messaging",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/messaging",
+        "models": [
+          "Message",
+          "Thread",
+          "Conversation",
+          "ChatGroup",
+          "Reaction",
+          "Attachment",
+          "SendMessageRequest",
+          "SendMessageResponse",
+          "SendGroupMessageRequest",
+          "SendGroupMessageResponse",
+          "EditMessageRequest",
+          "EditMessageResponse",
+          "DeleteMessageRequest",
+          "DeleteMessageResponse",
+          "ReactToMessageRequest",
+          "ReactToMessageResponse",
+          "GetMessageRequest",
+          "GetMessageResponse",
+          "ListMessagesRequest",
+          "ListMessagesResponse",
+          "ListThreadsRequest",
+          "ListThreadsResponse",
+          "ListConversationsRequest",
+          "ListConversationsResponse",
+          "StreamMessagesRequest",
+          "MessageEvent",
+          "StreamTypingRequest",
+          "TypingEvent",
+          "StreamPresenceRequest",
+          "PresenceEvent",
+          "MarkAsReadRequest",
+          "MarkAsReadResponse",
+          "MarkAsDeliveredRequest",
+          "MarkAsDeliveredResponse",
+          "AcknowledgeMessageRequest",
+          "AcknowledgeMessageResponse",
+          "CreateChatGroupRequest",
+          "CreateChatGroupResponse",
+          "AddChatGroupMemberRequest",
+          "AddChatGroupMemberResponse",
+          "RemoveChatGroupMemberRequest",
+          "RemoveChatGroupMemberResponse",
+          "ListChatGroupMembersRequest",
+          "ListChatGroupMembersResponse",
+          "MessagingPreferences",
+          "UpdateMessagingPreferencesRequest",
+          "UpdateMessagingPreferencesResponse",
+          "ListMessageEventsRequest",
+          "ListMessageEventsResponse"
+        ],
+        "name": "messaging",
+        "schema": {
+          "methods": [
+            "SendMessage",
+            "SendGroupMessage",
+            "EditMessage",
+            "DeleteMessage",
+            "ReactToMessage",
+            "GetMessage",
+            "ListMessages",
+            "ListThreads",
+            "ListConversations",
+            "StreamMessages",
+            "StreamTyping",
+            "StreamPresence",
+            "MarkAsRead",
+            "MarkAsDelivered",
+            "AcknowledgeMessage",
+            "CreateChatGroup",
+            "AddChatGroupMember",
+            "RemoveChatGroupMember",
+            "ListChatGroupMembers",
+            "UpdateMessagingPreferences",
+            "ListMessageEvents"
+          ],
+          "proto_path": "api/protos/messaging/v1/messaging.proto"
+        },
+        "version": "v1"
+      },
+      "nexus": {
+        "action_map": {
+          "handle_ops": {
+            "proto_method": "HandleOps",
+            "request_model": "HandleOpsRequest",
+            "response_model": "HandleOpsResponse",
+            "rest_required_fields": [
+              "op",
+              "params",
+              "metadata"
+            ]
+          }
+        },
+        "capabilities": [
+          "orchestration",
+          "pattern_registration",
+          "pattern_mining",
+          "introspection",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "all_services"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "handle_ops"
+            ],
+            "description": "Composable nexus operations endpoint. Main action is handle_ops, which maps to the HandleOps gRPC method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/nexus_ops"
+          }
+        ],
+        "health_check": "/health/nexus",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/nexus",
+        "models": [
+          "RegisterPatternRequest",
+          "RegisterPatternResponse",
+          "ListPatternsRequest",
+          "ListPatternsResponse",
+          "Pattern",
+          "OrchestrateRequest",
+          "OrchestrateResponse",
+          "TracePatternRequest",
+          "TracePatternResponse",
+          "TraceStep",
+          "MinePatternsRequest",
+          "MinePatternsResponse",
+          "FeedbackRequest",
+          "FeedbackResponse",
+          "HandleOpsRequest",
+          "HandleOpsResponse"
+        ],
+        "name": "nexus",
+        "schema": {
+          "methods": [
+            "RegisterPattern",
+            "ListPatterns",
+            "Orchestrate",
+            "TracePattern",
+            "MinePatterns",
+            "Feedback",
+            "HandleOps"
+          ],
+          "proto_path": "api/protos/nexus/v1/nexus.proto"
+        },
+        "version": "v1"
+      },
+      "notification": {
+        "action_map": {
+          "list_notifications": {
+            "proto_method": "ListNotifications",
+            "request_model": "ListNotificationsRequest",
+            "response_model": "ListNotificationsResponse",
+            "rest_required_fields": [
+              "user_id",
+              "page"
+            ]
+          },
+          "send_email": {
+            "proto_method": "SendEmail",
+            "request_model": "SendEmailRequest",
+            "response_model": "SendEmailResponse",
+            "rest_required_fields": [
+              "to",
+              "subject",
+              "body",
+              "metadata"
+            ]
+          },
+          "send_notification": {
+            "proto_method": "SendNotification",
+            "request_model": "SendNotificationRequest",
+            "response_model": "SendNotificationResponse",
+            "rest_required_fields": [
+              "user_id",
+              "title",
+              "body",
+              "channel",
+              "metadata"
+            ]
+          },
+          "send_push": {
+            "proto_method": "SendPushNotification",
+            "request_model": "SendPushNotificationRequest",
+            "response_model": "SendPushNotificationResponse",
+            "rest_required_fields": [
+              "user_id",
+              "title",
+              "message",
+              "metadata"
+            ]
+          },
+          "send_sms": {
+            "proto_method": "SendSMS",
+            "request_model": "SendSMSRequest",
+            "response_model": "SendSMSResponse",
+            "rest_required_fields": [
+              "to",
+              "message",
+              "metadata"
+            ]
+          }
+        },
+        "capabilities": [
+          "multi_channel",
+          "templates",
+          "real_time",
+          "streaming",
+          "broadcast",
+          "pubsub",
+          "asset_streaming",
+          "preferences",
+          "analytics",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "user"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "send_notification",
+              "send_email",
+              "send_sms",
+              "send_push",
+              "list_notifications"
+            ],
+            "description": "Composable notification operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/notification_ops"
+          }
+        ],
+        "health_check": "/health/notification",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/notification",
+        "models": [
+          "Notification",
+          "SendNotificationRequest",
+          "SendNotificationResponse",
+          "SendEmailRequest",
+          "SendEmailResponse",
+          "SendSMSRequest",
+          "SendSMSResponse",
+          "SendPushNotificationRequest",
+          "SendPushNotificationResponse",
+          "BroadcastEventRequest",
+          "BroadcastEventResponse",
+          "NotificationEvent",
+          "AssetChunk",
+          "GetNotificationRequest",
+          "GetNotificationResponse",
+          "ListNotificationsRequest",
+          "ListNotificationsResponse",
+          "AcknowledgeNotificationRequest",
+          "AcknowledgeNotificationResponse",
+          "NotificationPreferences",
+          "UpdateNotificationPreferencesRequest",
+          "UpdateNotificationPreferencesResponse",
+          "ListNotificationEventsRequest",
+          "ListNotificationEventsResponse"
+        ],
+        "name": "notification",
+        "schema": {
+          "methods": [
+            "SendNotification",
+            "SendEmail",
+            "SendSMS",
+            "SendPushNotification",
+            "BroadcastEvent",
+            "SubscribeToEvents",
+            "StreamAssetChunks",
+            "PublishAssetChunk",
+            "GetNotification",
+            "ListNotifications",
+            "AcknowledgeNotification",
+            "UpdateNotificationPreferences",
+            "ListNotificationEvents"
+          ],
+          "proto_path": "api/protos/notification/v1/notification.proto"
+        },
+        "version": "v1"
+      },
+      "product": {
+        "action_map": {
+          "create_product": {
+            "proto_method": "CreateProduct",
+            "request_model": "CreateProductRequest",
+            "response_model": "CreateProductResponse",
+            "rest_required_fields": [
+              "name",
+              "description",
+              "type",
+              "status",
+              "tags",
+              "owner_id",
+              "metadata"
+            ]
+          },
+          "delete_product": {
+            "proto_method": "DeleteProduct",
+            "request_model": "DeleteProductRequest",
+            "response_model": "DeleteProductResponse",
+            "rest_required_fields": [
+              "product_id"
+            ]
+          },
+          "get_product": {
+            "proto_method": "GetProduct",
+            "request_model": "GetProductRequest",
+            "response_model": "GetProductResponse",
+            "rest_required_fields": [
+              "product_id"
+            ]
+          },
+          "list_products": {
+            "proto_method": "ListProducts",
+            "request_model": "ListProductsRequest",
+            "response_model": "ListProductsResponse",
+            "rest_required_fields": [
+              "page",
+              "page_size",
+              "owner_id",
+              "tags",
+              "metadata_filters"
+            ]
+          },
+          "update_product": {
+            "proto_method": "UpdateProduct",
+            "request_model": "UpdateProductRequest",
+            "response_model": "UpdateProductResponse",
+            "rest_required_fields": [
+              "product_id",
+              "name",
+              "description",
+              "type",
+              "status",
+              "tags",
+              "owner_id",
+              "metadata"
+            ]
+          }
+        },
+        "capabilities": [
+          "catalog",
+          "listings",
+          "inventory",
+          "reviews",
+          "variants",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "commerce",
+          "user"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_product",
+              "get_product",
+              "update_product",
+              "delete_product",
+              "list_products"
+            ],
+            "description": "Composable product operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/product_ops"
+          }
+        ],
+        "health_check": "/health/product",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/product",
+        "models": [
+          "Product",
+          "ProductVariant",
+          "CreateProductRequest",
+          "CreateProductResponse",
+          "UpdateProductRequest",
+          "UpdateProductResponse",
+          "DeleteProductRequest",
+          "DeleteProductResponse",
+          "GetProductRequest",
+          "GetProductResponse",
+          "ListProductsRequest",
+          "ListProductsResponse"
+        ],
+        "name": "product",
+        "schema": {
+          "methods": [
+            "CreateProduct",
+            "UpdateProduct",
+            "DeleteProduct",
+            "GetProduct",
+            "ListProducts",
+            "SearchProducts",
+            "UpdateInventory",
+            "ListProductVariants"
+          ],
+          "proto_path": "api/protos/product/v1/product.proto"
+        },
+        "version": "v1"
+      },
+      "referral": {
+        "action_map": {
+          "create_referral": {
+            "proto_method": "CreateReferral",
+            "request_model": "CreateReferralRequest",
+            "response_model": "CreateReferralResponse",
+            "rest_required_fields": [
+              "referrer_master_id",
+              "campaign_id",
+              "device_hash",
+              "metadata"
+            ]
+          },
+          "get_referral": {
+            "proto_method": "GetReferral",
+            "request_model": "GetReferralRequest",
+            "response_model": "GetReferralResponse",
+            "rest_required_fields": [
+              "referral_code"
+            ]
+          },
+          "get_referral_stats": {
+            "proto_method": "GetReferralStats",
+            "request_model": "GetReferralStatsRequest",
+            "response_model": "GetReferralStatsResponse",
+            "rest_required_fields": [
+              "master_id"
+            ]
+          }
+        },
+        "capabilities": [
+          "referral",
+          "rewards",
+          "fraud",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "user",
+          "notification",
+          "commerce"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_referral",
+              "get_referral",
+              "get_referral_stats"
+            ],
+            "description": "Composable referral operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/referral_ops"
+          }
+        ],
+        "health_check": "/health/referral",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/referral",
+        "models": [
+          "Referral",
+          "CreateReferralRequest",
+          "CreateReferralResponse",
+          "GetReferralRequest",
+          "GetReferralResponse",
+          "GetReferralStatsRequest",
+          "GetReferralStatsResponse",
+          "ReferralDetail"
+        ],
+        "name": "referral",
+        "schema": {
+          "methods": [
+            "CreateReferral",
+            "GetReferral",
+            "GetReferralStats"
+          ],
+          "proto_path": "api/protos/referral/v1/referral.proto"
+        },
+        "version": "v1"
+      },
+      "search": {
+        "action_map": {
+          "search": {
+            "proto_method": "Search",
+            "request_model": "SearchRequest",
+            "response_model": "SearchResponse",
+            "rest_required_fields": [
+              "query",
+              "types",
+              "page_number",
+              "page_size",
+              "metadata"
+            ]
+          },
+          "suggest": {
+            "proto_method": "Suggest",
+            "request_model": "SuggestRequest",
+            "response_model": "SuggestResponse",
+            "rest_required_fields": [
+              "prefix",
+              "types",
+              "limit",
+              "metadata"
+            ]
+          }
+        },
+        "capabilities": [
+          "full_text_search",
+          "fuzzy_search",
+          "entity_search",
+          "suggest",
+          "autocomplete",
+          "faceted_filtering",
+          "metadata_enrichment"
+        ],
+        "dependencies": [
+          "content",
+          "user",
+          "campaign",
+          "nexus"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "search",
+              "suggest"
+            ],
+            "description": "Composable search operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/search_ops"
+          }
+        ],
+        "health_check": "/health/search",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/search",
+        "models": [
+          "SearchRequest",
+          "SearchResponse",
+          "SearchResult",
+          "SuggestRequest",
+          "SuggestResponse"
+        ],
+        "name": "search",
+        "schema": {
+          "methods": [
+            "Search",
+            "Suggest"
+          ],
+          "proto_path": "api/protos/search/v1/search.proto"
+        },
+        "version": "v1"
+      },
+      "security": {
+        "capabilities": [
+          "policies",
+          "audit",
+          "compliance"
+        ],
+        "dependencies": [
+          "all_services"
+        ],
+        "endpoints": [],
+        "health_check": "/health/security",
+        "metrics": "/metrics/security",
+        "models": [],
+        "name": "security",
+        "schema": {},
+        "version": "v1"
+      },
+      "talent": {
+        "capabilities": [
+          "profiles",
+          "bookings"
+        ],
+        "dependencies": [
+          "user"
+        ],
+        "endpoints": [],
+        "health_check": "/health/talent",
+        "metrics": "/metrics/talent",
+        "models": [],
+        "name": "talent",
+        "schema": {},
+        "version": "v1"
+      },
+      "user": {
+        "action_map": {
+          "create_user": {
+            "proto_method": "CreateUser",
+            "request_model": "CreateUserRequest",
+            "response_model": "CreateUserResponse"
+          },
+          "delete_user": {
+            "proto_method": "DeleteUser",
+            "request_model": "DeleteUserRequest",
+            "response_model": "DeleteUserResponse"
+          },
+          "get_user": {
+            "proto_method": "GetUser",
+            "request_model": "GetUserRequest",
+            "response_model": "GetUserResponse"
+          },
+          "list_users": {
+            "proto_method": "ListUsers",
+            "request_model": "ListUsersRequest",
+            "response_model": "ListUsersResponse"
+          },
+          "update_user": {
+            "proto_method": "UpdateUser",
+            "request_model": "UpdateUserRequest",
+            "response_model": "UpdateUserResponse"
+          }
+        },
+        "capabilities": [
+          "user_mgmt",
+          "profile",
+          "rbac",
+          "authentication",
+          "authorization",
+          "audit",
+          "social_graph",
+          "group_management",
+          "moderation"
+        ],
+        "dependencies": [
+          "security",
+          "localization"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_user",
+              "get_user",
+              "update_user",
+              "delete_user",
+              "list_users"
+            ],
+            "description": "Composable user operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/user_ops"
+          }
+        ],
+        "health_check": "/health/user",
+        "metadata_enrichment": true,
+        "metrics": "/metrics/user",
+        "models": [
+          "User",
+          "UserProfile",
+          "CreateUserRequest",
+          "UpdateUserRequest",
+          "DeleteUserRequest",
+          "ListUsersRequest",
+          "Session",
+          "AssignRoleRequest",
+          "RemoveRoleRequest",
+          "ListRolesRequest",
+          "ListPermissionsRequest"
+        ],
+        "name": "user",
+        "schema": {
+          "methods": [
+            "CreateUser",
+            "GetUser",
+            "GetUserByUsername",
+            "GetUserByEmail",
+            "UpdateUser",
+            "DeleteUser",
+            "ListUsers",
+            "UpdatePassword",
+            "UpdateProfile",
+            "RegisterInterest",
+            "CreateReferral",
+            "CreateSession",
+            "GetSession",
+            "RevokeSession",
+            "ListSessions",
+            "AssignRole",
+            "RemoveRole",
+            "ListRoles",
+            "ListPermissions",
+            "ListUserEvents",
+            "ListAuditLogs",
+            "InitiateSSO",
+            "InitiateMFA",
+            "SyncSCIM",
+            "AddFriend",
+            "RemoveFriend",
+            "ListFriends",
+            "FollowUser",
+            "UnfollowUser",
+            "ListFollowers",
+            "ListFollowing",
+            "CreateUserGroup",
+            "UpdateUserGroup",
+            "DeleteUserGroup",
+            "ListUserGroups",
+            "ListUserGroupMembers",
+            "SuggestConnections",
+            "ListConnections",
+            "BlockUser",
+            "UnblockUser",
+            "MuteUser",
+            "UnmuteUser",
+            "ReportUser",
+            "BlockGroupContent",
+            "ReportGroupContent",
+            "MuteGroupContent",
+            "MuteGroupIndividuals",
+            "BlockGroupIndividuals",
+            "UnmuteGroup",
+            "UnmuteGroupIndividuals",
+            "UnblockGroupIndividuals"
+          ],
+          "proto_path": "api/protos/user/v1/user.proto"
+        },
+        "version": "v1"
+      }
+    },
+    "token_services": {
+      "token_service": {
+        "integration_points": [
+          "finance_service",
+          "exchange_orchestration_service"
+        ],
+        "location": "internal/service/token",
+        "patterns_used": [
+          "token_lifecycle_pattern"
+        ],
+        "purpose": "Manages token issuance, transfers, and balances",
+        "repositories": [
+          "token_repository",
+          "balance_repository"
+        ],
+        "service_integration": "service rewards, premium features"
+      }
+    }
+  },
+  "nexus": {
+    "core_components": {
+      "pattern_registry": {
+        "interfaces": [
+          "RegisterPattern",
+          "FindPattern",
+          "ExecutePattern"
+        ],
+        "location": "internal/nexus/service/pattern",
+        "purpose": "Stores and manages all system patterns, including service orchestration patterns",
+        "relationship_to_services": "provides patterns for service composition and orchestration",
+        "storage": "database with redis cache"
+      }
+    }
+  },
+  "patterns": {
+    "core_patterns": {
+      "service_pattern": {
+        "composition_potential": "High - enables orchestration, introspection, and automation for all services",
+        "integration_points": [
+          "nexus",
+          "amadeus"
+        ],
+        "location": "internal/nexus/service/pattern_store.go",
+        "purpose": "Registers each service as a pattern for orchestration and automation",
+        "services_used": [
+          "asset",
+          "auth",
+          "babel",
+          "broadcast",
+          "campaign",
+          "i18n",
+          "nexus",
+          "notification",
+          "referral",
+          "security",
+          "user",
+          "commerce"
+        ]
+      },
+      "user_creation_pattern": {
+        "composition_potential": "High - enables consistent user onboarding, event tracking, and relationship mapping across the platform.",
+        "integration_points": [
+          "auth",
+          "security",
+          "notification",
+          "commerce",
+          "nexus"
+        ],
+        "location": "internal/service/user",
+        "purpose": "Standardized pattern for user creation, registration, and relationship tracking in the knowledge graph.",
+        "services_used": [
+          "user"
+        ]
+      }
+    }
+  },
+  "database_practices": {
+    "architecture": {
+      "primary_database": {
+        "location": "database/",
+        "migration_strategy": "Up/down versioned migrations",
+        "purpose": "Primary persistent storage",
+        "relationship_to_services": "All services use for persistent storage",
+        "technology": "PostgreSQL"
+      }
+    }
+  },
+  "redis_practices": {
+    "architecture": {
+      "deployment_model": {
+        "configuration_location": "redis.conf",
+        "primary": "Redis Cluster for high availability",
+        "purpose": "Caching, session management, real-time features",
+        "relationship_to_services": "Used by all services for performance optimization"
+      }
+    }
+  },
+  "amadeus_integration": {
+    "integration_points": {
+      "nexus_integration": {
+        "implementation": "Nexus pattern that updates knowledge graph on system changes",
+        "pattern": "service_pattern",
+        "purpose": "Maintain system knowledge graph alongside patterns"
+      },
+      "service_integration": {
+        "implementation": "Service event hooks that update knowledge graph",
+        "integration_services": [
+          "asset",
+          "auth",
+          "babel",
+          "broadcast",
+          "campaign",
+          "i18n",
+          "nexus",
+          "notification",
+          "referral",
+          "security",
+          "user",
+          "commerce"
+        ],
+        "purpose": "Capture service interaction knowledge"
+      }
+    },
+    "knowledge_management": {
+      "real_time_updates": "Event-driven updates from system activities",
+      "versioning": "Git-based version history of knowledge graph",
+      "visualization": "Dynamic generation of system visualization from graph data"
+    },
+    "purpose": "Knowledge persistence and system evolution tracking"
+  }
+}

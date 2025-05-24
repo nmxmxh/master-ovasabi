@@ -38,13 +38,10 @@ synchronized between your local development environment and your cloud deploymen
 #### Sample AWS S3 Sync Script
 
 ```bash
-# Download before starting app
 aws s3 cp s3://my-bucket/knowledge_graph.json amadeus/knowledge_graph.json
 aws s3 sync s3://my-bucket/backups/ amadeus/backups/
 
-# ... run your app ...
 
-# Upload after update or shutdown
 aws s3 cp amadeus/knowledge_graph.json s3://my-bucket/knowledge_graph.json
 aws s3 sync amadeus/backups/ s3://my-bucket/backups/
 ```

@@ -6,6 +6,25 @@ import "common/v1/metadata.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1;adminpb";
 
+
+message AdminPreferences {
+  string theme = 1;
+  bool notifications_enabled = 2;
+}
+
+message ImpersonationInfo {
+  bool active = 1;
+  string target_user_id = 2;
+  int64 started_at = 3;
+}
+
+message AdminNote {
+  string note = 1;
+  string created_by = 2;
+  int64 created_at = 3;
+}
+
+// --- Service ---
 service AdminService {
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
@@ -24,11 +43,15 @@ service AdminService {
   rpc GetAuditLogs(GetAuditLogsRequest) returns (GetAuditLogsResponse);
   rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
   rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse);
+
+  // Permission check for granular access control
+  rpc CheckPermission(CheckPermissionRequest) returns (CheckPermissionResponse);
 }
 
 message User {
   string id = 1;
-  string master_id = 2; // Master ID for analytics/unified queries
+  int64 master_id = 2; // Internal integer ID reference to master table
+  string master_uuid = 15; // Global UUID reference to master table
   string email = 3;
   string name = 4;
   repeated string roles = 5;
@@ -99,4 +122,16 @@ message GetAuditLogsResponse { repeated AuditLog logs = 1; int32 total_count = 2
 message GetSettingsRequest {}
 message GetSettingsResponse { Settings settings = 1; }
 message UpdateSettingsRequest { Settings settings = 1; }
-message UpdateSettingsResponse { Settings settings = 1; } 
+message UpdateSettingsResponse { Settings settings = 1; }
+
+// Add CheckPermission messages
+message CheckPermissionRequest {
+  string user_id = 1;
+  string action = 2;
+  string resource = 3;
+  map<string, string> context = 4;
+}
+message CheckPermissionResponse {
+  bool allowed = 1;
+  string reason = 2;
+} 

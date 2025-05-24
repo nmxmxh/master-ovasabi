@@ -271,3 +271,8 @@ func (r *CachedMasterRepository) GetByUUID(ctx context.Context, id uuid.UUID) (*
 
 // For redis.ContextMaster, if not defined in pkg/redis, define here:.
 const ContextMaster = "master"
+
+// Add CreateMasterRecord to implement MasterRepository interface.
+func (r *CachedMasterRepository) CreateMasterRecord(ctx context.Context, entityType, name string) (int64, error) {
+	return r.Create(ctx, EntityType(entityType), name)
+}

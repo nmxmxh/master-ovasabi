@@ -25,20 +25,22 @@ const (
 type Content struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId       string                 `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // UUID reference to master table
-	AuthorId       string                 `protobuf:"bytes,3,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
-	Type           string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"` // "article", "micro", "video", "story", etc.
-	Title          string                 `protobuf:"bytes,5,opt,name=title,proto3" json:"title,omitempty"`
-	Body           string                 `protobuf:"bytes,6,opt,name=body,proto3" json:"body,omitempty"`
-	MediaUrls      []string               `protobuf:"bytes,7,rep,name=media_urls,json=mediaUrls,proto3" json:"media_urls,omitempty"`
-	Metadata       *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Tags           []string               `protobuf:"bytes,9,rep,name=tags,proto3" json:"tags,omitempty"`
-	ParentId       string                 `protobuf:"bytes,10,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"` // for comments/replies
-	Visibility     string                 `protobuf:"bytes,11,opt,name=visibility,proto3" json:"visibility,omitempty"`             // "public", "private", etc.
-	CreatedAt      int64                  `protobuf:"varint,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt      int64                  `protobuf:"varint,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	CommentCount   int32                  `protobuf:"varint,14,opt,name=comment_count,json=commentCount,proto3" json:"comment_count,omitempty"`
-	ReactionCounts map[string]int32       `protobuf:"bytes,15,rep,name=reaction_counts,json=reactionCounts,proto3" json:"reaction_counts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	MasterId       int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`       // Internal integer ID reference to master table
+	MasterUuid     string                 `protobuf:"bytes,3,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`  // Global UUID reference to master table
+	CampaignId     int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // NEW: campaign/tenant context
+	AuthorId       string                 `protobuf:"bytes,5,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
+	Type           string                 `protobuf:"bytes,6,opt,name=type,proto3" json:"type,omitempty"` // "article", "micro", "video", "story", etc.
+	Title          string                 `protobuf:"bytes,7,opt,name=title,proto3" json:"title,omitempty"`
+	Body           string                 `protobuf:"bytes,8,opt,name=body,proto3" json:"body,omitempty"`
+	MediaUrls      []string               `protobuf:"bytes,9,rep,name=media_urls,json=mediaUrls,proto3" json:"media_urls,omitempty"`
+	Metadata       *v1.Metadata           `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Tags           []string               `protobuf:"bytes,11,rep,name=tags,proto3" json:"tags,omitempty"`
+	ParentId       string                 `protobuf:"bytes,12,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"` // for comments/replies
+	Visibility     string                 `protobuf:"bytes,13,opt,name=visibility,proto3" json:"visibility,omitempty"`             // "public", "private", etc.
+	CreatedAt      int64                  `protobuf:"varint,14,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      int64                  `protobuf:"varint,15,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CommentCount   int32                  `protobuf:"varint,16,opt,name=comment_count,json=commentCount,proto3" json:"comment_count,omitempty"`
+	ReactionCounts map[string]int32       `protobuf:"bytes,17,rep,name=reaction_counts,json=reactionCounts,proto3" json:"reaction_counts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -80,11 +82,25 @@ func (x *Content) GetId() string {
 	return ""
 }
 
-func (x *Content) GetMasterId() string {
+func (x *Content) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
 	}
+	return 0
+}
+
+func (x *Content) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
+	}
 	return ""
+}
+
+func (x *Content) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 func (x *Content) GetAuthorId() string {
@@ -182,12 +198,13 @@ type Comment struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ContentId     string                 `protobuf:"bytes,2,opt,name=content_id,json=contentId,proto3" json:"content_id,omitempty"`
-	MasterId      string                 `protobuf:"bytes,3,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
-	AuthorId      string                 `protobuf:"bytes,4,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
-	Body          string                 `protobuf:"bytes,5,opt,name=body,proto3" json:"body,omitempty"`
-	CreatedAt     int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     int64                  `protobuf:"varint,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	MasterId      int64                  `protobuf:"varint,3,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID reference to master table
+	MasterUuid    string                 `protobuf:"bytes,4,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
+	AuthorId      string                 `protobuf:"bytes,5,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
+	Body          string                 `protobuf:"bytes,6,opt,name=body,proto3" json:"body,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     int64                  `protobuf:"varint,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -236,9 +253,16 @@ func (x *Comment) GetContentId() string {
 	return ""
 }
 
-func (x *Comment) GetMasterId() string {
+func (x *Comment) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
+	}
+	return 0
+}
+
+func (x *Comment) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
 	}
 	return ""
 }
@@ -282,11 +306,13 @@ type ContentEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ContentId     string                 `protobuf:"bytes,2,opt,name=content_id,json=contentId,proto3" json:"content_id,omitempty"`
-	MasterId      string                 `protobuf:"bytes,3,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
-	EventType     string                 `protobuf:"bytes,4,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
-	UserId        string                 `protobuf:"bytes,5,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	OccurredAt    int64                  `protobuf:"varint,6,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
-	Payload       map[string]string      `protobuf:"bytes,7,rep,name=payload,proto3" json:"payload,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	MasterId      int64                  `protobuf:"varint,3,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`       // Internal integer ID reference to master table
+	MasterUuid    string                 `protobuf:"bytes,4,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`  // Global UUID reference to master table
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // NEW: campaign/tenant context
+	EventType     string                 `protobuf:"bytes,6,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	UserId        string                 `protobuf:"bytes,7,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	OccurredAt    int64                  `protobuf:"varint,8,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	Payload       map[string]string      `protobuf:"bytes,9,rep,name=payload,proto3" json:"payload,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -335,11 +361,25 @@ func (x *ContentEvent) GetContentId() string {
 	return ""
 }
 
-func (x *ContentEvent) GetMasterId() string {
+func (x *ContentEvent) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
 	}
+	return 0
+}
+
+func (x *ContentEvent) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
+	}
 	return ""
+}
+
+func (x *ContentEvent) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 func (x *ContentEvent) GetEventType() string {
@@ -372,7 +412,8 @@ func (x *ContentEvent) GetPayload() map[string]string {
 
 type CreateContentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Content       *Content               `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,1,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // NEW: campaign/tenant context
+	Content       *Content               `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -405,6 +446,13 @@ func (x *CreateContentRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CreateContentRequest.ProtoReflect.Descriptor instead.
 func (*CreateContentRequest) Descriptor() ([]byte, []int) {
 	return file_content_v1_content_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CreateContentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 func (x *CreateContentRequest) GetContent() *Content {
@@ -548,15 +596,16 @@ func (x *DeleteContentRequest) GetId() string {
 
 type ListContentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AuthorId      string                 `protobuf:"bytes,1,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
-	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	Tags          []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	SearchQuery   string                 `protobuf:"bytes,7,opt,name=search_query,json=searchQuery,proto3" json:"search_query,omitempty"`
-	ParentId      string                 `protobuf:"bytes,8,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	Visibility    string                 `protobuf:"bytes,9,opt,name=visibility,proto3" json:"visibility,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,1,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // NEW: campaign/tenant context
+	AuthorId      string                 `protobuf:"bytes,2,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
+	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
+	Page          int32                  `protobuf:"varint,4,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	Tags          []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	SearchQuery   string                 `protobuf:"bytes,8,opt,name=search_query,json=searchQuery,proto3" json:"search_query,omitempty"`
+	ParentId      string                 `protobuf:"bytes,9,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	Visibility    string                 `protobuf:"bytes,10,opt,name=visibility,proto3" json:"visibility,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -589,6 +638,13 @@ func (x *ListContentRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ListContentRequest.ProtoReflect.Descriptor instead.
 func (*ListContentRequest) Descriptor() ([]byte, []int) {
 	return file_content_v1_content_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListContentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 func (x *ListContentRequest) GetAuthorId() string {
@@ -656,11 +712,12 @@ func (x *ListContentRequest) GetVisibility() string {
 
 type SearchContentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	Tags          []string               `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Page          int32                  `protobuf:"varint,4,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize      int32                  `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,1,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // NEW: campaign/tenant context
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	Tags          []string               `protobuf:"bytes,3,rep,name=tags,proto3" json:"tags,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Page          int32                  `protobuf:"varint,5,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,6,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -693,6 +750,13 @@ func (x *SearchContentRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use SearchContentRequest.ProtoReflect.Descriptor instead.
 func (*SearchContentRequest) Descriptor() ([]byte, []int) {
 	return file_content_v1_content_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SearchContentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 func (x *SearchContentRequest) GetQuery() string {
@@ -1604,85 +1668,103 @@ var File_content_v1_content_proto protoreflect.FileDescriptor
 const file_content_v1_content_proto_rawDesc = "" +
 	"\n" +
 	"\x18content/v1/content.proto\x12\n" +
-	"content.v1\x1a\x18common/v1/metadata.proto\"\xad\x04\n" +
+	"content.v1\x1a\x18common/v1/metadata.proto\"\xef\x04\n" +
 	"\aContent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tmaster_id\x18\x02 \x01(\tR\bmasterId\x12\x1b\n" +
-	"\tauthor_id\x18\x03 \x01(\tR\bauthorId\x12\x12\n" +
-	"\x04type\x18\x04 \x01(\tR\x04type\x12\x14\n" +
-	"\x05title\x18\x05 \x01(\tR\x05title\x12\x12\n" +
-	"\x04body\x18\x06 \x01(\tR\x04body\x12\x1d\n" +
+	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x03 \x01(\tR\n" +
+	"masterUuid\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\x12\x1b\n" +
+	"\tauthor_id\x18\x05 \x01(\tR\bauthorId\x12\x12\n" +
+	"\x04type\x18\x06 \x01(\tR\x04type\x12\x14\n" +
+	"\x05title\x18\a \x01(\tR\x05title\x12\x12\n" +
+	"\x04body\x18\b \x01(\tR\x04body\x12\x1d\n" +
 	"\n" +
-	"media_urls\x18\a \x03(\tR\tmediaUrls\x12,\n" +
-	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata\x12\x12\n" +
-	"\x04tags\x18\t \x03(\tR\x04tags\x12\x1b\n" +
-	"\tparent_id\x18\n" +
-	" \x01(\tR\bparentId\x12\x1e\n" +
+	"media_urls\x18\t \x03(\tR\tmediaUrls\x12,\n" +
+	"\bmetadata\x18\n" +
+	" \x01(\v2\x10.common.MetadataR\bmetadata\x12\x12\n" +
+	"\x04tags\x18\v \x03(\tR\x04tags\x12\x1b\n" +
+	"\tparent_id\x18\f \x01(\tR\bparentId\x12\x1e\n" +
 	"\n" +
-	"visibility\x18\v \x01(\tR\n" +
+	"visibility\x18\r \x01(\tR\n" +
 	"visibility\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\f \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\x0e \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\x03R\tupdatedAt\x12#\n" +
-	"\rcomment_count\x18\x0e \x01(\x05R\fcommentCount\x12P\n" +
-	"\x0freaction_counts\x18\x0f \x03(\v2'.content.v1.Content.ReactionCountsEntryR\x0ereactionCounts\x1aA\n" +
+	"updated_at\x18\x0f \x01(\x03R\tupdatedAt\x12#\n" +
+	"\rcomment_count\x18\x10 \x01(\x05R\fcommentCount\x12P\n" +
+	"\x0freaction_counts\x18\x11 \x03(\v2'.content.v1.Content.ReactionCountsEntryR\x0ereactionCounts\x1aA\n" +
 	"\x13ReactionCountsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01J\x04\b\x10\x10\x14\"\xf8\x01\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01J\x04\b\x12\x10\x14\"\x99\x02\n" +
 	"\aComment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"content_id\x18\x02 \x01(\tR\tcontentId\x12\x1b\n" +
-	"\tmaster_id\x18\x03 \x01(\tR\bmasterId\x12\x1b\n" +
-	"\tauthor_id\x18\x04 \x01(\tR\bauthorId\x12\x12\n" +
-	"\x04body\x18\x05 \x01(\tR\x04body\x12\x1d\n" +
+	"\tmaster_id\x18\x03 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x04 \x01(\tR\n" +
+	"masterUuid\x12\x1b\n" +
+	"\tauthor_id\x18\x05 \x01(\tR\bauthorId\x12\x12\n" +
+	"\x04body\x18\x06 \x01(\tR\x04body\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\a \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\x03R\tupdatedAt\x12,\n" +
-	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadataJ\x04\b\t\x10\x14\"\xb6\x02\n" +
+	"updated_at\x18\b \x01(\x03R\tupdatedAt\x12,\n" +
+	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadataJ\x04\b\n" +
+	"\x10\x14\"\xf8\x02\n" +
 	"\fContentEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"content_id\x18\x02 \x01(\tR\tcontentId\x12\x1b\n" +
-	"\tmaster_id\x18\x03 \x01(\tR\bmasterId\x12\x1d\n" +
+	"\tmaster_id\x18\x03 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x04 \x01(\tR\n" +
+	"masterUuid\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\x12\x1d\n" +
 	"\n" +
-	"event_type\x18\x04 \x01(\tR\teventType\x12\x17\n" +
-	"\auser_id\x18\x05 \x01(\tR\x06userId\x12\x1f\n" +
-	"\voccurred_at\x18\x06 \x01(\x03R\n" +
+	"event_type\x18\x06 \x01(\tR\teventType\x12\x17\n" +
+	"\auser_id\x18\a \x01(\tR\x06userId\x12\x1f\n" +
+	"\voccurred_at\x18\b \x01(\x03R\n" +
 	"occurredAt\x12?\n" +
-	"\apayload\x18\a \x03(\v2%.content.v1.ContentEvent.PayloadEntryR\apayload\x1a:\n" +
+	"\apayload\x18\t \x03(\v2%.content.v1.ContentEvent.PayloadEntryR\apayload\x1a:\n" +
 	"\fPayloadEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\b\x10\x14\"E\n" +
-	"\x14CreateContentRequest\x12-\n" +
-	"\acontent\x18\x01 \x01(\v2\x13.content.v1.ContentR\acontent\"#\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\n" +
+	"\x10\x14\"f\n" +
+	"\x14CreateContentRequest\x12\x1f\n" +
+	"\vcampaign_id\x18\x01 \x01(\x03R\n" +
+	"campaignId\x12-\n" +
+	"\acontent\x18\x02 \x01(\v2\x13.content.v1.ContentR\acontent\"#\n" +
 	"\x11GetContentRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"E\n" +
 	"\x14UpdateContentRequest\x12-\n" +
 	"\acontent\x18\x01 \x01(\v2\x13.content.v1.ContentR\acontent\"&\n" +
 	"\x14DeleteContentRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x9e\x02\n" +
-	"\x12ListContentRequest\x12\x1b\n" +
-	"\tauthor_id\x18\x01 \x01(\tR\bauthorId\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
-	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x12\n" +
-	"\x04tags\x18\x05 \x03(\tR\x04tags\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12!\n" +
-	"\fsearch_query\x18\a \x01(\tR\vsearchQuery\x12\x1b\n" +
-	"\tparent_id\x18\b \x01(\tR\bparentId\x12\x1e\n" +
-	"\n" +
-	"visibility\x18\t \x01(\tR\n" +
-	"visibilityJ\x04\b\n" +
-	"\x10\x14\"\xa5\x01\n" +
-	"\x14SearchContentRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\x12\x12\n" +
-	"\x04tags\x18\x02 \x03(\tR\x04tags\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x12\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xbf\x02\n" +
+	"\x12ListContentRequest\x12\x1f\n" +
+	"\vcampaign_id\x18\x01 \x01(\x03R\n" +
+	"campaignId\x12\x1b\n" +
+	"\tauthor_id\x18\x02 \x01(\tR\bauthorId\x12\x12\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\x12\x12\n" +
 	"\x04page\x18\x04 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x05 \x01(\x05R\bpageSizeJ\x04\b\x06\x10\x14\"\\\n" +
+	"\tpage_size\x18\x05 \x01(\x05R\bpageSize\x12\x12\n" +
+	"\x04tags\x18\x06 \x03(\tR\x04tags\x12,\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x12!\n" +
+	"\fsearch_query\x18\b \x01(\tR\vsearchQuery\x12\x1b\n" +
+	"\tparent_id\x18\t \x01(\tR\bparentId\x12\x1e\n" +
+	"\n" +
+	"visibility\x18\n" +
+	" \x01(\tR\n" +
+	"visibilityJ\x04\b\v\x10\x14\"\xc6\x01\n" +
+	"\x14SearchContentRequest\x12\x1f\n" +
+	"\vcampaign_id\x18\x01 \x01(\x03R\n" +
+	"campaignId\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x12\n" +
+	"\x04tags\x18\x03 \x03(\tR\x04tags\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x12\n" +
+	"\x04page\x18\x05 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x06 \x01(\x05R\bpageSizeJ\x04\b\a\x10\x14\"\\\n" +
 	"\x13ListContentResponse\x12/\n" +
 	"\bcontents\x18\x01 \x03(\v2\x13.content.v1.ContentR\bcontents\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\"\x91\x01\n" +

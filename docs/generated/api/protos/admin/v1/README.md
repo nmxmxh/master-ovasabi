@@ -15,6 +15,48 @@ direct use with grpc.RegisterService, and not to be introspected or modified (ev
 
 ## Types
 
+### AdminNote
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use AdminNote.ProtoReflect.Descriptor instead.
+
+##### GetCreatedAt
+
+##### GetCreatedBy
+
+##### GetNote
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### AdminPreferences
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use AdminPreferences.ProtoReflect.Descriptor instead.
+
+##### GetNotificationsEnabled
+
+##### GetTheme
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### AdminServiceClient
 
 AdminServiceClient is the client API for AdminService service.
@@ -22,10 +64,14 @@ AdminServiceClient is the client API for AdminService service.
 For semantics around ctx use and closing/ending streaming RPCs, please refer to
 https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 
+--- Service ---
+
 ### AdminServiceServer
 
 AdminServiceServer is the server API for AdminService service. All implementations must embed
 UnimplementedAdminServiceServer for forward compatibility.
+
+--- Service ---
 
 ### AssignRoleRequest
 
@@ -90,6 +136,52 @@ Deprecated: Use AuditLog.ProtoReflect.Descriptor instead.
 ##### GetTimestamp
 
 ##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### CheckPermissionRequest
+
+Add CheckPermission messages
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use CheckPermissionRequest.ProtoReflect.Descriptor instead.
+
+##### GetAction
+
+##### GetContext
+
+##### GetResource
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### CheckPermissionResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use CheckPermissionResponse.ProtoReflect.Descriptor instead.
+
+##### GetAllowed
+
+##### GetReason
 
 ##### ProtoMessage
 
@@ -369,6 +461,28 @@ Deprecated: Use GetUserResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### ImpersonationInfo
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ImpersonationInfo.ProtoReflect.Descriptor instead.
+
+##### GetActive
+
+##### GetStartedAt
+
+##### GetTargetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### ListRolesRequest
 
 #### Methods
@@ -552,6 +666,8 @@ methods are called.
 
 ##### AssignRole
 
+##### CheckPermission
+
 ##### CreateRole
 
 ##### CreateUser
@@ -709,6 +825,8 @@ Deprecated: Use User.ProtoReflect.Descriptor instead.
 ##### GetIsActive
 
 ##### GetMasterId
+
+##### GetMasterUuid
 
 ##### GetMetadata
 

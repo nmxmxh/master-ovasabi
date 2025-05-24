@@ -72,6 +72,18 @@ PutBuffer returns a buffer to the pool.
 
 PutByteSlice returns a byte slice to the pool.
 
+### ToBigInt
+
+ToBigInt safely converts an int to a \*big.Int.
+
+### ToBigInt64
+
+ToBigInt64 safely converts an int64 to a \*big.Int.
+
+### ToInt32
+
+ToInt32 safely converts an int to int32, clamping to the int32 range.
+
 ### ValidateUUID
 
 ValidateUUID checks if a string is a valid UUID.

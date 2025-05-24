@@ -1,71 +1,159 @@
+// NexusService proto
+// See docs/services/nexus.md for full documentation and research inspirations.
 syntax = "proto3";
-
 package nexus.v1;
 
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/nexus";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v0;nexuspb";
-
-// NexusService provides pattern-based orchestration and knowledge graph management
+// NexusService: High-level composer, orchestrator, and pattern identifier
 service NexusService {
-  // ExecutePattern executes a registered pattern
-  rpc ExecutePattern(ExecutePatternRequest) returns (ExecutePatternResponse) {}
-  
-  // RegisterPattern registers a new pattern
-  rpc RegisterPattern(RegisterPatternRequest) returns (RegisterPatternResponse) {}
-  
-  // GetKnowledge retrieves knowledge from the graph
-  rpc GetKnowledge(GetKnowledgeRequest) returns (GetKnowledgeResponse) {}
+  rpc RegisterPattern(RegisterPatternRequest) returns (RegisterPatternResponse);
+  rpc ListPatterns(ListPatternsRequest) returns (ListPatternsResponse);
+  rpc Orchestrate(OrchestrateRequest) returns (OrchestrateResponse);
+  rpc TracePattern(TracePatternRequest) returns (TracePatternResponse);
+  rpc MinePatterns(MinePatternsRequest) returns (MinePatternsResponse);
+  rpc Feedback(FeedbackRequest) returns (FeedbackResponse);
+  rpc HandleOps(HandleOpsRequest) returns (HandleOpsResponse);
+
+  // --- Event Bus Methods ---
+  rpc EmitEvent(EventRequest) returns (EventResponse);
+  rpc SubscribeEvents(SubscribeRequest) returns (stream EventResponse);
 }
 
-// ExecutePatternRequest represents a request to execute a pattern
-message ExecutePatternRequest {
-  string pattern_name = 1;
-  map<string, string> parameters = 2;
-}
-
-// ExecutePatternResponse represents the response from pattern execution
-message ExecutePatternResponse {
-  string status = 1;
-  map<string, string> result = 2;
-  repeated string missing_arguments = 3;
-}
-
-// RegisterPatternRequest represents a request to register a new pattern
 message RegisterPatternRequest {
-  string pattern_name = 1;
-  string pattern_type = 2;
-  repeated PatternStep steps = 3;
+  string pattern_id = 1;
+  string pattern_type = 2; // workflow, data, ai, etc.
+  string version = 3;
+  string origin = 4; // manual, mined, imported
+  google.protobuf.Struct definition = 5; // pattern definition (YAML/JSON/DSL)
+  common.Metadata metadata = 6;
+  int64 campaign_id = 7; // campaign/tenant context
 }
 
-// RegisterPatternResponse represents the response from pattern registration
 message RegisterPatternResponse {
-  string status = 1;
-  string message = 2;
+  bool success = 1;
+  string error = 2;
+  common.Metadata metadata = 3;
 }
 
-// GetKnowledgeRequest represents a request to get knowledge from the graph
-message GetKnowledgeRequest {
-  string path = 1;
+message ListPatternsRequest {
+  string pattern_type = 1;
+  common.Metadata metadata = 2;
+  int64 campaign_id = 3; // campaign/tenant context
 }
 
-// GetKnowledgeResponse represents the response containing knowledge graph data
-message GetKnowledgeResponse {
-  string status = 1;
-  map<string, string> data = 2;
+message ListPatternsResponse {
+  repeated Pattern patterns = 1;
+  common.Metadata metadata = 2;
 }
 
-message PatternStep {
+message Pattern {
+  string pattern_id = 1;
+  string pattern_type = 2;
+  string version = 3;
+  string origin = 4;
+  google.protobuf.Struct definition = 5;
+  int64 usage_count = 6;
+  google.protobuf.Timestamp last_used = 7;
+  common.Metadata metadata = 8;
+  int64 campaign_id = 9; // campaign/tenant context
+}
+
+message OrchestrateRequest {
+  string pattern_id = 1;
+  google.protobuf.Struct input = 2;
+  common.Metadata metadata = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
+
+message OrchestrateResponse {
+  string orchestration_id = 1;
+  google.protobuf.Struct output = 2;
+  common.Metadata metadata = 3;
+}
+
+message TracePatternRequest {
+  string orchestration_id = 1;
+  common.Metadata metadata = 2;
+}
+
+message TracePatternResponse {
+  string trace_id = 1;
+  repeated TraceStep steps = 2;
+  common.Metadata metadata = 3;
+}
+
+message TraceStep {
   string service = 1;
   string action = 2;
-  repeated string required_args = 3;
-  repeated string optional_args = 4;
-  map<string, string> params = 5;
-  common.Metadata metadata = 6; // Extensible metadata for orchestration, AI/ML, etc.
+  google.protobuf.Timestamp timestamp = 3;
+  google.protobuf.Struct details = 4;
 }
 
-message PatternDefinition {
-  string pattern_name = 1;
-  repeated PatternStep steps = 2;
-  common.Metadata metadata = 3; // Extensible metadata for orchestration, AI/ML, etc.
+message MinePatternsRequest {
+  string source = 1; // events, logs, metadata, etc.
+  common.Metadata metadata = 2;
+  int64 campaign_id = 3; // campaign/tenant context
+}
+
+message MinePatternsResponse {
+  repeated Pattern patterns = 1;
+  common.Metadata metadata = 2;
+}
+
+message FeedbackRequest {
+  string pattern_id = 1;
+  float score = 2;
+  string comments = 3;
+  common.Metadata metadata = 4;
+  int64 campaign_id = 5; // campaign/tenant context
+}
+
+message FeedbackResponse {
+  bool success = 1;
+  string error = 2;
+  common.Metadata metadata = 3;
+}
+
+message HandleOpsRequest {
+  string op = 1; // e.g., "reload", "diagnostics", "stats"
+  map<string, string> params = 2; // operation-specific parameters
+  common.Metadata metadata = 3;   // for context, auth, etc.
+  int64 campaign_id = 4; // campaign/tenant context
+}
+
+message HandleOpsResponse {
+  bool success = 1;
+  string message = 2;
+  google.protobuf.Struct data = 3; // optional, operation-specific result
+  common.Metadata metadata = 4;
+}
+
+message EventRequest {
+  string event_type = 1;
+  string entity_id = 2;
+  common.Metadata metadata = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
+
+message EventResponse {
+  bool success = 1;
+  string message = 2;
+  common.Metadata metadata = 3;
+}
+
+message SubscribeRequest {
+  repeated string event_types = 1;
+  common.Metadata metadata = 2;
+  int64 campaign_id = 3; // campaign/tenant context
+}
+
+message Nexus {
+  // ... existing fields ...
+  int64 campaign_id = 10; // campaign/tenant context
+  // ...
 } 

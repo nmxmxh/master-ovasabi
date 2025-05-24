@@ -1,4 +1,4 @@
-.PHONY: setup build test test-unit test-integration test-bench coverage benchmark clean proto docker-* k8s-* docs backup lint-fix docs-format docs-check-format docs-check-links docs-validate restore js-setup docs-all docs-site-setup docs-site docs-serve docs-deploy-github docs-prepare-hosting lint-focused docs-fix-links
+.PHONY: setup build test test-unit test-integration test-bench coverage benchmark clean proto docker-* k8s-* docs backup lint-fix docs-format docs-check-format docs-check-links docs-validate restore js-setup docs-all docs-site-setup docs-site docs-serve docs-deploy-github docs-prepare-hosting lint-focused docs-fix-links openapi-gen openapi-validate openapi-diff sync-openapi update-doc-dates validate-doc-dates openapi-json-diff
 
 # Variables
 BINARY_NAME=master-ovasabi
@@ -254,24 +254,31 @@ help:
 	@echo "  backup              - Create a comprehensive backup of the Amadeus Knowledge Graph system"
 	@echo "  restore             - Restore the Amadeus Knowledge Graph system from a backup"
 	@echo "  kg-evolution        - Analyze Knowledge Graph evolution through historical backups"
-	@echo "Documentation Commands:"
-	@echo "  docs                - Generate documentation and format with Prettier"
-	@echo "  docs-format         - Format all Markdown documentation files with Prettier"
-	@echo "  docs-check-format   - Check Markdown files formatting without making changes"
-	@echo "  docs-check-links    - Check for broken links in documentation files"
-	@echo "  docs-validate       - Run all documentation validation checks"
-	@echo "  docs-all            - Generate, format and validate all documentation"
-	@echo "  docs-site-setup     - Set up MkDocs for documentation site"
-	@echo "  docs-site           - Generate documentation site"
-	@echo "  docs-serve          - Serve documentation site locally"
-	@echo "  docs-deploy-github  - Deploy documentation to GitHub Pages"
+	@echo "Documentation & OpenAPI Commands:"
+	@echo "  docs-all           - Update dates, generate all docs and OpenAPI schemas, validate everything (2025-05-14)"
+	@echo "  update-doc-dates   - Update all docs/specs with current date and context block"
+	@echo "  validate-doc-dates - Validate doc/spec recency and context block (TODO)"
+	@echo "  docs               - Generate Markdown docs from code comments"
+	@echo "  openapi-gen        - Generate OpenAPI schema from proto"
+	@echo "  openapi-validate   - Validate OpenAPI schemas"
+	@echo "  openapi-diff       - Diff generated and canonical OpenAPI schemas"
+	@echo "  sync-openapi       - Sync generated OpenAPI schema to canonical location"
+	@echo "  docs-format        - Format all Markdown documentation files with Prettier"
+	@echo "  docs-check-format  - Check Markdown files formatting without making changes"
+	@echo "  docs-check-links   - Check for broken links in documentation files"
+	@echo "  docs-validate      - Run all documentation validation checks"
+	@echo "  docs-all           - Generate, format and validate all documentation"
+	@echo "  docs-site-setup    - Set up MkDocs for documentation site"
+	@echo "  docs-site          - Generate documentation site"
+	@echo "  docs-serve         - Serve documentation site locally"
+	@echo "  docs-deploy-github - Deploy documentation to GitHub Pages"
 	@echo "  docs-prepare-hosting - Prepare documentation for hosting"
-	@echo "  docs-fix-links      - Fix documentation links"
-	@echo "Linting Commands:"  
-	@echo "  lint                - Check Go code with golangci-lint and Markdown with Prettier (no fixes)"
-	@echo "  lint-focused        - Same as lint but excludes backup files"
-	@echo "  lint-fix            - Apply fixes to Go code and format Markdown documentation"
-	@echo "  js-setup            - Install JavaScript dependencies with Yarn"
+	@echo "  docs-fix-links     - Fix documentation links"
+	@echo "Linting Commands:"
+	@echo "  lint               - Check Go code with golangci-lint and Markdown with Prettier (no fixes)"
+	@echo "  lint-focused       - Same as lint but excludes backup files"
+	@echo "  lint-fix           - Apply fixes to Go code and format Markdown documentation"
+	@echo "  js-setup           - Install JavaScript dependencies with Yarn"
 	@echo ""
 	@echo "Docker Compose Commands:"
 	@echo "  docker-build      - Build Docker images"
@@ -359,8 +366,8 @@ docs-validate: docs-check-format docs-check-links docs-fix-links
 	@echo "Documentation validation complete."
 
 # Comprehensive documentation command
-docs-all: js-setup docs docs-validate
-	@echo "All documentation tasks completed successfully"
+docs-all: update-doc-dates docs openapi-gen openapi-validate
+	@echo "All documentation and OpenAPI schema tasks completed successfully"
 
 # Amadeus Restore Command
 restore:
@@ -490,3 +497,49 @@ kg-evolution:
 	fi
 	@echo "=========================================================="
 	@echo "Knowledge Graph Evolution Analysis Complete"
+
+# OpenAPI schema generation and validation
+openapi-gen: update-doc-dates
+	@echo "Generating OpenAPI schema from metadata.proto..."
+	@go run tools/protoc/main.go metadata.proto api/protos/common/v1 docs/generated/openapi --openapi
+
+openapi-validate:
+	@echo "Validating OpenAPI schemas..."
+	@npx swagger-cli validate docs/generated/openapi/metadata.swagger.json
+	@npx swagger-cli validate docs/services/metadata_openapi.json
+
+# Usage:
+#   make openapi-gen      # Generate OpenAPI schema from proto
+#   make openapi-validate # Validate OpenAPI schemas (requires swagger-cli)
+
+openapi-diff:
+	@echo "Diffing generated and canonical OpenAPI schemas..."
+	@diff -u docs/generated/openapi/metadata.swagger.json docs/services/metadata_openapi.yaml || echo "Schemas differ (expected if updating standards)"
+
+sync-openapi:
+	# Convert JSON to YAML to avoid schema/linter errors (do not copy JSON as YAML)
+	@yq -P eval '.' docs/generated/openapi/metadata.swagger.json > docs/services/metadata_openapi.yaml
+	@echo "Canonical OpenAPI schema updated from generated output and converted to YAML. (2024-06-14)"
+
+update-doc-dates:
+	@./scripts/update-doc-dates.sh
+
+validate-doc-dates:
+	@echo "(TODO) Validate doc dates for recency and context block."
+
+# Diff the generated OpenAPI JSON and the canonical metadata_openapi.json for review
+openapi-json-diff:
+	@echo "Diffing generated and canonical OpenAPI JSON schemas..."
+	@diff -u docs/generated/openapi/metadata.swagger.json docs/services/metadata_openapi.json || echo "Schemas differ (expected if updating standards)"
+
+# rest-point: Safely update all documentation, OpenAPI specs, lint code/docs, and back up the knowledge graph.
+rest-point: docs-all
+	-$(MAKE) lint
+	$(MAKE) backup
+
+# Run go vet for static analysis on all Go files
+vet:
+	go vet ./...
+
+api-docs:
+	swag init -g internal/server/handlers/docs.go -o docs/api

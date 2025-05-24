@@ -22,11 +22,8 @@ const (
 	PatternOriginUser   PatternOrigin = "user"
 
 	// Pattern Categories.
-	CategoryFinance      PatternCategory = "finance"
 	CategoryNotification PatternCategory = "notification"
 	CategoryUser         PatternCategory = "user"
-	CategoryAsset        PatternCategory = "asset"
-	CategoryBroadcast    PatternCategory = "broadcast"
 	CategoryReferral     PatternCategory = "referral"
 )
 

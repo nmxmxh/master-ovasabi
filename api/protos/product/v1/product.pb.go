@@ -132,7 +132,8 @@ func (ProductStatus) EnumDescriptor() ([]byte, []int) {
 type Product struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId         string                 `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterId         int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`       // Internal integer ID reference to master table
+	MasterUuid       string                 `protobuf:"bytes,14,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
 	Name             string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Description      string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
 	Type             ProductType            `protobuf:"varint,5,opt,name=type,proto3,enum=product.v1.ProductType" json:"type,omitempty"`
@@ -144,7 +145,8 @@ type Product struct {
 	UpdatedAt        int64                  `protobuf:"varint,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	MainImageUrl     string                 `protobuf:"bytes,12,opt,name=main_image_url,json=mainImageUrl,proto3" json:"main_image_url,omitempty"`
 	GalleryImageUrls []string               `protobuf:"bytes,13,rep,name=gallery_image_urls,json=galleryImageUrls,proto3" json:"gallery_image_urls,omitempty"`
-	OwnerId          string                 `protobuf:"bytes,14,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	OwnerId          string                 `protobuf:"bytes,15,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	CampaignId       int64                  `protobuf:"varint,16,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -186,9 +188,16 @@ func (x *Product) GetId() string {
 	return ""
 }
 
-func (x *Product) GetMasterId() string {
+func (x *Product) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
+	}
+	return 0
+}
+
+func (x *Product) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
 	}
 	return ""
 }
@@ -275,6 +284,13 @@ func (x *Product) GetOwnerId() string {
 		return x.OwnerId
 	}
 	return ""
+}
+
+func (x *Product) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type ProductVariant struct {
@@ -785,6 +801,7 @@ type ListProductsRequest struct {
 	Type          ProductType            `protobuf:"varint,4,opt,name=type,proto3,enum=product.v1.ProductType" json:"type,omitempty"`
 	Status        ProductStatus          `protobuf:"varint,5,opt,name=status,proto3,enum=product.v1.ProductStatus" json:"status,omitempty"`
 	Tags          []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -859,6 +876,13 @@ func (x *ListProductsRequest) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *ListProductsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type ListProductsResponse struct {
@@ -937,6 +961,7 @@ type SearchProductsRequest struct {
 	Tags          []string               `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty"`
 	Type          ProductType            `protobuf:"varint,5,opt,name=type,proto3,enum=product.v1.ProductType" json:"type,omitempty"`
 	Status        ProductStatus          `protobuf:"varint,6,opt,name=status,proto3,enum=product.v1.ProductStatus" json:"status,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1011,6 +1036,13 @@ func (x *SearchProductsRequest) GetStatus() ProductStatus {
 		return x.Status
 	}
 	return ProductStatus_PRODUCT_STATUS_UNSPECIFIED
+}
+
+func (x *SearchProductsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type SearchProductsResponse struct {
@@ -1270,10 +1302,12 @@ var File_product_v1_product_proto protoreflect.FileDescriptor
 const file_product_v1_product_proto_rawDesc = "" +
 	"\n" +
 	"\x18product/v1/product.proto\x12\n" +
-	"product.v1\x1a\x18common/v1/metadata.proto\"\xf3\x03\n" +
+	"product.v1\x1a\x18common/v1/metadata.proto\"\xb5\x04\n" +
 	"\aProduct\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tmaster_id\x18\x02 \x01(\tR\bmasterId\x12\x12\n" +
+	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x0e \x01(\tR\n" +
+	"masterUuid\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12+\n" +
 	"\x04type\x18\x05 \x01(\x0e2\x17.product.v1.ProductTypeR\x04type\x121\n" +
@@ -1288,7 +1322,9 @@ const file_product_v1_product_proto_rawDesc = "" +
 	"updated_at\x18\v \x01(\x03R\tupdatedAt\x12$\n" +
 	"\x0emain_image_url\x18\f \x01(\tR\fmainImageUrl\x12,\n" +
 	"\x12gallery_image_urls\x18\r \x03(\tR\x10galleryImageUrls\x12\x19\n" +
-	"\bowner_id\x18\x0e \x01(\tR\aownerId\"\x98\x04\n" +
+	"\bowner_id\x18\x0f \x01(\tR\aownerId\x12\x1f\n" +
+	"\vcampaign_id\x18\x10 \x01(\x03R\n" +
+	"campaignId\"\x98\x04\n" +
 	"\x0eProductVariant\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -1331,28 +1367,32 @@ const file_product_v1_product_proto_rawDesc = "" +
 	"\n" +
 	"product_id\x18\x01 \x01(\tR\tproductId\"C\n" +
 	"\x12GetProductResponse\x12-\n" +
-	"\aproduct\x18\x01 \x01(\v2\x13.product.v1.ProductR\aproduct\"\xd5\x01\n" +
+	"\aproduct\x18\x01 \x01(\v2\x13.product.v1.ProductR\aproduct\"\xf6\x01\n" +
 	"\x13ListProductsRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x19\n" +
 	"\bowner_id\x18\x03 \x01(\tR\aownerId\x12+\n" +
 	"\x04type\x18\x04 \x01(\x0e2\x17.product.v1.ProductTypeR\x04type\x121\n" +
 	"\x06status\x18\x05 \x01(\x0e2\x19.product.v1.ProductStatusR\x06status\x12\x12\n" +
-	"\x04tags\x18\x06 \x03(\tR\x04tags\"\x9d\x01\n" +
+	"\x04tags\x18\x06 \x03(\tR\x04tags\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"\x9d\x01\n" +
 	"\x14ListProductsResponse\x12/\n" +
 	"\bproducts\x18\x01 \x03(\v2\x13.product.v1.ProductR\bproducts\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\xd2\x01\n" +
+	"totalPages\"\xf3\x01\n" +
 	"\x15SearchProductsRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x12\n" +
 	"\x04tags\x18\x04 \x03(\tR\x04tags\x12+\n" +
 	"\x04type\x18\x05 \x01(\x0e2\x17.product.v1.ProductTypeR\x04type\x121\n" +
-	"\x06status\x18\x06 \x01(\x0e2\x19.product.v1.ProductStatusR\x06status\"\x9f\x01\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x19.product.v1.ProductStatusR\x06status\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"\x9f\x01\n" +
 	"\x16SearchProductsResponse\x12/\n" +
 	"\bproducts\x18\x01 \x03(\v2\x13.product.v1.ProductR\bproducts\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +

@@ -4,8 +4,9 @@ import (
 	context "context"
 
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/repository/search"
+	events "github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,59 +14,68 @@ import (
 
 type Service struct {
 	searchpb.UnimplementedSearchServiceServer
-	log   *zap.Logger
-	repo  *search.Repository
-	Cache *redis.Cache
+	log          *zap.Logger
+	repo         *Repository
+	Cache        *redis.Cache
+	eventEmitter EventEmitter
+	eventEnabled bool
 }
 
-func NewService(log *zap.Logger, repo *search.Repository, cache *redis.Cache) searchpb.SearchServiceServer {
+// NewService creates a new SearchService instance with event bus support.
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) searchpb.SearchServiceServer {
 	return &Service{
-		log:   log,
-		repo:  repo,
-		Cache: cache,
+		log:          log,
+		repo:         repo,
+		Cache:        cache,
+		eventEmitter: eventEmitter,
+		eventEnabled: eventEnabled,
 	}
 }
 
-func (s *Service) SearchEntities(ctx context.Context, req *searchpb.SearchRequest) (*searchpb.SearchResponse, error) {
-	results, total, err := s.repo.SearchEntities(
-		ctx,
-		req.GetEntityType(),
-		req.GetQuery(),
-		req.GetMasterId(),
-		nil, // fields (not yet exposed in proto)
-		nil, // metadata (not yet exposed in proto)
-		int(req.GetPage()),
-		int(req.GetPageSize()),
-		false, // fuzzy (not yet exposed in proto)
-		"",    // language (not yet exposed in proto)
-	)
+// Search implements robust multi-entity, FTS, and metadata filtering search.
+// Supports searching across multiple entity types as specified in req.Types.
+func (s *Service) Search(ctx context.Context, req *searchpb.SearchRequest) (*searchpb.SearchResponse, error) {
+	query := req.GetQuery()
+	page := int(req.GetPageNumber())
+	pageSize := int(req.GetPageSize())
+	metadata := req.GetMetadata()
+	types := req.GetTypes()
+	if len(types) == 0 {
+		types = []string{"content"} // default to content if not specified
+	}
+
+	results, total, err := s.repo.SearchAllEntities(ctx, types, query, metadata, req.GetCampaignId(), page, pageSize)
 	if err != nil {
-		s.log.Error("SearchEntities failed", zap.Error(err))
+		s.log.Error("Search failed", zap.Error(err))
+		// Emit failure event
+		if s.eventEnabled && s.eventEmitter != nil {
+			// Optionally, enrich metadata with error details
+			// Canonical metadata pattern: use commonpb.Metadata for error context
+			// Here, we emit the event with the request metadata
+			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "search.failed", "", metadata)
+		}
 		return nil, status.Errorf(codes.Internal, "search failed: %v", err)
-	}
-	if total > int(^int32(0)) || total < 0 {
-		return nil, status.Errorf(codes.Internal, "total overflows int32")
-	}
-	if total > int(^int32(0)) || total < 0 {
-		return nil, status.Errorf(codes.Internal, "total overflows int32 (final check)")
 	}
 	protos := make([]*searchpb.SearchResult, 0, len(results))
 	for _, r := range results {
 		protos = append(protos, &searchpb.SearchResult{
 			Id:         r.ID,
-			MasterId:   r.MasterID,
 			EntityType: r.EntityType,
-			Title:      r.Title,
-			Snippet:    r.Snippet,
+			Score:      float32(r.Score),
 			Metadata:   r.Metadata,
-			Score:      r.Score,
 		})
 	}
-	if total > int(^int32(0)) || total < 0 {
-		return nil, status.Errorf(codes.Internal, "total overflows int32 (final check 2)")
+	resp := &searchpb.SearchResponse{
+		Results:    protos,
+		Total:      utils.ToInt32(total),
+		PageNumber: utils.ToInt32(page),
+		PageSize:   utils.ToInt32(pageSize),
 	}
-	return &searchpb.SearchResponse{
-		Results: protos,
-		Total:   int32(total),
-	}, nil
+	// Emit search.performed event after successful search
+	if s.eventEnabled && s.eventEmitter != nil {
+		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "search.performed", "", metadata)
+	}
+	return resp, nil
 }
+
+// Optionally, implement Suggest and other endpoints as needed.

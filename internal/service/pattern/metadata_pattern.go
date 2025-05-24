@@ -1,3 +1,14 @@
+// Metadata Standard Reference
+// --------------------------
+// All service-specific metadata must include the `versioning` field as described in:
+//   - docs/services/versioning.md
+//   - docs/amadeus/amadeus_context.md
+// For all available metadata actions, patterns, and service-specific extensions, see:
+//   - docs/services/metadata.md (general metadata documentation)
+//   - docs/services/versioning.md (versioning/environment standard)
+//
+// This file implements shared helpers and patterns for metadata handling. See above for required fields and integration points.
+//
 // Metadata Integration Pattern (Redis, Scheduler, Knowledge Graph, Nexus)
 // -------------------------------------------------------------------
 //

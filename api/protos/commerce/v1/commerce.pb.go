@@ -299,6 +299,330 @@ func (TransactionStatus) EnumDescriptor() ([]byte, []int) {
 	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{4}
 }
 
+type InvestmentOrderStatus int32
+
+const (
+	InvestmentOrderStatus_INVESTMENT_ORDER_STATUS_UNSPECIFIED InvestmentOrderStatus = 0
+	InvestmentOrderStatus_INVESTMENT_ORDER_STATUS_PENDING     InvestmentOrderStatus = 1
+	InvestmentOrderStatus_INVESTMENT_ORDER_STATUS_FILLED      InvestmentOrderStatus = 2
+	InvestmentOrderStatus_INVESTMENT_ORDER_STATUS_CANCELLED   InvestmentOrderStatus = 3
+	InvestmentOrderStatus_INVESTMENT_ORDER_STATUS_FAILED      InvestmentOrderStatus = 4
+)
+
+// Enum value maps for InvestmentOrderStatus.
+var (
+	InvestmentOrderStatus_name = map[int32]string{
+		0: "INVESTMENT_ORDER_STATUS_UNSPECIFIED",
+		1: "INVESTMENT_ORDER_STATUS_PENDING",
+		2: "INVESTMENT_ORDER_STATUS_FILLED",
+		3: "INVESTMENT_ORDER_STATUS_CANCELLED",
+		4: "INVESTMENT_ORDER_STATUS_FAILED",
+	}
+	InvestmentOrderStatus_value = map[string]int32{
+		"INVESTMENT_ORDER_STATUS_UNSPECIFIED": 0,
+		"INVESTMENT_ORDER_STATUS_PENDING":     1,
+		"INVESTMENT_ORDER_STATUS_FILLED":      2,
+		"INVESTMENT_ORDER_STATUS_CANCELLED":   3,
+		"INVESTMENT_ORDER_STATUS_FAILED":      4,
+	}
+)
+
+func (x InvestmentOrderStatus) Enum() *InvestmentOrderStatus {
+	p := new(InvestmentOrderStatus)
+	*p = x
+	return p
+}
+
+func (x InvestmentOrderStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (InvestmentOrderStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_commerce_v1_commerce_proto_enumTypes[5].Descriptor()
+}
+
+func (InvestmentOrderStatus) Type() protoreflect.EnumType {
+	return &file_commerce_v1_commerce_proto_enumTypes[5]
+}
+
+func (x InvestmentOrderStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use InvestmentOrderStatus.Descriptor instead.
+func (InvestmentOrderStatus) EnumDescriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{5}
+}
+
+type BankTransferStatus int32
+
+const (
+	BankTransferStatus_BANK_TRANSFER_STATUS_UNSPECIFIED BankTransferStatus = 0
+	BankTransferStatus_BANK_TRANSFER_STATUS_PENDING     BankTransferStatus = 1
+	BankTransferStatus_BANK_TRANSFER_STATUS_COMPLETED   BankTransferStatus = 2
+	BankTransferStatus_BANK_TRANSFER_STATUS_FAILED      BankTransferStatus = 3
+	BankTransferStatus_BANK_TRANSFER_STATUS_CANCELLED   BankTransferStatus = 4
+)
+
+// Enum value maps for BankTransferStatus.
+var (
+	BankTransferStatus_name = map[int32]string{
+		0: "BANK_TRANSFER_STATUS_UNSPECIFIED",
+		1: "BANK_TRANSFER_STATUS_PENDING",
+		2: "BANK_TRANSFER_STATUS_COMPLETED",
+		3: "BANK_TRANSFER_STATUS_FAILED",
+		4: "BANK_TRANSFER_STATUS_CANCELLED",
+	}
+	BankTransferStatus_value = map[string]int32{
+		"BANK_TRANSFER_STATUS_UNSPECIFIED": 0,
+		"BANK_TRANSFER_STATUS_PENDING":     1,
+		"BANK_TRANSFER_STATUS_COMPLETED":   2,
+		"BANK_TRANSFER_STATUS_FAILED":      3,
+		"BANK_TRANSFER_STATUS_CANCELLED":   4,
+	}
+)
+
+func (x BankTransferStatus) Enum() *BankTransferStatus {
+	p := new(BankTransferStatus)
+	*p = x
+	return p
+}
+
+func (x BankTransferStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BankTransferStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_commerce_v1_commerce_proto_enumTypes[6].Descriptor()
+}
+
+func (BankTransferStatus) Type() protoreflect.EnumType {
+	return &file_commerce_v1_commerce_proto_enumTypes[6]
+}
+
+func (x BankTransferStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BankTransferStatus.Descriptor instead.
+func (BankTransferStatus) EnumDescriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{6}
+}
+
+type ListingStatus int32
+
+const (
+	ListingStatus_LISTING_STATUS_UNSPECIFIED ListingStatus = 0
+	ListingStatus_LISTING_STATUS_ACTIVE      ListingStatus = 1
+	ListingStatus_LISTING_STATUS_SOLD        ListingStatus = 2
+	ListingStatus_LISTING_STATUS_CANCELLED   ListingStatus = 3
+)
+
+// Enum value maps for ListingStatus.
+var (
+	ListingStatus_name = map[int32]string{
+		0: "LISTING_STATUS_UNSPECIFIED",
+		1: "LISTING_STATUS_ACTIVE",
+		2: "LISTING_STATUS_SOLD",
+		3: "LISTING_STATUS_CANCELLED",
+	}
+	ListingStatus_value = map[string]int32{
+		"LISTING_STATUS_UNSPECIFIED": 0,
+		"LISTING_STATUS_ACTIVE":      1,
+		"LISTING_STATUS_SOLD":        2,
+		"LISTING_STATUS_CANCELLED":   3,
+	}
+)
+
+func (x ListingStatus) Enum() *ListingStatus {
+	p := new(ListingStatus)
+	*p = x
+	return p
+}
+
+func (x ListingStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ListingStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_commerce_v1_commerce_proto_enumTypes[7].Descriptor()
+}
+
+func (ListingStatus) Type() protoreflect.EnumType {
+	return &file_commerce_v1_commerce_proto_enumTypes[7]
+}
+
+func (x ListingStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ListingStatus.Descriptor instead.
+func (ListingStatus) EnumDescriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{7}
+}
+
+type MarketplaceOrderStatus int32
+
+const (
+	MarketplaceOrderStatus_MARKETPLACE_ORDER_STATUS_UNSPECIFIED MarketplaceOrderStatus = 0
+	MarketplaceOrderStatus_MARKETPLACE_ORDER_STATUS_PENDING     MarketplaceOrderStatus = 1
+	MarketplaceOrderStatus_MARKETPLACE_ORDER_STATUS_COMPLETED   MarketplaceOrderStatus = 2
+	MarketplaceOrderStatus_MARKETPLACE_ORDER_STATUS_CANCELLED   MarketplaceOrderStatus = 3
+)
+
+// Enum value maps for MarketplaceOrderStatus.
+var (
+	MarketplaceOrderStatus_name = map[int32]string{
+		0: "MARKETPLACE_ORDER_STATUS_UNSPECIFIED",
+		1: "MARKETPLACE_ORDER_STATUS_PENDING",
+		2: "MARKETPLACE_ORDER_STATUS_COMPLETED",
+		3: "MARKETPLACE_ORDER_STATUS_CANCELLED",
+	}
+	MarketplaceOrderStatus_value = map[string]int32{
+		"MARKETPLACE_ORDER_STATUS_UNSPECIFIED": 0,
+		"MARKETPLACE_ORDER_STATUS_PENDING":     1,
+		"MARKETPLACE_ORDER_STATUS_COMPLETED":   2,
+		"MARKETPLACE_ORDER_STATUS_CANCELLED":   3,
+	}
+)
+
+func (x MarketplaceOrderStatus) Enum() *MarketplaceOrderStatus {
+	p := new(MarketplaceOrderStatus)
+	*p = x
+	return p
+}
+
+func (x MarketplaceOrderStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MarketplaceOrderStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_commerce_v1_commerce_proto_enumTypes[8].Descriptor()
+}
+
+func (MarketplaceOrderStatus) Type() protoreflect.EnumType {
+	return &file_commerce_v1_commerce_proto_enumTypes[8]
+}
+
+func (x MarketplaceOrderStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MarketplaceOrderStatus.Descriptor instead.
+func (MarketplaceOrderStatus) EnumDescriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{8}
+}
+
+type OfferStatus int32
+
+const (
+	OfferStatus_OFFER_STATUS_UNSPECIFIED OfferStatus = 0
+	OfferStatus_OFFER_STATUS_PENDING     OfferStatus = 1
+	OfferStatus_OFFER_STATUS_ACCEPTED    OfferStatus = 2
+	OfferStatus_OFFER_STATUS_REJECTED    OfferStatus = 3
+	OfferStatus_OFFER_STATUS_CANCELLED   OfferStatus = 4
+)
+
+// Enum value maps for OfferStatus.
+var (
+	OfferStatus_name = map[int32]string{
+		0: "OFFER_STATUS_UNSPECIFIED",
+		1: "OFFER_STATUS_PENDING",
+		2: "OFFER_STATUS_ACCEPTED",
+		3: "OFFER_STATUS_REJECTED",
+		4: "OFFER_STATUS_CANCELLED",
+	}
+	OfferStatus_value = map[string]int32{
+		"OFFER_STATUS_UNSPECIFIED": 0,
+		"OFFER_STATUS_PENDING":     1,
+		"OFFER_STATUS_ACCEPTED":    2,
+		"OFFER_STATUS_REJECTED":    3,
+		"OFFER_STATUS_CANCELLED":   4,
+	}
+)
+
+func (x OfferStatus) Enum() *OfferStatus {
+	p := new(OfferStatus)
+	*p = x
+	return p
+}
+
+func (x OfferStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OfferStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_commerce_v1_commerce_proto_enumTypes[9].Descriptor()
+}
+
+func (OfferStatus) Type() protoreflect.EnumType {
+	return &file_commerce_v1_commerce_proto_enumTypes[9]
+}
+
+func (x OfferStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OfferStatus.Descriptor instead.
+func (OfferStatus) EnumDescriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{9}
+}
+
+type ExchangeOrderStatus int32
+
+const (
+	ExchangeOrderStatus_EXCHANGE_ORDER_STATUS_UNSPECIFIED ExchangeOrderStatus = 0
+	ExchangeOrderStatus_EXCHANGE_ORDER_STATUS_PENDING     ExchangeOrderStatus = 1
+	ExchangeOrderStatus_EXCHANGE_ORDER_STATUS_FILLED      ExchangeOrderStatus = 2
+	ExchangeOrderStatus_EXCHANGE_ORDER_STATUS_CANCELLED   ExchangeOrderStatus = 3
+	ExchangeOrderStatus_EXCHANGE_ORDER_STATUS_FAILED      ExchangeOrderStatus = 4
+)
+
+// Enum value maps for ExchangeOrderStatus.
+var (
+	ExchangeOrderStatus_name = map[int32]string{
+		0: "EXCHANGE_ORDER_STATUS_UNSPECIFIED",
+		1: "EXCHANGE_ORDER_STATUS_PENDING",
+		2: "EXCHANGE_ORDER_STATUS_FILLED",
+		3: "EXCHANGE_ORDER_STATUS_CANCELLED",
+		4: "EXCHANGE_ORDER_STATUS_FAILED",
+	}
+	ExchangeOrderStatus_value = map[string]int32{
+		"EXCHANGE_ORDER_STATUS_UNSPECIFIED": 0,
+		"EXCHANGE_ORDER_STATUS_PENDING":     1,
+		"EXCHANGE_ORDER_STATUS_FILLED":      2,
+		"EXCHANGE_ORDER_STATUS_CANCELLED":   3,
+		"EXCHANGE_ORDER_STATUS_FAILED":      4,
+	}
+)
+
+func (x ExchangeOrderStatus) Enum() *ExchangeOrderStatus {
+	p := new(ExchangeOrderStatus)
+	*p = x
+	return p
+}
+
+func (x ExchangeOrderStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ExchangeOrderStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_commerce_v1_commerce_proto_enumTypes[10].Descriptor()
+}
+
+func (ExchangeOrderStatus) Type() protoreflect.EnumType {
+	return &file_commerce_v1_commerce_proto_enumTypes[10]
+}
+
+func (x ExchangeOrderStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ExchangeOrderStatus.Descriptor instead.
+func (ExchangeOrderStatus) EnumDescriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{10}
+}
+
 // --- Quotes ---
 type CreateQuoteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -307,6 +631,7 @@ type CreateQuoteRequest struct {
 	Amount        float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
 	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -376,6 +701,13 @@ func (x *CreateQuoteRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *CreateQuoteRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type CreateQuoteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Quote         *Quote                 `protobuf:"bytes,1,opt,name=quote,proto3" json:"quote,omitempty"`
@@ -423,6 +755,7 @@ func (x *CreateQuoteResponse) GetQuote() *Quote {
 type GetQuoteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	QuoteId       string                 `protobuf:"bytes,1,opt,name=quote_id,json=quoteId,proto3" json:"quote_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -462,6 +795,13 @@ func (x *GetQuoteRequest) GetQuoteId() string {
 		return x.QuoteId
 	}
 	return ""
+}
+
+func (x *GetQuoteRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type GetQuoteResponse struct {
@@ -513,6 +853,7 @@ type ListQuotesRequest struct {
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -564,6 +905,13 @@ func (x *ListQuotesRequest) GetPage() int32 {
 func (x *ListQuotesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListQuotesRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
 	}
 	return 0
 }
@@ -631,6 +979,7 @@ type Quote struct {
 	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -728,6 +1077,13 @@ func (x *Quote) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Quote) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 // --- Orders ---
 type CreateOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -735,6 +1091,7 @@ type CreateOrderRequest struct {
 	Items         []*OrderItem           `protobuf:"bytes,2,rep,name=items,proto3" json:"items,omitempty"`
 	Currency      string                 `protobuf:"bytes,3,opt,name=currency,proto3" json:"currency,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -797,6 +1154,13 @@ func (x *CreateOrderRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *CreateOrderRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type CreateOrderResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Order         *Order                 `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
@@ -844,6 +1208,7 @@ func (x *CreateOrderResponse) GetOrder() *Order {
 type GetOrderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -883,6 +1248,13 @@ func (x *GetOrderRequest) GetOrderId() string {
 		return x.OrderId
 	}
 	return ""
+}
+
+func (x *GetOrderRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type GetOrderResponse struct {
@@ -934,6 +1306,7 @@ type ListOrdersRequest struct {
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -985,6 +1358,13 @@ func (x *ListOrdersRequest) GetPage() int32 {
 func (x *ListOrdersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListOrdersRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
 	}
 	return 0
 }
@@ -1045,6 +1425,7 @@ type UpdateOrderStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	Status        OrderStatus            `protobuf:"varint,2,opt,name=status,proto3,enum=commerce.v1.OrderStatus" json:"status,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1091,6 +1472,13 @@ func (x *UpdateOrderStatusRequest) GetStatus() OrderStatus {
 		return x.Status
 	}
 	return OrderStatus_ORDER_STATUS_UNSPECIFIED
+}
+
+func (x *UpdateOrderStatusRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type UpdateOrderStatusResponse struct {
@@ -1148,6 +1536,7 @@ type Order struct {
 	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1245,6 +1634,13 @@ func (x *Order) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Order) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type OrderItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProductId     string                 `protobuf:"bytes,1,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
@@ -1322,6 +1718,7 @@ type InitiatePaymentRequest struct {
 	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
 	Method        string                 `protobuf:"bytes,5,opt,name=method,proto3" json:"method,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1398,6 +1795,13 @@ func (x *InitiatePaymentRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *InitiatePaymentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type InitiatePaymentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Payment       *Payment               `protobuf:"bytes,1,opt,name=payment,proto3" json:"payment,omitempty"`
@@ -1447,6 +1851,7 @@ type ConfirmPaymentRequest struct {
 	PaymentId     string                 `protobuf:"bytes,1,opt,name=payment_id,json=paymentId,proto3" json:"payment_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1502,6 +1907,13 @@ func (x *ConfirmPaymentRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *ConfirmPaymentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type ConfirmPaymentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Payment       *Payment               `protobuf:"bytes,1,opt,name=payment,proto3" json:"payment,omitempty"`
@@ -1552,6 +1964,7 @@ type RefundPaymentRequest struct {
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Amount        float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1614,6 +2027,13 @@ func (x *RefundPaymentRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *RefundPaymentRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type RefundPaymentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Payment       *Payment               `protobuf:"bytes,1,opt,name=payment,proto3" json:"payment,omitempty"`
@@ -1670,6 +2090,7 @@ type Payment struct {
 	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,11,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1774,10 +2195,18 @@ func (x *Payment) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Payment) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 // --- Transactions ---
 type GetTransactionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TransactionId string                 `protobuf:"bytes,1,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1817,6 +2246,13 @@ func (x *GetTransactionRequest) GetTransactionId() string {
 		return x.TransactionId
 	}
 	return ""
+}
+
+func (x *GetTransactionRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type GetTransactionResponse struct {
@@ -1868,6 +2304,7 @@ type ListTransactionsRequest struct {
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1919,6 +2356,13 @@ func (x *ListTransactionsRequest) GetPage() int32 {
 func (x *ListTransactionsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListTransactionsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
 	}
 	return 0
 }
@@ -1987,6 +2431,7 @@ type Transaction struct {
 	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,11,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2091,11 +2536,19 @@ func (x *Transaction) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Transaction) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 // --- Balances ---
 type GetBalanceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Currency      string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2142,6 +2595,13 @@ func (x *GetBalanceRequest) GetCurrency() string {
 		return x.Currency
 	}
 	return ""
+}
+
+func (x *GetBalanceRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type GetBalanceResponse struct {
@@ -2191,6 +2651,7 @@ func (x *GetBalanceResponse) GetBalance() *Balance {
 type ListBalancesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2230,6 +2691,13 @@ func (x *ListBalancesRequest) GetUserId() string {
 		return x.UserId
 	}
 	return ""
+}
+
+func (x *ListBalancesRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type ListBalancesResponse struct {
@@ -2277,11 +2745,14 @@ func (x *ListBalancesResponse) GetBalances() []*Balance {
 }
 
 type Balance struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Currency      string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
-	Amount        float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	UserId    string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Currency  string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
+	Amount    float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Robust, extensible metadata for balances (see docs/amadeus/amadeus_context.md)
+	Metadata      *v1.Metadata `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64        `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2344,6 +2815,20 @@ func (x *Balance) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Balance) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *Balance) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 // --- Events (Analytics/Audit) ---
 type ListEventsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2351,6 +2836,7 @@ type ListEventsRequest struct {
 	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
 	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2413,6 +2899,13 @@ func (x *ListEventsRequest) GetPageSize() int32 {
 	return 0
 }
 
+func (x *ListEventsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type ListEventsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Events        []*CommerceEvent       `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
@@ -2466,13 +2959,16 @@ func (x *ListEventsResponse) GetTotal() int32 {
 }
 
 type CommerceEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	EntityId      string                 `protobuf:"bytes,2,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
-	EntityType    string                 `protobuf:"bytes,3,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
-	EventType     string                 `protobuf:"bytes,4,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
-	Payload       *structpb.Struct       `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	EventId    string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	EntityId   string                 `protobuf:"bytes,2,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	EntityType string                 `protobuf:"bytes,3,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
+	EventType  string                 `protobuf:"bytes,4,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	Payload    *structpb.Struct       `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
+	CreatedAt  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// Robust, extensible metadata for analytics/audit (see docs/amadeus/amadeus_context.md)
+	Metadata      *v1.Metadata `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64        `protobuf:"varint,8,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2549,31 +3045,3612 @@ func (x *CommerceEvent) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *CommerceEvent) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *CommerceEvent) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+// --- Shared Primitives ---
+type Party struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PartyId       string                 `protobuf:"bytes,1,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"` // USER, BUSINESS, BANK, EXCHANGE, etc.
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Party) Reset() {
+	*x = Party{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Party) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Party) ProtoMessage() {}
+
+func (x *Party) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Party.ProtoReflect.Descriptor instead.
+func (*Party) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *Party) GetPartyId() string {
+	if x != nil {
+		return x.PartyId
+	}
+	return ""
+}
+
+func (x *Party) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Party) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Party) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type Account struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	PartyId       string                 `protobuf:"bytes,2,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
+	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"` // BANK, INVESTMENT, WALLET, etc.
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Balance       float64                `protobuf:"fixed64,5,opt,name=balance,proto3" json:"balance,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Account) Reset() {
+	*x = Account{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Account) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Account) ProtoMessage() {}
+
+func (x *Account) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Account.ProtoReflect.Descriptor instead.
+func (*Account) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *Account) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *Account) GetPartyId() string {
+	if x != nil {
+		return x.PartyId
+	}
+	return ""
+}
+
+func (x *Account) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Account) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *Account) GetBalance() float64 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
+func (x *Account) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// --- Investment ---
+type InvestmentAccount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"` // BROKERAGE, RETIREMENT, etc.
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Balance       float64                `protobuf:"fixed64,5,opt,name=balance,proto3" json:"balance,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,9,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvestmentAccount) Reset() {
+	*x = InvestmentAccount{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvestmentAccount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvestmentAccount) ProtoMessage() {}
+
+func (x *InvestmentAccount) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvestmentAccount.ProtoReflect.Descriptor instead.
+func (*InvestmentAccount) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *InvestmentAccount) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *InvestmentAccount) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
+func (x *InvestmentAccount) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *InvestmentAccount) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *InvestmentAccount) GetBalance() float64 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
+func (x *InvestmentAccount) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *InvestmentAccount) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *InvestmentAccount) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *InvestmentAccount) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type InvestmentOrder struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AssetId       string                 `protobuf:"bytes,3,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	Quantity      float64                `protobuf:"fixed64,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	Price         float64                `protobuf:"fixed64,5,opt,name=price,proto3" json:"price,omitempty"`
+	OrderType     string                 `protobuf:"bytes,6,opt,name=order_type,json=orderType,proto3" json:"order_type,omitempty"` // MARKET, LIMIT, etc.
+	Status        InvestmentOrderStatus  `protobuf:"varint,7,opt,name=status,proto3,enum=commerce.v1.InvestmentOrderStatus" json:"status,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InvestmentOrder) Reset() {
+	*x = InvestmentOrder{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InvestmentOrder) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InvestmentOrder) ProtoMessage() {}
+
+func (x *InvestmentOrder) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InvestmentOrder.ProtoReflect.Descriptor instead.
+func (*InvestmentOrder) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *InvestmentOrder) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+func (x *InvestmentOrder) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *InvestmentOrder) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *InvestmentOrder) GetQuantity() float64 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *InvestmentOrder) GetPrice() float64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *InvestmentOrder) GetOrderType() string {
+	if x != nil {
+		return x.OrderType
+	}
+	return ""
+}
+
+func (x *InvestmentOrder) GetStatus() InvestmentOrderStatus {
+	if x != nil {
+		return x.Status
+	}
+	return InvestmentOrderStatus_INVESTMENT_ORDER_STATUS_UNSPECIFIED
+}
+
+func (x *InvestmentOrder) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *InvestmentOrder) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *InvestmentOrder) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type Asset struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	Symbol        string                 `protobuf:"bytes,2,opt,name=symbol,proto3" json:"symbol,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"` // STOCK, BOND, FUND, CRYPTO, etc.
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Asset) Reset() {
+	*x = Asset{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Asset) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Asset) ProtoMessage() {}
+
+func (x *Asset) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Asset.ProtoReflect.Descriptor instead.
+func (*Asset) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *Asset) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *Asset) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *Asset) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Asset) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Asset) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *Asset) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Asset) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type Portfolio struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PortfolioId   string                 `protobuf:"bytes,1,opt,name=portfolio_id,json=portfolioId,proto3" json:"portfolio_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Positions     []*AssetPosition       `protobuf:"bytes,3,rep,name=positions,proto3" json:"positions,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Portfolio) Reset() {
+	*x = Portfolio{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Portfolio) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Portfolio) ProtoMessage() {}
+
+func (x *Portfolio) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Portfolio.ProtoReflect.Descriptor instead.
+func (*Portfolio) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *Portfolio) GetPortfolioId() string {
+	if x != nil {
+		return x.PortfolioId
+	}
+	return ""
+}
+
+func (x *Portfolio) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *Portfolio) GetPositions() []*AssetPosition {
+	if x != nil {
+		return x.Positions
+	}
+	return nil
+}
+
+func (x *Portfolio) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *Portfolio) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Portfolio) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type AssetPosition struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AssetId       string                 `protobuf:"bytes,1,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	Quantity      float64                `protobuf:"fixed64,2,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	AveragePrice  float64                `protobuf:"fixed64,3,opt,name=average_price,json=averagePrice,proto3" json:"average_price,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AssetPosition) Reset() {
+	*x = AssetPosition{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AssetPosition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AssetPosition) ProtoMessage() {}
+
+func (x *AssetPosition) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssetPosition.ProtoReflect.Descriptor instead.
+func (*AssetPosition) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *AssetPosition) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *AssetPosition) GetQuantity() float64 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *AssetPosition) GetAveragePrice() float64 {
+	if x != nil {
+		return x.AveragePrice
+	}
+	return 0
+}
+
+func (x *AssetPosition) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *AssetPosition) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *AssetPosition) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+// --- Banking ---
+type BankAccount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Iban          string                 `protobuf:"bytes,3,opt,name=iban,proto3" json:"iban,omitempty"`
+	Bic           string                 `protobuf:"bytes,4,opt,name=bic,proto3" json:"bic,omitempty"`
+	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Balance       float64                `protobuf:"fixed64,6,opt,name=balance,proto3" json:"balance,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BankAccount) Reset() {
+	*x = BankAccount{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BankAccount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BankAccount) ProtoMessage() {}
+
+func (x *BankAccount) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BankAccount.ProtoReflect.Descriptor instead.
+func (*BankAccount) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *BankAccount) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *BankAccount) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *BankAccount) GetIban() string {
+	if x != nil {
+		return x.Iban
+	}
+	return ""
+}
+
+func (x *BankAccount) GetBic() string {
+	if x != nil {
+		return x.Bic
+	}
+	return ""
+}
+
+func (x *BankAccount) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *BankAccount) GetBalance() float64 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
+func (x *BankAccount) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type BankTransfer struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TransferId    string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	FromAccountId string                 `protobuf:"bytes,2,opt,name=from_account_id,json=fromAccountId,proto3" json:"from_account_id,omitempty"`
+	ToAccountId   string                 `protobuf:"bytes,3,opt,name=to_account_id,json=toAccountId,proto3" json:"to_account_id,omitempty"`
+	Amount        float64                `protobuf:"fixed64,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status        BankTransferStatus     `protobuf:"varint,6,opt,name=status,proto3,enum=commerce.v1.BankTransferStatus" json:"status,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BankTransfer) Reset() {
+	*x = BankTransfer{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BankTransfer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BankTransfer) ProtoMessage() {}
+
+func (x *BankTransfer) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BankTransfer.ProtoReflect.Descriptor instead.
+func (*BankTransfer) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *BankTransfer) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+func (x *BankTransfer) GetFromAccountId() string {
+	if x != nil {
+		return x.FromAccountId
+	}
+	return ""
+}
+
+func (x *BankTransfer) GetToAccountId() string {
+	if x != nil {
+		return x.ToAccountId
+	}
+	return ""
+}
+
+func (x *BankTransfer) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *BankTransfer) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *BankTransfer) GetStatus() BankTransferStatus {
+	if x != nil {
+		return x.Status
+	}
+	return BankTransferStatus_BANK_TRANSFER_STATUS_UNSPECIFIED
+}
+
+func (x *BankTransfer) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *BankTransfer) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type BankStatement struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Transactions  []*Transaction         `protobuf:"bytes,2,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BankStatement) Reset() {
+	*x = BankStatement{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BankStatement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BankStatement) ProtoMessage() {}
+
+func (x *BankStatement) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BankStatement.ProtoReflect.Descriptor instead.
+func (*BankStatement) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *BankStatement) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *BankStatement) GetTransactions() []*Transaction {
+	if x != nil {
+		return x.Transactions
+	}
+	return nil
+}
+
+func (x *BankStatement) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// --- Marketplace ---
+type MarketplaceListing struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ListingId     string                 `protobuf:"bytes,1,opt,name=listing_id,json=listingId,proto3" json:"listing_id,omitempty"`
+	SellerId      string                 `protobuf:"bytes,2,opt,name=seller_id,json=sellerId,proto3" json:"seller_id,omitempty"`
+	ProductId     string                 `protobuf:"bytes,3,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
+	Price         float64                `protobuf:"fixed64,4,opt,name=price,proto3" json:"price,omitempty"`
+	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status        ListingStatus          `protobuf:"varint,6,opt,name=status,proto3,enum=commerce.v1.ListingStatus" json:"status,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MarketplaceListing) Reset() {
+	*x = MarketplaceListing{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MarketplaceListing) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MarketplaceListing) ProtoMessage() {}
+
+func (x *MarketplaceListing) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MarketplaceListing.ProtoReflect.Descriptor instead.
+func (*MarketplaceListing) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *MarketplaceListing) GetListingId() string {
+	if x != nil {
+		return x.ListingId
+	}
+	return ""
+}
+
+func (x *MarketplaceListing) GetSellerId() string {
+	if x != nil {
+		return x.SellerId
+	}
+	return ""
+}
+
+func (x *MarketplaceListing) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *MarketplaceListing) GetPrice() float64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *MarketplaceListing) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *MarketplaceListing) GetStatus() ListingStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ListingStatus_LISTING_STATUS_UNSPECIFIED
+}
+
+func (x *MarketplaceListing) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *MarketplaceListing) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type MarketplaceOrder struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	ListingId     string                 `protobuf:"bytes,2,opt,name=listing_id,json=listingId,proto3" json:"listing_id,omitempty"`
+	BuyerId       string                 `protobuf:"bytes,3,opt,name=buyer_id,json=buyerId,proto3" json:"buyer_id,omitempty"`
+	Price         float64                `protobuf:"fixed64,4,opt,name=price,proto3" json:"price,omitempty"`
+	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status        MarketplaceOrderStatus `protobuf:"varint,6,opt,name=status,proto3,enum=commerce.v1.MarketplaceOrderStatus" json:"status,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MarketplaceOrder) Reset() {
+	*x = MarketplaceOrder{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MarketplaceOrder) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MarketplaceOrder) ProtoMessage() {}
+
+func (x *MarketplaceOrder) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MarketplaceOrder.ProtoReflect.Descriptor instead.
+func (*MarketplaceOrder) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *MarketplaceOrder) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+func (x *MarketplaceOrder) GetListingId() string {
+	if x != nil {
+		return x.ListingId
+	}
+	return ""
+}
+
+func (x *MarketplaceOrder) GetBuyerId() string {
+	if x != nil {
+		return x.BuyerId
+	}
+	return ""
+}
+
+func (x *MarketplaceOrder) GetPrice() float64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *MarketplaceOrder) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *MarketplaceOrder) GetStatus() MarketplaceOrderStatus {
+	if x != nil {
+		return x.Status
+	}
+	return MarketplaceOrderStatus_MARKETPLACE_ORDER_STATUS_UNSPECIFIED
+}
+
+func (x *MarketplaceOrder) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *MarketplaceOrder) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type MarketplaceOffer struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OfferId       string                 `protobuf:"bytes,1,opt,name=offer_id,json=offerId,proto3" json:"offer_id,omitempty"`
+	ListingId     string                 `protobuf:"bytes,2,opt,name=listing_id,json=listingId,proto3" json:"listing_id,omitempty"`
+	BuyerId       string                 `protobuf:"bytes,3,opt,name=buyer_id,json=buyerId,proto3" json:"buyer_id,omitempty"`
+	OfferPrice    float64                `protobuf:"fixed64,4,opt,name=offer_price,json=offerPrice,proto3" json:"offer_price,omitempty"`
+	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status        OfferStatus            `protobuf:"varint,6,opt,name=status,proto3,enum=commerce.v1.OfferStatus" json:"status,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MarketplaceOffer) Reset() {
+	*x = MarketplaceOffer{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MarketplaceOffer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MarketplaceOffer) ProtoMessage() {}
+
+func (x *MarketplaceOffer) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MarketplaceOffer.ProtoReflect.Descriptor instead.
+func (*MarketplaceOffer) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *MarketplaceOffer) GetOfferId() string {
+	if x != nil {
+		return x.OfferId
+	}
+	return ""
+}
+
+func (x *MarketplaceOffer) GetListingId() string {
+	if x != nil {
+		return x.ListingId
+	}
+	return ""
+}
+
+func (x *MarketplaceOffer) GetBuyerId() string {
+	if x != nil {
+		return x.BuyerId
+	}
+	return ""
+}
+
+func (x *MarketplaceOffer) GetOfferPrice() float64 {
+	if x != nil {
+		return x.OfferPrice
+	}
+	return 0
+}
+
+func (x *MarketplaceOffer) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *MarketplaceOffer) GetStatus() OfferStatus {
+	if x != nil {
+		return x.Status
+	}
+	return OfferStatus_OFFER_STATUS_UNSPECIFIED
+}
+
+func (x *MarketplaceOffer) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *MarketplaceOffer) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+// --- Exchange ---
+type ExchangeOrder struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Pair          string                 `protobuf:"bytes,3,opt,name=pair,proto3" json:"pair,omitempty"` // e.g., BTC/USD
+	Amount        float64                `protobuf:"fixed64,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	Price         float64                `protobuf:"fixed64,5,opt,name=price,proto3" json:"price,omitempty"`
+	OrderType     string                 `protobuf:"bytes,6,opt,name=order_type,json=orderType,proto3" json:"order_type,omitempty"` // MARKET, LIMIT
+	Status        ExchangeOrderStatus    `protobuf:"varint,7,opt,name=status,proto3,enum=commerce.v1.ExchangeOrderStatus" json:"status,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeOrder) Reset() {
+	*x = ExchangeOrder{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeOrder) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeOrder) ProtoMessage() {}
+
+func (x *ExchangeOrder) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeOrder.ProtoReflect.Descriptor instead.
+func (*ExchangeOrder) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *ExchangeOrder) GetOrderId() string {
+	if x != nil {
+		return x.OrderId
+	}
+	return ""
+}
+
+func (x *ExchangeOrder) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *ExchangeOrder) GetPair() string {
+	if x != nil {
+		return x.Pair
+	}
+	return ""
+}
+
+func (x *ExchangeOrder) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *ExchangeOrder) GetPrice() float64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *ExchangeOrder) GetOrderType() string {
+	if x != nil {
+		return x.OrderType
+	}
+	return ""
+}
+
+func (x *ExchangeOrder) GetStatus() ExchangeOrderStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ExchangeOrderStatus_EXCHANGE_ORDER_STATUS_UNSPECIFIED
+}
+
+func (x *ExchangeOrder) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *ExchangeOrder) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type ExchangePair struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PairId        string                 `protobuf:"bytes,1,opt,name=pair_id,json=pairId,proto3" json:"pair_id,omitempty"`
+	BaseAsset     string                 `protobuf:"bytes,2,opt,name=base_asset,json=baseAsset,proto3" json:"base_asset,omitempty"`
+	QuoteAsset    string                 `protobuf:"bytes,3,opt,name=quote_asset,json=quoteAsset,proto3" json:"quote_asset,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangePair) Reset() {
+	*x = ExchangePair{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangePair) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangePair) ProtoMessage() {}
+
+func (x *ExchangePair) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangePair.ProtoReflect.Descriptor instead.
+func (*ExchangePair) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *ExchangePair) GetPairId() string {
+	if x != nil {
+		return x.PairId
+	}
+	return ""
+}
+
+func (x *ExchangePair) GetBaseAsset() string {
+	if x != nil {
+		return x.BaseAsset
+	}
+	return ""
+}
+
+func (x *ExchangePair) GetQuoteAsset() string {
+	if x != nil {
+		return x.QuoteAsset
+	}
+	return ""
+}
+
+func (x *ExchangePair) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type ExchangeRate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PairId        string                 `protobuf:"bytes,1,opt,name=pair_id,json=pairId,proto3" json:"pair_id,omitempty"`
+	Rate          float64                `protobuf:"fixed64,2,opt,name=rate,proto3" json:"rate,omitempty"`
+	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeRate) Reset() {
+	*x = ExchangeRate{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeRate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeRate) ProtoMessage() {}
+
+func (x *ExchangeRate) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeRate.ProtoReflect.Descriptor instead.
+func (*ExchangeRate) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *ExchangeRate) GetPairId() string {
+	if x != nil {
+		return x.PairId
+	}
+	return ""
+}
+
+func (x *ExchangeRate) GetRate() float64 {
+	if x != nil {
+		return x.Rate
+	}
+	return 0
+}
+
+func (x *ExchangeRate) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+func (x *ExchangeRate) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// Investment
+type CreateInvestmentAccountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       string                 `protobuf:"bytes,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	Currency      string                 `protobuf:"bytes,3,opt,name=currency,proto3" json:"currency,omitempty"`
+	Balance       float64                `protobuf:"fixed64,4,opt,name=balance,proto3" json:"balance,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateInvestmentAccountRequest) Reset() {
+	*x = CreateInvestmentAccountRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateInvestmentAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateInvestmentAccountRequest) ProtoMessage() {}
+
+func (x *CreateInvestmentAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateInvestmentAccountRequest.ProtoReflect.Descriptor instead.
+func (*CreateInvestmentAccountRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *CreateInvestmentAccountRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
+func (x *CreateInvestmentAccountRequest) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *CreateInvestmentAccountRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *CreateInvestmentAccountRequest) GetBalance() float64 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
+func (x *CreateInvestmentAccountRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *CreateInvestmentAccountRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type CreateInvestmentAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       *InvestmentAccount     `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateInvestmentAccountResponse) Reset() {
+	*x = CreateInvestmentAccountResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateInvestmentAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateInvestmentAccountResponse) ProtoMessage() {}
+
+func (x *CreateInvestmentAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateInvestmentAccountResponse.ProtoReflect.Descriptor instead.
+func (*CreateInvestmentAccountResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *CreateInvestmentAccountResponse) GetAccount() *InvestmentAccount {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+type GetInvestmentAccountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInvestmentAccountRequest) Reset() {
+	*x = GetInvestmentAccountRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInvestmentAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInvestmentAccountRequest) ProtoMessage() {}
+
+func (x *GetInvestmentAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInvestmentAccountRequest.ProtoReflect.Descriptor instead.
+func (*GetInvestmentAccountRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *GetInvestmentAccountRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *GetInvestmentAccountRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type GetInvestmentAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       *InvestmentAccount     `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInvestmentAccountResponse) Reset() {
+	*x = GetInvestmentAccountResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInvestmentAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInvestmentAccountResponse) ProtoMessage() {}
+
+func (x *GetInvestmentAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInvestmentAccountResponse.ProtoReflect.Descriptor instead.
+func (*GetInvestmentAccountResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *GetInvestmentAccountResponse) GetAccount() *InvestmentAccount {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+type PlaceInvestmentOrderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AssetId       string                 `protobuf:"bytes,2,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	Quantity      float64                `protobuf:"fixed64,3,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	Price         float64                `protobuf:"fixed64,4,opt,name=price,proto3" json:"price,omitempty"`
+	OrderType     string                 `protobuf:"bytes,5,opt,name=order_type,json=orderType,proto3" json:"order_type,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaceInvestmentOrderRequest) Reset() {
+	*x = PlaceInvestmentOrderRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaceInvestmentOrderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaceInvestmentOrderRequest) ProtoMessage() {}
+
+func (x *PlaceInvestmentOrderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaceInvestmentOrderRequest.ProtoReflect.Descriptor instead.
+func (*PlaceInvestmentOrderRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *PlaceInvestmentOrderRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *PlaceInvestmentOrderRequest) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *PlaceInvestmentOrderRequest) GetQuantity() float64 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *PlaceInvestmentOrderRequest) GetPrice() float64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *PlaceInvestmentOrderRequest) GetOrderType() string {
+	if x != nil {
+		return x.OrderType
+	}
+	return ""
+}
+
+func (x *PlaceInvestmentOrderRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *PlaceInvestmentOrderRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type PlaceInvestmentOrderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Order         *InvestmentOrder       `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaceInvestmentOrderResponse) Reset() {
+	*x = PlaceInvestmentOrderResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaceInvestmentOrderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaceInvestmentOrderResponse) ProtoMessage() {}
+
+func (x *PlaceInvestmentOrderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaceInvestmentOrderResponse.ProtoReflect.Descriptor instead.
+func (*PlaceInvestmentOrderResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *PlaceInvestmentOrderResponse) GetOrder() *InvestmentOrder {
+	if x != nil {
+		return x.Order
+	}
+	return nil
+}
+
+type GetPortfolioRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PortfolioId   string                 `protobuf:"bytes,1,opt,name=portfolio_id,json=portfolioId,proto3" json:"portfolio_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPortfolioRequest) Reset() {
+	*x = GetPortfolioRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPortfolioRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPortfolioRequest) ProtoMessage() {}
+
+func (x *GetPortfolioRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPortfolioRequest.ProtoReflect.Descriptor instead.
+func (*GetPortfolioRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *GetPortfolioRequest) GetPortfolioId() string {
+	if x != nil {
+		return x.PortfolioId
+	}
+	return ""
+}
+
+func (x *GetPortfolioRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type GetPortfolioResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Portfolio     *Portfolio             `protobuf:"bytes,1,opt,name=portfolio,proto3" json:"portfolio,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPortfolioResponse) Reset() {
+	*x = GetPortfolioResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPortfolioResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPortfolioResponse) ProtoMessage() {}
+
+func (x *GetPortfolioResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPortfolioResponse.ProtoReflect.Descriptor instead.
+func (*GetPortfolioResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *GetPortfolioResponse) GetPortfolio() *Portfolio {
+	if x != nil {
+		return x.Portfolio
+	}
+	return nil
+}
+
+type ListPortfoliosRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPortfoliosRequest) Reset() {
+	*x = ListPortfoliosRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPortfoliosRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPortfoliosRequest) ProtoMessage() {}
+
+func (x *ListPortfoliosRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPortfoliosRequest.ProtoReflect.Descriptor instead.
+func (*ListPortfoliosRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *ListPortfoliosRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *ListPortfoliosRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type ListPortfoliosResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Portfolios    []*Portfolio           `protobuf:"bytes,1,rep,name=portfolios,proto3" json:"portfolios,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPortfoliosResponse) Reset() {
+	*x = ListPortfoliosResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPortfoliosResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPortfoliosResponse) ProtoMessage() {}
+
+func (x *ListPortfoliosResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPortfoliosResponse.ProtoReflect.Descriptor instead.
+func (*ListPortfoliosResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *ListPortfoliosResponse) GetPortfolios() []*Portfolio {
+	if x != nil {
+		return x.Portfolios
+	}
+	return nil
+}
+
+type ListAssetsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAssetsRequest) Reset() {
+	*x = ListAssetsRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAssetsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAssetsRequest) ProtoMessage() {}
+
+func (x *ListAssetsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAssetsRequest.ProtoReflect.Descriptor instead.
+func (*ListAssetsRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *ListAssetsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListAssetsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListAssetsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListAssetsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type ListAssetsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Assets        []*Asset               `protobuf:"bytes,1,rep,name=assets,proto3" json:"assets,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAssetsResponse) Reset() {
+	*x = ListAssetsResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAssetsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAssetsResponse) ProtoMessage() {}
+
+func (x *ListAssetsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAssetsResponse.ProtoReflect.Descriptor instead.
+func (*ListAssetsResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *ListAssetsResponse) GetAssets() []*Asset {
+	if x != nil {
+		return x.Assets
+	}
+	return nil
+}
+
+func (x *ListAssetsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+// Banking
+type CreateBankAccountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Iban          string                 `protobuf:"bytes,2,opt,name=iban,proto3" json:"iban,omitempty"`
+	Bic           string                 `protobuf:"bytes,3,opt,name=bic,proto3" json:"bic,omitempty"`
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Balance       float64                `protobuf:"fixed64,5,opt,name=balance,proto3" json:"balance,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateBankAccountRequest) Reset() {
+	*x = CreateBankAccountRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateBankAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateBankAccountRequest) ProtoMessage() {}
+
+func (x *CreateBankAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateBankAccountRequest.ProtoReflect.Descriptor instead.
+func (*CreateBankAccountRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *CreateBankAccountRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreateBankAccountRequest) GetIban() string {
+	if x != nil {
+		return x.Iban
+	}
+	return ""
+}
+
+func (x *CreateBankAccountRequest) GetBic() string {
+	if x != nil {
+		return x.Bic
+	}
+	return ""
+}
+
+func (x *CreateBankAccountRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *CreateBankAccountRequest) GetBalance() float64 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
+func (x *CreateBankAccountRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *CreateBankAccountRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type CreateBankAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       *BankAccount           `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateBankAccountResponse) Reset() {
+	*x = CreateBankAccountResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateBankAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateBankAccountResponse) ProtoMessage() {}
+
+func (x *CreateBankAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateBankAccountResponse.ProtoReflect.Descriptor instead.
+func (*CreateBankAccountResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *CreateBankAccountResponse) GetAccount() *BankAccount {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+type InitiateBankTransferRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FromAccountId string                 `protobuf:"bytes,1,opt,name=from_account_id,json=fromAccountId,proto3" json:"from_account_id,omitempty"`
+	ToAccountId   string                 `protobuf:"bytes,2,opt,name=to_account_id,json=toAccountId,proto3" json:"to_account_id,omitempty"`
+	Amount        float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InitiateBankTransferRequest) Reset() {
+	*x = InitiateBankTransferRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitiateBankTransferRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitiateBankTransferRequest) ProtoMessage() {}
+
+func (x *InitiateBankTransferRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitiateBankTransferRequest.ProtoReflect.Descriptor instead.
+func (*InitiateBankTransferRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *InitiateBankTransferRequest) GetFromAccountId() string {
+	if x != nil {
+		return x.FromAccountId
+	}
+	return ""
+}
+
+func (x *InitiateBankTransferRequest) GetToAccountId() string {
+	if x != nil {
+		return x.ToAccountId
+	}
+	return ""
+}
+
+func (x *InitiateBankTransferRequest) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *InitiateBankTransferRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *InitiateBankTransferRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *InitiateBankTransferRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type InitiateBankTransferResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Transfer      *BankTransfer          `protobuf:"bytes,1,opt,name=transfer,proto3" json:"transfer,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InitiateBankTransferResponse) Reset() {
+	*x = InitiateBankTransferResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitiateBankTransferResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitiateBankTransferResponse) ProtoMessage() {}
+
+func (x *InitiateBankTransferResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitiateBankTransferResponse.ProtoReflect.Descriptor instead.
+func (*InitiateBankTransferResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *InitiateBankTransferResponse) GetTransfer() *BankTransfer {
+	if x != nil {
+		return x.Transfer
+	}
+	return nil
+}
+
+type GetBankStatementRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBankStatementRequest) Reset() {
+	*x = GetBankStatementRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBankStatementRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBankStatementRequest) ProtoMessage() {}
+
+func (x *GetBankStatementRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBankStatementRequest.ProtoReflect.Descriptor instead.
+func (*GetBankStatementRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *GetBankStatementRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *GetBankStatementRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type GetBankStatementResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Statement     *BankStatement         `protobuf:"bytes,1,opt,name=statement,proto3" json:"statement,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBankStatementResponse) Reset() {
+	*x = GetBankStatementResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBankStatementResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBankStatementResponse) ProtoMessage() {}
+
+func (x *GetBankStatementResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBankStatementResponse.ProtoReflect.Descriptor instead.
+func (*GetBankStatementResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *GetBankStatementResponse) GetStatement() *BankStatement {
+	if x != nil {
+		return x.Statement
+	}
+	return nil
+}
+
+// Marketplace
+type CreateListingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SellerId      string                 `protobuf:"bytes,1,opt,name=seller_id,json=sellerId,proto3" json:"seller_id,omitempty"`
+	ProductId     string                 `protobuf:"bytes,2,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
+	Price         float64                `protobuf:"fixed64,3,opt,name=price,proto3" json:"price,omitempty"`
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateListingRequest) Reset() {
+	*x = CreateListingRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateListingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateListingRequest) ProtoMessage() {}
+
+func (x *CreateListingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateListingRequest.ProtoReflect.Descriptor instead.
+func (*CreateListingRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *CreateListingRequest) GetSellerId() string {
+	if x != nil {
+		return x.SellerId
+	}
+	return ""
+}
+
+func (x *CreateListingRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *CreateListingRequest) GetPrice() float64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *CreateListingRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *CreateListingRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *CreateListingRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type CreateListingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Listing       *MarketplaceListing    `protobuf:"bytes,1,opt,name=listing,proto3" json:"listing,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateListingResponse) Reset() {
+	*x = CreateListingResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateListingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateListingResponse) ProtoMessage() {}
+
+func (x *CreateListingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateListingResponse.ProtoReflect.Descriptor instead.
+func (*CreateListingResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *CreateListingResponse) GetListing() *MarketplaceListing {
+	if x != nil {
+		return x.Listing
+	}
+	return nil
+}
+
+type PlaceMarketplaceOrderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ListingId     string                 `protobuf:"bytes,1,opt,name=listing_id,json=listingId,proto3" json:"listing_id,omitempty"`
+	BuyerId       string                 `protobuf:"bytes,2,opt,name=buyer_id,json=buyerId,proto3" json:"buyer_id,omitempty"`
+	Price         float64                `protobuf:"fixed64,3,opt,name=price,proto3" json:"price,omitempty"`
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaceMarketplaceOrderRequest) Reset() {
+	*x = PlaceMarketplaceOrderRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaceMarketplaceOrderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaceMarketplaceOrderRequest) ProtoMessage() {}
+
+func (x *PlaceMarketplaceOrderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaceMarketplaceOrderRequest.ProtoReflect.Descriptor instead.
+func (*PlaceMarketplaceOrderRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *PlaceMarketplaceOrderRequest) GetListingId() string {
+	if x != nil {
+		return x.ListingId
+	}
+	return ""
+}
+
+func (x *PlaceMarketplaceOrderRequest) GetBuyerId() string {
+	if x != nil {
+		return x.BuyerId
+	}
+	return ""
+}
+
+func (x *PlaceMarketplaceOrderRequest) GetPrice() float64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *PlaceMarketplaceOrderRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *PlaceMarketplaceOrderRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *PlaceMarketplaceOrderRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type PlaceMarketplaceOrderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Order         *MarketplaceOrder      `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaceMarketplaceOrderResponse) Reset() {
+	*x = PlaceMarketplaceOrderResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaceMarketplaceOrderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaceMarketplaceOrderResponse) ProtoMessage() {}
+
+func (x *PlaceMarketplaceOrderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaceMarketplaceOrderResponse.ProtoReflect.Descriptor instead.
+func (*PlaceMarketplaceOrderResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *PlaceMarketplaceOrderResponse) GetOrder() *MarketplaceOrder {
+	if x != nil {
+		return x.Order
+	}
+	return nil
+}
+
+type MakeOfferRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ListingId     string                 `protobuf:"bytes,1,opt,name=listing_id,json=listingId,proto3" json:"listing_id,omitempty"`
+	BuyerId       string                 `protobuf:"bytes,2,opt,name=buyer_id,json=buyerId,proto3" json:"buyer_id,omitempty"`
+	OfferPrice    float64                `protobuf:"fixed64,3,opt,name=offer_price,json=offerPrice,proto3" json:"offer_price,omitempty"`
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeOfferRequest) Reset() {
+	*x = MakeOfferRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeOfferRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeOfferRequest) ProtoMessage() {}
+
+func (x *MakeOfferRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeOfferRequest.ProtoReflect.Descriptor instead.
+func (*MakeOfferRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *MakeOfferRequest) GetListingId() string {
+	if x != nil {
+		return x.ListingId
+	}
+	return ""
+}
+
+func (x *MakeOfferRequest) GetBuyerId() string {
+	if x != nil {
+		return x.BuyerId
+	}
+	return ""
+}
+
+func (x *MakeOfferRequest) GetOfferPrice() float64 {
+	if x != nil {
+		return x.OfferPrice
+	}
+	return 0
+}
+
+func (x *MakeOfferRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *MakeOfferRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *MakeOfferRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type MakeOfferResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Offer         *MarketplaceOffer      `protobuf:"bytes,1,opt,name=offer,proto3" json:"offer,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeOfferResponse) Reset() {
+	*x = MakeOfferResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeOfferResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeOfferResponse) ProtoMessage() {}
+
+func (x *MakeOfferResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeOfferResponse.ProtoReflect.Descriptor instead.
+func (*MakeOfferResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *MakeOfferResponse) GetOffer() *MarketplaceOffer {
+	if x != nil {
+		return x.Offer
+	}
+	return nil
+}
+
+type ListListingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListListingsRequest) Reset() {
+	*x = ListListingsRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListListingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListListingsRequest) ProtoMessage() {}
+
+func (x *ListListingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListListingsRequest.ProtoReflect.Descriptor instead.
+func (*ListListingsRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *ListListingsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListListingsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListListingsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListListingsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type ListListingsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Listings      []*MarketplaceListing  `protobuf:"bytes,1,rep,name=listings,proto3" json:"listings,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListListingsResponse) Reset() {
+	*x = ListListingsResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListListingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListListingsResponse) ProtoMessage() {}
+
+func (x *ListListingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListListingsResponse.ProtoReflect.Descriptor instead.
+func (*ListListingsResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *ListListingsResponse) GetListings() []*MarketplaceListing {
+	if x != nil {
+		return x.Listings
+	}
+	return nil
+}
+
+func (x *ListListingsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+// Exchange
+type PlaceExchangeOrderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Pair          string                 `protobuf:"bytes,2,opt,name=pair,proto3" json:"pair,omitempty"`
+	Amount        float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	Price         float64                `protobuf:"fixed64,4,opt,name=price,proto3" json:"price,omitempty"`
+	OrderType     string                 `protobuf:"bytes,5,opt,name=order_type,json=orderType,proto3" json:"order_type,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaceExchangeOrderRequest) Reset() {
+	*x = PlaceExchangeOrderRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaceExchangeOrderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaceExchangeOrderRequest) ProtoMessage() {}
+
+func (x *PlaceExchangeOrderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaceExchangeOrderRequest.ProtoReflect.Descriptor instead.
+func (*PlaceExchangeOrderRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *PlaceExchangeOrderRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *PlaceExchangeOrderRequest) GetPair() string {
+	if x != nil {
+		return x.Pair
+	}
+	return ""
+}
+
+func (x *PlaceExchangeOrderRequest) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *PlaceExchangeOrderRequest) GetPrice() float64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *PlaceExchangeOrderRequest) GetOrderType() string {
+	if x != nil {
+		return x.OrderType
+	}
+	return ""
+}
+
+func (x *PlaceExchangeOrderRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *PlaceExchangeOrderRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type PlaceExchangeOrderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Order         *ExchangeOrder         `protobuf:"bytes,1,opt,name=order,proto3" json:"order,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlaceExchangeOrderResponse) Reset() {
+	*x = PlaceExchangeOrderResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlaceExchangeOrderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlaceExchangeOrderResponse) ProtoMessage() {}
+
+func (x *PlaceExchangeOrderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlaceExchangeOrderResponse.ProtoReflect.Descriptor instead.
+func (*PlaceExchangeOrderResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *PlaceExchangeOrderResponse) GetOrder() *ExchangeOrder {
+	if x != nil {
+		return x.Order
+	}
+	return nil
+}
+
+type GetExchangeRateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PairId        string                 `protobuf:"bytes,1,opt,name=pair_id,json=pairId,proto3" json:"pair_id,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExchangeRateRequest) Reset() {
+	*x = GetExchangeRateRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExchangeRateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExchangeRateRequest) ProtoMessage() {}
+
+func (x *GetExchangeRateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExchangeRateRequest.ProtoReflect.Descriptor instead.
+func (*GetExchangeRateRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *GetExchangeRateRequest) GetPairId() string {
+	if x != nil {
+		return x.PairId
+	}
+	return ""
+}
+
+func (x *GetExchangeRateRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type GetExchangeRateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Rate          *ExchangeRate          `protobuf:"bytes,1,opt,name=rate,proto3" json:"rate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExchangeRateResponse) Reset() {
+	*x = GetExchangeRateResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExchangeRateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExchangeRateResponse) ProtoMessage() {}
+
+func (x *GetExchangeRateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExchangeRateResponse.ProtoReflect.Descriptor instead.
+func (*GetExchangeRateResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *GetExchangeRateResponse) GetRate() *ExchangeRate {
+	if x != nil {
+		return x.Rate
+	}
+	return nil
+}
+
+type ListExchangePairsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListExchangePairsRequest) Reset() {
+	*x = ListExchangePairsRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListExchangePairsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListExchangePairsRequest) ProtoMessage() {}
+
+func (x *ListExchangePairsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListExchangePairsRequest.ProtoReflect.Descriptor instead.
+func (*ListExchangePairsRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *ListExchangePairsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListExchangePairsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListExchangePairsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListExchangePairsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type ListExchangePairsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pairs         []*ExchangePair        `protobuf:"bytes,1,rep,name=pairs,proto3" json:"pairs,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListExchangePairsResponse) Reset() {
+	*x = ListExchangePairsResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListExchangePairsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListExchangePairsResponse) ProtoMessage() {}
+
+func (x *ListExchangePairsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListExchangePairsResponse.ProtoReflect.Descriptor instead.
+func (*ListExchangePairsResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *ListExchangePairsResponse) GetPairs() []*ExchangePair {
+	if x != nil {
+		return x.Pairs
+	}
+	return nil
+}
+
+func (x *ListExchangePairsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type CreateExchangePairRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PairId        string                 `protobuf:"bytes,1,opt,name=pair_id,json=pairId,proto3" json:"pair_id,omitempty"`
+	BaseAsset     string                 `protobuf:"bytes,2,opt,name=base_asset,json=baseAsset,proto3" json:"base_asset,omitempty"`
+	QuoteAsset    string                 `protobuf:"bytes,3,opt,name=quote_asset,json=quoteAsset,proto3" json:"quote_asset,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateExchangePairRequest) Reset() {
+	*x = CreateExchangePairRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateExchangePairRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateExchangePairRequest) ProtoMessage() {}
+
+func (x *CreateExchangePairRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateExchangePairRequest.ProtoReflect.Descriptor instead.
+func (*CreateExchangePairRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *CreateExchangePairRequest) GetPairId() string {
+	if x != nil {
+		return x.PairId
+	}
+	return ""
+}
+
+func (x *CreateExchangePairRequest) GetBaseAsset() string {
+	if x != nil {
+		return x.BaseAsset
+	}
+	return ""
+}
+
+func (x *CreateExchangePairRequest) GetQuoteAsset() string {
+	if x != nil {
+		return x.QuoteAsset
+	}
+	return ""
+}
+
+func (x *CreateExchangePairRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type CreateExchangePairResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pair          *ExchangePair          `protobuf:"bytes,1,opt,name=pair,proto3" json:"pair,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateExchangePairResponse) Reset() {
+	*x = CreateExchangePairResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateExchangePairResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateExchangePairResponse) ProtoMessage() {}
+
+func (x *CreateExchangePairResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateExchangePairResponse.ProtoReflect.Descriptor instead.
+func (*CreateExchangePairResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *CreateExchangePairResponse) GetPair() *ExchangePair {
+	if x != nil {
+		return x.Pair
+	}
+	return nil
+}
+
+type CreateExchangeRateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PairId        string                 `protobuf:"bytes,1,opt,name=pair_id,json=pairId,proto3" json:"pair_id,omitempty"`
+	Rate          float64                `protobuf:"fixed64,2,opt,name=rate,proto3" json:"rate,omitempty"`
+	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateExchangeRateRequest) Reset() {
+	*x = CreateExchangeRateRequest{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateExchangeRateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateExchangeRateRequest) ProtoMessage() {}
+
+func (x *CreateExchangeRateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateExchangeRateRequest.ProtoReflect.Descriptor instead.
+func (*CreateExchangeRateRequest) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *CreateExchangeRateRequest) GetPairId() string {
+	if x != nil {
+		return x.PairId
+	}
+	return ""
+}
+
+func (x *CreateExchangeRateRequest) GetRate() float64 {
+	if x != nil {
+		return x.Rate
+	}
+	return 0
+}
+
+func (x *CreateExchangeRateRequest) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+func (x *CreateExchangeRateRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *CreateExchangeRateRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type CreateExchangeRateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Rate          *ExchangeRate          `protobuf:"bytes,1,opt,name=rate,proto3" json:"rate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateExchangeRateResponse) Reset() {
+	*x = CreateExchangeRateResponse{}
+	mi := &file_commerce_v1_commerce_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateExchangeRateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateExchangeRateResponse) ProtoMessage() {}
+
+func (x *CreateExchangeRateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_commerce_v1_commerce_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateExchangeRateResponse.ProtoReflect.Descriptor instead.
+func (*CreateExchangeRateResponse) Descriptor() ([]byte, []int) {
+	return file_commerce_v1_commerce_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *CreateExchangeRateResponse) GetRate() *ExchangeRate {
+	if x != nil {
+		return x.Rate
+	}
+	return nil
+}
+
 var File_commerce_v1_commerce_proto protoreflect.FileDescriptor
 
 const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"\n" +
-	"\x1acommerce/v1/commerce.proto\x12\vcommerce.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xae\x01\n" +
+	"\x1acommerce/v1/commerce.proto\x12\vcommerce.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xcf\x01\n" +
 	"\x12CreateQuoteRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x02 \x01(\tR\tproductId\x12\x16\n" +
 	"\x06amount\x18\x03 \x01(\x01R\x06amount\x12\x1a\n" +
 	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"?\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"?\n" +
 	"\x13CreateQuoteResponse\x12(\n" +
-	"\x05quote\x18\x01 \x01(\v2\x12.commerce.v1.QuoteR\x05quote\",\n" +
+	"\x05quote\x18\x01 \x01(\v2\x12.commerce.v1.QuoteR\x05quote\"M\n" +
 	"\x0fGetQuoteRequest\x12\x19\n" +
-	"\bquote_id\x18\x01 \x01(\tR\aquoteId\"<\n" +
+	"\bquote_id\x18\x01 \x01(\tR\aquoteId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"<\n" +
 	"\x10GetQuoteResponse\x12(\n" +
-	"\x05quote\x18\x01 \x01(\v2\x12.commerce.v1.QuoteR\x05quote\"]\n" +
+	"\x05quote\x18\x01 \x01(\v2\x12.commerce.v1.QuoteR\x05quote\"~\n" +
 	"\x11ListQuotesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"V\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"V\n" +
 	"\x12ListQuotesResponse\x12*\n" +
 	"\x06quotes\x18\x01 \x03(\v2\x12.commerce.v1.QuoteR\x06quotes\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"\xe4\x02\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\x85\x03\n" +
 	"\x05Quote\x12\x19\n" +
 	"\bquote_id\x18\x01 \x01(\tR\aquoteId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1d\n" +
@@ -2586,30 +6663,41 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xa5\x01\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\n" +
+	" \x01(\x03R\n" +
+	"campaignId\"\xc6\x01\n" +
 	"\x12CreateOrderRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12,\n" +
 	"\x05items\x18\x02 \x03(\v2\x16.commerce.v1.OrderItemR\x05items\x12\x1a\n" +
 	"\bcurrency\x18\x03 \x01(\tR\bcurrency\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"?\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"?\n" +
 	"\x13CreateOrderResponse\x12(\n" +
-	"\x05order\x18\x01 \x01(\v2\x12.commerce.v1.OrderR\x05order\",\n" +
+	"\x05order\x18\x01 \x01(\v2\x12.commerce.v1.OrderR\x05order\"M\n" +
 	"\x0fGetOrderRequest\x12\x19\n" +
-	"\border_id\x18\x01 \x01(\tR\aorderId\"<\n" +
+	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"<\n" +
 	"\x10GetOrderResponse\x12(\n" +
-	"\x05order\x18\x01 \x01(\v2\x12.commerce.v1.OrderR\x05order\"]\n" +
+	"\x05order\x18\x01 \x01(\v2\x12.commerce.v1.OrderR\x05order\"~\n" +
 	"\x11ListOrdersRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"V\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"V\n" +
 	"\x12ListOrdersResponse\x12*\n" +
 	"\x06orders\x18\x01 \x03(\v2\x12.commerce.v1.OrderR\x06orders\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"g\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\x88\x01\n" +
 	"\x18UpdateOrderStatusRequest\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x120\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x18.commerce.v1.OrderStatusR\x06status\"E\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x18.commerce.v1.OrderStatusR\x06status\x12\x1f\n" +
+	"\vcampaign_id\x18\x03 \x01(\x03R\n" +
+	"campaignId\"E\n" +
 	"\x19UpdateOrderStatusResponse\x12(\n" +
-	"\x05order\x18\x01 \x01(\v2\x12.commerce.v1.OrderR\x05order\"\xf1\x02\n" +
+	"\x05order\x18\x01 \x01(\v2\x12.commerce.v1.OrderR\x05order\"\x92\x03\n" +
 	"\x05Order\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12,\n" +
@@ -2621,37 +6709,46 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8a\x01\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\n" +
+	" \x01(\x03R\n" +
+	"campaignId\"\x8a\x01\n" +
 	"\tOrderItem\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\tR\tproductId\x12\x1a\n" +
 	"\bquantity\x18\x02 \x01(\x05R\bquantity\x12\x14\n" +
 	"\x05price\x18\x03 \x01(\x01R\x05price\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xc6\x01\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xe7\x01\n" +
 	"\x16InitiatePaymentRequest\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x16\n" +
 	"\x06amount\x18\x03 \x01(\x01R\x06amount\x12\x1a\n" +
 	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12\x16\n" +
 	"\x06method\x18\x05 \x01(\tR\x06method\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"I\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"I\n" +
 	"\x17InitiatePaymentResponse\x12.\n" +
-	"\apayment\x18\x01 \x01(\v2\x14.commerce.v1.PaymentR\apayment\"}\n" +
+	"\apayment\x18\x01 \x01(\v2\x14.commerce.v1.PaymentR\apayment\"\x9e\x01\n" +
 	"\x15ConfirmPaymentRequest\x12\x1d\n" +
 	"\n" +
 	"payment_id\x18\x01 \x01(\tR\tpaymentId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\"H\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"H\n" +
 	"\x16ConfirmPaymentResponse\x12.\n" +
-	"\apayment\x18\x01 \x01(\v2\x14.commerce.v1.PaymentR\apayment\"\x94\x01\n" +
+	"\apayment\x18\x01 \x01(\v2\x14.commerce.v1.PaymentR\apayment\"\xb5\x01\n" +
 	"\x14RefundPaymentRequest\x12\x1d\n" +
 	"\n" +
 	"payment_id\x18\x01 \x01(\tR\tpaymentId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x16\n" +
 	"\x06amount\x18\x03 \x01(\x01R\x06amount\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"G\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"G\n" +
 	"\x15RefundPaymentResponse\x12.\n" +
-	"\apayment\x18\x01 \x01(\v2\x14.commerce.v1.PaymentR\apayment\"\x80\x03\n" +
+	"\apayment\x18\x01 \x01(\v2\x14.commerce.v1.PaymentR\apayment\"\xa1\x03\n" +
 	"\aPayment\x12\x1d\n" +
 	"\n" +
 	"payment_id\x18\x01 \x01(\tR\tpaymentId\x12\x19\n" +
@@ -2666,18 +6763,24 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\">\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\v \x01(\x03R\n" +
+	"campaignId\"_\n" +
 	"\x15GetTransactionRequest\x12%\n" +
-	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\"T\n" +
+	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"T\n" +
 	"\x16GetTransactionResponse\x12:\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x18.commerce.v1.TransactionR\vtransaction\"c\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x18.commerce.v1.TransactionR\vtransaction\"\x84\x01\n" +
 	"\x17ListTransactionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"n\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"n\n" +
 	"\x18ListTransactionsResponse\x12<\n" +
 	"\ftransactions\x18\x01 \x03(\v2\x18.commerce.v1.TransactionR\ftransactions\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"\xae\x03\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xcf\x03\n" +
 	"\vTransaction\x12%\n" +
 	"\x0etransaction_id\x18\x01 \x01(\tR\rtransactionId\x12\x1d\n" +
 	"\n" +
@@ -2692,31 +6795,42 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"H\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\v \x01(\x03R\n" +
+	"campaignId\"i\n" +
 	"\x11GetBalanceRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
-	"\bcurrency\x18\x02 \x01(\tR\bcurrency\"D\n" +
+	"\bcurrency\x18\x02 \x01(\tR\bcurrency\x12\x1f\n" +
+	"\vcampaign_id\x18\x03 \x01(\x03R\n" +
+	"campaignId\"D\n" +
 	"\x12GetBalanceResponse\x12.\n" +
-	"\abalance\x18\x01 \x01(\v2\x14.commerce.v1.BalanceR\abalance\".\n" +
+	"\abalance\x18\x01 \x01(\v2\x14.commerce.v1.BalanceR\abalance\"O\n" +
 	"\x13ListBalancesRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"H\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"H\n" +
 	"\x14ListBalancesResponse\x120\n" +
-	"\bbalances\x18\x01 \x03(\v2\x14.commerce.v1.BalanceR\bbalances\"\x91\x01\n" +
+	"\bbalances\x18\x01 \x03(\v2\x14.commerce.v1.BalanceR\bbalances\"\xe0\x01\n" +
 	"\aBalance\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\bcurrency\x18\x02 \x01(\tR\bcurrency\x12\x16\n" +
 	"\x06amount\x18\x03 \x01(\x01R\x06amount\x129\n" +
 	"\n" +
-	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x82\x01\n" +
+	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"\xa3\x01\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tentity_id\x18\x01 \x01(\tR\bentityId\x12\x1f\n" +
 	"\ventity_type\x18\x02 \x01(\tR\n" +
 	"entityType\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\"^\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"^\n" +
 	"\x12ListEventsResponse\x122\n" +
 	"\x06events\x18\x01 \x03(\v2\x1a.commerce.v1.CommerceEventR\x06events\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"\xf5\x01\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xc4\x02\n" +
 	"\rCommerceEvent\x12\x19\n" +
 	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x1b\n" +
 	"\tentity_id\x18\x02 \x01(\tR\bentityId\x12\x1f\n" +
@@ -2726,7 +6840,338 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"event_type\x18\x04 \x01(\tR\teventType\x121\n" +
 	"\apayload\x18\x05 \x01(\v2\x17.google.protobuf.StructR\apayload\x129\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt*\x95\x01\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12,\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\b \x01(\x03R\n" +
+	"campaignId\"x\n" +
+	"\x05Party\x12\x19\n" +
+	"\bparty_id\x18\x01 \x01(\tR\apartyId\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xbb\x01\n" +
+	"\aAccount\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x19\n" +
+	"\bparty_id\x18\x02 \x01(\tR\apartyId\x12\x12\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12\x18\n" +
+	"\abalance\x18\x05 \x01(\x01R\abalance\x12,\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"\xdc\x02\n" +
+	"\x11InvestmentAccount\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x12\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12\x18\n" +
+	"\abalance\x18\x05 \x01(\x01R\abalance\x12,\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\t \x01(\x03R\n" +
+	"campaignId\"\xfd\x02\n" +
+	"\x0fInvestmentOrder\x12\x19\n" +
+	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x12\x19\n" +
+	"\basset_id\x18\x03 \x01(\tR\aassetId\x12\x1a\n" +
+	"\bquantity\x18\x04 \x01(\x01R\bquantity\x12\x14\n" +
+	"\x05price\x18\x05 \x01(\x01R\x05price\x12\x1d\n" +
+	"\n" +
+	"order_type\x18\x06 \x01(\tR\torderType\x12:\n" +
+	"\x06status\x18\a \x01(\x0e2\".commerce.v1.InvestmentOrderStatusR\x06status\x12,\n" +
+	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\n" +
+	" \x01(\x03R\n" +
+	"campaignId\"\x86\x02\n" +
+	"\x05Asset\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x16\n" +
+	"\x06symbol\x18\x02 \x01(\tR\x06symbol\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x04 \x01(\tR\x04type\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xab\x02\n" +
+	"\tPortfolio\x12!\n" +
+	"\fportfolio_id\x18\x01 \x01(\tR\vportfolioId\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x128\n" +
+	"\tpositions\x18\x03 \x03(\v2\x1a.commerce.v1.AssetPositionR\tpositions\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8f\x02\n" +
+	"\rAssetPosition\x12\x19\n" +
+	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1a\n" +
+	"\bquantity\x18\x02 \x01(\x01R\bquantity\x12#\n" +
+	"\raverage_price\x18\x03 \x01(\x01R\faveragePrice\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xcf\x01\n" +
+	"\vBankAccount\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04iban\x18\x03 \x01(\tR\x04iban\x12\x10\n" +
+	"\x03bic\x18\x04 \x01(\tR\x03bic\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12\x18\n" +
+	"\abalance\x18\x06 \x01(\x01R\abalance\x12,\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\"\xd1\x02\n" +
+	"\fBankTransfer\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\x12&\n" +
+	"\x0ffrom_account_id\x18\x02 \x01(\tR\rfromAccountId\x12\"\n" +
+	"\rto_account_id\x18\x03 \x01(\tR\vtoAccountId\x12\x16\n" +
+	"\x06amount\x18\x04 \x01(\x01R\x06amount\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x127\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x1f.commerce.v1.BankTransferStatusR\x06status\x12,\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x9a\x01\n" +
+	"\rBankStatement\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12<\n" +
+	"\ftransactions\x18\x02 \x03(\v2\x18.commerce.v1.TransactionR\ftransactions\x12,\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\"\xbe\x02\n" +
+	"\x12MarketplaceListing\x12\x1d\n" +
+	"\n" +
+	"listing_id\x18\x01 \x01(\tR\tlistingId\x12\x1b\n" +
+	"\tseller_id\x18\x02 \x01(\tR\bsellerId\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x03 \x01(\tR\tproductId\x12\x14\n" +
+	"\x05price\x18\x04 \x01(\x01R\x05price\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x122\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x1a.commerce.v1.ListingStatusR\x06status\x12,\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xbf\x02\n" +
+	"\x10MarketplaceOrder\x12\x19\n" +
+	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x1d\n" +
+	"\n" +
+	"listing_id\x18\x02 \x01(\tR\tlistingId\x12\x19\n" +
+	"\bbuyer_id\x18\x03 \x01(\tR\abuyerId\x12\x14\n" +
+	"\x05price\x18\x04 \x01(\x01R\x05price\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12;\n" +
+	"\x06status\x18\x06 \x01(\x0e2#.commerce.v1.MarketplaceOrderStatusR\x06status\x12,\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xbf\x02\n" +
+	"\x10MarketplaceOffer\x12\x19\n" +
+	"\boffer_id\x18\x01 \x01(\tR\aofferId\x12\x1d\n" +
+	"\n" +
+	"listing_id\x18\x02 \x01(\tR\tlistingId\x12\x19\n" +
+	"\bbuyer_id\x18\x03 \x01(\tR\abuyerId\x12\x1f\n" +
+	"\voffer_price\x18\x04 \x01(\x01R\n" +
+	"offerPrice\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x120\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x18.commerce.v1.OfferStatusR\x06status\x12,\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xcd\x02\n" +
+	"\rExchangeOrder\x12\x19\n" +
+	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x12\x12\n" +
+	"\x04pair\x18\x03 \x01(\tR\x04pair\x12\x16\n" +
+	"\x06amount\x18\x04 \x01(\x01R\x06amount\x12\x14\n" +
+	"\x05price\x18\x05 \x01(\x01R\x05price\x12\x1d\n" +
+	"\n" +
+	"order_type\x18\x06 \x01(\tR\torderType\x128\n" +
+	"\x06status\x18\a \x01(\x0e2 .commerce.v1.ExchangeOrderStatusR\x06status\x12,\n" +
+	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x95\x01\n" +
+	"\fExchangePair\x12\x17\n" +
+	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x1d\n" +
+	"\n" +
+	"base_asset\x18\x02 \x01(\tR\tbaseAsset\x12\x1f\n" +
+	"\vquote_asset\x18\x03 \x01(\tR\n" +
+	"quoteAsset\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xa3\x01\n" +
+	"\fExchangeRate\x12\x17\n" +
+	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x12\n" +
+	"\x04rate\x18\x02 \x01(\x01R\x04rate\x128\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xd4\x01\n" +
+	"\x1eCreateInvestmentAccountRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\tR\aownerId\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1a\n" +
+	"\bcurrency\x18\x03 \x01(\tR\bcurrency\x12\x18\n" +
+	"\abalance\x18\x04 \x01(\x01R\abalance\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"[\n" +
+	"\x1fCreateInvestmentAccountResponse\x128\n" +
+	"\aaccount\x18\x01 \x01(\v2\x1e.commerce.v1.InvestmentAccountR\aaccount\"]\n" +
+	"\x1bGetInvestmentAccountRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"X\n" +
+	"\x1cGetInvestmentAccountResponse\x128\n" +
+	"\aaccount\x18\x01 \x01(\v2\x1e.commerce.v1.InvestmentAccountR\aaccount\"\xf7\x01\n" +
+	"\x1bPlaceInvestmentOrderRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x19\n" +
+	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x1a\n" +
+	"\bquantity\x18\x03 \x01(\x01R\bquantity\x12\x14\n" +
+	"\x05price\x18\x04 \x01(\x01R\x05price\x12\x1d\n" +
+	"\n" +
+	"order_type\x18\x05 \x01(\tR\torderType\x12,\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"R\n" +
+	"\x1cPlaceInvestmentOrderResponse\x122\n" +
+	"\x05order\x18\x01 \x01(\v2\x1c.commerce.v1.InvestmentOrderR\x05order\"Y\n" +
+	"\x13GetPortfolioRequest\x12!\n" +
+	"\fportfolio_id\x18\x01 \x01(\tR\vportfolioId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"L\n" +
+	"\x14GetPortfolioResponse\x124\n" +
+	"\tportfolio\x18\x01 \x01(\v2\x16.commerce.v1.PortfolioR\tportfolio\"W\n" +
+	"\x15ListPortfoliosRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"P\n" +
+	"\x16ListPortfoliosResponse\x126\n" +
+	"\n" +
+	"portfolios\x18\x01 \x03(\v2\x16.commerce.v1.PortfolioR\n" +
+	"portfolios\"~\n" +
+	"\x11ListAssetsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"V\n" +
+	"\x12ListAssetsResponse\x12*\n" +
+	"\x06assets\x18\x01 \x03(\v2\x12.commerce.v1.AssetR\x06assets\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xde\x01\n" +
+	"\x18CreateBankAccountRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04iban\x18\x02 \x01(\tR\x04iban\x12\x10\n" +
+	"\x03bic\x18\x03 \x01(\tR\x03bic\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12\x18\n" +
+	"\abalance\x18\x05 \x01(\x01R\abalance\x12,\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"O\n" +
+	"\x19CreateBankAccountResponse\x122\n" +
+	"\aaccount\x18\x01 \x01(\v2\x18.commerce.v1.BankAccountR\aaccount\"\xec\x01\n" +
+	"\x1bInitiateBankTransferRequest\x12&\n" +
+	"\x0ffrom_account_id\x18\x01 \x01(\tR\rfromAccountId\x12\"\n" +
+	"\rto_account_id\x18\x02 \x01(\tR\vtoAccountId\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\x01R\x06amount\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"U\n" +
+	"\x1cInitiateBankTransferResponse\x125\n" +
+	"\btransfer\x18\x01 \x01(\v2\x19.commerce.v1.BankTransferR\btransfer\"Y\n" +
+	"\x17GetBankStatementRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"T\n" +
+	"\x18GetBankStatementResponse\x128\n" +
+	"\tstatement\x18\x01 \x01(\v2\x1a.commerce.v1.BankStatementR\tstatement\"\xd3\x01\n" +
+	"\x14CreateListingRequest\x12\x1b\n" +
+	"\tseller_id\x18\x01 \x01(\tR\bsellerId\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x02 \x01(\tR\tproductId\x12\x14\n" +
+	"\x05price\x18\x03 \x01(\x01R\x05price\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"R\n" +
+	"\x15CreateListingResponse\x129\n" +
+	"\alisting\x18\x01 \x01(\v2\x1f.commerce.v1.MarketplaceListingR\alisting\"\xd9\x01\n" +
+	"\x1cPlaceMarketplaceOrderRequest\x12\x1d\n" +
+	"\n" +
+	"listing_id\x18\x01 \x01(\tR\tlistingId\x12\x19\n" +
+	"\bbuyer_id\x18\x02 \x01(\tR\abuyerId\x12\x14\n" +
+	"\x05price\x18\x03 \x01(\x01R\x05price\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"T\n" +
+	"\x1dPlaceMarketplaceOrderResponse\x123\n" +
+	"\x05order\x18\x01 \x01(\v2\x1d.commerce.v1.MarketplaceOrderR\x05order\"\xd8\x01\n" +
+	"\x10MakeOfferRequest\x12\x1d\n" +
+	"\n" +
+	"listing_id\x18\x01 \x01(\tR\tlistingId\x12\x19\n" +
+	"\bbuyer_id\x18\x02 \x01(\tR\abuyerId\x12\x1f\n" +
+	"\voffer_price\x18\x03 \x01(\x01R\n" +
+	"offerPrice\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"H\n" +
+	"\x11MakeOfferResponse\x123\n" +
+	"\x05offer\x18\x01 \x01(\v2\x1d.commerce.v1.MarketplaceOfferR\x05offer\"\x80\x01\n" +
+	"\x13ListListingsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"i\n" +
+	"\x14ListListingsResponse\x12;\n" +
+	"\blistings\x18\x01 \x03(\v2\x1f.commerce.v1.MarketplaceListingR\blistings\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xea\x01\n" +
+	"\x19PlaceExchangeOrderRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x12\n" +
+	"\x04pair\x18\x02 \x01(\tR\x04pair\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\x01R\x06amount\x12\x14\n" +
+	"\x05price\x18\x04 \x01(\x01R\x05price\x12\x1d\n" +
+	"\n" +
+	"order_type\x18\x05 \x01(\tR\torderType\x12,\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"N\n" +
+	"\x1aPlaceExchangeOrderResponse\x120\n" +
+	"\x05order\x18\x01 \x01(\v2\x1a.commerce.v1.ExchangeOrderR\x05order\"R\n" +
+	"\x16GetExchangeRateRequest\x12\x17\n" +
+	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x1f\n" +
+	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
+	"campaignId\"H\n" +
+	"\x17GetExchangeRateResponse\x12-\n" +
+	"\x04rate\x18\x01 \x01(\v2\x19.commerce.v1.ExchangeRateR\x04rate\"\x85\x01\n" +
+	"\x18ListExchangePairsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"b\n" +
+	"\x19ListExchangePairsResponse\x12/\n" +
+	"\x05pairs\x18\x01 \x03(\v2\x19.commerce.v1.ExchangePairR\x05pairs\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xa2\x01\n" +
+	"\x19CreateExchangePairRequest\x12\x17\n" +
+	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x1d\n" +
+	"\n" +
+	"base_asset\x18\x02 \x01(\tR\tbaseAsset\x12\x1f\n" +
+	"\vquote_asset\x18\x03 \x01(\tR\n" +
+	"quoteAsset\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"K\n" +
+	"\x1aCreateExchangePairResponse\x12-\n" +
+	"\x04pair\x18\x01 \x01(\v2\x19.commerce.v1.ExchangePairR\x04pair\"\xd1\x01\n" +
+	"\x19CreateExchangeRateRequest\x12\x17\n" +
+	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x12\n" +
+	"\x04rate\x18\x02 \x01(\x01R\x04rate\x128\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"K\n" +
+	"\x1aCreateExchangeRateResponse\x12-\n" +
+	"\x04rate\x18\x01 \x01(\v2\x19.commerce.v1.ExchangeRateR\x04rate*\x95\x01\n" +
 	"\vQuoteStatus\x12\x1c\n" +
 	"\x18QUOTE_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14QUOTE_STATUS_PENDING\x10\x01\x12\x19\n" +
@@ -2756,8 +7201,41 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"\x1eTRANSACTION_STATUS_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aTRANSACTION_STATUS_PENDING\x10\x01\x12 \n" +
 	"\x1cTRANSACTION_STATUS_COMPLETED\x10\x02\x12\x1d\n" +
-	"\x19TRANSACTION_STATUS_FAILED\x10\x032\x89\n" +
-	"\n" +
+	"\x19TRANSACTION_STATUS_FAILED\x10\x03*\xd4\x01\n" +
+	"\x15InvestmentOrderStatus\x12'\n" +
+	"#INVESTMENT_ORDER_STATUS_UNSPECIFIED\x10\x00\x12#\n" +
+	"\x1fINVESTMENT_ORDER_STATUS_PENDING\x10\x01\x12\"\n" +
+	"\x1eINVESTMENT_ORDER_STATUS_FILLED\x10\x02\x12%\n" +
+	"!INVESTMENT_ORDER_STATUS_CANCELLED\x10\x03\x12\"\n" +
+	"\x1eINVESTMENT_ORDER_STATUS_FAILED\x10\x04*\xc5\x01\n" +
+	"\x12BankTransferStatus\x12$\n" +
+	" BANK_TRANSFER_STATUS_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cBANK_TRANSFER_STATUS_PENDING\x10\x01\x12\"\n" +
+	"\x1eBANK_TRANSFER_STATUS_COMPLETED\x10\x02\x12\x1f\n" +
+	"\x1bBANK_TRANSFER_STATUS_FAILED\x10\x03\x12\"\n" +
+	"\x1eBANK_TRANSFER_STATUS_CANCELLED\x10\x04*\x81\x01\n" +
+	"\rListingStatus\x12\x1e\n" +
+	"\x1aLISTING_STATUS_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15LISTING_STATUS_ACTIVE\x10\x01\x12\x17\n" +
+	"\x13LISTING_STATUS_SOLD\x10\x02\x12\x1c\n" +
+	"\x18LISTING_STATUS_CANCELLED\x10\x03*\xb8\x01\n" +
+	"\x16MarketplaceOrderStatus\x12(\n" +
+	"$MARKETPLACE_ORDER_STATUS_UNSPECIFIED\x10\x00\x12$\n" +
+	" MARKETPLACE_ORDER_STATUS_PENDING\x10\x01\x12&\n" +
+	"\"MARKETPLACE_ORDER_STATUS_COMPLETED\x10\x02\x12&\n" +
+	"\"MARKETPLACE_ORDER_STATUS_CANCELLED\x10\x03*\x97\x01\n" +
+	"\vOfferStatus\x12\x1c\n" +
+	"\x18OFFER_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14OFFER_STATUS_PENDING\x10\x01\x12\x19\n" +
+	"\x15OFFER_STATUS_ACCEPTED\x10\x02\x12\x19\n" +
+	"\x15OFFER_STATUS_REJECTED\x10\x03\x12\x1a\n" +
+	"\x16OFFER_STATUS_CANCELLED\x10\x04*\xc8\x01\n" +
+	"\x13ExchangeOrderStatus\x12%\n" +
+	"!EXCHANGE_ORDER_STATUS_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dEXCHANGE_ORDER_STATUS_PENDING\x10\x01\x12 \n" +
+	"\x1cEXCHANGE_ORDER_STATUS_FILLED\x10\x02\x12#\n" +
+	"\x1fEXCHANGE_ORDER_STATUS_CANCELLED\x10\x03\x12 \n" +
+	"\x1cEXCHANGE_ORDER_STATUS_FAILED\x10\x042\xea\x17\n" +
 	"\x0fCommerceService\x12P\n" +
 	"\vCreateQuote\x12\x1f.commerce.v1.CreateQuoteRequest\x1a .commerce.v1.CreateQuoteResponse\x12G\n" +
 	"\bGetQuote\x12\x1c.commerce.v1.GetQuoteRequest\x1a\x1d.commerce.v1.GetQuoteResponse\x12M\n" +
@@ -2777,7 +7255,26 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"GetBalance\x12\x1e.commerce.v1.GetBalanceRequest\x1a\x1f.commerce.v1.GetBalanceResponse\x12S\n" +
 	"\fListBalances\x12 .commerce.v1.ListBalancesRequest\x1a!.commerce.v1.ListBalancesResponse\x12M\n" +
 	"\n" +
-	"ListEvents\x12\x1e.commerce.v1.ListEventsRequest\x1a\x1f.commerce.v1.ListEventsResponseBDZBgithub.com/nmxmxh/master-ovasabi/api/protos/commerce/v1;commercepbb\x06proto3"
+	"ListEvents\x12\x1e.commerce.v1.ListEventsRequest\x1a\x1f.commerce.v1.ListEventsResponse\x12t\n" +
+	"\x17CreateInvestmentAccount\x12+.commerce.v1.CreateInvestmentAccountRequest\x1a,.commerce.v1.CreateInvestmentAccountResponse\x12k\n" +
+	"\x14GetInvestmentAccount\x12(.commerce.v1.GetInvestmentAccountRequest\x1a).commerce.v1.GetInvestmentAccountResponse\x12k\n" +
+	"\x14PlaceInvestmentOrder\x12(.commerce.v1.PlaceInvestmentOrderRequest\x1a).commerce.v1.PlaceInvestmentOrderResponse\x12S\n" +
+	"\fGetPortfolio\x12 .commerce.v1.GetPortfolioRequest\x1a!.commerce.v1.GetPortfolioResponse\x12M\n" +
+	"\n" +
+	"ListAssets\x12\x1e.commerce.v1.ListAssetsRequest\x1a\x1f.commerce.v1.ListAssetsResponse\x12Y\n" +
+	"\x0eListPortfolios\x12\".commerce.v1.ListPortfoliosRequest\x1a#.commerce.v1.ListPortfoliosResponse\x12b\n" +
+	"\x11CreateBankAccount\x12%.commerce.v1.CreateBankAccountRequest\x1a&.commerce.v1.CreateBankAccountResponse\x12k\n" +
+	"\x14InitiateBankTransfer\x12(.commerce.v1.InitiateBankTransferRequest\x1a).commerce.v1.InitiateBankTransferResponse\x12_\n" +
+	"\x10GetBankStatement\x12$.commerce.v1.GetBankStatementRequest\x1a%.commerce.v1.GetBankStatementResponse\x12V\n" +
+	"\rCreateListing\x12!.commerce.v1.CreateListingRequest\x1a\".commerce.v1.CreateListingResponse\x12n\n" +
+	"\x15PlaceMarketplaceOrder\x12).commerce.v1.PlaceMarketplaceOrderRequest\x1a*.commerce.v1.PlaceMarketplaceOrderResponse\x12J\n" +
+	"\tMakeOffer\x12\x1d.commerce.v1.MakeOfferRequest\x1a\x1e.commerce.v1.MakeOfferResponse\x12S\n" +
+	"\fListListings\x12 .commerce.v1.ListListingsRequest\x1a!.commerce.v1.ListListingsResponse\x12e\n" +
+	"\x12PlaceExchangeOrder\x12&.commerce.v1.PlaceExchangeOrderRequest\x1a'.commerce.v1.PlaceExchangeOrderResponse\x12\\\n" +
+	"\x0fGetExchangeRate\x12#.commerce.v1.GetExchangeRateRequest\x1a$.commerce.v1.GetExchangeRateResponse\x12b\n" +
+	"\x11ListExchangePairs\x12%.commerce.v1.ListExchangePairsRequest\x1a&.commerce.v1.ListExchangePairsResponse\x12e\n" +
+	"\x12CreateExchangePair\x12&.commerce.v1.CreateExchangePairRequest\x1a'.commerce.v1.CreateExchangePairResponse\x12e\n" +
+	"\x12CreateExchangeRate\x12&.commerce.v1.CreateExchangeRateRequest\x1a'.commerce.v1.CreateExchangeRateResponseBDZBgithub.com/nmxmxh/master-ovasabi/api/protos/commerce/v1;commercepbb\x06proto3"
 
 var (
 	file_commerce_v1_commerce_proto_rawDescOnce sync.Once
@@ -2791,135 +7288,299 @@ func file_commerce_v1_commerce_proto_rawDescGZIP() []byte {
 	return file_commerce_v1_commerce_proto_rawDescData
 }
 
-var file_commerce_v1_commerce_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_commerce_v1_commerce_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_commerce_v1_commerce_proto_enumTypes = make([]protoimpl.EnumInfo, 11)
+var file_commerce_v1_commerce_proto_msgTypes = make([]protoimpl.MessageInfo, 89)
 var file_commerce_v1_commerce_proto_goTypes = []any{
-	(QuoteStatus)(0),                  // 0: commerce.v1.QuoteStatus
-	(OrderStatus)(0),                  // 1: commerce.v1.OrderStatus
-	(PaymentStatus)(0),                // 2: commerce.v1.PaymentStatus
-	(TransactionType)(0),              // 3: commerce.v1.TransactionType
-	(TransactionStatus)(0),            // 4: commerce.v1.TransactionStatus
-	(*CreateQuoteRequest)(nil),        // 5: commerce.v1.CreateQuoteRequest
-	(*CreateQuoteResponse)(nil),       // 6: commerce.v1.CreateQuoteResponse
-	(*GetQuoteRequest)(nil),           // 7: commerce.v1.GetQuoteRequest
-	(*GetQuoteResponse)(nil),          // 8: commerce.v1.GetQuoteResponse
-	(*ListQuotesRequest)(nil),         // 9: commerce.v1.ListQuotesRequest
-	(*ListQuotesResponse)(nil),        // 10: commerce.v1.ListQuotesResponse
-	(*Quote)(nil),                     // 11: commerce.v1.Quote
-	(*CreateOrderRequest)(nil),        // 12: commerce.v1.CreateOrderRequest
-	(*CreateOrderResponse)(nil),       // 13: commerce.v1.CreateOrderResponse
-	(*GetOrderRequest)(nil),           // 14: commerce.v1.GetOrderRequest
-	(*GetOrderResponse)(nil),          // 15: commerce.v1.GetOrderResponse
-	(*ListOrdersRequest)(nil),         // 16: commerce.v1.ListOrdersRequest
-	(*ListOrdersResponse)(nil),        // 17: commerce.v1.ListOrdersResponse
-	(*UpdateOrderStatusRequest)(nil),  // 18: commerce.v1.UpdateOrderStatusRequest
-	(*UpdateOrderStatusResponse)(nil), // 19: commerce.v1.UpdateOrderStatusResponse
-	(*Order)(nil),                     // 20: commerce.v1.Order
-	(*OrderItem)(nil),                 // 21: commerce.v1.OrderItem
-	(*InitiatePaymentRequest)(nil),    // 22: commerce.v1.InitiatePaymentRequest
-	(*InitiatePaymentResponse)(nil),   // 23: commerce.v1.InitiatePaymentResponse
-	(*ConfirmPaymentRequest)(nil),     // 24: commerce.v1.ConfirmPaymentRequest
-	(*ConfirmPaymentResponse)(nil),    // 25: commerce.v1.ConfirmPaymentResponse
-	(*RefundPaymentRequest)(nil),      // 26: commerce.v1.RefundPaymentRequest
-	(*RefundPaymentResponse)(nil),     // 27: commerce.v1.RefundPaymentResponse
-	(*Payment)(nil),                   // 28: commerce.v1.Payment
-	(*GetTransactionRequest)(nil),     // 29: commerce.v1.GetTransactionRequest
-	(*GetTransactionResponse)(nil),    // 30: commerce.v1.GetTransactionResponse
-	(*ListTransactionsRequest)(nil),   // 31: commerce.v1.ListTransactionsRequest
-	(*ListTransactionsResponse)(nil),  // 32: commerce.v1.ListTransactionsResponse
-	(*Transaction)(nil),               // 33: commerce.v1.Transaction
-	(*GetBalanceRequest)(nil),         // 34: commerce.v1.GetBalanceRequest
-	(*GetBalanceResponse)(nil),        // 35: commerce.v1.GetBalanceResponse
-	(*ListBalancesRequest)(nil),       // 36: commerce.v1.ListBalancesRequest
-	(*ListBalancesResponse)(nil),      // 37: commerce.v1.ListBalancesResponse
-	(*Balance)(nil),                   // 38: commerce.v1.Balance
-	(*ListEventsRequest)(nil),         // 39: commerce.v1.ListEventsRequest
-	(*ListEventsResponse)(nil),        // 40: commerce.v1.ListEventsResponse
-	(*CommerceEvent)(nil),             // 41: commerce.v1.CommerceEvent
-	(*v1.Metadata)(nil),               // 42: common.Metadata
-	(*timestamppb.Timestamp)(nil),     // 43: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),           // 44: google.protobuf.Struct
+	(QuoteStatus)(0),                        // 0: commerce.v1.QuoteStatus
+	(OrderStatus)(0),                        // 1: commerce.v1.OrderStatus
+	(PaymentStatus)(0),                      // 2: commerce.v1.PaymentStatus
+	(TransactionType)(0),                    // 3: commerce.v1.TransactionType
+	(TransactionStatus)(0),                  // 4: commerce.v1.TransactionStatus
+	(InvestmentOrderStatus)(0),              // 5: commerce.v1.InvestmentOrderStatus
+	(BankTransferStatus)(0),                 // 6: commerce.v1.BankTransferStatus
+	(ListingStatus)(0),                      // 7: commerce.v1.ListingStatus
+	(MarketplaceOrderStatus)(0),             // 8: commerce.v1.MarketplaceOrderStatus
+	(OfferStatus)(0),                        // 9: commerce.v1.OfferStatus
+	(ExchangeOrderStatus)(0),                // 10: commerce.v1.ExchangeOrderStatus
+	(*CreateQuoteRequest)(nil),              // 11: commerce.v1.CreateQuoteRequest
+	(*CreateQuoteResponse)(nil),             // 12: commerce.v1.CreateQuoteResponse
+	(*GetQuoteRequest)(nil),                 // 13: commerce.v1.GetQuoteRequest
+	(*GetQuoteResponse)(nil),                // 14: commerce.v1.GetQuoteResponse
+	(*ListQuotesRequest)(nil),               // 15: commerce.v1.ListQuotesRequest
+	(*ListQuotesResponse)(nil),              // 16: commerce.v1.ListQuotesResponse
+	(*Quote)(nil),                           // 17: commerce.v1.Quote
+	(*CreateOrderRequest)(nil),              // 18: commerce.v1.CreateOrderRequest
+	(*CreateOrderResponse)(nil),             // 19: commerce.v1.CreateOrderResponse
+	(*GetOrderRequest)(nil),                 // 20: commerce.v1.GetOrderRequest
+	(*GetOrderResponse)(nil),                // 21: commerce.v1.GetOrderResponse
+	(*ListOrdersRequest)(nil),               // 22: commerce.v1.ListOrdersRequest
+	(*ListOrdersResponse)(nil),              // 23: commerce.v1.ListOrdersResponse
+	(*UpdateOrderStatusRequest)(nil),        // 24: commerce.v1.UpdateOrderStatusRequest
+	(*UpdateOrderStatusResponse)(nil),       // 25: commerce.v1.UpdateOrderStatusResponse
+	(*Order)(nil),                           // 26: commerce.v1.Order
+	(*OrderItem)(nil),                       // 27: commerce.v1.OrderItem
+	(*InitiatePaymentRequest)(nil),          // 28: commerce.v1.InitiatePaymentRequest
+	(*InitiatePaymentResponse)(nil),         // 29: commerce.v1.InitiatePaymentResponse
+	(*ConfirmPaymentRequest)(nil),           // 30: commerce.v1.ConfirmPaymentRequest
+	(*ConfirmPaymentResponse)(nil),          // 31: commerce.v1.ConfirmPaymentResponse
+	(*RefundPaymentRequest)(nil),            // 32: commerce.v1.RefundPaymentRequest
+	(*RefundPaymentResponse)(nil),           // 33: commerce.v1.RefundPaymentResponse
+	(*Payment)(nil),                         // 34: commerce.v1.Payment
+	(*GetTransactionRequest)(nil),           // 35: commerce.v1.GetTransactionRequest
+	(*GetTransactionResponse)(nil),          // 36: commerce.v1.GetTransactionResponse
+	(*ListTransactionsRequest)(nil),         // 37: commerce.v1.ListTransactionsRequest
+	(*ListTransactionsResponse)(nil),        // 38: commerce.v1.ListTransactionsResponse
+	(*Transaction)(nil),                     // 39: commerce.v1.Transaction
+	(*GetBalanceRequest)(nil),               // 40: commerce.v1.GetBalanceRequest
+	(*GetBalanceResponse)(nil),              // 41: commerce.v1.GetBalanceResponse
+	(*ListBalancesRequest)(nil),             // 42: commerce.v1.ListBalancesRequest
+	(*ListBalancesResponse)(nil),            // 43: commerce.v1.ListBalancesResponse
+	(*Balance)(nil),                         // 44: commerce.v1.Balance
+	(*ListEventsRequest)(nil),               // 45: commerce.v1.ListEventsRequest
+	(*ListEventsResponse)(nil),              // 46: commerce.v1.ListEventsResponse
+	(*CommerceEvent)(nil),                   // 47: commerce.v1.CommerceEvent
+	(*Party)(nil),                           // 48: commerce.v1.Party
+	(*Account)(nil),                         // 49: commerce.v1.Account
+	(*InvestmentAccount)(nil),               // 50: commerce.v1.InvestmentAccount
+	(*InvestmentOrder)(nil),                 // 51: commerce.v1.InvestmentOrder
+	(*Asset)(nil),                           // 52: commerce.v1.Asset
+	(*Portfolio)(nil),                       // 53: commerce.v1.Portfolio
+	(*AssetPosition)(nil),                   // 54: commerce.v1.AssetPosition
+	(*BankAccount)(nil),                     // 55: commerce.v1.BankAccount
+	(*BankTransfer)(nil),                    // 56: commerce.v1.BankTransfer
+	(*BankStatement)(nil),                   // 57: commerce.v1.BankStatement
+	(*MarketplaceListing)(nil),              // 58: commerce.v1.MarketplaceListing
+	(*MarketplaceOrder)(nil),                // 59: commerce.v1.MarketplaceOrder
+	(*MarketplaceOffer)(nil),                // 60: commerce.v1.MarketplaceOffer
+	(*ExchangeOrder)(nil),                   // 61: commerce.v1.ExchangeOrder
+	(*ExchangePair)(nil),                    // 62: commerce.v1.ExchangePair
+	(*ExchangeRate)(nil),                    // 63: commerce.v1.ExchangeRate
+	(*CreateInvestmentAccountRequest)(nil),  // 64: commerce.v1.CreateInvestmentAccountRequest
+	(*CreateInvestmentAccountResponse)(nil), // 65: commerce.v1.CreateInvestmentAccountResponse
+	(*GetInvestmentAccountRequest)(nil),     // 66: commerce.v1.GetInvestmentAccountRequest
+	(*GetInvestmentAccountResponse)(nil),    // 67: commerce.v1.GetInvestmentAccountResponse
+	(*PlaceInvestmentOrderRequest)(nil),     // 68: commerce.v1.PlaceInvestmentOrderRequest
+	(*PlaceInvestmentOrderResponse)(nil),    // 69: commerce.v1.PlaceInvestmentOrderResponse
+	(*GetPortfolioRequest)(nil),             // 70: commerce.v1.GetPortfolioRequest
+	(*GetPortfolioResponse)(nil),            // 71: commerce.v1.GetPortfolioResponse
+	(*ListPortfoliosRequest)(nil),           // 72: commerce.v1.ListPortfoliosRequest
+	(*ListPortfoliosResponse)(nil),          // 73: commerce.v1.ListPortfoliosResponse
+	(*ListAssetsRequest)(nil),               // 74: commerce.v1.ListAssetsRequest
+	(*ListAssetsResponse)(nil),              // 75: commerce.v1.ListAssetsResponse
+	(*CreateBankAccountRequest)(nil),        // 76: commerce.v1.CreateBankAccountRequest
+	(*CreateBankAccountResponse)(nil),       // 77: commerce.v1.CreateBankAccountResponse
+	(*InitiateBankTransferRequest)(nil),     // 78: commerce.v1.InitiateBankTransferRequest
+	(*InitiateBankTransferResponse)(nil),    // 79: commerce.v1.InitiateBankTransferResponse
+	(*GetBankStatementRequest)(nil),         // 80: commerce.v1.GetBankStatementRequest
+	(*GetBankStatementResponse)(nil),        // 81: commerce.v1.GetBankStatementResponse
+	(*CreateListingRequest)(nil),            // 82: commerce.v1.CreateListingRequest
+	(*CreateListingResponse)(nil),           // 83: commerce.v1.CreateListingResponse
+	(*PlaceMarketplaceOrderRequest)(nil),    // 84: commerce.v1.PlaceMarketplaceOrderRequest
+	(*PlaceMarketplaceOrderResponse)(nil),   // 85: commerce.v1.PlaceMarketplaceOrderResponse
+	(*MakeOfferRequest)(nil),                // 86: commerce.v1.MakeOfferRequest
+	(*MakeOfferResponse)(nil),               // 87: commerce.v1.MakeOfferResponse
+	(*ListListingsRequest)(nil),             // 88: commerce.v1.ListListingsRequest
+	(*ListListingsResponse)(nil),            // 89: commerce.v1.ListListingsResponse
+	(*PlaceExchangeOrderRequest)(nil),       // 90: commerce.v1.PlaceExchangeOrderRequest
+	(*PlaceExchangeOrderResponse)(nil),      // 91: commerce.v1.PlaceExchangeOrderResponse
+	(*GetExchangeRateRequest)(nil),          // 92: commerce.v1.GetExchangeRateRequest
+	(*GetExchangeRateResponse)(nil),         // 93: commerce.v1.GetExchangeRateResponse
+	(*ListExchangePairsRequest)(nil),        // 94: commerce.v1.ListExchangePairsRequest
+	(*ListExchangePairsResponse)(nil),       // 95: commerce.v1.ListExchangePairsResponse
+	(*CreateExchangePairRequest)(nil),       // 96: commerce.v1.CreateExchangePairRequest
+	(*CreateExchangePairResponse)(nil),      // 97: commerce.v1.CreateExchangePairResponse
+	(*CreateExchangeRateRequest)(nil),       // 98: commerce.v1.CreateExchangeRateRequest
+	(*CreateExchangeRateResponse)(nil),      // 99: commerce.v1.CreateExchangeRateResponse
+	(*v1.Metadata)(nil),                     // 100: common.Metadata
+	(*timestamppb.Timestamp)(nil),           // 101: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                 // 102: google.protobuf.Struct
 }
 var file_commerce_v1_commerce_proto_depIdxs = []int32{
-	42, // 0: commerce.v1.CreateQuoteRequest.metadata:type_name -> common.Metadata
-	11, // 1: commerce.v1.CreateQuoteResponse.quote:type_name -> commerce.v1.Quote
-	11, // 2: commerce.v1.GetQuoteResponse.quote:type_name -> commerce.v1.Quote
-	11, // 3: commerce.v1.ListQuotesResponse.quotes:type_name -> commerce.v1.Quote
-	0,  // 4: commerce.v1.Quote.status:type_name -> commerce.v1.QuoteStatus
-	42, // 5: commerce.v1.Quote.metadata:type_name -> common.Metadata
-	43, // 6: commerce.v1.Quote.created_at:type_name -> google.protobuf.Timestamp
-	43, // 7: commerce.v1.Quote.updated_at:type_name -> google.protobuf.Timestamp
-	21, // 8: commerce.v1.CreateOrderRequest.items:type_name -> commerce.v1.OrderItem
-	42, // 9: commerce.v1.CreateOrderRequest.metadata:type_name -> common.Metadata
-	20, // 10: commerce.v1.CreateOrderResponse.order:type_name -> commerce.v1.Order
-	20, // 11: commerce.v1.GetOrderResponse.order:type_name -> commerce.v1.Order
-	20, // 12: commerce.v1.ListOrdersResponse.orders:type_name -> commerce.v1.Order
-	1,  // 13: commerce.v1.UpdateOrderStatusRequest.status:type_name -> commerce.v1.OrderStatus
-	20, // 14: commerce.v1.UpdateOrderStatusResponse.order:type_name -> commerce.v1.Order
-	21, // 15: commerce.v1.Order.items:type_name -> commerce.v1.OrderItem
-	1,  // 16: commerce.v1.Order.status:type_name -> commerce.v1.OrderStatus
-	42, // 17: commerce.v1.Order.metadata:type_name -> common.Metadata
-	43, // 18: commerce.v1.Order.created_at:type_name -> google.protobuf.Timestamp
-	43, // 19: commerce.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
-	42, // 20: commerce.v1.OrderItem.metadata:type_name -> common.Metadata
-	42, // 21: commerce.v1.InitiatePaymentRequest.metadata:type_name -> common.Metadata
-	28, // 22: commerce.v1.InitiatePaymentResponse.payment:type_name -> commerce.v1.Payment
-	42, // 23: commerce.v1.ConfirmPaymentRequest.metadata:type_name -> common.Metadata
-	28, // 24: commerce.v1.ConfirmPaymentResponse.payment:type_name -> commerce.v1.Payment
-	42, // 25: commerce.v1.RefundPaymentRequest.metadata:type_name -> common.Metadata
-	28, // 26: commerce.v1.RefundPaymentResponse.payment:type_name -> commerce.v1.Payment
-	2,  // 27: commerce.v1.Payment.status:type_name -> commerce.v1.PaymentStatus
-	42, // 28: commerce.v1.Payment.metadata:type_name -> common.Metadata
-	43, // 29: commerce.v1.Payment.created_at:type_name -> google.protobuf.Timestamp
-	43, // 30: commerce.v1.Payment.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 31: commerce.v1.GetTransactionResponse.transaction:type_name -> commerce.v1.Transaction
-	33, // 32: commerce.v1.ListTransactionsResponse.transactions:type_name -> commerce.v1.Transaction
-	3,  // 33: commerce.v1.Transaction.type:type_name -> commerce.v1.TransactionType
-	4,  // 34: commerce.v1.Transaction.status:type_name -> commerce.v1.TransactionStatus
-	42, // 35: commerce.v1.Transaction.metadata:type_name -> common.Metadata
-	43, // 36: commerce.v1.Transaction.created_at:type_name -> google.protobuf.Timestamp
-	43, // 37: commerce.v1.Transaction.updated_at:type_name -> google.protobuf.Timestamp
-	38, // 38: commerce.v1.GetBalanceResponse.balance:type_name -> commerce.v1.Balance
-	38, // 39: commerce.v1.ListBalancesResponse.balances:type_name -> commerce.v1.Balance
-	43, // 40: commerce.v1.Balance.updated_at:type_name -> google.protobuf.Timestamp
-	41, // 41: commerce.v1.ListEventsResponse.events:type_name -> commerce.v1.CommerceEvent
-	44, // 42: commerce.v1.CommerceEvent.payload:type_name -> google.protobuf.Struct
-	43, // 43: commerce.v1.CommerceEvent.created_at:type_name -> google.protobuf.Timestamp
-	5,  // 44: commerce.v1.CommerceService.CreateQuote:input_type -> commerce.v1.CreateQuoteRequest
-	7,  // 45: commerce.v1.CommerceService.GetQuote:input_type -> commerce.v1.GetQuoteRequest
-	9,  // 46: commerce.v1.CommerceService.ListQuotes:input_type -> commerce.v1.ListQuotesRequest
-	12, // 47: commerce.v1.CommerceService.CreateOrder:input_type -> commerce.v1.CreateOrderRequest
-	14, // 48: commerce.v1.CommerceService.GetOrder:input_type -> commerce.v1.GetOrderRequest
-	16, // 49: commerce.v1.CommerceService.ListOrders:input_type -> commerce.v1.ListOrdersRequest
-	18, // 50: commerce.v1.CommerceService.UpdateOrderStatus:input_type -> commerce.v1.UpdateOrderStatusRequest
-	22, // 51: commerce.v1.CommerceService.InitiatePayment:input_type -> commerce.v1.InitiatePaymentRequest
-	24, // 52: commerce.v1.CommerceService.ConfirmPayment:input_type -> commerce.v1.ConfirmPaymentRequest
-	26, // 53: commerce.v1.CommerceService.RefundPayment:input_type -> commerce.v1.RefundPaymentRequest
-	29, // 54: commerce.v1.CommerceService.GetTransaction:input_type -> commerce.v1.GetTransactionRequest
-	31, // 55: commerce.v1.CommerceService.ListTransactions:input_type -> commerce.v1.ListTransactionsRequest
-	34, // 56: commerce.v1.CommerceService.GetBalance:input_type -> commerce.v1.GetBalanceRequest
-	36, // 57: commerce.v1.CommerceService.ListBalances:input_type -> commerce.v1.ListBalancesRequest
-	39, // 58: commerce.v1.CommerceService.ListEvents:input_type -> commerce.v1.ListEventsRequest
-	6,  // 59: commerce.v1.CommerceService.CreateQuote:output_type -> commerce.v1.CreateQuoteResponse
-	8,  // 60: commerce.v1.CommerceService.GetQuote:output_type -> commerce.v1.GetQuoteResponse
-	10, // 61: commerce.v1.CommerceService.ListQuotes:output_type -> commerce.v1.ListQuotesResponse
-	13, // 62: commerce.v1.CommerceService.CreateOrder:output_type -> commerce.v1.CreateOrderResponse
-	15, // 63: commerce.v1.CommerceService.GetOrder:output_type -> commerce.v1.GetOrderResponse
-	17, // 64: commerce.v1.CommerceService.ListOrders:output_type -> commerce.v1.ListOrdersResponse
-	19, // 65: commerce.v1.CommerceService.UpdateOrderStatus:output_type -> commerce.v1.UpdateOrderStatusResponse
-	23, // 66: commerce.v1.CommerceService.InitiatePayment:output_type -> commerce.v1.InitiatePaymentResponse
-	25, // 67: commerce.v1.CommerceService.ConfirmPayment:output_type -> commerce.v1.ConfirmPaymentResponse
-	27, // 68: commerce.v1.CommerceService.RefundPayment:output_type -> commerce.v1.RefundPaymentResponse
-	30, // 69: commerce.v1.CommerceService.GetTransaction:output_type -> commerce.v1.GetTransactionResponse
-	32, // 70: commerce.v1.CommerceService.ListTransactions:output_type -> commerce.v1.ListTransactionsResponse
-	35, // 71: commerce.v1.CommerceService.GetBalance:output_type -> commerce.v1.GetBalanceResponse
-	37, // 72: commerce.v1.CommerceService.ListBalances:output_type -> commerce.v1.ListBalancesResponse
-	40, // 73: commerce.v1.CommerceService.ListEvents:output_type -> commerce.v1.ListEventsResponse
-	59, // [59:74] is the sub-list for method output_type
-	44, // [44:59] is the sub-list for method input_type
-	44, // [44:44] is the sub-list for extension type_name
-	44, // [44:44] is the sub-list for extension extendee
-	0,  // [0:44] is the sub-list for field type_name
+	100, // 0: commerce.v1.CreateQuoteRequest.metadata:type_name -> common.Metadata
+	17,  // 1: commerce.v1.CreateQuoteResponse.quote:type_name -> commerce.v1.Quote
+	17,  // 2: commerce.v1.GetQuoteResponse.quote:type_name -> commerce.v1.Quote
+	17,  // 3: commerce.v1.ListQuotesResponse.quotes:type_name -> commerce.v1.Quote
+	0,   // 4: commerce.v1.Quote.status:type_name -> commerce.v1.QuoteStatus
+	100, // 5: commerce.v1.Quote.metadata:type_name -> common.Metadata
+	101, // 6: commerce.v1.Quote.created_at:type_name -> google.protobuf.Timestamp
+	101, // 7: commerce.v1.Quote.updated_at:type_name -> google.protobuf.Timestamp
+	27,  // 8: commerce.v1.CreateOrderRequest.items:type_name -> commerce.v1.OrderItem
+	100, // 9: commerce.v1.CreateOrderRequest.metadata:type_name -> common.Metadata
+	26,  // 10: commerce.v1.CreateOrderResponse.order:type_name -> commerce.v1.Order
+	26,  // 11: commerce.v1.GetOrderResponse.order:type_name -> commerce.v1.Order
+	26,  // 12: commerce.v1.ListOrdersResponse.orders:type_name -> commerce.v1.Order
+	1,   // 13: commerce.v1.UpdateOrderStatusRequest.status:type_name -> commerce.v1.OrderStatus
+	26,  // 14: commerce.v1.UpdateOrderStatusResponse.order:type_name -> commerce.v1.Order
+	27,  // 15: commerce.v1.Order.items:type_name -> commerce.v1.OrderItem
+	1,   // 16: commerce.v1.Order.status:type_name -> commerce.v1.OrderStatus
+	100, // 17: commerce.v1.Order.metadata:type_name -> common.Metadata
+	101, // 18: commerce.v1.Order.created_at:type_name -> google.protobuf.Timestamp
+	101, // 19: commerce.v1.Order.updated_at:type_name -> google.protobuf.Timestamp
+	100, // 20: commerce.v1.OrderItem.metadata:type_name -> common.Metadata
+	100, // 21: commerce.v1.InitiatePaymentRequest.metadata:type_name -> common.Metadata
+	34,  // 22: commerce.v1.InitiatePaymentResponse.payment:type_name -> commerce.v1.Payment
+	100, // 23: commerce.v1.ConfirmPaymentRequest.metadata:type_name -> common.Metadata
+	34,  // 24: commerce.v1.ConfirmPaymentResponse.payment:type_name -> commerce.v1.Payment
+	100, // 25: commerce.v1.RefundPaymentRequest.metadata:type_name -> common.Metadata
+	34,  // 26: commerce.v1.RefundPaymentResponse.payment:type_name -> commerce.v1.Payment
+	2,   // 27: commerce.v1.Payment.status:type_name -> commerce.v1.PaymentStatus
+	100, // 28: commerce.v1.Payment.metadata:type_name -> common.Metadata
+	101, // 29: commerce.v1.Payment.created_at:type_name -> google.protobuf.Timestamp
+	101, // 30: commerce.v1.Payment.updated_at:type_name -> google.protobuf.Timestamp
+	39,  // 31: commerce.v1.GetTransactionResponse.transaction:type_name -> commerce.v1.Transaction
+	39,  // 32: commerce.v1.ListTransactionsResponse.transactions:type_name -> commerce.v1.Transaction
+	3,   // 33: commerce.v1.Transaction.type:type_name -> commerce.v1.TransactionType
+	4,   // 34: commerce.v1.Transaction.status:type_name -> commerce.v1.TransactionStatus
+	100, // 35: commerce.v1.Transaction.metadata:type_name -> common.Metadata
+	101, // 36: commerce.v1.Transaction.created_at:type_name -> google.protobuf.Timestamp
+	101, // 37: commerce.v1.Transaction.updated_at:type_name -> google.protobuf.Timestamp
+	44,  // 38: commerce.v1.GetBalanceResponse.balance:type_name -> commerce.v1.Balance
+	44,  // 39: commerce.v1.ListBalancesResponse.balances:type_name -> commerce.v1.Balance
+	101, // 40: commerce.v1.Balance.updated_at:type_name -> google.protobuf.Timestamp
+	100, // 41: commerce.v1.Balance.metadata:type_name -> common.Metadata
+	47,  // 42: commerce.v1.ListEventsResponse.events:type_name -> commerce.v1.CommerceEvent
+	102, // 43: commerce.v1.CommerceEvent.payload:type_name -> google.protobuf.Struct
+	101, // 44: commerce.v1.CommerceEvent.created_at:type_name -> google.protobuf.Timestamp
+	100, // 45: commerce.v1.CommerceEvent.metadata:type_name -> common.Metadata
+	100, // 46: commerce.v1.Party.metadata:type_name -> common.Metadata
+	100, // 47: commerce.v1.Account.metadata:type_name -> common.Metadata
+	100, // 48: commerce.v1.InvestmentAccount.metadata:type_name -> common.Metadata
+	101, // 49: commerce.v1.InvestmentAccount.created_at:type_name -> google.protobuf.Timestamp
+	101, // 50: commerce.v1.InvestmentAccount.updated_at:type_name -> google.protobuf.Timestamp
+	5,   // 51: commerce.v1.InvestmentOrder.status:type_name -> commerce.v1.InvestmentOrderStatus
+	100, // 52: commerce.v1.InvestmentOrder.metadata:type_name -> common.Metadata
+	101, // 53: commerce.v1.InvestmentOrder.created_at:type_name -> google.protobuf.Timestamp
+	100, // 54: commerce.v1.Asset.metadata:type_name -> common.Metadata
+	101, // 55: commerce.v1.Asset.created_at:type_name -> google.protobuf.Timestamp
+	101, // 56: commerce.v1.Asset.updated_at:type_name -> google.protobuf.Timestamp
+	54,  // 57: commerce.v1.Portfolio.positions:type_name -> commerce.v1.AssetPosition
+	100, // 58: commerce.v1.Portfolio.metadata:type_name -> common.Metadata
+	101, // 59: commerce.v1.Portfolio.created_at:type_name -> google.protobuf.Timestamp
+	101, // 60: commerce.v1.Portfolio.updated_at:type_name -> google.protobuf.Timestamp
+	100, // 61: commerce.v1.AssetPosition.metadata:type_name -> common.Metadata
+	101, // 62: commerce.v1.AssetPosition.created_at:type_name -> google.protobuf.Timestamp
+	101, // 63: commerce.v1.AssetPosition.updated_at:type_name -> google.protobuf.Timestamp
+	100, // 64: commerce.v1.BankAccount.metadata:type_name -> common.Metadata
+	6,   // 65: commerce.v1.BankTransfer.status:type_name -> commerce.v1.BankTransferStatus
+	100, // 66: commerce.v1.BankTransfer.metadata:type_name -> common.Metadata
+	101, // 67: commerce.v1.BankTransfer.created_at:type_name -> google.protobuf.Timestamp
+	39,  // 68: commerce.v1.BankStatement.transactions:type_name -> commerce.v1.Transaction
+	100, // 69: commerce.v1.BankStatement.metadata:type_name -> common.Metadata
+	7,   // 70: commerce.v1.MarketplaceListing.status:type_name -> commerce.v1.ListingStatus
+	100, // 71: commerce.v1.MarketplaceListing.metadata:type_name -> common.Metadata
+	101, // 72: commerce.v1.MarketplaceListing.created_at:type_name -> google.protobuf.Timestamp
+	8,   // 73: commerce.v1.MarketplaceOrder.status:type_name -> commerce.v1.MarketplaceOrderStatus
+	100, // 74: commerce.v1.MarketplaceOrder.metadata:type_name -> common.Metadata
+	101, // 75: commerce.v1.MarketplaceOrder.created_at:type_name -> google.protobuf.Timestamp
+	9,   // 76: commerce.v1.MarketplaceOffer.status:type_name -> commerce.v1.OfferStatus
+	100, // 77: commerce.v1.MarketplaceOffer.metadata:type_name -> common.Metadata
+	101, // 78: commerce.v1.MarketplaceOffer.created_at:type_name -> google.protobuf.Timestamp
+	10,  // 79: commerce.v1.ExchangeOrder.status:type_name -> commerce.v1.ExchangeOrderStatus
+	100, // 80: commerce.v1.ExchangeOrder.metadata:type_name -> common.Metadata
+	101, // 81: commerce.v1.ExchangeOrder.created_at:type_name -> google.protobuf.Timestamp
+	100, // 82: commerce.v1.ExchangePair.metadata:type_name -> common.Metadata
+	101, // 83: commerce.v1.ExchangeRate.timestamp:type_name -> google.protobuf.Timestamp
+	100, // 84: commerce.v1.ExchangeRate.metadata:type_name -> common.Metadata
+	100, // 85: commerce.v1.CreateInvestmentAccountRequest.metadata:type_name -> common.Metadata
+	50,  // 86: commerce.v1.CreateInvestmentAccountResponse.account:type_name -> commerce.v1.InvestmentAccount
+	50,  // 87: commerce.v1.GetInvestmentAccountResponse.account:type_name -> commerce.v1.InvestmentAccount
+	100, // 88: commerce.v1.PlaceInvestmentOrderRequest.metadata:type_name -> common.Metadata
+	51,  // 89: commerce.v1.PlaceInvestmentOrderResponse.order:type_name -> commerce.v1.InvestmentOrder
+	53,  // 90: commerce.v1.GetPortfolioResponse.portfolio:type_name -> commerce.v1.Portfolio
+	53,  // 91: commerce.v1.ListPortfoliosResponse.portfolios:type_name -> commerce.v1.Portfolio
+	52,  // 92: commerce.v1.ListAssetsResponse.assets:type_name -> commerce.v1.Asset
+	100, // 93: commerce.v1.CreateBankAccountRequest.metadata:type_name -> common.Metadata
+	55,  // 94: commerce.v1.CreateBankAccountResponse.account:type_name -> commerce.v1.BankAccount
+	100, // 95: commerce.v1.InitiateBankTransferRequest.metadata:type_name -> common.Metadata
+	56,  // 96: commerce.v1.InitiateBankTransferResponse.transfer:type_name -> commerce.v1.BankTransfer
+	57,  // 97: commerce.v1.GetBankStatementResponse.statement:type_name -> commerce.v1.BankStatement
+	100, // 98: commerce.v1.CreateListingRequest.metadata:type_name -> common.Metadata
+	58,  // 99: commerce.v1.CreateListingResponse.listing:type_name -> commerce.v1.MarketplaceListing
+	100, // 100: commerce.v1.PlaceMarketplaceOrderRequest.metadata:type_name -> common.Metadata
+	59,  // 101: commerce.v1.PlaceMarketplaceOrderResponse.order:type_name -> commerce.v1.MarketplaceOrder
+	100, // 102: commerce.v1.MakeOfferRequest.metadata:type_name -> common.Metadata
+	60,  // 103: commerce.v1.MakeOfferResponse.offer:type_name -> commerce.v1.MarketplaceOffer
+	58,  // 104: commerce.v1.ListListingsResponse.listings:type_name -> commerce.v1.MarketplaceListing
+	100, // 105: commerce.v1.PlaceExchangeOrderRequest.metadata:type_name -> common.Metadata
+	61,  // 106: commerce.v1.PlaceExchangeOrderResponse.order:type_name -> commerce.v1.ExchangeOrder
+	63,  // 107: commerce.v1.GetExchangeRateResponse.rate:type_name -> commerce.v1.ExchangeRate
+	62,  // 108: commerce.v1.ListExchangePairsResponse.pairs:type_name -> commerce.v1.ExchangePair
+	100, // 109: commerce.v1.CreateExchangePairRequest.metadata:type_name -> common.Metadata
+	62,  // 110: commerce.v1.CreateExchangePairResponse.pair:type_name -> commerce.v1.ExchangePair
+	101, // 111: commerce.v1.CreateExchangeRateRequest.timestamp:type_name -> google.protobuf.Timestamp
+	100, // 112: commerce.v1.CreateExchangeRateRequest.metadata:type_name -> common.Metadata
+	63,  // 113: commerce.v1.CreateExchangeRateResponse.rate:type_name -> commerce.v1.ExchangeRate
+	11,  // 114: commerce.v1.CommerceService.CreateQuote:input_type -> commerce.v1.CreateQuoteRequest
+	13,  // 115: commerce.v1.CommerceService.GetQuote:input_type -> commerce.v1.GetQuoteRequest
+	15,  // 116: commerce.v1.CommerceService.ListQuotes:input_type -> commerce.v1.ListQuotesRequest
+	18,  // 117: commerce.v1.CommerceService.CreateOrder:input_type -> commerce.v1.CreateOrderRequest
+	20,  // 118: commerce.v1.CommerceService.GetOrder:input_type -> commerce.v1.GetOrderRequest
+	22,  // 119: commerce.v1.CommerceService.ListOrders:input_type -> commerce.v1.ListOrdersRequest
+	24,  // 120: commerce.v1.CommerceService.UpdateOrderStatus:input_type -> commerce.v1.UpdateOrderStatusRequest
+	28,  // 121: commerce.v1.CommerceService.InitiatePayment:input_type -> commerce.v1.InitiatePaymentRequest
+	30,  // 122: commerce.v1.CommerceService.ConfirmPayment:input_type -> commerce.v1.ConfirmPaymentRequest
+	32,  // 123: commerce.v1.CommerceService.RefundPayment:input_type -> commerce.v1.RefundPaymentRequest
+	35,  // 124: commerce.v1.CommerceService.GetTransaction:input_type -> commerce.v1.GetTransactionRequest
+	37,  // 125: commerce.v1.CommerceService.ListTransactions:input_type -> commerce.v1.ListTransactionsRequest
+	40,  // 126: commerce.v1.CommerceService.GetBalance:input_type -> commerce.v1.GetBalanceRequest
+	42,  // 127: commerce.v1.CommerceService.ListBalances:input_type -> commerce.v1.ListBalancesRequest
+	45,  // 128: commerce.v1.CommerceService.ListEvents:input_type -> commerce.v1.ListEventsRequest
+	64,  // 129: commerce.v1.CommerceService.CreateInvestmentAccount:input_type -> commerce.v1.CreateInvestmentAccountRequest
+	66,  // 130: commerce.v1.CommerceService.GetInvestmentAccount:input_type -> commerce.v1.GetInvestmentAccountRequest
+	68,  // 131: commerce.v1.CommerceService.PlaceInvestmentOrder:input_type -> commerce.v1.PlaceInvestmentOrderRequest
+	70,  // 132: commerce.v1.CommerceService.GetPortfolio:input_type -> commerce.v1.GetPortfolioRequest
+	74,  // 133: commerce.v1.CommerceService.ListAssets:input_type -> commerce.v1.ListAssetsRequest
+	72,  // 134: commerce.v1.CommerceService.ListPortfolios:input_type -> commerce.v1.ListPortfoliosRequest
+	76,  // 135: commerce.v1.CommerceService.CreateBankAccount:input_type -> commerce.v1.CreateBankAccountRequest
+	78,  // 136: commerce.v1.CommerceService.InitiateBankTransfer:input_type -> commerce.v1.InitiateBankTransferRequest
+	80,  // 137: commerce.v1.CommerceService.GetBankStatement:input_type -> commerce.v1.GetBankStatementRequest
+	82,  // 138: commerce.v1.CommerceService.CreateListing:input_type -> commerce.v1.CreateListingRequest
+	84,  // 139: commerce.v1.CommerceService.PlaceMarketplaceOrder:input_type -> commerce.v1.PlaceMarketplaceOrderRequest
+	86,  // 140: commerce.v1.CommerceService.MakeOffer:input_type -> commerce.v1.MakeOfferRequest
+	88,  // 141: commerce.v1.CommerceService.ListListings:input_type -> commerce.v1.ListListingsRequest
+	90,  // 142: commerce.v1.CommerceService.PlaceExchangeOrder:input_type -> commerce.v1.PlaceExchangeOrderRequest
+	92,  // 143: commerce.v1.CommerceService.GetExchangeRate:input_type -> commerce.v1.GetExchangeRateRequest
+	94,  // 144: commerce.v1.CommerceService.ListExchangePairs:input_type -> commerce.v1.ListExchangePairsRequest
+	96,  // 145: commerce.v1.CommerceService.CreateExchangePair:input_type -> commerce.v1.CreateExchangePairRequest
+	98,  // 146: commerce.v1.CommerceService.CreateExchangeRate:input_type -> commerce.v1.CreateExchangeRateRequest
+	12,  // 147: commerce.v1.CommerceService.CreateQuote:output_type -> commerce.v1.CreateQuoteResponse
+	14,  // 148: commerce.v1.CommerceService.GetQuote:output_type -> commerce.v1.GetQuoteResponse
+	16,  // 149: commerce.v1.CommerceService.ListQuotes:output_type -> commerce.v1.ListQuotesResponse
+	19,  // 150: commerce.v1.CommerceService.CreateOrder:output_type -> commerce.v1.CreateOrderResponse
+	21,  // 151: commerce.v1.CommerceService.GetOrder:output_type -> commerce.v1.GetOrderResponse
+	23,  // 152: commerce.v1.CommerceService.ListOrders:output_type -> commerce.v1.ListOrdersResponse
+	25,  // 153: commerce.v1.CommerceService.UpdateOrderStatus:output_type -> commerce.v1.UpdateOrderStatusResponse
+	29,  // 154: commerce.v1.CommerceService.InitiatePayment:output_type -> commerce.v1.InitiatePaymentResponse
+	31,  // 155: commerce.v1.CommerceService.ConfirmPayment:output_type -> commerce.v1.ConfirmPaymentResponse
+	33,  // 156: commerce.v1.CommerceService.RefundPayment:output_type -> commerce.v1.RefundPaymentResponse
+	36,  // 157: commerce.v1.CommerceService.GetTransaction:output_type -> commerce.v1.GetTransactionResponse
+	38,  // 158: commerce.v1.CommerceService.ListTransactions:output_type -> commerce.v1.ListTransactionsResponse
+	41,  // 159: commerce.v1.CommerceService.GetBalance:output_type -> commerce.v1.GetBalanceResponse
+	43,  // 160: commerce.v1.CommerceService.ListBalances:output_type -> commerce.v1.ListBalancesResponse
+	46,  // 161: commerce.v1.CommerceService.ListEvents:output_type -> commerce.v1.ListEventsResponse
+	65,  // 162: commerce.v1.CommerceService.CreateInvestmentAccount:output_type -> commerce.v1.CreateInvestmentAccountResponse
+	67,  // 163: commerce.v1.CommerceService.GetInvestmentAccount:output_type -> commerce.v1.GetInvestmentAccountResponse
+	69,  // 164: commerce.v1.CommerceService.PlaceInvestmentOrder:output_type -> commerce.v1.PlaceInvestmentOrderResponse
+	71,  // 165: commerce.v1.CommerceService.GetPortfolio:output_type -> commerce.v1.GetPortfolioResponse
+	75,  // 166: commerce.v1.CommerceService.ListAssets:output_type -> commerce.v1.ListAssetsResponse
+	73,  // 167: commerce.v1.CommerceService.ListPortfolios:output_type -> commerce.v1.ListPortfoliosResponse
+	77,  // 168: commerce.v1.CommerceService.CreateBankAccount:output_type -> commerce.v1.CreateBankAccountResponse
+	79,  // 169: commerce.v1.CommerceService.InitiateBankTransfer:output_type -> commerce.v1.InitiateBankTransferResponse
+	81,  // 170: commerce.v1.CommerceService.GetBankStatement:output_type -> commerce.v1.GetBankStatementResponse
+	83,  // 171: commerce.v1.CommerceService.CreateListing:output_type -> commerce.v1.CreateListingResponse
+	85,  // 172: commerce.v1.CommerceService.PlaceMarketplaceOrder:output_type -> commerce.v1.PlaceMarketplaceOrderResponse
+	87,  // 173: commerce.v1.CommerceService.MakeOffer:output_type -> commerce.v1.MakeOfferResponse
+	89,  // 174: commerce.v1.CommerceService.ListListings:output_type -> commerce.v1.ListListingsResponse
+	91,  // 175: commerce.v1.CommerceService.PlaceExchangeOrder:output_type -> commerce.v1.PlaceExchangeOrderResponse
+	93,  // 176: commerce.v1.CommerceService.GetExchangeRate:output_type -> commerce.v1.GetExchangeRateResponse
+	95,  // 177: commerce.v1.CommerceService.ListExchangePairs:output_type -> commerce.v1.ListExchangePairsResponse
+	97,  // 178: commerce.v1.CommerceService.CreateExchangePair:output_type -> commerce.v1.CreateExchangePairResponse
+	99,  // 179: commerce.v1.CommerceService.CreateExchangeRate:output_type -> commerce.v1.CreateExchangeRateResponse
+	147, // [147:180] is the sub-list for method output_type
+	114, // [114:147] is the sub-list for method input_type
+	114, // [114:114] is the sub-list for extension type_name
+	114, // [114:114] is the sub-list for extension extendee
+	0,   // [0:114] is the sub-list for field type_name
 }
 
 func init() { file_commerce_v1_commerce_proto_init() }
@@ -2932,8 +7593,8 @@ func file_commerce_v1_commerce_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_commerce_v1_commerce_proto_rawDesc), len(file_commerce_v1_commerce_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   37,
+			NumEnums:      11,
+			NumMessages:   89,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

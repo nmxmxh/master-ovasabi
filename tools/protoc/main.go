@@ -43,7 +43,7 @@ func validateInputs(protoFile, protoDir, outDir string) error {
 	return nil
 }
 
-func runProtoc(protoFile, protoDir, outDir string) error {
+func runProtoc(protoFile, protoDir, outDir string, openAPI bool) error {
 	// Validate inputs
 	if err := validateInputs(protoFile, protoDir, outDir); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -71,6 +71,13 @@ func runProtoc(protoFile, protoDir, outDir string) error {
 		protoPath,
 	}
 
+	if openAPI {
+		args = append([]string{
+			"--openapiv2_out=" + outPath,
+			"--openapiv2_opt=logtostderr=true",
+		}, args...)
+	}
+
 	// Create command with clean environment
 	cmd := exec.Command("protoc", args...)
 	cmd.Env = []string{
@@ -84,21 +91,32 @@ func runProtoc(protoFile, protoDir, outDir string) error {
 		return fmt.Errorf("protoc failed: %w\nOutput: %s", err, output)
 	}
 
+	if openAPI {
+		fmt.Printf("OpenAPI schema generated in %s\n", outPath)
+	}
 	return nil
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Printf("Usage: %s <proto_file> <proto_dir> <out_dir>\n", os.Args[0])
+	if len(os.Args) < 4 || len(os.Args) > 5 {
+		fmt.Printf("Usage: %s <proto_file> <proto_dir> <out_dir> [--openapi]\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	protoFile := os.Args[1]
 	protoDir := os.Args[2]
 	outDir := os.Args[3]
+	openAPI := len(os.Args) == 5 && os.Args[4] == "--openapi"
 
-	if err := runProtoc(protoFile, protoDir, outDir); err != nil {
+	if err := runProtoc(protoFile, protoDir, outDir, openAPI); err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 }
+
+// Usage:
+//   go run main.go <proto_file> <proto_dir> <out_dir> [--openapi]
+//
+// If --openapi is provided, generates OpenAPI (Swagger) schema using protoc-gen-openapiv2.
+// Example:
+//   go run main.go metadata.proto api/protos/common/v1 docs/generated/openapi --openapi

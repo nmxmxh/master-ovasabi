@@ -1,4 +1,4 @@
-# Package contentmoderationrepo
+# Package contentmoderation
 
 ## Types
 

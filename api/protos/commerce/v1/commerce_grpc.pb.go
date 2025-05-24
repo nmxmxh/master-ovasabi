@@ -19,21 +19,39 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CommerceService_CreateQuote_FullMethodName       = "/commerce.v1.CommerceService/CreateQuote"
-	CommerceService_GetQuote_FullMethodName          = "/commerce.v1.CommerceService/GetQuote"
-	CommerceService_ListQuotes_FullMethodName        = "/commerce.v1.CommerceService/ListQuotes"
-	CommerceService_CreateOrder_FullMethodName       = "/commerce.v1.CommerceService/CreateOrder"
-	CommerceService_GetOrder_FullMethodName          = "/commerce.v1.CommerceService/GetOrder"
-	CommerceService_ListOrders_FullMethodName        = "/commerce.v1.CommerceService/ListOrders"
-	CommerceService_UpdateOrderStatus_FullMethodName = "/commerce.v1.CommerceService/UpdateOrderStatus"
-	CommerceService_InitiatePayment_FullMethodName   = "/commerce.v1.CommerceService/InitiatePayment"
-	CommerceService_ConfirmPayment_FullMethodName    = "/commerce.v1.CommerceService/ConfirmPayment"
-	CommerceService_RefundPayment_FullMethodName     = "/commerce.v1.CommerceService/RefundPayment"
-	CommerceService_GetTransaction_FullMethodName    = "/commerce.v1.CommerceService/GetTransaction"
-	CommerceService_ListTransactions_FullMethodName  = "/commerce.v1.CommerceService/ListTransactions"
-	CommerceService_GetBalance_FullMethodName        = "/commerce.v1.CommerceService/GetBalance"
-	CommerceService_ListBalances_FullMethodName      = "/commerce.v1.CommerceService/ListBalances"
-	CommerceService_ListEvents_FullMethodName        = "/commerce.v1.CommerceService/ListEvents"
+	CommerceService_CreateQuote_FullMethodName             = "/commerce.v1.CommerceService/CreateQuote"
+	CommerceService_GetQuote_FullMethodName                = "/commerce.v1.CommerceService/GetQuote"
+	CommerceService_ListQuotes_FullMethodName              = "/commerce.v1.CommerceService/ListQuotes"
+	CommerceService_CreateOrder_FullMethodName             = "/commerce.v1.CommerceService/CreateOrder"
+	CommerceService_GetOrder_FullMethodName                = "/commerce.v1.CommerceService/GetOrder"
+	CommerceService_ListOrders_FullMethodName              = "/commerce.v1.CommerceService/ListOrders"
+	CommerceService_UpdateOrderStatus_FullMethodName       = "/commerce.v1.CommerceService/UpdateOrderStatus"
+	CommerceService_InitiatePayment_FullMethodName         = "/commerce.v1.CommerceService/InitiatePayment"
+	CommerceService_ConfirmPayment_FullMethodName          = "/commerce.v1.CommerceService/ConfirmPayment"
+	CommerceService_RefundPayment_FullMethodName           = "/commerce.v1.CommerceService/RefundPayment"
+	CommerceService_GetTransaction_FullMethodName          = "/commerce.v1.CommerceService/GetTransaction"
+	CommerceService_ListTransactions_FullMethodName        = "/commerce.v1.CommerceService/ListTransactions"
+	CommerceService_GetBalance_FullMethodName              = "/commerce.v1.CommerceService/GetBalance"
+	CommerceService_ListBalances_FullMethodName            = "/commerce.v1.CommerceService/ListBalances"
+	CommerceService_ListEvents_FullMethodName              = "/commerce.v1.CommerceService/ListEvents"
+	CommerceService_CreateInvestmentAccount_FullMethodName = "/commerce.v1.CommerceService/CreateInvestmentAccount"
+	CommerceService_GetInvestmentAccount_FullMethodName    = "/commerce.v1.CommerceService/GetInvestmentAccount"
+	CommerceService_PlaceInvestmentOrder_FullMethodName    = "/commerce.v1.CommerceService/PlaceInvestmentOrder"
+	CommerceService_GetPortfolio_FullMethodName            = "/commerce.v1.CommerceService/GetPortfolio"
+	CommerceService_ListAssets_FullMethodName              = "/commerce.v1.CommerceService/ListAssets"
+	CommerceService_ListPortfolios_FullMethodName          = "/commerce.v1.CommerceService/ListPortfolios"
+	CommerceService_CreateBankAccount_FullMethodName       = "/commerce.v1.CommerceService/CreateBankAccount"
+	CommerceService_InitiateBankTransfer_FullMethodName    = "/commerce.v1.CommerceService/InitiateBankTransfer"
+	CommerceService_GetBankStatement_FullMethodName        = "/commerce.v1.CommerceService/GetBankStatement"
+	CommerceService_CreateListing_FullMethodName           = "/commerce.v1.CommerceService/CreateListing"
+	CommerceService_PlaceMarketplaceOrder_FullMethodName   = "/commerce.v1.CommerceService/PlaceMarketplaceOrder"
+	CommerceService_MakeOffer_FullMethodName               = "/commerce.v1.CommerceService/MakeOffer"
+	CommerceService_ListListings_FullMethodName            = "/commerce.v1.CommerceService/ListListings"
+	CommerceService_PlaceExchangeOrder_FullMethodName      = "/commerce.v1.CommerceService/PlaceExchangeOrder"
+	CommerceService_GetExchangeRate_FullMethodName         = "/commerce.v1.CommerceService/GetExchangeRate"
+	CommerceService_ListExchangePairs_FullMethodName       = "/commerce.v1.CommerceService/ListExchangePairs"
+	CommerceService_CreateExchangePair_FullMethodName      = "/commerce.v1.CommerceService/CreateExchangePair"
+	CommerceService_CreateExchangeRate_FullMethodName      = "/commerce.v1.CommerceService/CreateExchangeRate"
 )
 
 // CommerceServiceClient is the client API for CommerceService service.
@@ -61,6 +79,28 @@ type CommerceServiceClient interface {
 	ListBalances(ctx context.Context, in *ListBalancesRequest, opts ...grpc.CallOption) (*ListBalancesResponse, error)
 	// Events (for analytics/audit)
 	ListEvents(ctx context.Context, in *ListEventsRequest, opts ...grpc.CallOption) (*ListEventsResponse, error)
+	// Investment
+	CreateInvestmentAccount(ctx context.Context, in *CreateInvestmentAccountRequest, opts ...grpc.CallOption) (*CreateInvestmentAccountResponse, error)
+	GetInvestmentAccount(ctx context.Context, in *GetInvestmentAccountRequest, opts ...grpc.CallOption) (*GetInvestmentAccountResponse, error)
+	PlaceInvestmentOrder(ctx context.Context, in *PlaceInvestmentOrderRequest, opts ...grpc.CallOption) (*PlaceInvestmentOrderResponse, error)
+	GetPortfolio(ctx context.Context, in *GetPortfolioRequest, opts ...grpc.CallOption) (*GetPortfolioResponse, error)
+	ListAssets(ctx context.Context, in *ListAssetsRequest, opts ...grpc.CallOption) (*ListAssetsResponse, error)
+	ListPortfolios(ctx context.Context, in *ListPortfoliosRequest, opts ...grpc.CallOption) (*ListPortfoliosResponse, error)
+	// Banking
+	CreateBankAccount(ctx context.Context, in *CreateBankAccountRequest, opts ...grpc.CallOption) (*CreateBankAccountResponse, error)
+	InitiateBankTransfer(ctx context.Context, in *InitiateBankTransferRequest, opts ...grpc.CallOption) (*InitiateBankTransferResponse, error)
+	GetBankStatement(ctx context.Context, in *GetBankStatementRequest, opts ...grpc.CallOption) (*GetBankStatementResponse, error)
+	// Marketplace
+	CreateListing(ctx context.Context, in *CreateListingRequest, opts ...grpc.CallOption) (*CreateListingResponse, error)
+	PlaceMarketplaceOrder(ctx context.Context, in *PlaceMarketplaceOrderRequest, opts ...grpc.CallOption) (*PlaceMarketplaceOrderResponse, error)
+	MakeOffer(ctx context.Context, in *MakeOfferRequest, opts ...grpc.CallOption) (*MakeOfferResponse, error)
+	ListListings(ctx context.Context, in *ListListingsRequest, opts ...grpc.CallOption) (*ListListingsResponse, error)
+	// Exchange
+	PlaceExchangeOrder(ctx context.Context, in *PlaceExchangeOrderRequest, opts ...grpc.CallOption) (*PlaceExchangeOrderResponse, error)
+	GetExchangeRate(ctx context.Context, in *GetExchangeRateRequest, opts ...grpc.CallOption) (*GetExchangeRateResponse, error)
+	ListExchangePairs(ctx context.Context, in *ListExchangePairsRequest, opts ...grpc.CallOption) (*ListExchangePairsResponse, error)
+	CreateExchangePair(ctx context.Context, in *CreateExchangePairRequest, opts ...grpc.CallOption) (*CreateExchangePairResponse, error)
+	CreateExchangeRate(ctx context.Context, in *CreateExchangeRateRequest, opts ...grpc.CallOption) (*CreateExchangeRateResponse, error)
 }
 
 type commerceServiceClient struct {
@@ -221,6 +261,186 @@ func (c *commerceServiceClient) ListEvents(ctx context.Context, in *ListEventsRe
 	return out, nil
 }
 
+func (c *commerceServiceClient) CreateInvestmentAccount(ctx context.Context, in *CreateInvestmentAccountRequest, opts ...grpc.CallOption) (*CreateInvestmentAccountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateInvestmentAccountResponse)
+	err := c.cc.Invoke(ctx, CommerceService_CreateInvestmentAccount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) GetInvestmentAccount(ctx context.Context, in *GetInvestmentAccountRequest, opts ...grpc.CallOption) (*GetInvestmentAccountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetInvestmentAccountResponse)
+	err := c.cc.Invoke(ctx, CommerceService_GetInvestmentAccount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) PlaceInvestmentOrder(ctx context.Context, in *PlaceInvestmentOrderRequest, opts ...grpc.CallOption) (*PlaceInvestmentOrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PlaceInvestmentOrderResponse)
+	err := c.cc.Invoke(ctx, CommerceService_PlaceInvestmentOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) GetPortfolio(ctx context.Context, in *GetPortfolioRequest, opts ...grpc.CallOption) (*GetPortfolioResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPortfolioResponse)
+	err := c.cc.Invoke(ctx, CommerceService_GetPortfolio_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) ListAssets(ctx context.Context, in *ListAssetsRequest, opts ...grpc.CallOption) (*ListAssetsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAssetsResponse)
+	err := c.cc.Invoke(ctx, CommerceService_ListAssets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) ListPortfolios(ctx context.Context, in *ListPortfoliosRequest, opts ...grpc.CallOption) (*ListPortfoliosResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPortfoliosResponse)
+	err := c.cc.Invoke(ctx, CommerceService_ListPortfolios_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) CreateBankAccount(ctx context.Context, in *CreateBankAccountRequest, opts ...grpc.CallOption) (*CreateBankAccountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateBankAccountResponse)
+	err := c.cc.Invoke(ctx, CommerceService_CreateBankAccount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) InitiateBankTransfer(ctx context.Context, in *InitiateBankTransferRequest, opts ...grpc.CallOption) (*InitiateBankTransferResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InitiateBankTransferResponse)
+	err := c.cc.Invoke(ctx, CommerceService_InitiateBankTransfer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) GetBankStatement(ctx context.Context, in *GetBankStatementRequest, opts ...grpc.CallOption) (*GetBankStatementResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBankStatementResponse)
+	err := c.cc.Invoke(ctx, CommerceService_GetBankStatement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) CreateListing(ctx context.Context, in *CreateListingRequest, opts ...grpc.CallOption) (*CreateListingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateListingResponse)
+	err := c.cc.Invoke(ctx, CommerceService_CreateListing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) PlaceMarketplaceOrder(ctx context.Context, in *PlaceMarketplaceOrderRequest, opts ...grpc.CallOption) (*PlaceMarketplaceOrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PlaceMarketplaceOrderResponse)
+	err := c.cc.Invoke(ctx, CommerceService_PlaceMarketplaceOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) MakeOffer(ctx context.Context, in *MakeOfferRequest, opts ...grpc.CallOption) (*MakeOfferResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MakeOfferResponse)
+	err := c.cc.Invoke(ctx, CommerceService_MakeOffer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) ListListings(ctx context.Context, in *ListListingsRequest, opts ...grpc.CallOption) (*ListListingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListListingsResponse)
+	err := c.cc.Invoke(ctx, CommerceService_ListListings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) PlaceExchangeOrder(ctx context.Context, in *PlaceExchangeOrderRequest, opts ...grpc.CallOption) (*PlaceExchangeOrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PlaceExchangeOrderResponse)
+	err := c.cc.Invoke(ctx, CommerceService_PlaceExchangeOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) GetExchangeRate(ctx context.Context, in *GetExchangeRateRequest, opts ...grpc.CallOption) (*GetExchangeRateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetExchangeRateResponse)
+	err := c.cc.Invoke(ctx, CommerceService_GetExchangeRate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) ListExchangePairs(ctx context.Context, in *ListExchangePairsRequest, opts ...grpc.CallOption) (*ListExchangePairsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListExchangePairsResponse)
+	err := c.cc.Invoke(ctx, CommerceService_ListExchangePairs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) CreateExchangePair(ctx context.Context, in *CreateExchangePairRequest, opts ...grpc.CallOption) (*CreateExchangePairResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateExchangePairResponse)
+	err := c.cc.Invoke(ctx, CommerceService_CreateExchangePair_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commerceServiceClient) CreateExchangeRate(ctx context.Context, in *CreateExchangeRateRequest, opts ...grpc.CallOption) (*CreateExchangeRateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateExchangeRateResponse)
+	err := c.cc.Invoke(ctx, CommerceService_CreateExchangeRate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommerceServiceServer is the server API for CommerceService service.
 // All implementations must embed UnimplementedCommerceServiceServer
 // for forward compatibility.
@@ -246,6 +466,28 @@ type CommerceServiceServer interface {
 	ListBalances(context.Context, *ListBalancesRequest) (*ListBalancesResponse, error)
 	// Events (for analytics/audit)
 	ListEvents(context.Context, *ListEventsRequest) (*ListEventsResponse, error)
+	// Investment
+	CreateInvestmentAccount(context.Context, *CreateInvestmentAccountRequest) (*CreateInvestmentAccountResponse, error)
+	GetInvestmentAccount(context.Context, *GetInvestmentAccountRequest) (*GetInvestmentAccountResponse, error)
+	PlaceInvestmentOrder(context.Context, *PlaceInvestmentOrderRequest) (*PlaceInvestmentOrderResponse, error)
+	GetPortfolio(context.Context, *GetPortfolioRequest) (*GetPortfolioResponse, error)
+	ListAssets(context.Context, *ListAssetsRequest) (*ListAssetsResponse, error)
+	ListPortfolios(context.Context, *ListPortfoliosRequest) (*ListPortfoliosResponse, error)
+	// Banking
+	CreateBankAccount(context.Context, *CreateBankAccountRequest) (*CreateBankAccountResponse, error)
+	InitiateBankTransfer(context.Context, *InitiateBankTransferRequest) (*InitiateBankTransferResponse, error)
+	GetBankStatement(context.Context, *GetBankStatementRequest) (*GetBankStatementResponse, error)
+	// Marketplace
+	CreateListing(context.Context, *CreateListingRequest) (*CreateListingResponse, error)
+	PlaceMarketplaceOrder(context.Context, *PlaceMarketplaceOrderRequest) (*PlaceMarketplaceOrderResponse, error)
+	MakeOffer(context.Context, *MakeOfferRequest) (*MakeOfferResponse, error)
+	ListListings(context.Context, *ListListingsRequest) (*ListListingsResponse, error)
+	// Exchange
+	PlaceExchangeOrder(context.Context, *PlaceExchangeOrderRequest) (*PlaceExchangeOrderResponse, error)
+	GetExchangeRate(context.Context, *GetExchangeRateRequest) (*GetExchangeRateResponse, error)
+	ListExchangePairs(context.Context, *ListExchangePairsRequest) (*ListExchangePairsResponse, error)
+	CreateExchangePair(context.Context, *CreateExchangePairRequest) (*CreateExchangePairResponse, error)
+	CreateExchangeRate(context.Context, *CreateExchangeRateRequest) (*CreateExchangeRateResponse, error)
 	mustEmbedUnimplementedCommerceServiceServer()
 }
 
@@ -300,6 +542,60 @@ func (UnimplementedCommerceServiceServer) ListBalances(context.Context, *ListBal
 }
 func (UnimplementedCommerceServiceServer) ListEvents(context.Context, *ListEventsRequest) (*ListEventsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEvents not implemented")
+}
+func (UnimplementedCommerceServiceServer) CreateInvestmentAccount(context.Context, *CreateInvestmentAccountRequest) (*CreateInvestmentAccountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateInvestmentAccount not implemented")
+}
+func (UnimplementedCommerceServiceServer) GetInvestmentAccount(context.Context, *GetInvestmentAccountRequest) (*GetInvestmentAccountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInvestmentAccount not implemented")
+}
+func (UnimplementedCommerceServiceServer) PlaceInvestmentOrder(context.Context, *PlaceInvestmentOrderRequest) (*PlaceInvestmentOrderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PlaceInvestmentOrder not implemented")
+}
+func (UnimplementedCommerceServiceServer) GetPortfolio(context.Context, *GetPortfolioRequest) (*GetPortfolioResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPortfolio not implemented")
+}
+func (UnimplementedCommerceServiceServer) ListAssets(context.Context, *ListAssetsRequest) (*ListAssetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAssets not implemented")
+}
+func (UnimplementedCommerceServiceServer) ListPortfolios(context.Context, *ListPortfoliosRequest) (*ListPortfoliosResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPortfolios not implemented")
+}
+func (UnimplementedCommerceServiceServer) CreateBankAccount(context.Context, *CreateBankAccountRequest) (*CreateBankAccountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateBankAccount not implemented")
+}
+func (UnimplementedCommerceServiceServer) InitiateBankTransfer(context.Context, *InitiateBankTransferRequest) (*InitiateBankTransferResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitiateBankTransfer not implemented")
+}
+func (UnimplementedCommerceServiceServer) GetBankStatement(context.Context, *GetBankStatementRequest) (*GetBankStatementResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBankStatement not implemented")
+}
+func (UnimplementedCommerceServiceServer) CreateListing(context.Context, *CreateListingRequest) (*CreateListingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateListing not implemented")
+}
+func (UnimplementedCommerceServiceServer) PlaceMarketplaceOrder(context.Context, *PlaceMarketplaceOrderRequest) (*PlaceMarketplaceOrderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PlaceMarketplaceOrder not implemented")
+}
+func (UnimplementedCommerceServiceServer) MakeOffer(context.Context, *MakeOfferRequest) (*MakeOfferResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeOffer not implemented")
+}
+func (UnimplementedCommerceServiceServer) ListListings(context.Context, *ListListingsRequest) (*ListListingsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListListings not implemented")
+}
+func (UnimplementedCommerceServiceServer) PlaceExchangeOrder(context.Context, *PlaceExchangeOrderRequest) (*PlaceExchangeOrderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PlaceExchangeOrder not implemented")
+}
+func (UnimplementedCommerceServiceServer) GetExchangeRate(context.Context, *GetExchangeRateRequest) (*GetExchangeRateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetExchangeRate not implemented")
+}
+func (UnimplementedCommerceServiceServer) ListExchangePairs(context.Context, *ListExchangePairsRequest) (*ListExchangePairsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListExchangePairs not implemented")
+}
+func (UnimplementedCommerceServiceServer) CreateExchangePair(context.Context, *CreateExchangePairRequest) (*CreateExchangePairResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateExchangePair not implemented")
+}
+func (UnimplementedCommerceServiceServer) CreateExchangeRate(context.Context, *CreateExchangeRateRequest) (*CreateExchangeRateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateExchangeRate not implemented")
 }
 func (UnimplementedCommerceServiceServer) mustEmbedUnimplementedCommerceServiceServer() {}
 func (UnimplementedCommerceServiceServer) testEmbeddedByValue()                         {}
@@ -592,6 +888,330 @@ func _CommerceService_ListEvents_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CommerceService_CreateInvestmentAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateInvestmentAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).CreateInvestmentAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_CreateInvestmentAccount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).CreateInvestmentAccount(ctx, req.(*CreateInvestmentAccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_GetInvestmentAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInvestmentAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).GetInvestmentAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_GetInvestmentAccount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).GetInvestmentAccount(ctx, req.(*GetInvestmentAccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_PlaceInvestmentOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PlaceInvestmentOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).PlaceInvestmentOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_PlaceInvestmentOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).PlaceInvestmentOrder(ctx, req.(*PlaceInvestmentOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_GetPortfolio_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPortfolioRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).GetPortfolio(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_GetPortfolio_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).GetPortfolio(ctx, req.(*GetPortfolioRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_ListAssets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAssetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).ListAssets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_ListAssets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).ListAssets(ctx, req.(*ListAssetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_ListPortfolios_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPortfoliosRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).ListPortfolios(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_ListPortfolios_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).ListPortfolios(ctx, req.(*ListPortfoliosRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_CreateBankAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateBankAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).CreateBankAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_CreateBankAccount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).CreateBankAccount(ctx, req.(*CreateBankAccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_InitiateBankTransfer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitiateBankTransferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).InitiateBankTransfer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_InitiateBankTransfer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).InitiateBankTransfer(ctx, req.(*InitiateBankTransferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_GetBankStatement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBankStatementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).GetBankStatement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_GetBankStatement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).GetBankStatement(ctx, req.(*GetBankStatementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_CreateListing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateListingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).CreateListing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_CreateListing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).CreateListing(ctx, req.(*CreateListingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_PlaceMarketplaceOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PlaceMarketplaceOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).PlaceMarketplaceOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_PlaceMarketplaceOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).PlaceMarketplaceOrder(ctx, req.(*PlaceMarketplaceOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_MakeOffer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MakeOfferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).MakeOffer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_MakeOffer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).MakeOffer(ctx, req.(*MakeOfferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_ListListings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListListingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).ListListings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_ListListings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).ListListings(ctx, req.(*ListListingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_PlaceExchangeOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PlaceExchangeOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).PlaceExchangeOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_PlaceExchangeOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).PlaceExchangeOrder(ctx, req.(*PlaceExchangeOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_GetExchangeRate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetExchangeRateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).GetExchangeRate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_GetExchangeRate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).GetExchangeRate(ctx, req.(*GetExchangeRateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_ListExchangePairs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListExchangePairsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).ListExchangePairs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_ListExchangePairs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).ListExchangePairs(ctx, req.(*ListExchangePairsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_CreateExchangePair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateExchangePairRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).CreateExchangePair(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_CreateExchangePair_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).CreateExchangePair(ctx, req.(*CreateExchangePairRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommerceService_CreateExchangeRate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateExchangeRateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommerceServiceServer).CreateExchangeRate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommerceService_CreateExchangeRate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommerceServiceServer).CreateExchangeRate(ctx, req.(*CreateExchangeRateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CommerceService_ServiceDesc is the grpc.ServiceDesc for CommerceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -658,6 +1278,78 @@ var CommerceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEvents",
 			Handler:    _CommerceService_ListEvents_Handler,
+		},
+		{
+			MethodName: "CreateInvestmentAccount",
+			Handler:    _CommerceService_CreateInvestmentAccount_Handler,
+		},
+		{
+			MethodName: "GetInvestmentAccount",
+			Handler:    _CommerceService_GetInvestmentAccount_Handler,
+		},
+		{
+			MethodName: "PlaceInvestmentOrder",
+			Handler:    _CommerceService_PlaceInvestmentOrder_Handler,
+		},
+		{
+			MethodName: "GetPortfolio",
+			Handler:    _CommerceService_GetPortfolio_Handler,
+		},
+		{
+			MethodName: "ListAssets",
+			Handler:    _CommerceService_ListAssets_Handler,
+		},
+		{
+			MethodName: "ListPortfolios",
+			Handler:    _CommerceService_ListPortfolios_Handler,
+		},
+		{
+			MethodName: "CreateBankAccount",
+			Handler:    _CommerceService_CreateBankAccount_Handler,
+		},
+		{
+			MethodName: "InitiateBankTransfer",
+			Handler:    _CommerceService_InitiateBankTransfer_Handler,
+		},
+		{
+			MethodName: "GetBankStatement",
+			Handler:    _CommerceService_GetBankStatement_Handler,
+		},
+		{
+			MethodName: "CreateListing",
+			Handler:    _CommerceService_CreateListing_Handler,
+		},
+		{
+			MethodName: "PlaceMarketplaceOrder",
+			Handler:    _CommerceService_PlaceMarketplaceOrder_Handler,
+		},
+		{
+			MethodName: "MakeOffer",
+			Handler:    _CommerceService_MakeOffer_Handler,
+		},
+		{
+			MethodName: "ListListings",
+			Handler:    _CommerceService_ListListings_Handler,
+		},
+		{
+			MethodName: "PlaceExchangeOrder",
+			Handler:    _CommerceService_PlaceExchangeOrder_Handler,
+		},
+		{
+			MethodName: "GetExchangeRate",
+			Handler:    _CommerceService_GetExchangeRate_Handler,
+		},
+		{
+			MethodName: "ListExchangePairs",
+			Handler:    _CommerceService_ListExchangePairs_Handler,
+		},
+		{
+			MethodName: "CreateExchangePair",
+			Handler:    _CommerceService_CreateExchangePair_Handler,
+		},
+		{
+			MethodName: "CreateExchangeRate",
+			Handler:    _CommerceService_CreateExchangeRate_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

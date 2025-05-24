@@ -1,384 +1,149 @@
+// SecurityService proto
+// See docs/services/security.md for full documentation and separation from User Service.
 syntax = "proto3";
-
 package security.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/security/v1;securitypb";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/security";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
 
+// SecurityService: Central authority for platform security (not user CRUD/session mgmt)
 service SecurityService {
-    // Identity and Access Management
-    rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
-    rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
-    rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
-    
-    // Threat Detection
-    rpc DetectThreats(DetectThreatsRequest) returns (DetectThreatsResponse);
-    rpc ReportIncident(ReportIncidentRequest) returns (ReportIncidentResponse);
-    
-    // Security Pattern Management
-    rpc RegisterSecurityPattern(RegisterSecurityPatternRequest) returns (RegisterSecurityPatternResponse);
-    rpc ValidatePattern(ValidatePatternRequest) returns (ValidatePatternResponse);
-    
-    // Audit and Compliance
-    rpc RecordAuditEvent(RecordAuditEventRequest) returns (RecordAuditEventResponse);
-    rpc GetAuditLog(GetAuditLogRequest) returns (stream GetAuditLogResponse);
-    
-    // Security Metrics
-    rpc GetSecurityMetrics(GetSecurityMetricsRequest) returns (GetSecurityMetricsResponse);
-}
-
-message AuthenticationRequest {
-    string identity = 1;
-    repeated AuthenticationFactor factors = 2;
-    SecurityContext context = 3;
-}
-
-message AuthenticationFactor {
-    FactorType type = 1;
-    bytes credential = 2;
-    common.Metadata metadata = 3;
-}
-
-enum FactorType {
-    FACTOR_TYPE_UNSPECIFIED = 0;
-    FACTOR_TYPE_PASSWORD = 1;
-    FACTOR_TYPE_TOTP = 2;
-    FACTOR_TYPE_BIOMETRIC = 3;
-    FACTOR_TYPE_HARDWARE_KEY = 4;
-}
-
-message SecurityContext {
-    string request_id = 1;
-    string client_ip = 2;
-    string user_agent = 3;
-    google.protobuf.Timestamp timestamp = 4;
-    common.Metadata attributes = 5;
-}
-
-message AuthenticationResponse {
-    string session_token = 1;
-    google.protobuf.Timestamp expiration = 2;
-    repeated string permissions = 3;
-    SecurityScore security_score = 4;
-    common.Metadata metadata = 5;
-}
-
-message SecurityScore {
-    double authentication_score = 1;
-    double threat_score = 2;
-    double privacy_score = 3;
-    map<string, double> factor_scores = 4;
-}
-
-message AuthorizationRequest {
-    string session_token = 1;
-    string resource = 2;
-    string action = 3;
-    SecurityContext context = 4;
-}
-
-message AuthorizationResponse {
-    bool authorized = 1;
-    string reason = 2;
-    repeated string applicable_policies = 3;
-    common.Metadata metadata = 4;
-}
-
-message SecurityPattern {
-    string pattern_id = 1;
-    string name = 2;
-    string description = 3;
-    repeated GraphVertex vertices = 4;
-    repeated GraphEdge edges = 5;
-    map<string, string> constraints = 6;
-    RiskAssessment risk = 7;
-    common.Metadata metadata = 8;
-}
-
-message GraphVertex {
-    string id = 1;
-    string type = 2;
-    map<string, string> properties = 3;
-}
-
-message GraphEdge {
-    string source = 1;
-    string target = 2;
-    string relationship = 3;
-    map<string, string> properties = 4;
-}
-
-message RiskAssessment {
-    double risk_score = 1;
-    string severity = 2;
-    repeated string mitigations = 3;
-    map<string, double> factor_weights = 4;
-}
-
-message AuditEvent {
-    string event_id = 1;
-    string event_type = 2;
-    string principal = 3;
-    string resource = 4;
-    string action = 5;
-    google.protobuf.Timestamp timestamp = 6;
-    SecurityContext context = 7;
-    common.Metadata metadata = 8;
-}
-
-message SecurityMetricsRequest {
-    google.protobuf.Timestamp start_time = 1;
-    google.protobuf.Timestamp end_time = 2;
-    repeated string metric_types = 3;
-}
-
-message SecurityMetricsResponse {
-    map<string, MetricValue> metrics = 1;
-    SecurityScore overall_score = 2;
-    repeated SecurityIncident incidents = 3;
-    common.Metadata metadata = 4;
-}
-
-message MetricValue {
-    oneof value {
-        double numeric_value = 1;
-        string string_value = 2;
-        Distribution distribution = 3;
-    }
-    common.Metadata labels = 4;
-}
-
-message Distribution {
-    double mean = 1;
-    double median = 2;
-    double p95 = 3;
-    double p99 = 4;
-    map<string, double> percentiles = 5;
-}
-
-message TokenValidationRequest {
-    string token = 1;
-    SecurityContext context = 2;
-}
-
-message TokenValidationResponse {
-    bool valid = 1;
-    string reason = 2;
-    google.protobuf.Timestamp expiration = 3;
-    SecurityScore security_score = 4;
-    common.Metadata metadata = 5;
-}
-
-message ThreatDetectionRequest {
-    string resource_id = 1;
-    string action = 2;
-    SecurityContext context = 3;
-    map<string, string> attributes = 4;
-}
-
-message ThreatDetectionResponse {
-    double threat_score = 1;
-    repeated SecurityIncident detected_threats = 2;
-    repeated string mitigations = 3;
-    common.Metadata metadata = 4;
-}
-
-message IncidentReport {
-    string incident_id = 1;
-    string type = 2;
-    string severity = 3;
-    string description = 4;
-    SecurityContext context = 5;
-    map<string, string> metadata = 6;
-}
-
-message IncidentResponse {
-    string tracking_id = 1;
-    string status = 2;
-    repeated string actions_taken = 3;
-    google.protobuf.Timestamp resolution_time = 4;
-}
-
-message PatternRegistrationResponse {
-    string pattern_id = 1;
-    string status = 2;
-    repeated string validation_messages = 3;
-}
-
-message PatternValidationRequest {
-    string pattern_id = 1;
-    SecurityContext context = 2;
-    map<string, string> validation_params = 3;
-}
-
-message PatternValidationResponse {
-    bool valid = 1;
-    repeated string validation_errors = 2;
-    RiskAssessment risk_assessment = 3;
-    common.Metadata metadata = 4;
-}
-
-message SecurityIncident {
-    string incident_id = 1;
-    string type = 2;
-    string severity = 3;
-    string description = 4;
-    google.protobuf.Timestamp detection_time = 5;
-    SecurityContext context = 6;
-    RiskAssessment risk = 7;
-}
-
-message AuditLogRequest {
-    google.protobuf.Timestamp start_time = 1;
-    google.protobuf.Timestamp end_time = 2;
-    string principal = 3;
-    string resource = 4;
-    string event_type = 5;
-    int32 page_size = 6;
-    string page_token = 7;
-}
-
-message AuditLogEntry {
-    AuditEvent event = 1;
-    RiskAssessment risk = 2;
-    repeated string related_incidents = 3;
-    map<string, string> enriched_metadata = 4;
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
+  rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
+  rpc IssueSecret(IssueSecretRequest) returns (IssueSecretResponse);
+  rpc ValidateCredential(ValidateCredentialRequest) returns (ValidateCredentialResponse);
+  rpc QueryEvents(QueryEventsRequest) returns (QueryEventsResponse);
+  rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
+  rpc SetPolicy(SetPolicyRequest) returns (SetPolicyResponse);
+  // Enhanced monitoring and threat detection
+  rpc DetectThreats(DetectThreatsRequest) returns (DetectThreatsResponse);
+  rpc AuditEvent(AuditEventRequest) returns (AuditEventResponse);
 }
 
 message AuthenticateRequest {
-    string identity = 1;
-    repeated AuthenticationFactor factors = 2;
-    SecurityContext context = 3;
+  string principal_id = 1; // service, workload, device, etc.
+  string credential = 2;   // token, cert, etc.
+  common.Metadata metadata = 3;
 }
 
 message AuthenticateResponse {
-    string session_token = 1;
-    google.protobuf.Timestamp expiration = 2;
-    repeated string permissions = 3;
-    SecurityScore security_score = 4;
-    common.Metadata metadata = 5;
+  string session_token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  common.Metadata metadata = 3;
 }
 
 message AuthorizeRequest {
-    string session_token = 1;
-    string resource = 2;
-    string action = 3;
-    SecurityContext context = 4;
+  string principal_id = 1;
+  string action = 2;
+  string resource = 3;
+  common.Metadata metadata = 4;
 }
 
 message AuthorizeResponse {
-    bool authorized = 1;
-    string reason = 2;
-    repeated string applicable_policies = 3;
-    common.Metadata metadata = 4;
+  bool allowed = 1;
+  string reason = 2;
+  common.Metadata metadata = 3;
 }
 
-message ValidateTokenRequest {
-    string token = 1;
-    SecurityContext context = 2;
+message IssueSecretRequest {
+  string principal_id = 1;
+  string secret_type = 2; // api_key, jwt, cert, svid, etc.
+  common.Metadata metadata = 3;
 }
 
-message ValidateTokenResponse {
-    bool valid = 1;
-    string reason = 2;
-    google.protobuf.Timestamp expiration = 3;
-    SecurityScore security_score = 4;
-    common.Metadata metadata = 5;
+message IssueSecretResponse {
+  string secret = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  common.Metadata metadata = 3;
 }
 
+message ValidateCredentialRequest {
+  string credential = 1;
+  string type = 2; // jwt, cert, svid, etc.
+  common.Metadata metadata = 3;
+}
+
+message ValidateCredentialResponse {
+  bool valid = 1;
+  string principal_id = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  common.Metadata metadata = 4;
+}
+
+message QueryEventsRequest {
+  string principal_id = 1;
+  string event_type = 2;
+  google.protobuf.Timestamp from = 3;
+  google.protobuf.Timestamp to = 4;
+  common.Metadata metadata = 5;
+}
+
+message QueryEventsResponse {
+  repeated SecurityEvent events = 1;
+  common.Metadata metadata = 2;
+}
+
+message SecurityEvent {
+  string id = 1;
+  string principal_id = 2;
+  string event_type = 3;
+  string resource = 4;
+  string action = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  google.protobuf.Struct details = 7;
+}
+
+message GetPolicyRequest {
+  string policy_id = 1;
+  common.Metadata metadata = 2;
+}
+
+message GetPolicyResponse {
+  string policy = 1; // policy as code (YAML, Rego, etc.)
+  common.Metadata metadata = 2;
+}
+
+message SetPolicyRequest {
+  string policy_id = 1;
+  string policy = 2;
+  common.Metadata metadata = 3;
+}
+
+message SetPolicyResponse {
+  bool success = 1;
+  string error = 2;
+  common.Metadata metadata = 3;
+}
+
+// Threat detection and audit event messages
 message DetectThreatsRequest {
-    string resource_id = 1;
-    string action = 2;
-    SecurityContext context = 3;
-    map<string, string> attributes = 4;
+  string principal_id = 1;
+  string context_type = 2; // e.g., login, api_call, pattern_exec
+  common.Metadata metadata = 3; // signals, device, location, etc.
 }
-
 message DetectThreatsResponse {
-    double threat_score = 1;
-    repeated SecurityIncident detected_threats = 2;
-    repeated string mitigations = 3;
-    common.Metadata metadata = 4;
+  repeated ThreatSignal threats = 1;
+  common.Metadata metadata = 2;
+}
+message ThreatSignal {
+  string type = 1; // e.g., anomaly, bad_actor, escalation
+  string description = 2;
+  double score = 3;
+  common.Metadata metadata = 4;
 }
 
-message ReportIncidentRequest {
-    string type = 1;
-    string severity = 2;
-    string description = 3;
-    SecurityContext context = 4;
-    map<string, string> metadata = 5;
+message AuditEventRequest {
+  string event_type = 1;
+  string principal_id = 2;
+  string resource = 3;
+  string action = 4;
+  common.Metadata metadata = 5; // full audit context
 }
-
-message ReportIncidentResponse {
-    string tracking_id = 1;
-    string status = 2;
-    repeated string actions_taken = 3;
-    google.protobuf.Timestamp resolution_time = 4;
-    common.Metadata metadata = 5;
-}
-
-message RegisterSecurityPatternRequest {
-    SecurityPattern pattern = 1;
-}
-
-message RegisterSecurityPatternResponse {
-    string pattern_id = 1;
-    string status = 2;
-    repeated string validation_messages = 3;
-    common.Metadata metadata = 4;
-}
-
-message ValidatePatternRequest {
-    string pattern_id = 1;
-    SecurityContext context = 2;
-    map<string, string> validation_params = 3;
-}
-
-message ValidatePatternResponse {
-    bool valid = 1;
-    repeated string validation_errors = 2;
-    RiskAssessment risk_assessment = 3;
-    common.Metadata metadata = 4;
-}
-
-message GetSecurityMetricsRequest {
-    google.protobuf.Timestamp start_time = 1;
-    google.protobuf.Timestamp end_time = 2;
-    repeated string metric_types = 3;
-}
-
-message GetSecurityMetricsResponse {
-    map<string, MetricValue> metrics = 1;
-    SecurityScore overall_score = 2;
-    repeated SecurityIncident incidents = 3;
-    common.Metadata metadata = 4;
-}
-
-message RecordAuditEventRequest {
-    AuditEvent event = 1;
-}
-
-message RecordAuditEventResponse {
-    string event_id = 1;
-    string status = 2;
-    common.Metadata metadata = 3;
-}
-
-message GetAuditLogRequest {
-    google.protobuf.Timestamp start_time = 1;
-    google.protobuf.Timestamp end_time = 2;
-    string principal = 3;
-    string resource = 4;
-    string event_type = 5;
-    int32 page_size = 6;
-    string page_token = 7;
-}
-
-message GetAuditLogResponse {
-    AuditLogEntry entry = 1;
-    string next_page_token = 2;
-    common.Metadata metadata = 3;
-}
-
-// Robust, extensible metadata for all services
+message AuditEventResponse {
+  bool success = 1;
+  string error = 2;
+  common.Metadata metadata = 3;
+} 

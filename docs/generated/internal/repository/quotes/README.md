@@ -1,4 +1,4 @@
-# Package repository
+# Package quote
 
 ## Variables
 

@@ -1,4 +1,11 @@
-# Amadeus Knowledge Graph: Consistent Update Guide
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 This document provides detailed instructions on how to ensure the Amadeus Knowledge Graph remains
 consistently up-to-date through various automated mechanisms.
@@ -201,7 +208,6 @@ func handleKnowledgeGraphUpdate(w http.ResponseWriter, r *http.Request) {
 ### 3.2. Sending Updates via Webhook
 
 ```bash
-# Example: Update a service via webhook
 curl -X POST http://localhost:8090/webhooks/kg-update \
   -H "Content-Type: application/json" \
   -d '{
@@ -243,7 +249,6 @@ WantedBy=multi-user.target
 Set up a cron job to periodically validate and update the knowledge graph:
 
 ```bash
-# Run every 6 hours
 0 */6 * * * cd /path/to/repository && bin/kgcli validate --fix && bin/kgcli scan-services --directory internal/service
 ```
 
@@ -282,13 +287,10 @@ While automated updates are preferred, manual updates may occasionally be necess
 ### 5.1. CLI Tool Updates
 
 ```bash
-# Update specific service
 bin/kgcli add-service --category core_services --name my_service --file service_info.json
 
-# Update pattern
 bin/kgcli add-pattern --category core_patterns --name my_pattern --file pattern_info.json
 
-# Scan and update all services
 bin/kgcli scan-services --directory internal/service
 ```
 
@@ -335,13 +337,10 @@ func main() {
 To ensure the knowledge graph remains consistent, run regular validation checks:
 
 ```bash
-# Basic validation
 bin/kgcli validate
 
-# Validation with auto-fix
 bin/kgcli validate --fix
 
-# Deep validation (checks service existence)
 bin/kgcli validate --deep
 ```
 
@@ -382,7 +381,6 @@ log.SetFlags(log.LstdFlags | log.Lshortfile)
 For webhook server:
 
 ```bash
-# Run with debug logging
 KG_LOG_LEVEL=debug bin/kgwebhook
 ```
 
@@ -409,7 +407,6 @@ When multiple sources update the knowledge graph:
 Maintain backups of the knowledge graph:
 
 ```bash
-# In your backup script
 timestamp=$(date +%Y%m%d%H%M%S)
 cp amadeus/knowledge_graph.json amadeus/backups/knowledge_graph_${timestamp}.json
 ```

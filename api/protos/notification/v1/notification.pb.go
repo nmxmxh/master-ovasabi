@@ -86,9 +86,11 @@ func (NotificationStatus) EnumDescriptor() ([]byte, []int) {
 type Notification struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	MasterId      int64                  `protobuf:"varint,13,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID reference to master table
+	MasterUuid    string                 `protobuf:"bytes,14,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	CampaignId    string                 `protobuf:"bytes,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
-	Channel       string                 `protobuf:"bytes,4,opt,name=channel,proto3" json:"channel,omitempty"` // email, sms, push, in_app, broadcast, etc.
+	CampaignId    int64                  `protobuf:"varint,15,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	Channel       string                 `protobuf:"bytes,4,opt,name=channel,proto3" json:"channel,omitempty"`                           // email, sms, push, in_app, broadcast, etc.
 	Title         string                 `protobuf:"bytes,5,opt,name=title,proto3" json:"title,omitempty"`
 	Body          string                 `protobuf:"bytes,6,opt,name=body,proto3" json:"body,omitempty"`
 	Payload       map[string]string      `protobuf:"bytes,7,rep,name=payload,proto3" json:"payload,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -138,6 +140,20 @@ func (x *Notification) GetId() string {
 	return ""
 }
 
+func (x *Notification) GetMasterId() int64 {
+	if x != nil {
+		return x.MasterId
+	}
+	return 0
+}
+
+func (x *Notification) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
+	}
+	return ""
+}
+
 func (x *Notification) GetUserId() string {
 	if x != nil {
 		return x.UserId
@@ -145,11 +161,11 @@ func (x *Notification) GetUserId() string {
 	return ""
 }
 
-func (x *Notification) GetCampaignId() string {
+func (x *Notification) GetCampaignId() int64 {
 	if x != nil {
 		return x.CampaignId
 	}
-	return ""
+	return 0
 }
 
 func (x *Notification) GetChannel() string {
@@ -223,6 +239,7 @@ type SendNotificationRequest struct {
 	Body          string                 `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"`
 	Payload       map[string]string      `protobuf:"bytes,5,rep,name=payload,proto3" json:"payload,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -299,6 +316,13 @@ func (x *SendNotificationRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *SendNotificationRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type SendNotificationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Notification  *Notification          `protobuf:"bytes,1,opt,name=notification,proto3" json:"notification,omitempty"`
@@ -359,6 +383,7 @@ type SendEmailRequest struct {
 	Body          string                 `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Html          bool                   `protobuf:"varint,5,opt,name=html,proto3" json:"html,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -428,6 +453,13 @@ func (x *SendEmailRequest) GetHtml() bool {
 	return false
 }
 
+func (x *SendEmailRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type SendEmailResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
@@ -493,6 +525,7 @@ type SendSMSRequest struct {
 	To            string                 `protobuf:"bytes,1,opt,name=to,proto3" json:"to,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -546,6 +579,13 @@ func (x *SendSMSRequest) GetMetadata() *v1.Metadata {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *SendSMSRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type SendSMSResponse struct {
@@ -615,6 +655,7 @@ type SendPushNotificationRequest struct {
 	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	DeepLink      string                 `protobuf:"bytes,5,opt,name=deep_link,json=deepLink,proto3" json:"deep_link,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -682,6 +723,13 @@ func (x *SendPushNotificationRequest) GetDeepLink() string {
 		return x.DeepLink
 	}
 	return ""
+}
+
+func (x *SendPushNotificationRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type SendPushNotificationResponse struct {
@@ -752,6 +800,7 @@ type BroadcastEventRequest struct {
 	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	Payload       *v1.Metadata           `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
 	ScheduledAt   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=scheduled_at,json=scheduledAt,proto3" json:"scheduled_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -821,10 +870,18 @@ func (x *BroadcastEventRequest) GetScheduledAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *BroadcastEventRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type BroadcastEventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BroadcastId   string                 `protobuf:"bytes,1,opt,name=broadcast_id,json=broadcastId,proto3" json:"broadcast_id,omitempty"`
 	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -871,6 +928,13 @@ func (x *BroadcastEventResponse) GetStatus() string {
 		return x.Status
 	}
 	return ""
+}
+
+func (x *BroadcastEventResponse) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 // --- Real-time Pub/Sub ---
@@ -1315,6 +1379,7 @@ type ListNotificationsRequest struct {
 	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1382,6 +1447,13 @@ func (x *ListNotificationsRequest) GetStatus() string {
 		return x.Status
 	}
 	return ""
+}
+
+func (x *ListNotificationsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type ListNotificationsResponse struct {
@@ -1744,6 +1816,7 @@ type ListNotificationEventsRequest struct {
 	NotificationId string                 `protobuf:"bytes,2,opt,name=notification_id,json=notificationId,proto3" json:"notification_id,omitempty"`
 	Page           int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize       int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId     int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1806,6 +1879,13 @@ func (x *ListNotificationEventsRequest) GetPageSize() int32 {
 	return 0
 }
 
+func (x *ListNotificationEventsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type ListNotificationEventsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Events        []*NotificationEvent   `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
@@ -1862,11 +1942,14 @@ var File_notification_v1_notification_proto protoreflect.FileDescriptor
 
 const file_notification_v1_notification_proto_rawDesc = "" +
 	"\n" +
-	"\"notification/v1/notification.proto\x12\x0fnotification.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\x93\x04\n" +
+	"\"notification/v1/notification.proto\x12\x0fnotification.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xd1\x04\n" +
 	"\fNotification\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\tmaster_id\x18\r \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x0e \x01(\tR\n" +
+	"masterUuid\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1f\n" +
-	"\vcampaign_id\x18\x03 \x01(\tR\n" +
+	"\vcampaign_id\x18\x0f \x01(\x03R\n" +
 	"campaignId\x12\x18\n" +
 	"\achannel\x18\x04 \x01(\tR\achannel\x12\x14\n" +
 	"\x05title\x18\x05 \x01(\tR\x05title\x12\x12\n" +
@@ -1882,59 +1965,71 @@ const file_notification_v1_notification_proto_rawDesc = "" +
 	"\bmetadata\x18\f \x01(\v2\x10.common.MetadataR\bmetadata\x1a:\n" +
 	"\fPayloadEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb1\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd2\x02\n" +
 	"\x17SendNotificationRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x18\n" +
 	"\achannel\x18\x02 \x01(\tR\achannel\x12\x14\n" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x12\x12\n" +
 	"\x04body\x18\x04 \x01(\tR\x04body\x12O\n" +
 	"\apayload\x18\x05 \x03(\v25.notification.v1.SendNotificationRequest.PayloadEntryR\apayload\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x1a:\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\x1a:\n" +
 	"\fPayloadEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"u\n" +
 	"\x18SendNotificationResponse\x12A\n" +
 	"\fnotification\x18\x01 \x01(\v2\x1d.notification.v1.NotificationR\fnotification\x12\x16\n" +
-	"\x06status\x18\x02 \x01(\tR\x06status\"\x92\x01\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\"\xb3\x01\n" +
 	"\x10SendEmailRequest\x12\x0e\n" +
 	"\x02to\x18\x01 \x01(\tR\x02to\x12\x18\n" +
 	"\asubject\x18\x02 \x01(\tR\asubject\x12\x12\n" +
 	"\x04body\x18\x03 \x01(\tR\x04body\x12,\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x12\n" +
-	"\x04html\x18\x05 \x01(\bR\x04html\"c\n" +
+	"\x04html\x18\x05 \x01(\bR\x04html\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"c\n" +
 	"\x11SendEmailResponse\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x17\n" +
-	"\asent_at\x18\x03 \x01(\x03R\x06sentAt\"h\n" +
+	"\asent_at\x18\x03 \x01(\x03R\x06sentAt\"\x89\x01\n" +
 	"\x0eSendSMSRequest\x12\x0e\n" +
 	"\x02to\x18\x01 \x01(\tR\x02to\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\"a\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"a\n" +
 	"\x0fSendSMSResponse\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x17\n" +
-	"\asent_at\x18\x03 \x01(\x03R\x06sentAt\"\xb1\x01\n" +
+	"\asent_at\x18\x03 \x01(\x03R\x06sentAt\"\xd2\x01\n" +
 	"\x1bSendPushNotificationRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12,\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1b\n" +
-	"\tdeep_link\x18\x05 \x01(\tR\bdeepLink\"x\n" +
+	"\tdeep_link\x18\x05 \x01(\tR\bdeepLink\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"x\n" +
 	"\x1cSendPushNotificationResponse\x12'\n" +
 	"\x0fnotification_id\x18\x01 \x01(\tR\x0enotificationId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x17\n" +
-	"\asent_at\x18\x03 \x01(\x03R\x06sentAt\"\xd0\x01\n" +
+	"\asent_at\x18\x03 \x01(\x03R\x06sentAt\"\xf1\x01\n" +
 	"\x15BroadcastEventRequest\x12\x18\n" +
 	"\achannel\x18\x01 \x01(\tR\achannel\x12\x18\n" +
 	"\asubject\x18\x02 \x01(\tR\asubject\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12*\n" +
 	"\apayload\x18\x04 \x01(\v2\x10.common.MetadataR\apayload\x12=\n" +
-	"\fscheduled_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vscheduledAt\"S\n" +
+	"\fscheduled_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vscheduledAt\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"t\n" +
 	"\x16BroadcastEventResponse\x12!\n" +
 	"\fbroadcast_id\x18\x01 \x01(\tR\vbroadcastId\x12\x16\n" +
-	"\x06status\x18\x02 \x01(\tR\x06status\"{\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x1f\n" +
+	"\vcampaign_id\x18\x03 \x01(\x03R\n" +
+	"campaignId\"{\n" +
 	"\x18SubscribeToEventsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\bchannels\x18\x02 \x03(\tR\bchannels\x12*\n" +
@@ -1963,13 +2058,15 @@ const file_notification_v1_notification_proto_rawDesc = "" +
 	"\x16GetNotificationRequest\x12'\n" +
 	"\x0fnotification_id\x18\x01 \x01(\tR\x0enotificationId\"\\\n" +
 	"\x17GetNotificationResponse\x12A\n" +
-	"\fnotification\x18\x01 \x01(\v2\x1d.notification.v1.NotificationR\fnotification\"\x96\x01\n" +
+	"\fnotification\x18\x01 \x01(\v2\x1d.notification.v1.NotificationR\fnotification\"\xb7\x01\n" +
 	"\x18ListNotificationsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x18\n" +
 	"\achannel\x18\x02 \x01(\tR\achannel\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x16\n" +
-	"\x06status\x18\x05 \x01(\tR\x06status\"\xb6\x01\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"\xb6\x01\n" +
 	"\x19ListNotificationsResponse\x12C\n" +
 	"\rnotifications\x18\x01 \x03(\v2\x1d.notification.v1.NotificationR\rnotifications\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
@@ -2000,12 +2097,14 @@ const file_notification_v1_notification_proto_rawDesc = "" +
 	"%UpdateNotificationPreferencesResponse\x12J\n" +
 	"\vpreferences\x18\x01 \x01(\v2(.notification.v1.NotificationPreferencesR\vpreferences\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x02 \x01(\x03R\tupdatedAt\"\x92\x01\n" +
+	"updated_at\x18\x02 \x01(\x03R\tupdatedAt\"\xb3\x01\n" +
 	"\x1dListNotificationEventsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
 	"\x0fnotification_id\x18\x02 \x01(\tR\x0enotificationId\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\"r\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"r\n" +
 	"\x1eListNotificationEventsResponse\x12:\n" +
 	"\x06events\x18\x01 \x03(\v2\".notification.v1.NotificationEventR\x06events\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total*\xd9\x01\n" +

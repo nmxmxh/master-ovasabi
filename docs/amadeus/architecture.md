@@ -1,4 +1,11 @@
-# Amadeus Knowledge Graph Architecture
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 This document describes the architecture of the Amadeus Knowledge Graph system, its components, and
 how they interact.

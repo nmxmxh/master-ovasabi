@@ -78,8 +78,10 @@ type Media struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unique identifier
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// UUID reference to master table
-	MasterId string `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	// Internal integer ID reference to master table
+	MasterId int64 `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	// Global UUID reference to master table
+	MasterUuid string `protobuf:"bytes,15,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
 	// Owner user ID
 	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	// Media type (light/heavy)
@@ -145,9 +147,16 @@ func (x *Media) GetId() string {
 	return ""
 }
 
-func (x *Media) GetMasterId() string {
+func (x *Media) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
+	}
+	return 0
+}
+
+func (x *Media) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
 	}
 	return ""
 }
@@ -1821,10 +1830,12 @@ var File_media_v1_media_proto protoreflect.FileDescriptor
 
 const file_media_v1_media_proto_rawDesc = "" +
 	"\n" +
-	"\x14media/v1/media.proto\x12\bmedia.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xdd\x03\n" +
+	"\x14media/v1/media.proto\x12\bmedia.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xfe\x03\n" +
 	"\x05Media\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tmaster_id\x18\x02 \x01(\tR\bmasterId\x12\x17\n" +
+	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x0f \x01(\tR\n" +
+	"masterUuid\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12'\n" +
 	"\x04type\x18\x04 \x01(\x0e2\x13.media.v1.MediaTypeR\x04type\x12\x12\n" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12\x1b\n" +

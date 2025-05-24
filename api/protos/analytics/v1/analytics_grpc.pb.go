@@ -19,12 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AnalyticsService_TrackEvent_FullMethodName       = "/analytics.v1.AnalyticsService/TrackEvent"
-	AnalyticsService_BatchTrackEvents_FullMethodName = "/analytics.v1.AnalyticsService/BatchTrackEvents"
-	AnalyticsService_GetUserEvents_FullMethodName    = "/analytics.v1.AnalyticsService/GetUserEvents"
-	AnalyticsService_GetProductEvents_FullMethodName = "/analytics.v1.AnalyticsService/GetProductEvents"
-	AnalyticsService_GetReport_FullMethodName        = "/analytics.v1.AnalyticsService/GetReport"
-	AnalyticsService_ListReports_FullMethodName      = "/analytics.v1.AnalyticsService/ListReports"
+	AnalyticsService_TrackEvent_FullMethodName          = "/analytics.v1.AnalyticsService/TrackEvent"
+	AnalyticsService_BatchTrackEvents_FullMethodName    = "/analytics.v1.AnalyticsService/BatchTrackEvents"
+	AnalyticsService_GetUserEvents_FullMethodName       = "/analytics.v1.AnalyticsService/GetUserEvents"
+	AnalyticsService_GetProductEvents_FullMethodName    = "/analytics.v1.AnalyticsService/GetProductEvents"
+	AnalyticsService_GetReport_FullMethodName           = "/analytics.v1.AnalyticsService/GetReport"
+	AnalyticsService_ListReports_FullMethodName         = "/analytics.v1.AnalyticsService/ListReports"
+	AnalyticsService_CaptureEvent_FullMethodName        = "/analytics.v1.AnalyticsService/CaptureEvent"
+	AnalyticsService_ListEvents_FullMethodName          = "/analytics.v1.AnalyticsService/ListEvents"
+	AnalyticsService_EnrichEventMetadata_FullMethodName = "/analytics.v1.AnalyticsService/EnrichEventMetadata"
 )
 
 // AnalyticsServiceClient is the client API for AnalyticsService service.
@@ -37,6 +40,9 @@ type AnalyticsServiceClient interface {
 	GetProductEvents(ctx context.Context, in *GetProductEventsRequest, opts ...grpc.CallOption) (*GetProductEventsResponse, error)
 	GetReport(ctx context.Context, in *GetReportRequest, opts ...grpc.CallOption) (*GetReportResponse, error)
 	ListReports(ctx context.Context, in *ListReportsRequest, opts ...grpc.CallOption) (*ListReportsResponse, error)
+	CaptureEvent(ctx context.Context, in *CaptureEventRequest, opts ...grpc.CallOption) (*CaptureEventResponse, error)
+	ListEvents(ctx context.Context, in *ListEventsRequest, opts ...grpc.CallOption) (*ListEventsResponse, error)
+	EnrichEventMetadata(ctx context.Context, in *EnrichEventMetadataRequest, opts ...grpc.CallOption) (*EnrichEventMetadataResponse, error)
 }
 
 type analyticsServiceClient struct {
@@ -107,6 +113,36 @@ func (c *analyticsServiceClient) ListReports(ctx context.Context, in *ListReport
 	return out, nil
 }
 
+func (c *analyticsServiceClient) CaptureEvent(ctx context.Context, in *CaptureEventRequest, opts ...grpc.CallOption) (*CaptureEventResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CaptureEventResponse)
+	err := c.cc.Invoke(ctx, AnalyticsService_CaptureEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *analyticsServiceClient) ListEvents(ctx context.Context, in *ListEventsRequest, opts ...grpc.CallOption) (*ListEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListEventsResponse)
+	err := c.cc.Invoke(ctx, AnalyticsService_ListEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *analyticsServiceClient) EnrichEventMetadata(ctx context.Context, in *EnrichEventMetadataRequest, opts ...grpc.CallOption) (*EnrichEventMetadataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnrichEventMetadataResponse)
+	err := c.cc.Invoke(ctx, AnalyticsService_EnrichEventMetadata_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AnalyticsServiceServer is the server API for AnalyticsService service.
 // All implementations must embed UnimplementedAnalyticsServiceServer
 // for forward compatibility.
@@ -117,6 +153,9 @@ type AnalyticsServiceServer interface {
 	GetProductEvents(context.Context, *GetProductEventsRequest) (*GetProductEventsResponse, error)
 	GetReport(context.Context, *GetReportRequest) (*GetReportResponse, error)
 	ListReports(context.Context, *ListReportsRequest) (*ListReportsResponse, error)
+	CaptureEvent(context.Context, *CaptureEventRequest) (*CaptureEventResponse, error)
+	ListEvents(context.Context, *ListEventsRequest) (*ListEventsResponse, error)
+	EnrichEventMetadata(context.Context, *EnrichEventMetadataRequest) (*EnrichEventMetadataResponse, error)
 	mustEmbedUnimplementedAnalyticsServiceServer()
 }
 
@@ -144,6 +183,15 @@ func (UnimplementedAnalyticsServiceServer) GetReport(context.Context, *GetReport
 }
 func (UnimplementedAnalyticsServiceServer) ListReports(context.Context, *ListReportsRequest) (*ListReportsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListReports not implemented")
+}
+func (UnimplementedAnalyticsServiceServer) CaptureEvent(context.Context, *CaptureEventRequest) (*CaptureEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CaptureEvent not implemented")
+}
+func (UnimplementedAnalyticsServiceServer) ListEvents(context.Context, *ListEventsRequest) (*ListEventsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListEvents not implemented")
+}
+func (UnimplementedAnalyticsServiceServer) EnrichEventMetadata(context.Context, *EnrichEventMetadataRequest) (*EnrichEventMetadataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnrichEventMetadata not implemented")
 }
 func (UnimplementedAnalyticsServiceServer) mustEmbedUnimplementedAnalyticsServiceServer() {}
 func (UnimplementedAnalyticsServiceServer) testEmbeddedByValue()                          {}
@@ -274,6 +322,60 @@ func _AnalyticsService_ListReports_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AnalyticsService_CaptureEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CaptureEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AnalyticsServiceServer).CaptureEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AnalyticsService_CaptureEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AnalyticsServiceServer).CaptureEvent(ctx, req.(*CaptureEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AnalyticsService_ListEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AnalyticsServiceServer).ListEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AnalyticsService_ListEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AnalyticsServiceServer).ListEvents(ctx, req.(*ListEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AnalyticsService_EnrichEventMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnrichEventMetadataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AnalyticsServiceServer).EnrichEventMetadata(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AnalyticsService_EnrichEventMetadata_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AnalyticsServiceServer).EnrichEventMetadata(ctx, req.(*EnrichEventMetadataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AnalyticsService_ServiceDesc is the grpc.ServiceDesc for AnalyticsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -304,6 +406,18 @@ var AnalyticsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListReports",
 			Handler:    _AnalyticsService_ListReports_Handler,
+		},
+		{
+			MethodName: "CaptureEvent",
+			Handler:    _AnalyticsService_CaptureEvent_Handler,
+		},
+		{
+			MethodName: "ListEvents",
+			Handler:    _AnalyticsService_ListEvents_Handler,
+		},
+		{
+			MethodName: "EnrichEventMetadata",
+			Handler:    _AnalyticsService_EnrichEventMetadata_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -34,7 +34,8 @@ enum ProductStatus {
 
 message Product {
   string id = 1;
-  string master_id = 2;
+  int64 master_id = 2; // Internal integer ID reference to master table
+  string master_uuid = 14; // Global UUID reference to master table
   string name = 3;
   string description = 4;
   ProductType type = 5;
@@ -46,7 +47,8 @@ message Product {
   int64 updated_at = 11;
   string main_image_url = 12;
   repeated string gallery_image_urls = 13;
-  string owner_id = 14;
+  string owner_id = 15;
+  int64 campaign_id = 16; // campaign/tenant context
 }
 
 message ProductVariant {
@@ -97,6 +99,7 @@ message ListProductsRequest {
   ProductType type = 4;
   ProductStatus status = 5;
   repeated string tags = 6;
+  int64 campaign_id = 7; // campaign/tenant context
 }
 message ListProductsResponse {
   repeated Product products = 1;
@@ -111,6 +114,7 @@ message SearchProductsRequest {
   repeated string tags = 4;
   ProductType type = 5;
   ProductStatus status = 6;
+  int64 campaign_id = 7; // campaign/tenant context
 }
 message SearchProductsResponse {
   repeated Product products = 1;

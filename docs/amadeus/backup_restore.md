@@ -1,4 +1,11 @@
-# Amadeus Knowledge Graph: Backup and Restore Guide
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 This document provides detailed instructions on backing up and restoring the Amadeus Knowledge Graph
 system.
@@ -12,16 +19,12 @@ Amadeus offers multiple methods for backing up the knowledge graph and related c
 The most convenient way to create a backup is using the `kgcli` command-line tool:
 
 ```bash
-# Create a backup with a description
 bin/kgcli backup --desc "Pre-deployment backup"
 
-# List available backups
 bin/kgcli list-backups
 
-# List backups in JSON format
 bin/kgcli list-backups --format json
 
-# Restore from a backup
 bin/kgcli restore --path amadeus/backups/knowledge_graph_20230615_120000.json
 ```
 
@@ -30,7 +33,6 @@ bin/kgcli restore --path amadeus/backups/knowledge_graph_20230615_120000.json
 For more comprehensive backups including source code, use the backup script:
 
 ```bash
-# Run the backup script
 ./amadeus/backup_script.sh
 ```
 
@@ -95,7 +97,6 @@ When using the backup script, the following source files are included:
 Set up a cron job to run automatic backups:
 
 ```bash
-# Create a backup every day at 2 AM
 0 2 * * * cd /path/to/repository && bin/kgcli backup --desc "Daily automatic backup"
 ```
 
@@ -104,7 +105,6 @@ Set up a cron job to run automatic backups:
 Add backups to your deployment pipeline:
 
 ```yaml
-# Example GitHub Actions step
 - name: Backup Knowledge Graph
   run: |
     bin/kgcli backup --desc "Pre-deployment backup for version ${{ github.ref }}"
@@ -132,7 +132,6 @@ func updateServices() {
 To restore the knowledge graph from a backup:
 
 ```bash
-# Restore from a specific backup file
 bin/kgcli restore --path amadeus/backups/knowledge_graph_20230615_120000.json
 ```
 
@@ -141,7 +140,6 @@ bin/kgcli restore --path amadeus/backups/knowledge_graph_20230615_120000.json
 To restore source code from a script-generated backup:
 
 ```bash
-# Copy all source files from the backup
 cp -r amadeus/backups/20230615_120000/src/* .
 ```
 
@@ -173,7 +171,6 @@ func restoreFromBackup(backupPath string) error {
 Implement a backup rotation strategy to manage disk space:
 
 ```bash
-# Keep only the 10 most recent backups
 find amadeus/backups -name "knowledge_graph_*.json" | sort -r | tail -n +11 | xargs rm -f
 ```
 
@@ -194,7 +191,6 @@ func verifyBackup(backupPath string) bool {
 Copy important backups to external storage for disaster recovery:
 
 ```bash
-# Copy backups to S3
 aws s3 cp amadeus/backups/knowledge_graph_20230615_120000.json s3://your-bucket/backups/
 ```
 

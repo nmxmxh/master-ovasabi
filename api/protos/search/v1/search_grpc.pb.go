@@ -4,7 +4,7 @@
 // - protoc             v5.29.2
 // source: search/v1/search.proto
 
-package searchpb
+package search
 
 import (
 	context "context"
@@ -19,14 +19,20 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SearchService_SearchEntities_FullMethodName = "/search.v1.SearchService/SearchEntities"
+	SearchService_Search_FullMethodName  = "/search.v1.SearchService/Search"
+	SearchService_Suggest_FullMethodName = "/search.v1.SearchService/Suggest"
 )
 
 // SearchServiceClient is the client API for SearchService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// SearchService provides unified, metadata-driven search across all major entities.
 type SearchServiceClient interface {
-	SearchEntities(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+	// General search endpoint (full-text, fuzzy, entity)
+	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
+	// Suggest/autocomplete endpoint
+	Suggest(ctx context.Context, in *SuggestRequest, opts ...grpc.CallOption) (*SuggestResponse, error)
 }
 
 type searchServiceClient struct {
@@ -37,10 +43,20 @@ func NewSearchServiceClient(cc grpc.ClientConnInterface) SearchServiceClient {
 	return &searchServiceClient{cc}
 }
 
-func (c *searchServiceClient) SearchEntities(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
+func (c *searchServiceClient) Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SearchResponse)
-	err := c.cc.Invoke(ctx, SearchService_SearchEntities_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SearchService_Search_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *searchServiceClient) Suggest(ctx context.Context, in *SuggestRequest, opts ...grpc.CallOption) (*SuggestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SuggestResponse)
+	err := c.cc.Invoke(ctx, SearchService_Suggest_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -50,8 +66,13 @@ func (c *searchServiceClient) SearchEntities(ctx context.Context, in *SearchRequ
 // SearchServiceServer is the server API for SearchService service.
 // All implementations must embed UnimplementedSearchServiceServer
 // for forward compatibility.
+//
+// SearchService provides unified, metadata-driven search across all major entities.
 type SearchServiceServer interface {
-	SearchEntities(context.Context, *SearchRequest) (*SearchResponse, error)
+	// General search endpoint (full-text, fuzzy, entity)
+	Search(context.Context, *SearchRequest) (*SearchResponse, error)
+	// Suggest/autocomplete endpoint
+	Suggest(context.Context, *SuggestRequest) (*SuggestResponse, error)
 	mustEmbedUnimplementedSearchServiceServer()
 }
 
@@ -62,8 +83,11 @@ type SearchServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSearchServiceServer struct{}
 
-func (UnimplementedSearchServiceServer) SearchEntities(context.Context, *SearchRequest) (*SearchResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SearchEntities not implemented")
+func (UnimplementedSearchServiceServer) Search(context.Context, *SearchRequest) (*SearchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Search not implemented")
+}
+func (UnimplementedSearchServiceServer) Suggest(context.Context, *SuggestRequest) (*SuggestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Suggest not implemented")
 }
 func (UnimplementedSearchServiceServer) mustEmbedUnimplementedSearchServiceServer() {}
 func (UnimplementedSearchServiceServer) testEmbeddedByValue()                       {}
@@ -86,20 +110,38 @@ func RegisterSearchServiceServer(s grpc.ServiceRegistrar, srv SearchServiceServe
 	s.RegisterService(&SearchService_ServiceDesc, srv)
 }
 
-func _SearchService_SearchEntities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SearchService_Search_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SearchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SearchServiceServer).SearchEntities(ctx, in)
+		return srv.(SearchServiceServer).Search(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SearchService_SearchEntities_FullMethodName,
+		FullMethod: SearchService_Search_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SearchServiceServer).SearchEntities(ctx, req.(*SearchRequest))
+		return srv.(SearchServiceServer).Search(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SearchService_Suggest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SuggestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SearchServiceServer).Suggest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SearchService_Suggest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SearchServiceServer).Suggest(ctx, req.(*SuggestRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -112,8 +154,12 @@ var SearchService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*SearchServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SearchEntities",
-			Handler:    _SearchService_SearchEntities_Handler,
+			MethodName: "Search",
+			Handler:    _SearchService_Search_Handler,
+		},
+		{
+			MethodName: "Suggest",
+			Handler:    _SearchService_Suggest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

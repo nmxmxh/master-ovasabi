@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package analytics.v1;
 
+
+import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1;analyticspb";
@@ -13,18 +15,23 @@ service AnalyticsService {
   rpc GetProductEvents(GetProductEventsRequest) returns (GetProductEventsResponse);
   rpc GetReport(GetReportRequest) returns (GetReportResponse);
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse);
+  rpc CaptureEvent(CaptureEventRequest) returns (CaptureEventResponse);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  rpc EnrichEventMetadata(EnrichEventMetadataRequest) returns (EnrichEventMetadataResponse);
 }
 
 message Event {
   string id = 1;
-  string master_id = 2; // Master ID for analytics/unified queries
+  int64 master_id = 2; // Internal integer ID for analytics/unified queries
+  string master_uuid = 10; // Global UUID for external APIs and global uniqueness
   string user_id = 3;
   string event_type = 4;
   string entity_id = 5;
   string entity_type = 6;
   map<string, string> properties = 7;
   int64 timestamp = 8;
-  common.Metadata metadata = 9; // Extensible metadata for orchestration, AI/ML, etc.
+  common.Metadata metadata = 9; // Robust, extensible metadata
+  int64 campaign_id = 11; // campaign/tenant context
 }
 
 message TrackEventRequest { Event event = 1; }
@@ -32,13 +39,26 @@ message TrackEventResponse { bool success = 1; }
 message BatchTrackEventsRequest { repeated Event events = 1; }
 message BatchTrackEventsResponse { int32 success_count = 1; int32 failure_count = 2; }
 
-message GetUserEventsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; }
+message GetUserEventsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
 message GetUserEventsResponse { repeated Event events = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
 
-message GetProductEventsRequest { string product_id = 1; int32 page = 2; int32 page_size = 3; }
+message GetProductEventsRequest {
+  string product_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 campaign_id = 4; // campaign/tenant context
+}
 message GetProductEventsResponse { repeated Event events = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
 
-message GetReportRequest { string report_id = 1; }
+message GetReportRequest {
+  string report_id = 1;
+  map<string, string> parameters = 2;
+}
 message GetReportResponse { Report report = 1; }
 message ListReportsRequest { int32 page = 1; int32 page_size = 2; }
 message ListReportsResponse { repeated Report reports = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
@@ -50,4 +70,41 @@ message Report {
   map<string, string> parameters = 4;
   bytes data = 5;
   int64 created_at = 6;
+}
+
+message CaptureEventRequest {
+  string event_type = 1;
+  string user_id = 2;
+  string user_email = 3;
+  google.protobuf.Struct properties = 4;
+  google.protobuf.Struct groups = 5;
+  google.protobuf.Struct context = 6;
+  bool gdpr_obscure = 7;
+  int64 campaign_id = 8; // campaign/tenant context
+}
+message CaptureEventResponse {
+  string event_id = 1;
+}
+
+message AnalyticsEvent {
+  string event_id = 1;
+  int64 timestamp = 2;
+  common.Metadata metadata = 9; // Robust, extensible metadata
+  int64 campaign_id = 10; // campaign/tenant context
+}
+
+message ListEventsRequest {
+  // Add pagination in future
+}
+message ListEventsResponse {
+  repeated AnalyticsEvent events = 1;
+}
+
+message EnrichEventMetadataRequest {
+  string event_id = 1;
+  google.protobuf.Struct new_fields = 2;
+  int64 campaign_id = 3; // campaign/tenant context
+}
+message EnrichEventMetadataResponse {
+  bool success = 1;
 } 

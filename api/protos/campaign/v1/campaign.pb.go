@@ -36,6 +36,8 @@ type Campaign struct {
 	Metadata       *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"` // Robust, extensible metadata
 	CreatedAt      *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt      *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	MasterUuid     string                 `protobuf:"bytes,12,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
+	MasterId       int64                  `protobuf:"varint,13,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID reference to master table
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -145,6 +147,20 @@ func (x *Campaign) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *Campaign) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
+	}
+	return ""
+}
+
+func (x *Campaign) GetMasterId() int64 {
+	if x != nil {
+		return x.MasterId
+	}
+	return 0
 }
 
 type CreateCampaignRequest struct {
@@ -655,7 +671,7 @@ var File_campaign_v1_campaign_proto protoreflect.FileDescriptor
 
 const file_campaign_v1_campaign_proto_rawDesc = "" +
 	"\n" +
-	"\x1acampaign/v1/campaign.proto\x12\vcampaign.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xbd\x03\n" +
+	"\x1acampaign/v1/campaign.proto\x12\vcampaign.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xfb\x03\n" +
 	"\bCampaign\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -671,7 +687,10 @@ const file_campaign_v1_campaign_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xac\x02\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
+	"\vmaster_uuid\x18\f \x01(\tR\n" +
+	"masterUuid\x12\x1b\n" +
+	"\tmaster_id\x18\r \x01(\x03R\bmasterId\"\xac\x02\n" +
 	"\x15CreateCampaignRequest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +

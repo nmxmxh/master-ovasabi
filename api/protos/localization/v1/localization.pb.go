@@ -221,6 +221,7 @@ type CreateTranslationRequest struct {
 	Language      string                 `protobuf:"bytes,2,opt,name=language,proto3" json:"language,omitempty"`
 	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -281,6 +282,13 @@ func (x *CreateTranslationRequest) GetMetadata() *v1.Metadata {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *CreateTranslationRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type CreateTranslationResponse struct {
@@ -428,6 +436,7 @@ type ListTranslationsRequest struct {
 	Language      string                 `protobuf:"bytes,1,opt,name=language,proto3" json:"language,omitempty"`
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -479,6 +488,13 @@ func (x *ListTranslationsRequest) GetPage() int32 {
 func (x *ListTranslationsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListTranslationsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
 	}
 	return 0
 }
@@ -559,6 +575,7 @@ type Translation struct {
 	Value         string                 `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -633,6 +650,13 @@ func (x *Translation) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *Translation) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type GetPricingRuleRequest struct {
@@ -1363,6 +1387,98 @@ func (x *Locale) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+type Localization struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
+	Language      string                 `protobuf:"bytes,3,opt,name=language,proto3" json:"language,omitempty"`
+	Value         string                 `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Localization) Reset() {
+	*x = Localization{}
+	mi := &file_localization_v1_localization_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Localization) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Localization) ProtoMessage() {}
+
+func (x *Localization) ProtoReflect() protoreflect.Message {
+	mi := &file_localization_v1_localization_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Localization.ProtoReflect.Descriptor instead.
+func (*Localization) Descriptor() ([]byte, []int) {
+	return file_localization_v1_localization_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *Localization) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Localization) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *Localization) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
+}
+
+func (x *Localization) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Localization) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *Localization) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Localization) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 var File_localization_v1_localization_proto protoreflect.FileDescriptor
 
 const file_localization_v1_localization_proto_rawDesc = "" +
@@ -1380,30 +1496,34 @@ const file_localization_v1_localization_proto_rawDesc = "" +
 	"\x06values\x18\x01 \x03(\v23.localization.v1.BatchTranslateResponse.ValuesEntryR\x06values\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8c\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xad\x01\n" +
 	"\x18CreateTranslationRequest\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1a\n" +
 	"\blanguage\x18\x02 \x01(\tR\blanguage\x12\x14\n" +
 	"\x05value\x18\x03 \x01(\tR\x05value\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"u\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"u\n" +
 	"\x19CreateTranslationResponse\x12>\n" +
 	"\vtranslation\x18\x01 \x01(\v2\x1c.localization.v1.TranslationR\vtranslation\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\">\n" +
 	"\x15GetTranslationRequest\x12%\n" +
 	"\x0etranslation_id\x18\x01 \x01(\tR\rtranslationId\"X\n" +
 	"\x16GetTranslationResponse\x12>\n" +
-	"\vtranslation\x18\x01 \x01(\v2\x1c.localization.v1.TranslationR\vtranslation\"f\n" +
+	"\vtranslation\x18\x01 \x01(\v2\x1c.localization.v1.TranslationR\vtranslation\"\x87\x01\n" +
 	"\x17ListTranslationsRequest\x12\x1a\n" +
 	"\blanguage\x18\x01 \x01(\tR\blanguage\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"\xb2\x01\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"\xb2\x01\n" +
 	"\x18ListTranslationsResponse\x12@\n" +
 	"\ftranslations\x18\x01 \x03(\v2\x1c.localization.v1.TranslationR\ftranslations\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\xca\x01\n" +
+	"totalPages\"\xeb\x01\n" +
 	"\vTranslation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x1a\n" +
@@ -1411,7 +1531,9 @@ const file_localization_v1_localization_proto_rawDesc = "" +
 	"\x05value\x18\x04 \x01(\tR\x05value\x12,\n" +
 	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
 	"\n" +
-	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"f\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"f\n" +
 	"\x15GetPricingRuleRequest\x12!\n" +
 	"\fcountry_code\x18\x01 \x01(\tR\vcountryCode\x12\x16\n" +
 	"\x06region\x18\x02 \x01(\tR\x06region\x12\x12\n" +
@@ -1468,7 +1590,17 @@ const file_localization_v1_localization_proto_rawDesc = "" +
 	"\acountry\x18\x03 \x01(\tR\acountry\x12\x1a\n" +
 	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12\x18\n" +
 	"\aregions\x18\x05 \x03(\tR\aregions\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata2\xf9\a\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"\xec\x01\n" +
+	"\fLocalization\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x03key\x18\x02 \x01(\tR\x03key\x12\x1a\n" +
+	"\blanguage\x18\x03 \x01(\tR\blanguage\x12\x14\n" +
+	"\x05value\x18\x04 \x01(\tR\x05value\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId2\xf9\a\n" +
 	"\x13LocalizationService\x12R\n" +
 	"\tTranslate\x12!.localization.v1.TranslateRequest\x1a\".localization.v1.TranslateResponse\x12a\n" +
 	"\x0eBatchTranslate\x12&.localization.v1.BatchTranslateRequest\x1a'.localization.v1.BatchTranslateResponse\x12j\n" +
@@ -1493,7 +1625,7 @@ func file_localization_v1_localization_proto_rawDescGZIP() []byte {
 	return file_localization_v1_localization_proto_rawDescData
 }
 
-var file_localization_v1_localization_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_localization_v1_localization_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_localization_v1_localization_proto_goTypes = []any{
 	(*TranslateRequest)(nil),          // 0: localization.v1.TranslateRequest
 	(*TranslateResponse)(nil),         // 1: localization.v1.TranslateResponse
@@ -1518,53 +1650,56 @@ var file_localization_v1_localization_proto_goTypes = []any{
 	(*GetLocaleMetadataRequest)(nil),  // 20: localization.v1.GetLocaleMetadataRequest
 	(*GetLocaleMetadataResponse)(nil), // 21: localization.v1.GetLocaleMetadataResponse
 	(*Locale)(nil),                    // 22: localization.v1.Locale
-	nil,                               // 23: localization.v1.BatchTranslateResponse.ValuesEntry
-	(*v1.Metadata)(nil),               // 24: common.Metadata
-	(*timestamppb.Timestamp)(nil),     // 25: google.protobuf.Timestamp
+	(*Localization)(nil),              // 23: localization.v1.Localization
+	nil,                               // 24: localization.v1.BatchTranslateResponse.ValuesEntry
+	(*v1.Metadata)(nil),               // 25: common.Metadata
+	(*timestamppb.Timestamp)(nil),     // 26: google.protobuf.Timestamp
 }
 var file_localization_v1_localization_proto_depIdxs = []int32{
-	23, // 0: localization.v1.BatchTranslateResponse.values:type_name -> localization.v1.BatchTranslateResponse.ValuesEntry
-	24, // 1: localization.v1.CreateTranslationRequest.metadata:type_name -> common.Metadata
+	24, // 0: localization.v1.BatchTranslateResponse.values:type_name -> localization.v1.BatchTranslateResponse.ValuesEntry
+	25, // 1: localization.v1.CreateTranslationRequest.metadata:type_name -> common.Metadata
 	10, // 2: localization.v1.CreateTranslationResponse.translation:type_name -> localization.v1.Translation
 	10, // 3: localization.v1.GetTranslationResponse.translation:type_name -> localization.v1.Translation
 	10, // 4: localization.v1.ListTranslationsResponse.translations:type_name -> localization.v1.Translation
-	24, // 5: localization.v1.Translation.metadata:type_name -> common.Metadata
-	25, // 6: localization.v1.Translation.created_at:type_name -> google.protobuf.Timestamp
+	25, // 5: localization.v1.Translation.metadata:type_name -> common.Metadata
+	26, // 6: localization.v1.Translation.created_at:type_name -> google.protobuf.Timestamp
 	17, // 7: localization.v1.GetPricingRuleResponse.rule:type_name -> localization.v1.PricingRule
 	17, // 8: localization.v1.SetPricingRuleRequest.rule:type_name -> localization.v1.PricingRule
 	17, // 9: localization.v1.ListPricingRulesResponse.rules:type_name -> localization.v1.PricingRule
-	25, // 10: localization.v1.PricingRule.effective_from:type_name -> google.protobuf.Timestamp
-	25, // 11: localization.v1.PricingRule.effective_to:type_name -> google.protobuf.Timestamp
-	25, // 12: localization.v1.PricingRule.created_at:type_name -> google.protobuf.Timestamp
-	25, // 13: localization.v1.PricingRule.updated_at:type_name -> google.protobuf.Timestamp
+	26, // 10: localization.v1.PricingRule.effective_from:type_name -> google.protobuf.Timestamp
+	26, // 11: localization.v1.PricingRule.effective_to:type_name -> google.protobuf.Timestamp
+	26, // 12: localization.v1.PricingRule.created_at:type_name -> google.protobuf.Timestamp
+	26, // 13: localization.v1.PricingRule.updated_at:type_name -> google.protobuf.Timestamp
 	22, // 14: localization.v1.ListLocalesResponse.locales:type_name -> localization.v1.Locale
 	22, // 15: localization.v1.GetLocaleMetadataResponse.locale:type_name -> localization.v1.Locale
-	24, // 16: localization.v1.Locale.metadata:type_name -> common.Metadata
-	0,  // 17: localization.v1.LocalizationService.Translate:input_type -> localization.v1.TranslateRequest
-	2,  // 18: localization.v1.LocalizationService.BatchTranslate:input_type -> localization.v1.BatchTranslateRequest
-	4,  // 19: localization.v1.LocalizationService.CreateTranslation:input_type -> localization.v1.CreateTranslationRequest
-	6,  // 20: localization.v1.LocalizationService.GetTranslation:input_type -> localization.v1.GetTranslationRequest
-	8,  // 21: localization.v1.LocalizationService.ListTranslations:input_type -> localization.v1.ListTranslationsRequest
-	11, // 22: localization.v1.LocalizationService.GetPricingRule:input_type -> localization.v1.GetPricingRuleRequest
-	13, // 23: localization.v1.LocalizationService.SetPricingRule:input_type -> localization.v1.SetPricingRuleRequest
-	15, // 24: localization.v1.LocalizationService.ListPricingRules:input_type -> localization.v1.ListPricingRulesRequest
-	18, // 25: localization.v1.LocalizationService.ListLocales:input_type -> localization.v1.ListLocalesRequest
-	20, // 26: localization.v1.LocalizationService.GetLocaleMetadata:input_type -> localization.v1.GetLocaleMetadataRequest
-	1,  // 27: localization.v1.LocalizationService.Translate:output_type -> localization.v1.TranslateResponse
-	3,  // 28: localization.v1.LocalizationService.BatchTranslate:output_type -> localization.v1.BatchTranslateResponse
-	5,  // 29: localization.v1.LocalizationService.CreateTranslation:output_type -> localization.v1.CreateTranslationResponse
-	7,  // 30: localization.v1.LocalizationService.GetTranslation:output_type -> localization.v1.GetTranslationResponse
-	9,  // 31: localization.v1.LocalizationService.ListTranslations:output_type -> localization.v1.ListTranslationsResponse
-	12, // 32: localization.v1.LocalizationService.GetPricingRule:output_type -> localization.v1.GetPricingRuleResponse
-	14, // 33: localization.v1.LocalizationService.SetPricingRule:output_type -> localization.v1.SetPricingRuleResponse
-	16, // 34: localization.v1.LocalizationService.ListPricingRules:output_type -> localization.v1.ListPricingRulesResponse
-	19, // 35: localization.v1.LocalizationService.ListLocales:output_type -> localization.v1.ListLocalesResponse
-	21, // 36: localization.v1.LocalizationService.GetLocaleMetadata:output_type -> localization.v1.GetLocaleMetadataResponse
-	27, // [27:37] is the sub-list for method output_type
-	17, // [17:27] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	25, // 16: localization.v1.Locale.metadata:type_name -> common.Metadata
+	25, // 17: localization.v1.Localization.metadata:type_name -> common.Metadata
+	26, // 18: localization.v1.Localization.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 19: localization.v1.LocalizationService.Translate:input_type -> localization.v1.TranslateRequest
+	2,  // 20: localization.v1.LocalizationService.BatchTranslate:input_type -> localization.v1.BatchTranslateRequest
+	4,  // 21: localization.v1.LocalizationService.CreateTranslation:input_type -> localization.v1.CreateTranslationRequest
+	6,  // 22: localization.v1.LocalizationService.GetTranslation:input_type -> localization.v1.GetTranslationRequest
+	8,  // 23: localization.v1.LocalizationService.ListTranslations:input_type -> localization.v1.ListTranslationsRequest
+	11, // 24: localization.v1.LocalizationService.GetPricingRule:input_type -> localization.v1.GetPricingRuleRequest
+	13, // 25: localization.v1.LocalizationService.SetPricingRule:input_type -> localization.v1.SetPricingRuleRequest
+	15, // 26: localization.v1.LocalizationService.ListPricingRules:input_type -> localization.v1.ListPricingRulesRequest
+	18, // 27: localization.v1.LocalizationService.ListLocales:input_type -> localization.v1.ListLocalesRequest
+	20, // 28: localization.v1.LocalizationService.GetLocaleMetadata:input_type -> localization.v1.GetLocaleMetadataRequest
+	1,  // 29: localization.v1.LocalizationService.Translate:output_type -> localization.v1.TranslateResponse
+	3,  // 30: localization.v1.LocalizationService.BatchTranslate:output_type -> localization.v1.BatchTranslateResponse
+	5,  // 31: localization.v1.LocalizationService.CreateTranslation:output_type -> localization.v1.CreateTranslationResponse
+	7,  // 32: localization.v1.LocalizationService.GetTranslation:output_type -> localization.v1.GetTranslationResponse
+	9,  // 33: localization.v1.LocalizationService.ListTranslations:output_type -> localization.v1.ListTranslationsResponse
+	12, // 34: localization.v1.LocalizationService.GetPricingRule:output_type -> localization.v1.GetPricingRuleResponse
+	14, // 35: localization.v1.LocalizationService.SetPricingRule:output_type -> localization.v1.SetPricingRuleResponse
+	16, // 36: localization.v1.LocalizationService.ListPricingRules:output_type -> localization.v1.ListPricingRulesResponse
+	19, // 37: localization.v1.LocalizationService.ListLocales:output_type -> localization.v1.ListLocalesResponse
+	21, // 38: localization.v1.LocalizationService.GetLocaleMetadata:output_type -> localization.v1.GetLocaleMetadataResponse
+	29, // [29:39] is the sub-list for method output_type
+	19, // [19:29] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_localization_v1_localization_proto_init() }
@@ -1578,7 +1713,7 @@ func file_localization_v1_localization_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_localization_v1_localization_proto_rawDesc), len(file_localization_v1_localization_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   24,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

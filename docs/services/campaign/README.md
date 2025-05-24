@@ -1,4 +1,23 @@
-# Campaign Service
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+> **Standard:** This service follows the
+> [Unified Communication & Calculation Standard](../../amadeus/amadeus_context.md#unified-communication--calculation-standard-grpc-rest-websocket-and-metadata-driven-orchestration).
+>
+> - Exposes calculation/enrichment endpoints using canonical metadata
+> - Documents all metadata fields and calculation chains
+> - References the Amadeus context and unified standard
+> - Uses Makefile/Docker for all builds and proto generation
+
+> **Note:** The Auth service is deprecated. All authentication and authorization is now handled by
+> the User service. See
+> [Amadeus context](../../amadeus/amadeus_context.md#user-service-canonical-identity--access-management)
+> and [Service List](../service_list.md#obsolete-service-migration-guide) for migration details.
 
 The Campaign service manages marketing campaigns, user targeting, content delivery, and campaign
 analytics in the OVASABI platform.

@@ -1,8 +1,8 @@
-# Package adminrepo
+# Package admin
 
 ## Types
 
-### PostgresRepository
+### Repository
 
 #### Methods
 

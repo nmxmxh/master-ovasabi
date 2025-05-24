@@ -1,3 +1,11 @@
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 # Protocol Buffers API Definitions
 
 This directory contains the gRPC service definitions using Protocol Buffers.
@@ -6,38 +14,17 @@ This directory contains the gRPC service definitions using Protocol Buffers.
 
 ```go
 .
-├── auth/       # Authentication and authorization services
-├── broadcast/  # Broadcasting and notification services
 ├── i18n/       # Internationalization services
-├── quotes/     # Quote management services
 └── referral/   # Referral system services
 ```
 
 ## Service Domains
-
-### Authentication (`auth/`)
-
-- User authentication
-- Token management
-- Permission control
-
-### Broadcasting (`broadcast/`)
-
-- Push notifications
-- Real-time updates
-- Event broadcasting
 
 ### Internationalization (`i18n/`)
 
 - Language management
 - Translation services
 - Locale handling
-
-### Quotes (`quotes/`)
-
-- Quote creation and management
-- Quote retrieval
-- Quote search and filtering
 
 ### Referral (`referral/`)
 

@@ -81,6 +81,8 @@ Deprecated: Use Comment.ProtoReflect.Descriptor instead.
 
 ##### GetMasterId
 
+##### GetMasterUuid
+
 ##### GetMetadata
 
 ##### GetUpdatedAt
@@ -123,6 +125,8 @@ Deprecated: Use Content.ProtoReflect.Descriptor instead.
 
 ##### GetBody
 
+##### GetCampaignId
+
 ##### GetCommentCount
 
 ##### GetCreatedAt
@@ -130,6 +134,8 @@ Deprecated: Use Content.ProtoReflect.Descriptor instead.
 ##### GetId
 
 ##### GetMasterId
+
+##### GetMasterUuid
 
 ##### GetMediaUrls
 
@@ -165,6 +171,8 @@ Deprecated: Use Content.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ContentEvent.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetContentId
 
 ##### GetEventType
@@ -172,6 +180,8 @@ Deprecated: Use ContentEvent.ProtoReflect.Descriptor instead.
 ##### GetId
 
 ##### GetMasterId
+
+##### GetMasterUuid
 
 ##### GetOccurredAt
 
@@ -224,6 +234,8 @@ UnimplementedContentServiceServer for forward compatibility.
 ##### Descriptor
 
 Deprecated: Use CreateContentRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetContent
 
@@ -376,6 +388,8 @@ Deprecated: Use ListCommentsResponse.ProtoReflect.Descriptor instead.
 Deprecated: Use ListContentRequest.ProtoReflect.Descriptor instead.
 
 ##### GetAuthorId
+
+##### GetCampaignId
 
 ##### GetMetadata
 
@@ -568,6 +582,8 @@ Deprecated: Use ReactionResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use SearchContentRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetMetadata
 

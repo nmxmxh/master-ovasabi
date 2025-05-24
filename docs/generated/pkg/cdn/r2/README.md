@@ -4,7 +4,8 @@
 
 ### GenerateSignedURL
 
-GenerateSignedURL creates a signed URL for secure, time-limited access.
+GenerateSignedURL creates a signed URL for secure, time-limited access. TODO: Switch to Azure Blob
+Storage implementation in the future.
 
 ### UploadFile
 

@@ -31,6 +31,10 @@ Deprecated: Use Campaign.ProtoReflect.Descriptor instead.
 
 ##### GetId
 
+##### GetMasterId
+
+##### GetMasterUuid
+
 ##### GetMetadata
 
 ##### GetRankingFormula

@@ -1,4 +1,10 @@
-# Experimental Integration Patterns: Service-Token Architecture
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
 
 This document outlines the experimental patterns and service structures that enable the natural
 integration of the OVASABI service platform with its token economic system. These integration

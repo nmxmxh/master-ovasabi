@@ -2,6 +2,16 @@
 
 ## Types
 
+### NexusService
+
+NexusService implements the gRPC NexusServiceServer interface.
+
+#### Methods
+
+##### SubscribeEvents
+
+SubscribeEvents streams events to the client.
+
 ### OperationPattern
 
 OperationPattern represents a predefined set of Nexus operations.

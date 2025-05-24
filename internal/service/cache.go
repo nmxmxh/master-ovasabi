@@ -33,6 +33,8 @@ var ServiceCacheConfigs = []CacheConfig{
 	{"security", redis.NamespaceCache, "security"},
 	{"search", redis.NamespaceCache, "search"},
 	{"campaign", redis.NamespaceCache, "campaign"},
+	{"default", redis.NamespaceCache, "default"},
+	{"messaging", redis.NamespaceQueue, "messaging"},
 }
 
 // NewRedisProvider initializes the Redis provider and registers all caches for all services in a modular fashion.

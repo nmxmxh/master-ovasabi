@@ -1,4 +1,11 @@
-# Amadeus Knowledge Graph Integration Examples
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 This document provides practical examples of how to integrate services with the Amadeus Knowledge
 Graph.
@@ -209,13 +216,10 @@ func trackSystemChange(ctx context.Context) error {
 ### Getting Service Information
 
 ```bash
-# Get information about the user service
 bin/kgcli get --path services.core_services.user_service
 
-# Get information about all core services
 bin/kgcli get --path services.core_services
 
-# Get information about system components
 bin/kgcli get --path system_components
 ```
 
@@ -277,13 +281,10 @@ bin/kgcli add-pattern --category service_patterns --name notification_distributi
 ### Generating Visualizations
 
 ```bash
-# Generate visualization of the service architecture
 bin/kgcli visualize --format mermaid --section services --output docs/diagrams/services.mmd
 
-# Generate visualization of the patterns
 bin/kgcli visualize --format mermaid --section patterns --output docs/diagrams/patterns.mmd
 
-# Generate visualization of the database architecture
 bin/kgcli visualize --format mermaid --section database_practices --output docs/diagrams/database.mmd
 ```
 

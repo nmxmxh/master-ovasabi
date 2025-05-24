@@ -10,6 +10,14 @@
 
 Enum value maps for TriggerType.
 
+### JobType_name
+
+Enum value maps for JobType.
+
+### JobStatus_name
+
+Enum value maps for JobStatus.
+
 ### File_scheduler_v1_scheduler_proto
 
 ### SchedulerService_ServiceDesc
@@ -21,6 +29,8 @@ copy)
 ## Types
 
 ### CDCTrigger
+
+CDCTrigger defines a change data capture trigger for event-based jobs.
 
 #### Methods
 
@@ -49,6 +59,8 @@ Deprecated: Use CDCTrigger.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use CreateJobRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetJob
 
@@ -86,6 +98,8 @@ Deprecated: Use CreateJobResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use DeleteJobRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetJobId
 
 ##### ProtoMessage
@@ -122,6 +136,8 @@ Deprecated: Use DeleteJobResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use GetJobRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetJobId
 
 ##### ProtoMessage
@@ -152,25 +168,43 @@ Deprecated: Use GetJobResponse.ProtoReflect.Descriptor instead.
 
 ### Job
 
+Job represents a scheduled or event-driven job.
+
 #### Methods
 
 ##### Descriptor
 
 Deprecated: Use Job.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetCdcTrigger
 
 ##### GetCreatedAt
 
+##### GetHistory
+
 ##### GetId
 
+##### GetJobType
+
+##### GetLabels
+
 ##### GetLastRunId
+
+##### GetMasterUuid
 
 ##### GetMetadata
 
 ##### GetName
 
+##### GetNextRunTime
+
+##### GetOwner
+
 ##### GetPayload
+
+##### GetRetryPolicy
 
 ##### GetSchedule
 
@@ -188,6 +222,26 @@ Deprecated: Use Job.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### JobHistory
+
+JobHistory tracks past runs for a job (optional, for future use).
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use JobHistory.ProtoReflect.Descriptor instead.
+
+##### GetRuns
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### JobRun
 
 #### Methods
@@ -196,6 +250,8 @@ Deprecated: Use Job.ProtoReflect.Descriptor instead.
 
 Deprecated: Use JobRun.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetError
 
 ##### GetFinishedAt
@@ -203,6 +259,8 @@ Deprecated: Use JobRun.ProtoReflect.Descriptor instead.
 ##### GetId
 
 ##### GetJobId
+
+##### GetMasterUuid
 
 ##### GetMetadata
 
@@ -220,6 +278,46 @@ Deprecated: Use JobRun.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### JobStatus
+
+JobStatus provides canonical job status values.
+
+#### Methods
+
+##### Descriptor
+
+##### Enum
+
+##### EnumDescriptor
+
+Deprecated: Use JobStatus.Descriptor instead.
+
+##### Number
+
+##### String
+
+##### Type
+
+### JobType
+
+JobType classifies the type of job for better filtering and handling.
+
+#### Methods
+
+##### Descriptor
+
+##### Enum
+
+##### EnumDescriptor
+
+Deprecated: Use JobType.Descriptor instead.
+
+##### Number
+
+##### String
+
+##### Type
+
 ### ListJobRunsRequest
 
 #### Methods
@@ -227,6 +325,8 @@ Deprecated: Use JobRun.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use ListJobRunsRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetJobId
 
@@ -274,6 +374,8 @@ Deprecated: Use ListJobRunsResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ListJobsRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetPage
 
 ##### GetPageSize
@@ -312,6 +414,30 @@ Deprecated: Use ListJobsResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### RetryPolicy
+
+RetryPolicy defines how failed jobs are retried.
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RetryPolicy.ProtoReflect.Descriptor instead.
+
+##### GetBackoffSeconds
+
+##### GetExponential
+
+##### GetMaxAttempts
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### RunJobRequest
 
 #### Methods
@@ -319,6 +445,8 @@ Deprecated: Use ListJobsResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use RunJobRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetJobId
 
@@ -414,6 +542,8 @@ compilation errors.
 ##### Descriptor
 
 Deprecated: Use UpdateJobRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetJob
 

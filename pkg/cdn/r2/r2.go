@@ -65,6 +65,7 @@ func UploadFile(ctx context.Context, fileBytes []byte, fileName, mimeType, folde
 }
 
 // GenerateSignedURL creates a signed URL for secure, time-limited access.
+// TODO: Switch to Azure Blob Storage implementation in the future.
 func GenerateSignedURL(key string, expiresIn time.Duration) (string, error) {
 	accessKey := os.Getenv("R2_ACCESS_KEY_ID")
 	secretKey := os.Getenv("R2_SECRET_ACCESS_KEY")

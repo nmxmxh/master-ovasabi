@@ -1,4 +1,10 @@
-# Nexus System Architecture
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
 
 ## Overview
 
@@ -129,7 +135,7 @@ const (
 // Initialize Nexus system
 nexus := service.NewNexusService(
     repository.NewNexusRepository(db),
-    repository.NewMasterRepository(db),
+    repository.NewRepository(db, log),
     redis.NewPatternStore(cache),
 )
 

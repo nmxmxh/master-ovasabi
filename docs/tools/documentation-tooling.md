@@ -8,10 +8,8 @@ formatting and validation.
 Initial setup is required to use the documentation tools:
 
 ```bash
-# Option 1: Run the setup script
 ./setup-yarn.sh
 
-# Option 2: Use the make command
 make js-setup
 ```
 
@@ -23,10 +21,8 @@ dependencies.
 The project includes several commands to help maintain documentation quality:
 
 ```bash
-# Check for formatting issues (without fixing)
 make lint
 
-# Fix formatting issues automatically
 make lint-fix
 ```
 
@@ -59,7 +55,6 @@ The project uses these documentation tools:
 To add new documentation tooling dependencies:
 
 ```bash
-# Add a new development dependency
 yarn add --dev new-package-name
 ```
 

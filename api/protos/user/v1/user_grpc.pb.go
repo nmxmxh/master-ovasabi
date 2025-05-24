@@ -19,37 +19,64 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserService_CreateUser_FullMethodName        = "/user.v1.UserService/CreateUser"
-	UserService_GetUser_FullMethodName           = "/user.v1.UserService/GetUser"
-	UserService_GetUserByUsername_FullMethodName = "/user.v1.UserService/GetUserByUsername"
-	UserService_GetUserByEmail_FullMethodName    = "/user.v1.UserService/GetUserByEmail"
-	UserService_UpdateUser_FullMethodName        = "/user.v1.UserService/UpdateUser"
-	UserService_DeleteUser_FullMethodName        = "/user.v1.UserService/DeleteUser"
-	UserService_ListUsers_FullMethodName         = "/user.v1.UserService/ListUsers"
-	UserService_UpdatePassword_FullMethodName    = "/user.v1.UserService/UpdatePassword"
-	UserService_UpdateProfile_FullMethodName     = "/user.v1.UserService/UpdateProfile"
-	UserService_CreateSession_FullMethodName     = "/user.v1.UserService/CreateSession"
-	UserService_GetSession_FullMethodName        = "/user.v1.UserService/GetSession"
-	UserService_RevokeSession_FullMethodName     = "/user.v1.UserService/RevokeSession"
-	UserService_ListSessions_FullMethodName      = "/user.v1.UserService/ListSessions"
-	UserService_AssignRole_FullMethodName        = "/user.v1.UserService/AssignRole"
-	UserService_RemoveRole_FullMethodName        = "/user.v1.UserService/RemoveRole"
-	UserService_ListRoles_FullMethodName         = "/user.v1.UserService/ListRoles"
-	UserService_ListPermissions_FullMethodName   = "/user.v1.UserService/ListPermissions"
-	UserService_ListUserEvents_FullMethodName    = "/user.v1.UserService/ListUserEvents"
-	UserService_ListAuditLogs_FullMethodName     = "/user.v1.UserService/ListAuditLogs"
-	UserService_InitiateSSO_FullMethodName       = "/user.v1.UserService/InitiateSSO"
-	UserService_InitiateMFA_FullMethodName       = "/user.v1.UserService/InitiateMFA"
-	UserService_SyncSCIM_FullMethodName          = "/user.v1.UserService/SyncSCIM"
-	UserService_RegisterInterest_FullMethodName  = "/user.v1.UserService/RegisterInterest"
-	UserService_CreateReferral_FullMethodName    = "/user.v1.UserService/CreateReferral"
+	UserService_CreateUser_FullMethodName              = "/user.v1.UserService/CreateUser"
+	UserService_GetUser_FullMethodName                 = "/user.v1.UserService/GetUser"
+	UserService_GetUserByUsername_FullMethodName       = "/user.v1.UserService/GetUserByUsername"
+	UserService_GetUserByEmail_FullMethodName          = "/user.v1.UserService/GetUserByEmail"
+	UserService_UpdateUser_FullMethodName              = "/user.v1.UserService/UpdateUser"
+	UserService_DeleteUser_FullMethodName              = "/user.v1.UserService/DeleteUser"
+	UserService_ListUsers_FullMethodName               = "/user.v1.UserService/ListUsers"
+	UserService_UpdatePassword_FullMethodName          = "/user.v1.UserService/UpdatePassword"
+	UserService_UpdateProfile_FullMethodName           = "/user.v1.UserService/UpdateProfile"
+	UserService_RegisterInterest_FullMethodName        = "/user.v1.UserService/RegisterInterest"
+	UserService_CreateReferral_FullMethodName          = "/user.v1.UserService/CreateReferral"
+	UserService_CreateSession_FullMethodName           = "/user.v1.UserService/CreateSession"
+	UserService_GetSession_FullMethodName              = "/user.v1.UserService/GetSession"
+	UserService_RevokeSession_FullMethodName           = "/user.v1.UserService/RevokeSession"
+	UserService_ListSessions_FullMethodName            = "/user.v1.UserService/ListSessions"
+	UserService_AssignRole_FullMethodName              = "/user.v1.UserService/AssignRole"
+	UserService_RemoveRole_FullMethodName              = "/user.v1.UserService/RemoveRole"
+	UserService_ListRoles_FullMethodName               = "/user.v1.UserService/ListRoles"
+	UserService_ListPermissions_FullMethodName         = "/user.v1.UserService/ListPermissions"
+	UserService_ListUserEvents_FullMethodName          = "/user.v1.UserService/ListUserEvents"
+	UserService_ListAuditLogs_FullMethodName           = "/user.v1.UserService/ListAuditLogs"
+	UserService_InitiateSSO_FullMethodName             = "/user.v1.UserService/InitiateSSO"
+	UserService_InitiateMFA_FullMethodName             = "/user.v1.UserService/InitiateMFA"
+	UserService_SyncSCIM_FullMethodName                = "/user.v1.UserService/SyncSCIM"
+	UserService_AddFriend_FullMethodName               = "/user.v1.UserService/AddFriend"
+	UserService_RemoveFriend_FullMethodName            = "/user.v1.UserService/RemoveFriend"
+	UserService_ListFriends_FullMethodName             = "/user.v1.UserService/ListFriends"
+	UserService_FollowUser_FullMethodName              = "/user.v1.UserService/FollowUser"
+	UserService_UnfollowUser_FullMethodName            = "/user.v1.UserService/UnfollowUser"
+	UserService_ListFollowers_FullMethodName           = "/user.v1.UserService/ListFollowers"
+	UserService_ListFollowing_FullMethodName           = "/user.v1.UserService/ListFollowing"
+	UserService_CreateUserGroup_FullMethodName         = "/user.v1.UserService/CreateUserGroup"
+	UserService_UpdateUserGroup_FullMethodName         = "/user.v1.UserService/UpdateUserGroup"
+	UserService_DeleteUserGroup_FullMethodName         = "/user.v1.UserService/DeleteUserGroup"
+	UserService_ListUserGroups_FullMethodName          = "/user.v1.UserService/ListUserGroups"
+	UserService_ListUserGroupMembers_FullMethodName    = "/user.v1.UserService/ListUserGroupMembers"
+	UserService_SuggestConnections_FullMethodName      = "/user.v1.UserService/SuggestConnections"
+	UserService_ListConnections_FullMethodName         = "/user.v1.UserService/ListConnections"
+	UserService_BlockUser_FullMethodName               = "/user.v1.UserService/BlockUser"
+	UserService_UnblockUser_FullMethodName             = "/user.v1.UserService/UnblockUser"
+	UserService_MuteUser_FullMethodName                = "/user.v1.UserService/MuteUser"
+	UserService_UnmuteUser_FullMethodName              = "/user.v1.UserService/UnmuteUser"
+	UserService_ReportUser_FullMethodName              = "/user.v1.UserService/ReportUser"
+	UserService_BlockGroupContent_FullMethodName       = "/user.v1.UserService/BlockGroupContent"
+	UserService_ReportGroupContent_FullMethodName      = "/user.v1.UserService/ReportGroupContent"
+	UserService_MuteGroupContent_FullMethodName        = "/user.v1.UserService/MuteGroupContent"
+	UserService_MuteGroupIndividuals_FullMethodName    = "/user.v1.UserService/MuteGroupIndividuals"
+	UserService_BlockGroupIndividuals_FullMethodName   = "/user.v1.UserService/BlockGroupIndividuals"
+	UserService_UnmuteGroup_FullMethodName             = "/user.v1.UserService/UnmuteGroup"
+	UserService_UnmuteGroupIndividuals_FullMethodName  = "/user.v1.UserService/UnmuteGroupIndividuals"
+	UserService_UnblockGroupIndividuals_FullMethodName = "/user.v1.UserService/UnblockGroupIndividuals"
 )
 
 // UserServiceClient is the client API for UserService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// UserService handles user management, authentication, RBAC, and audit operations
+// --- User Service: Full Social, Account, and Metadata API ---
 type UserServiceClient interface {
 	// --- User Management ---
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*CreateUserResponse, error)
@@ -61,6 +88,8 @@ type UserServiceClient interface {
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	UpdatePassword(ctx context.Context, in *UpdatePasswordRequest, opts ...grpc.CallOption) (*UpdatePasswordResponse, error)
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*UpdateProfileResponse, error)
+	RegisterInterest(ctx context.Context, in *RegisterInterestRequest, opts ...grpc.CallOption) (*RegisterInterestResponse, error)
+	CreateReferral(ctx context.Context, in *CreateReferralRequest, opts ...grpc.CallOption) (*CreateReferralResponse, error)
 	// --- Session Management ---
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
@@ -74,13 +103,44 @@ type UserServiceClient interface {
 	// --- Audit/Event Log ---
 	ListUserEvents(ctx context.Context, in *ListUserEventsRequest, opts ...grpc.CallOption) (*ListUserEventsResponse, error)
 	ListAuditLogs(ctx context.Context, in *ListAuditLogsRequest, opts ...grpc.CallOption) (*ListAuditLogsResponse, error)
-	// --- SSO, MFA, SCIM Extensibility (placeholders for future expansion) ---
+	// --- SSO, MFA, SCIM Extensibility ---
 	InitiateSSO(ctx context.Context, in *InitiateSSORequest, opts ...grpc.CallOption) (*InitiateSSOResponse, error)
 	InitiateMFA(ctx context.Context, in *InitiateMFARequest, opts ...grpc.CallOption) (*InitiateMFAResponse, error)
 	SyncSCIM(ctx context.Context, in *SyncSCIMRequest, opts ...grpc.CallOption) (*SyncSCIMResponse, error)
-	// --- Legacy/Platform-specific ---
-	RegisterInterest(ctx context.Context, in *RegisterInterestRequest, opts ...grpc.CallOption) (*RegisterInterestResponse, error)
-	CreateReferral(ctx context.Context, in *CreateReferralRequest, opts ...grpc.CallOption) (*CreateReferralResponse, error)
+	// --- Social Graph APIs ---
+	AddFriend(ctx context.Context, in *AddFriendRequest, opts ...grpc.CallOption) (*AddFriendResponse, error)
+	RemoveFriend(ctx context.Context, in *RemoveFriendRequest, opts ...grpc.CallOption) (*RemoveFriendResponse, error)
+	ListFriends(ctx context.Context, in *ListFriendsRequest, opts ...grpc.CallOption) (*ListFriendsResponse, error)
+	FollowUser(ctx context.Context, in *FollowUserRequest, opts ...grpc.CallOption) (*FollowUserResponse, error)
+	UnfollowUser(ctx context.Context, in *UnfollowUserRequest, opts ...grpc.CallOption) (*UnfollowUserResponse, error)
+	ListFollowers(ctx context.Context, in *ListFollowersRequest, opts ...grpc.CallOption) (*ListFollowersResponse, error)
+	ListFollowing(ctx context.Context, in *ListFollowingRequest, opts ...grpc.CallOption) (*ListFollowingResponse, error)
+	// --- Group APIs ---
+	CreateUserGroup(ctx context.Context, in *CreateUserGroupRequest, opts ...grpc.CallOption) (*CreateUserGroupResponse, error)
+	UpdateUserGroup(ctx context.Context, in *UpdateUserGroupRequest, opts ...grpc.CallOption) (*UpdateUserGroupResponse, error)
+	DeleteUserGroup(ctx context.Context, in *DeleteUserGroupRequest, opts ...grpc.CallOption) (*DeleteUserGroupResponse, error)
+	ListUserGroups(ctx context.Context, in *ListUserGroupsRequest, opts ...grpc.CallOption) (*ListUserGroupsResponse, error)
+	ListUserGroupMembers(ctx context.Context, in *ListUserGroupMembersRequest, opts ...grpc.CallOption) (*ListUserGroupMembersResponse, error)
+	// --- Social Graph Discovery ---
+	SuggestConnections(ctx context.Context, in *SuggestConnectionsRequest, opts ...grpc.CallOption) (*SuggestConnectionsResponse, error)
+	ListConnections(ctx context.Context, in *ListConnectionsRequest, opts ...grpc.CallOption) (*ListConnectionsResponse, error)
+	// --- Moderation/Interaction APIs ---
+	BlockUser(ctx context.Context, in *BlockUserRequest, opts ...grpc.CallOption) (*BlockUserResponse, error)
+	UnblockUser(ctx context.Context, in *UnblockUserRequest, opts ...grpc.CallOption) (*UnblockUserResponse, error)
+	MuteUser(ctx context.Context, in *MuteUserRequest, opts ...grpc.CallOption) (*MuteUserResponse, error)
+	UnmuteUser(ctx context.Context, in *UnmuteUserRequest, opts ...grpc.CallOption) (*UnmuteUserResponse, error)
+	ReportUser(ctx context.Context, in *ReportUserRequest, opts ...grpc.CallOption) (*ReportUserResponse, error)
+	// For group/content moderation:
+	BlockGroupContent(ctx context.Context, in *BlockGroupContentRequest, opts ...grpc.CallOption) (*BlockGroupContentResponse, error)
+	ReportGroupContent(ctx context.Context, in *ReportGroupContentRequest, opts ...grpc.CallOption) (*ReportGroupContentResponse, error)
+	MuteGroupContent(ctx context.Context, in *MuteGroupContentRequest, opts ...grpc.CallOption) (*MuteGroupContentResponse, error)
+	// Mute all members of a group (optionally, with a duration)
+	MuteGroupIndividuals(ctx context.Context, in *MuteGroupIndividualsRequest, opts ...grpc.CallOption) (*MuteGroupIndividualsResponse, error)
+	// Block all members of a group (optionally, with a duration)
+	BlockGroupIndividuals(ctx context.Context, in *BlockGroupIndividualsRequest, opts ...grpc.CallOption) (*BlockGroupIndividualsResponse, error)
+	UnmuteGroup(ctx context.Context, in *UnmuteGroupRequest, opts ...grpc.CallOption) (*UnmuteGroupResponse, error)
+	UnmuteGroupIndividuals(ctx context.Context, in *UnmuteGroupIndividualsRequest, opts ...grpc.CallOption) (*UnmuteGroupIndividualsResponse, error)
+	UnblockGroupIndividuals(ctx context.Context, in *UnblockGroupIndividualsRequest, opts ...grpc.CallOption) (*UnblockGroupIndividualsResponse, error)
 }
 
 type userServiceClient struct {
@@ -175,6 +235,26 @@ func (c *userServiceClient) UpdateProfile(ctx context.Context, in *UpdateProfile
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateProfileResponse)
 	err := c.cc.Invoke(ctx, UserService_UpdateProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RegisterInterest(ctx context.Context, in *RegisterInterestRequest, opts ...grpc.CallOption) (*RegisterInterestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterInterestResponse)
+	err := c.cc.Invoke(ctx, UserService_RegisterInterest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) CreateReferral(ctx context.Context, in *CreateReferralRequest, opts ...grpc.CallOption) (*CreateReferralResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateReferralResponse)
+	err := c.cc.Invoke(ctx, UserService_CreateReferral_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -311,20 +391,270 @@ func (c *userServiceClient) SyncSCIM(ctx context.Context, in *SyncSCIMRequest, o
 	return out, nil
 }
 
-func (c *userServiceClient) RegisterInterest(ctx context.Context, in *RegisterInterestRequest, opts ...grpc.CallOption) (*RegisterInterestResponse, error) {
+func (c *userServiceClient) AddFriend(ctx context.Context, in *AddFriendRequest, opts ...grpc.CallOption) (*AddFriendResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RegisterInterestResponse)
-	err := c.cc.Invoke(ctx, UserService_RegisterInterest_FullMethodName, in, out, cOpts...)
+	out := new(AddFriendResponse)
+	err := c.cc.Invoke(ctx, UserService_AddFriend_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *userServiceClient) CreateReferral(ctx context.Context, in *CreateReferralRequest, opts ...grpc.CallOption) (*CreateReferralResponse, error) {
+func (c *userServiceClient) RemoveFriend(ctx context.Context, in *RemoveFriendRequest, opts ...grpc.CallOption) (*RemoveFriendResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateReferralResponse)
-	err := c.cc.Invoke(ctx, UserService_CreateReferral_FullMethodName, in, out, cOpts...)
+	out := new(RemoveFriendResponse)
+	err := c.cc.Invoke(ctx, UserService_RemoveFriend_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListFriends(ctx context.Context, in *ListFriendsRequest, opts ...grpc.CallOption) (*ListFriendsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListFriendsResponse)
+	err := c.cc.Invoke(ctx, UserService_ListFriends_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) FollowUser(ctx context.Context, in *FollowUserRequest, opts ...grpc.CallOption) (*FollowUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowUserResponse)
+	err := c.cc.Invoke(ctx, UserService_FollowUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UnfollowUser(ctx context.Context, in *UnfollowUserRequest, opts ...grpc.CallOption) (*UnfollowUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnfollowUserResponse)
+	err := c.cc.Invoke(ctx, UserService_UnfollowUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListFollowers(ctx context.Context, in *ListFollowersRequest, opts ...grpc.CallOption) (*ListFollowersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListFollowersResponse)
+	err := c.cc.Invoke(ctx, UserService_ListFollowers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListFollowing(ctx context.Context, in *ListFollowingRequest, opts ...grpc.CallOption) (*ListFollowingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListFollowingResponse)
+	err := c.cc.Invoke(ctx, UserService_ListFollowing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) CreateUserGroup(ctx context.Context, in *CreateUserGroupRequest, opts ...grpc.CallOption) (*CreateUserGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateUserGroupResponse)
+	err := c.cc.Invoke(ctx, UserService_CreateUserGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateUserGroup(ctx context.Context, in *UpdateUserGroupRequest, opts ...grpc.CallOption) (*UpdateUserGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateUserGroupResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateUserGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) DeleteUserGroup(ctx context.Context, in *DeleteUserGroupRequest, opts ...grpc.CallOption) (*DeleteUserGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteUserGroupResponse)
+	err := c.cc.Invoke(ctx, UserService_DeleteUserGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListUserGroups(ctx context.Context, in *ListUserGroupsRequest, opts ...grpc.CallOption) (*ListUserGroupsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserGroupsResponse)
+	err := c.cc.Invoke(ctx, UserService_ListUserGroups_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListUserGroupMembers(ctx context.Context, in *ListUserGroupMembersRequest, opts ...grpc.CallOption) (*ListUserGroupMembersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserGroupMembersResponse)
+	err := c.cc.Invoke(ctx, UserService_ListUserGroupMembers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) SuggestConnections(ctx context.Context, in *SuggestConnectionsRequest, opts ...grpc.CallOption) (*SuggestConnectionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SuggestConnectionsResponse)
+	err := c.cc.Invoke(ctx, UserService_SuggestConnections_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListConnections(ctx context.Context, in *ListConnectionsRequest, opts ...grpc.CallOption) (*ListConnectionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConnectionsResponse)
+	err := c.cc.Invoke(ctx, UserService_ListConnections_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) BlockUser(ctx context.Context, in *BlockUserRequest, opts ...grpc.CallOption) (*BlockUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BlockUserResponse)
+	err := c.cc.Invoke(ctx, UserService_BlockUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UnblockUser(ctx context.Context, in *UnblockUserRequest, opts ...grpc.CallOption) (*UnblockUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnblockUserResponse)
+	err := c.cc.Invoke(ctx, UserService_UnblockUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) MuteUser(ctx context.Context, in *MuteUserRequest, opts ...grpc.CallOption) (*MuteUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MuteUserResponse)
+	err := c.cc.Invoke(ctx, UserService_MuteUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UnmuteUser(ctx context.Context, in *UnmuteUserRequest, opts ...grpc.CallOption) (*UnmuteUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnmuteUserResponse)
+	err := c.cc.Invoke(ctx, UserService_UnmuteUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ReportUser(ctx context.Context, in *ReportUserRequest, opts ...grpc.CallOption) (*ReportUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportUserResponse)
+	err := c.cc.Invoke(ctx, UserService_ReportUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) BlockGroupContent(ctx context.Context, in *BlockGroupContentRequest, opts ...grpc.CallOption) (*BlockGroupContentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BlockGroupContentResponse)
+	err := c.cc.Invoke(ctx, UserService_BlockGroupContent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ReportGroupContent(ctx context.Context, in *ReportGroupContentRequest, opts ...grpc.CallOption) (*ReportGroupContentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportGroupContentResponse)
+	err := c.cc.Invoke(ctx, UserService_ReportGroupContent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) MuteGroupContent(ctx context.Context, in *MuteGroupContentRequest, opts ...grpc.CallOption) (*MuteGroupContentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MuteGroupContentResponse)
+	err := c.cc.Invoke(ctx, UserService_MuteGroupContent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) MuteGroupIndividuals(ctx context.Context, in *MuteGroupIndividualsRequest, opts ...grpc.CallOption) (*MuteGroupIndividualsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MuteGroupIndividualsResponse)
+	err := c.cc.Invoke(ctx, UserService_MuteGroupIndividuals_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) BlockGroupIndividuals(ctx context.Context, in *BlockGroupIndividualsRequest, opts ...grpc.CallOption) (*BlockGroupIndividualsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BlockGroupIndividualsResponse)
+	err := c.cc.Invoke(ctx, UserService_BlockGroupIndividuals_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UnmuteGroup(ctx context.Context, in *UnmuteGroupRequest, opts ...grpc.CallOption) (*UnmuteGroupResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnmuteGroupResponse)
+	err := c.cc.Invoke(ctx, UserService_UnmuteGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UnmuteGroupIndividuals(ctx context.Context, in *UnmuteGroupIndividualsRequest, opts ...grpc.CallOption) (*UnmuteGroupIndividualsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnmuteGroupIndividualsResponse)
+	err := c.cc.Invoke(ctx, UserService_UnmuteGroupIndividuals_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UnblockGroupIndividuals(ctx context.Context, in *UnblockGroupIndividualsRequest, opts ...grpc.CallOption) (*UnblockGroupIndividualsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnblockGroupIndividualsResponse)
+	err := c.cc.Invoke(ctx, UserService_UnblockGroupIndividuals_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +665,7 @@ func (c *userServiceClient) CreateReferral(ctx context.Context, in *CreateReferr
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
 //
-// UserService handles user management, authentication, RBAC, and audit operations
+// --- User Service: Full Social, Account, and Metadata API ---
 type UserServiceServer interface {
 	// --- User Management ---
 	CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error)
@@ -347,6 +677,8 @@ type UserServiceServer interface {
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	UpdatePassword(context.Context, *UpdatePasswordRequest) (*UpdatePasswordResponse, error)
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*UpdateProfileResponse, error)
+	RegisterInterest(context.Context, *RegisterInterestRequest) (*RegisterInterestResponse, error)
+	CreateReferral(context.Context, *CreateReferralRequest) (*CreateReferralResponse, error)
 	// --- Session Management ---
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
@@ -360,13 +692,44 @@ type UserServiceServer interface {
 	// --- Audit/Event Log ---
 	ListUserEvents(context.Context, *ListUserEventsRequest) (*ListUserEventsResponse, error)
 	ListAuditLogs(context.Context, *ListAuditLogsRequest) (*ListAuditLogsResponse, error)
-	// --- SSO, MFA, SCIM Extensibility (placeholders for future expansion) ---
+	// --- SSO, MFA, SCIM Extensibility ---
 	InitiateSSO(context.Context, *InitiateSSORequest) (*InitiateSSOResponse, error)
 	InitiateMFA(context.Context, *InitiateMFARequest) (*InitiateMFAResponse, error)
 	SyncSCIM(context.Context, *SyncSCIMRequest) (*SyncSCIMResponse, error)
-	// --- Legacy/Platform-specific ---
-	RegisterInterest(context.Context, *RegisterInterestRequest) (*RegisterInterestResponse, error)
-	CreateReferral(context.Context, *CreateReferralRequest) (*CreateReferralResponse, error)
+	// --- Social Graph APIs ---
+	AddFriend(context.Context, *AddFriendRequest) (*AddFriendResponse, error)
+	RemoveFriend(context.Context, *RemoveFriendRequest) (*RemoveFriendResponse, error)
+	ListFriends(context.Context, *ListFriendsRequest) (*ListFriendsResponse, error)
+	FollowUser(context.Context, *FollowUserRequest) (*FollowUserResponse, error)
+	UnfollowUser(context.Context, *UnfollowUserRequest) (*UnfollowUserResponse, error)
+	ListFollowers(context.Context, *ListFollowersRequest) (*ListFollowersResponse, error)
+	ListFollowing(context.Context, *ListFollowingRequest) (*ListFollowingResponse, error)
+	// --- Group APIs ---
+	CreateUserGroup(context.Context, *CreateUserGroupRequest) (*CreateUserGroupResponse, error)
+	UpdateUserGroup(context.Context, *UpdateUserGroupRequest) (*UpdateUserGroupResponse, error)
+	DeleteUserGroup(context.Context, *DeleteUserGroupRequest) (*DeleteUserGroupResponse, error)
+	ListUserGroups(context.Context, *ListUserGroupsRequest) (*ListUserGroupsResponse, error)
+	ListUserGroupMembers(context.Context, *ListUserGroupMembersRequest) (*ListUserGroupMembersResponse, error)
+	// --- Social Graph Discovery ---
+	SuggestConnections(context.Context, *SuggestConnectionsRequest) (*SuggestConnectionsResponse, error)
+	ListConnections(context.Context, *ListConnectionsRequest) (*ListConnectionsResponse, error)
+	// --- Moderation/Interaction APIs ---
+	BlockUser(context.Context, *BlockUserRequest) (*BlockUserResponse, error)
+	UnblockUser(context.Context, *UnblockUserRequest) (*UnblockUserResponse, error)
+	MuteUser(context.Context, *MuteUserRequest) (*MuteUserResponse, error)
+	UnmuteUser(context.Context, *UnmuteUserRequest) (*UnmuteUserResponse, error)
+	ReportUser(context.Context, *ReportUserRequest) (*ReportUserResponse, error)
+	// For group/content moderation:
+	BlockGroupContent(context.Context, *BlockGroupContentRequest) (*BlockGroupContentResponse, error)
+	ReportGroupContent(context.Context, *ReportGroupContentRequest) (*ReportGroupContentResponse, error)
+	MuteGroupContent(context.Context, *MuteGroupContentRequest) (*MuteGroupContentResponse, error)
+	// Mute all members of a group (optionally, with a duration)
+	MuteGroupIndividuals(context.Context, *MuteGroupIndividualsRequest) (*MuteGroupIndividualsResponse, error)
+	// Block all members of a group (optionally, with a duration)
+	BlockGroupIndividuals(context.Context, *BlockGroupIndividualsRequest) (*BlockGroupIndividualsResponse, error)
+	UnmuteGroup(context.Context, *UnmuteGroupRequest) (*UnmuteGroupResponse, error)
+	UnmuteGroupIndividuals(context.Context, *UnmuteGroupIndividualsRequest) (*UnmuteGroupIndividualsResponse, error)
+	UnblockGroupIndividuals(context.Context, *UnblockGroupIndividualsRequest) (*UnblockGroupIndividualsResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -403,6 +766,12 @@ func (UnimplementedUserServiceServer) UpdatePassword(context.Context, *UpdatePas
 }
 func (UnimplementedUserServiceServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*UpdateProfileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateProfile not implemented")
+}
+func (UnimplementedUserServiceServer) RegisterInterest(context.Context, *RegisterInterestRequest) (*RegisterInterestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterInterest not implemented")
+}
+func (UnimplementedUserServiceServer) CreateReferral(context.Context, *CreateReferralRequest) (*CreateReferralResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateReferral not implemented")
 }
 func (UnimplementedUserServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSession not implemented")
@@ -443,11 +812,86 @@ func (UnimplementedUserServiceServer) InitiateMFA(context.Context, *InitiateMFAR
 func (UnimplementedUserServiceServer) SyncSCIM(context.Context, *SyncSCIMRequest) (*SyncSCIMResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SyncSCIM not implemented")
 }
-func (UnimplementedUserServiceServer) RegisterInterest(context.Context, *RegisterInterestRequest) (*RegisterInterestResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RegisterInterest not implemented")
+func (UnimplementedUserServiceServer) AddFriend(context.Context, *AddFriendRequest) (*AddFriendResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddFriend not implemented")
 }
-func (UnimplementedUserServiceServer) CreateReferral(context.Context, *CreateReferralRequest) (*CreateReferralResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateReferral not implemented")
+func (UnimplementedUserServiceServer) RemoveFriend(context.Context, *RemoveFriendRequest) (*RemoveFriendResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveFriend not implemented")
+}
+func (UnimplementedUserServiceServer) ListFriends(context.Context, *ListFriendsRequest) (*ListFriendsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFriends not implemented")
+}
+func (UnimplementedUserServiceServer) FollowUser(context.Context, *FollowUserRequest) (*FollowUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FollowUser not implemented")
+}
+func (UnimplementedUserServiceServer) UnfollowUser(context.Context, *UnfollowUserRequest) (*UnfollowUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnfollowUser not implemented")
+}
+func (UnimplementedUserServiceServer) ListFollowers(context.Context, *ListFollowersRequest) (*ListFollowersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFollowers not implemented")
+}
+func (UnimplementedUserServiceServer) ListFollowing(context.Context, *ListFollowingRequest) (*ListFollowingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListFollowing not implemented")
+}
+func (UnimplementedUserServiceServer) CreateUserGroup(context.Context, *CreateUserGroupRequest) (*CreateUserGroupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateUserGroup not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateUserGroup(context.Context, *UpdateUserGroupRequest) (*UpdateUserGroupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserGroup not implemented")
+}
+func (UnimplementedUserServiceServer) DeleteUserGroup(context.Context, *DeleteUserGroupRequest) (*DeleteUserGroupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserGroup not implemented")
+}
+func (UnimplementedUserServiceServer) ListUserGroups(context.Context, *ListUserGroupsRequest) (*ListUserGroupsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserGroups not implemented")
+}
+func (UnimplementedUserServiceServer) ListUserGroupMembers(context.Context, *ListUserGroupMembersRequest) (*ListUserGroupMembersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserGroupMembers not implemented")
+}
+func (UnimplementedUserServiceServer) SuggestConnections(context.Context, *SuggestConnectionsRequest) (*SuggestConnectionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SuggestConnections not implemented")
+}
+func (UnimplementedUserServiceServer) ListConnections(context.Context, *ListConnectionsRequest) (*ListConnectionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListConnections not implemented")
+}
+func (UnimplementedUserServiceServer) BlockUser(context.Context, *BlockUserRequest) (*BlockUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlockUser not implemented")
+}
+func (UnimplementedUserServiceServer) UnblockUser(context.Context, *UnblockUserRequest) (*UnblockUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnblockUser not implemented")
+}
+func (UnimplementedUserServiceServer) MuteUser(context.Context, *MuteUserRequest) (*MuteUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MuteUser not implemented")
+}
+func (UnimplementedUserServiceServer) UnmuteUser(context.Context, *UnmuteUserRequest) (*UnmuteUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnmuteUser not implemented")
+}
+func (UnimplementedUserServiceServer) ReportUser(context.Context, *ReportUserRequest) (*ReportUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportUser not implemented")
+}
+func (UnimplementedUserServiceServer) BlockGroupContent(context.Context, *BlockGroupContentRequest) (*BlockGroupContentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlockGroupContent not implemented")
+}
+func (UnimplementedUserServiceServer) ReportGroupContent(context.Context, *ReportGroupContentRequest) (*ReportGroupContentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportGroupContent not implemented")
+}
+func (UnimplementedUserServiceServer) MuteGroupContent(context.Context, *MuteGroupContentRequest) (*MuteGroupContentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MuteGroupContent not implemented")
+}
+func (UnimplementedUserServiceServer) MuteGroupIndividuals(context.Context, *MuteGroupIndividualsRequest) (*MuteGroupIndividualsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MuteGroupIndividuals not implemented")
+}
+func (UnimplementedUserServiceServer) BlockGroupIndividuals(context.Context, *BlockGroupIndividualsRequest) (*BlockGroupIndividualsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlockGroupIndividuals not implemented")
+}
+func (UnimplementedUserServiceServer) UnmuteGroup(context.Context, *UnmuteGroupRequest) (*UnmuteGroupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnmuteGroup not implemented")
+}
+func (UnimplementedUserServiceServer) UnmuteGroupIndividuals(context.Context, *UnmuteGroupIndividualsRequest) (*UnmuteGroupIndividualsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnmuteGroupIndividuals not implemented")
+}
+func (UnimplementedUserServiceServer) UnblockGroupIndividuals(context.Context, *UnblockGroupIndividualsRequest) (*UnblockGroupIndividualsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnblockGroupIndividuals not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -628,6 +1072,42 @@ func _UserService_UpdateProfile_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).UpdateProfile(ctx, req.(*UpdateProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RegisterInterest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterInterestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RegisterInterest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RegisterInterest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RegisterInterest(ctx, req.(*RegisterInterestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_CreateReferral_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateReferralRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreateReferral(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreateReferral_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreateReferral(ctx, req.(*CreateReferralRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -866,38 +1346,488 @@ func _UserService_SyncSCIM_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _UserService_RegisterInterest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisterInterestRequest)
+func _UserService_AddFriend_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddFriendRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(UserServiceServer).RegisterInterest(ctx, in)
+		return srv.(UserServiceServer).AddFriend(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: UserService_RegisterInterest_FullMethodName,
+		FullMethod: UserService_AddFriend_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(UserServiceServer).RegisterInterest(ctx, req.(*RegisterInterestRequest))
+		return srv.(UserServiceServer).AddFriend(ctx, req.(*AddFriendRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _UserService_CreateReferral_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateReferralRequest)
+func _UserService_RemoveFriend_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveFriendRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(UserServiceServer).CreateReferral(ctx, in)
+		return srv.(UserServiceServer).RemoveFriend(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: UserService_CreateReferral_FullMethodName,
+		FullMethod: UserService_RemoveFriend_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(UserServiceServer).CreateReferral(ctx, req.(*CreateReferralRequest))
+		return srv.(UserServiceServer).RemoveFriend(ctx, req.(*RemoveFriendRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListFriends_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFriendsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListFriends(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListFriends_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListFriends(ctx, req.(*ListFriendsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_FollowUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FollowUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).FollowUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_FollowUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).FollowUser(ctx, req.(*FollowUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UnfollowUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnfollowUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UnfollowUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UnfollowUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UnfollowUser(ctx, req.(*UnfollowUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListFollowers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFollowersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListFollowers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListFollowers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListFollowers(ctx, req.(*ListFollowersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListFollowing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFollowingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListFollowing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListFollowing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListFollowing(ctx, req.(*ListFollowingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_CreateUserGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateUserGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreateUserGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreateUserGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreateUserGroup(ctx, req.(*CreateUserGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateUserGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateUserGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateUserGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateUserGroup(ctx, req.(*UpdateUserGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_DeleteUserGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).DeleteUserGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_DeleteUserGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).DeleteUserGroup(ctx, req.(*DeleteUserGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListUserGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListUserGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListUserGroups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListUserGroups(ctx, req.(*ListUserGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListUserGroupMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserGroupMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListUserGroupMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListUserGroupMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListUserGroupMembers(ctx, req.(*ListUserGroupMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_SuggestConnections_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SuggestConnectionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SuggestConnections(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SuggestConnections_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SuggestConnections(ctx, req.(*SuggestConnectionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListConnections_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConnectionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListConnections(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListConnections_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListConnections(ctx, req.(*ListConnectionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_BlockUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BlockUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BlockUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BlockUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BlockUser(ctx, req.(*BlockUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UnblockUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnblockUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UnblockUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UnblockUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UnblockUser(ctx, req.(*UnblockUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_MuteUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MuteUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).MuteUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_MuteUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).MuteUser(ctx, req.(*MuteUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UnmuteUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnmuteUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UnmuteUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UnmuteUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UnmuteUser(ctx, req.(*UnmuteUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ReportUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ReportUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ReportUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ReportUser(ctx, req.(*ReportUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_BlockGroupContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BlockGroupContentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BlockGroupContent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BlockGroupContent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BlockGroupContent(ctx, req.(*BlockGroupContentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ReportGroupContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportGroupContentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ReportGroupContent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ReportGroupContent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ReportGroupContent(ctx, req.(*ReportGroupContentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_MuteGroupContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MuteGroupContentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).MuteGroupContent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_MuteGroupContent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).MuteGroupContent(ctx, req.(*MuteGroupContentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_MuteGroupIndividuals_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MuteGroupIndividualsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).MuteGroupIndividuals(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_MuteGroupIndividuals_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).MuteGroupIndividuals(ctx, req.(*MuteGroupIndividualsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_BlockGroupIndividuals_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BlockGroupIndividualsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BlockGroupIndividuals(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BlockGroupIndividuals_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BlockGroupIndividuals(ctx, req.(*BlockGroupIndividualsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UnmuteGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnmuteGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UnmuteGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UnmuteGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UnmuteGroup(ctx, req.(*UnmuteGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UnmuteGroupIndividuals_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnmuteGroupIndividualsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UnmuteGroupIndividuals(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UnmuteGroupIndividuals_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UnmuteGroupIndividuals(ctx, req.(*UnmuteGroupIndividualsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UnblockGroupIndividuals_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnblockGroupIndividualsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UnblockGroupIndividuals(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UnblockGroupIndividuals_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UnblockGroupIndividuals(ctx, req.(*UnblockGroupIndividualsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -944,6 +1874,14 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateProfile",
 			Handler:    _UserService_UpdateProfile_Handler,
+		},
+		{
+			MethodName: "RegisterInterest",
+			Handler:    _UserService_RegisterInterest_Handler,
+		},
+		{
+			MethodName: "CreateReferral",
+			Handler:    _UserService_CreateReferral_Handler,
 		},
 		{
 			MethodName: "CreateSession",
@@ -998,12 +1936,112 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_SyncSCIM_Handler,
 		},
 		{
-			MethodName: "RegisterInterest",
-			Handler:    _UserService_RegisterInterest_Handler,
+			MethodName: "AddFriend",
+			Handler:    _UserService_AddFriend_Handler,
 		},
 		{
-			MethodName: "CreateReferral",
-			Handler:    _UserService_CreateReferral_Handler,
+			MethodName: "RemoveFriend",
+			Handler:    _UserService_RemoveFriend_Handler,
+		},
+		{
+			MethodName: "ListFriends",
+			Handler:    _UserService_ListFriends_Handler,
+		},
+		{
+			MethodName: "FollowUser",
+			Handler:    _UserService_FollowUser_Handler,
+		},
+		{
+			MethodName: "UnfollowUser",
+			Handler:    _UserService_UnfollowUser_Handler,
+		},
+		{
+			MethodName: "ListFollowers",
+			Handler:    _UserService_ListFollowers_Handler,
+		},
+		{
+			MethodName: "ListFollowing",
+			Handler:    _UserService_ListFollowing_Handler,
+		},
+		{
+			MethodName: "CreateUserGroup",
+			Handler:    _UserService_CreateUserGroup_Handler,
+		},
+		{
+			MethodName: "UpdateUserGroup",
+			Handler:    _UserService_UpdateUserGroup_Handler,
+		},
+		{
+			MethodName: "DeleteUserGroup",
+			Handler:    _UserService_DeleteUserGroup_Handler,
+		},
+		{
+			MethodName: "ListUserGroups",
+			Handler:    _UserService_ListUserGroups_Handler,
+		},
+		{
+			MethodName: "ListUserGroupMembers",
+			Handler:    _UserService_ListUserGroupMembers_Handler,
+		},
+		{
+			MethodName: "SuggestConnections",
+			Handler:    _UserService_SuggestConnections_Handler,
+		},
+		{
+			MethodName: "ListConnections",
+			Handler:    _UserService_ListConnections_Handler,
+		},
+		{
+			MethodName: "BlockUser",
+			Handler:    _UserService_BlockUser_Handler,
+		},
+		{
+			MethodName: "UnblockUser",
+			Handler:    _UserService_UnblockUser_Handler,
+		},
+		{
+			MethodName: "MuteUser",
+			Handler:    _UserService_MuteUser_Handler,
+		},
+		{
+			MethodName: "UnmuteUser",
+			Handler:    _UserService_UnmuteUser_Handler,
+		},
+		{
+			MethodName: "ReportUser",
+			Handler:    _UserService_ReportUser_Handler,
+		},
+		{
+			MethodName: "BlockGroupContent",
+			Handler:    _UserService_BlockGroupContent_Handler,
+		},
+		{
+			MethodName: "ReportGroupContent",
+			Handler:    _UserService_ReportGroupContent_Handler,
+		},
+		{
+			MethodName: "MuteGroupContent",
+			Handler:    _UserService_MuteGroupContent_Handler,
+		},
+		{
+			MethodName: "MuteGroupIndividuals",
+			Handler:    _UserService_MuteGroupIndividuals_Handler,
+		},
+		{
+			MethodName: "BlockGroupIndividuals",
+			Handler:    _UserService_BlockGroupIndividuals_Handler,
+		},
+		{
+			MethodName: "UnmuteGroup",
+			Handler:    _UserService_UnmuteGroup_Handler,
+		},
+		{
+			MethodName: "UnmuteGroupIndividuals",
+			Handler:    _UserService_UnmuteGroupIndividuals_Handler,
+		},
+		{
+			MethodName: "UnblockGroupIndividuals",
+			Handler:    _UserService_UnblockGroupIndividuals_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

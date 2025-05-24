@@ -52,6 +52,10 @@ func New(cfg Config) (Logger, error) {
 		zapCfg.Encoding = "console"
 	}
 
+	// Patch: Output all logs to stdout (not stderr)
+	zapCfg.OutputPaths = []string{"stdout"}
+	zapCfg.ErrorOutputPaths = []string{"stdout"}
+
 	level := parseLogLevel(cfg.LogLevel)
 	zapCfg.Level = zap.NewAtomicLevelAt(level)
 

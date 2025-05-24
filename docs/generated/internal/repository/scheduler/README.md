@@ -1,4 +1,4 @@
-# Package schedulerrepo
+# Package scheduler
 
 ## Types
 

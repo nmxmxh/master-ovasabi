@@ -1,6 +1,15 @@
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 ---
-title: Experimental Local AI Setup for Pattern Systems
-filename: experimental_local_ai.mb
+
+title: Experimental Local AI Setup for Pattern Systems filename: experimental_local_ai.mb
+
 ---
 
 ## 🧪 Experimental Local AI with Go + gRPC + Ollama/DeepSeek

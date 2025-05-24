@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // KnowledgeGraph represents the core structure of the OVASABI knowledge graph.
@@ -26,6 +28,7 @@ type KnowledgeGraph struct {
 
 	mu     sync.RWMutex
 	loaded bool
+	log    *zap.Logger
 }
 
 var (
@@ -293,6 +296,58 @@ func (kg *KnowledgeGraph) TrackEntityRelationship(_, _, _, _, _ string) error {
 }
 
 // GenerateVisualization generates a visualization of part or all of the knowledge graph.
-func (kg *KnowledgeGraph) GenerateVisualization(_, _ string) ([]byte, error) {
-	return nil, errors.New("GenerateVisualization not implemented")
+func (kg *KnowledgeGraph) GenerateVisualization(format, section string) ([]byte, error) {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+
+	if !kg.loaded {
+		return nil, errors.New("knowledge graph not loaded")
+	}
+
+	if format == "mermaid" && section == "services" {
+		fmt.Printf("[DEBUG] kg.Services: %+v\n", kg.Services)
+		var out string
+		out += "graph TD\n"
+		serviceNodeMap := make(map[string]string) // Map service name to node id
+		// Only handle 'core_services' for now
+		coreServicesRaw, ok := kg.Services["core_services"]
+		if ok {
+			coreServices, ok := coreServicesRaw.(map[string]interface{})
+			if ok {
+				// First pass: create all nodes and build map
+				for svcName := range coreServices {
+					nodeID := fmt.Sprintf("core_services_%s", svcName)
+					serviceNodeMap[svcName] = nodeID
+					out += fmt.Sprintf("    %s[%q]\n", nodeID, svcName)
+				}
+				// Second pass: draw edges
+				for svcName, svcRaw := range coreServices {
+					nodeID := serviceNodeMap[svcName]
+					if svc, ok := svcRaw.(map[string]interface{}); ok {
+						if deps, ok := svc["dependencies"].([]interface{}); ok {
+							for _, dep := range deps {
+								depStr, ok := dep.(string)
+								if !ok {
+									kg.log.Warn("Dependency is not a string", zap.Any("dep", dep))
+									continue
+								}
+								if depStr != "" {
+									depNodeID, found := serviceNodeMap[depStr]
+									if !found {
+										// Fallback: create a generic node for the dependency
+										depNodeID = depStr
+										out += fmt.Sprintf("    %s[%q]\n", depNodeID, depStr)
+									}
+									out += fmt.Sprintf("    %s --> %s\n", nodeID, depNodeID)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		fmt.Printf("[DEBUG] Mermaid output:\n%s\n", out)
+		return []byte(out), nil
+	}
+	return nil, fmt.Errorf("GenerateVisualization: format '%s' and section '%s' not implemented", format, section)
 }

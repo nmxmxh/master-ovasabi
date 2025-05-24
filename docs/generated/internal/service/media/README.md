@@ -1,6 +1,14 @@
 # Package media
 
+## Variables
+
+### ErrMediaNotFound
+
+### MediaEventRegistry
+
 ## Types
+
+### AccessibilityMetadata
 
 ### Broadcaster
 
@@ -13,6 +21,62 @@ Broadcaster struct.
 ##### Subscribe
 
 ##### Unsubscribe
+
+### CaptionTrack
+
+### ComplianceIssue
+
+### ComplianceMetadata
+
+### ComplianceStandard
+
+### EventEmitter
+
+EventEmitter defines the interface for emitting events (canonical platform interface).
+
+### EventHandlerFunc
+
+### EventRegistry
+
+### EventSubscription
+
+### Metadata
+
+### Model
+
+### Repo
+
+Repo implements Repository.
+
+#### Methods
+
+##### CreateMedia
+
+CreateMedia creates a new media.
+
+##### DeleteMedia
+
+DeleteMedia deletes media by ID.
+
+##### GetMedia
+
+GetMedia retrieves media by ID.
+
+##### ListSystemMedia
+
+ListSystemMedia retrieves system media with pagination and optional master_id filter.
+
+##### ListUserMedia
+
+ListUserMedia retrieves media for a user with pagination and optional master_id filter.
+
+##### UpdateMedia
+
+UpdateMedia updates an existing media.
+
+### Repository
+
+Repository defines the interface for media operations.
 
 ### Service
 
@@ -30,7 +94,7 @@ BroadcastAssetChunk allows publishing a live asset chunk to all subscribers (for
 
 ##### BroadcastSystemMedia
 
-BroadcastSystemMedia broadcasts a system media file.
+BroadcastSystemMedia: push a mock update to all system subscribers.
 
 ##### CompleteMediaUpload
 
@@ -46,11 +110,11 @@ GetMedia retrieves a media file.
 
 ##### ListSystemMedia
 
-ListSystemMedia lists system media files.
+ListSystemMedia lists system media files with pagination and metadata.
 
 ##### ListUserMedia
 
-ListUserMedia lists user media files.
+ListUserMedia lists user media files with pagination and metadata.
 
 ##### StartHeavyMediaUpload
 
@@ -66,16 +130,48 @@ StreamMediaContent streams the content of a media file.
 
 ##### SubscribeToSystemMedia
 
-SubscribeToSystemMedia subscribes to system media updates.
+SubscribeToSystemMedia: basic in-memory pub/sub demo.
 
 ##### SubscribeToUserMedia
 
-SubscribeToUserMedia subscribes to user media updates.
+SubscribeToUserMedia: basic in-memory pub/sub demo.
+
+##### UploadChunks
+
+UploadChunks uploads media chunks concurrently with retry and timeout logic. It uses maxRetries,
+uploadTimeout, chunkTimeout, and maxConcurrentUploadChunks constants.
 
 ##### UploadLightMedia
 
 UploadLightMedia handles small media uploads (< 500KB).
 
+### StorageType
+
+### ThumbnailInfo
+
+### TranslationTrack
+
 ### UploadMetadata
 
 UploadMetadata stores upload session information.
+
+## Functions
+
+### MetadataToStruct
+
+MediaMetadataToStruct converts MediaMetadata to structpb.Struct.
+
+### NewMediaClient
+
+NewMediaClient creates a new gRPC client connection and returns a MediaServiceClient and a cleanup
+function.
+
+### NewService
+
+NewService constructs a new MediaServiceServer instance with event bus support.
+
+### Register
+
+Register registers the media service with the DI container and event bus support.
+
+### StartEventSubscribers

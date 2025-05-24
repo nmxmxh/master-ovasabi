@@ -19,25 +19,28 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AdminService_CreateUser_FullMethodName     = "/admin.v1.AdminService/CreateUser"
-	AdminService_UpdateUser_FullMethodName     = "/admin.v1.AdminService/UpdateUser"
-	AdminService_DeleteUser_FullMethodName     = "/admin.v1.AdminService/DeleteUser"
-	AdminService_ListUsers_FullMethodName      = "/admin.v1.AdminService/ListUsers"
-	AdminService_GetUser_FullMethodName        = "/admin.v1.AdminService/GetUser"
-	AdminService_CreateRole_FullMethodName     = "/admin.v1.AdminService/CreateRole"
-	AdminService_UpdateRole_FullMethodName     = "/admin.v1.AdminService/UpdateRole"
-	AdminService_DeleteRole_FullMethodName     = "/admin.v1.AdminService/DeleteRole"
-	AdminService_ListRoles_FullMethodName      = "/admin.v1.AdminService/ListRoles"
-	AdminService_AssignRole_FullMethodName     = "/admin.v1.AdminService/AssignRole"
-	AdminService_RevokeRole_FullMethodName     = "/admin.v1.AdminService/RevokeRole"
-	AdminService_GetAuditLogs_FullMethodName   = "/admin.v1.AdminService/GetAuditLogs"
-	AdminService_GetSettings_FullMethodName    = "/admin.v1.AdminService/GetSettings"
-	AdminService_UpdateSettings_FullMethodName = "/admin.v1.AdminService/UpdateSettings"
+	AdminService_CreateUser_FullMethodName      = "/admin.v1.AdminService/CreateUser"
+	AdminService_UpdateUser_FullMethodName      = "/admin.v1.AdminService/UpdateUser"
+	AdminService_DeleteUser_FullMethodName      = "/admin.v1.AdminService/DeleteUser"
+	AdminService_ListUsers_FullMethodName       = "/admin.v1.AdminService/ListUsers"
+	AdminService_GetUser_FullMethodName         = "/admin.v1.AdminService/GetUser"
+	AdminService_CreateRole_FullMethodName      = "/admin.v1.AdminService/CreateRole"
+	AdminService_UpdateRole_FullMethodName      = "/admin.v1.AdminService/UpdateRole"
+	AdminService_DeleteRole_FullMethodName      = "/admin.v1.AdminService/DeleteRole"
+	AdminService_ListRoles_FullMethodName       = "/admin.v1.AdminService/ListRoles"
+	AdminService_AssignRole_FullMethodName      = "/admin.v1.AdminService/AssignRole"
+	AdminService_RevokeRole_FullMethodName      = "/admin.v1.AdminService/RevokeRole"
+	AdminService_GetAuditLogs_FullMethodName    = "/admin.v1.AdminService/GetAuditLogs"
+	AdminService_GetSettings_FullMethodName     = "/admin.v1.AdminService/GetSettings"
+	AdminService_UpdateSettings_FullMethodName  = "/admin.v1.AdminService/UpdateSettings"
+	AdminService_CheckPermission_FullMethodName = "/admin.v1.AdminService/CheckPermission"
 )
 
 // AdminServiceClient is the client API for AdminService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// --- Service ---
 type AdminServiceClient interface {
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*CreateUserResponse, error)
 	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*UpdateUserResponse, error)
@@ -53,6 +56,8 @@ type AdminServiceClient interface {
 	GetAuditLogs(ctx context.Context, in *GetAuditLogsRequest, opts ...grpc.CallOption) (*GetAuditLogsResponse, error)
 	GetSettings(ctx context.Context, in *GetSettingsRequest, opts ...grpc.CallOption) (*GetSettingsResponse, error)
 	UpdateSettings(ctx context.Context, in *UpdateSettingsRequest, opts ...grpc.CallOption) (*UpdateSettingsResponse, error)
+	// Permission check for granular access control
+	CheckPermission(ctx context.Context, in *CheckPermissionRequest, opts ...grpc.CallOption) (*CheckPermissionResponse, error)
 }
 
 type adminServiceClient struct {
@@ -203,9 +208,21 @@ func (c *adminServiceClient) UpdateSettings(ctx context.Context, in *UpdateSetti
 	return out, nil
 }
 
+func (c *adminServiceClient) CheckPermission(ctx context.Context, in *CheckPermissionRequest, opts ...grpc.CallOption) (*CheckPermissionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckPermissionResponse)
+	err := c.cc.Invoke(ctx, AdminService_CheckPermission_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 // All implementations must embed UnimplementedAdminServiceServer
 // for forward compatibility.
+//
+// --- Service ---
 type AdminServiceServer interface {
 	CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error)
 	UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error)
@@ -221,6 +238,8 @@ type AdminServiceServer interface {
 	GetAuditLogs(context.Context, *GetAuditLogsRequest) (*GetAuditLogsResponse, error)
 	GetSettings(context.Context, *GetSettingsRequest) (*GetSettingsResponse, error)
 	UpdateSettings(context.Context, *UpdateSettingsRequest) (*UpdateSettingsResponse, error)
+	// Permission check for granular access control
+	CheckPermission(context.Context, *CheckPermissionRequest) (*CheckPermissionResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -272,6 +291,9 @@ func (UnimplementedAdminServiceServer) GetSettings(context.Context, *GetSettings
 }
 func (UnimplementedAdminServiceServer) UpdateSettings(context.Context, *UpdateSettingsRequest) (*UpdateSettingsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateSettings not implemented")
+}
+func (UnimplementedAdminServiceServer) CheckPermission(context.Context, *CheckPermissionRequest) (*CheckPermissionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckPermission not implemented")
 }
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 func (UnimplementedAdminServiceServer) testEmbeddedByValue()                      {}
@@ -546,6 +568,24 @@ func _AdminService_UpdateSettings_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_CheckPermission_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckPermissionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).CheckPermission(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_CheckPermission_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).CheckPermission(ctx, req.(*CheckPermissionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AdminService_ServiceDesc is the grpc.ServiceDesc for AdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -608,6 +648,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateSettings",
 			Handler:    _AdminService_UpdateSettings_Handler,
+		},
+		{
+			MethodName: "CheckPermission",
+			Handler:    _AdminService_CheckPermission_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

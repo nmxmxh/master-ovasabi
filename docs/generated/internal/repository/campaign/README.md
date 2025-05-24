@@ -12,7 +12,7 @@
 
 ### LeaderboardEntry
 
-(move to a shared types file if needed).
+LeaderboardEntry represents a single entry in the campaign leaderboard.
 
 ### RankingColumn
 
@@ -55,3 +55,9 @@ List retrieves a paginated list of campaigns.
 ##### Update
 
 Update updates an existing campaign.
+
+## Functions
+
+### FlattenMetadataToVars
+
+FlattenMetadataToVars extracts primitive fields from campaign metadata into the variables map.

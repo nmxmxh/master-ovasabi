@@ -68,7 +68,7 @@ func (p *Provider) RegisterPatternCache() {
 
 // InitializePatternSupport initializes pattern store and executor.
 func (p *Provider) InitializePatternSupport() error {
-	cache, err := p.GetCache("pattern")
+	cache, err := p.GetCache(context.Background(), "pattern")
 	if err != nil {
 		return fmt.Errorf("failed to get pattern cache: %w", err)
 	}
@@ -85,7 +85,7 @@ func (p *Provider) InitializePatternSupport() error {
 }
 
 // GetCache returns a Redis cache instance.
-func (p *Provider) GetCache(name string) (*Cache, error) {
+func (p *Provider) GetCache(ctx context.Context, name string) (*Cache, error) {
 	p.mu.RLock()
 	cache, exists := p.caches[name]
 	if exists {
@@ -110,7 +110,7 @@ func (p *Provider) GetCache(name string) (*Cache, error) {
 	}
 
 	// Create new cache
-	cache, err := NewCache(opts, p.log)
+	cache, err := NewCache(ctx, opts, p.log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Redis cache %s: %w", name, err)
 	}

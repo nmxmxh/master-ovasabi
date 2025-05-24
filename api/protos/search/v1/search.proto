@@ -2,49 +2,59 @@ syntax = "proto3";
 
 package search.v1;
 
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/search";
+
+import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/search/v1;searchpb";
-
-// Robust, extensible metadata for all services
-
+// SearchService provides unified, metadata-driven search across all major entities.
 service SearchService {
-  rpc SearchEntities(SearchRequest) returns (SearchResponse);
+  // General search endpoint (full-text, fuzzy, entity)
+  rpc Search (SearchRequest) returns (SearchResponse);
+
+  // Suggest/autocomplete endpoint
+  rpc Suggest (SuggestRequest) returns (SuggestResponse);
 }
 
+// Request for a search query.
 message SearchRequest {
-  string query = 1;
-  string entity_type = 2;
-  string master_id = 3; // Optional filter by master entity
-  int32 page = 4;
-  int32 page_size = 5;
-  repeated string fields = 6; // Columns to return
-  common.Metadata metadata = 7; // Metadata filters
-  bool fuzzy = 8; // Fuzzy search
-  string language = 9; // Language for FTS
+  string query = 1; // The search query string
+  repeated string types = 2; // Entity types to search (e.g., "content", "user", "campaign")
+  int32 page_size = 3; // Results per page
+  int32 page_number = 4; // Page number (1-based)
+  common.Metadata metadata = 5; // Extensible filters, context, etc.
+  int64 campaign_id = 6; // campaign/tenant context
 }
 
-message EntityResult {
-  string entity_id = 1;
-  string entity_type = 2;
-  string name = 3;
-  string summary = 4;
-  common.Metadata metadata = 5;
-  float rank = 6;
-  float similarity = 7;
-}
-
+// A single search result.
 message SearchResult {
-  string id = 1;
-  string master_id = 2; // UUID reference to master table
-  string entity_type = 3;
-  string title = 4;
-  string snippet = 5;
-  common.Metadata metadata = 6;
-  double score = 7;
+  string id = 1; // Entity ID
+  string entity_type = 2; // Entity type (e.g., content, campaign, user, talent)
+  float score = 3; // Relevance score
+  google.protobuf.Struct fields = 4; // Key fields (title, snippet, etc.)
+  common.Metadata metadata = 5; // Enriched metadata
 }
 
+// Response for a search query.
 message SearchResponse {
   repeated SearchResult results = 1;
-  int32 total = 2;
+  int32 total = 2; // Total results
+  int32 page_number = 3;
+  int32 page_size = 4;
+  common.Metadata metadata = 5; // Aggregations, facets, etc.
+}
+
+// Request for suggestions/autocomplete.
+message SuggestRequest {
+  string prefix = 1; // Partial query for autocomplete
+  repeated string types = 2;
+  int32 limit = 3;
+  common.Metadata metadata = 4;
+  int64 campaign_id = 5; // campaign/tenant context
+}
+
+// Response for suggestions/autocomplete.
+message SuggestResponse {
+  repeated string suggestions = 1;
+  common.Metadata metadata = 2;
 } 

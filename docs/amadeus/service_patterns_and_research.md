@@ -1,4 +1,11 @@
-# Service Patterns & Research-Backed Best Practices
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 > This document summarizes how leading platforms implement each core service in a modular, extensible, and analytics-ready way. It is intended as a reference for OVASABI/Amadeus contributors and is tightly linked to the [Amadeus Context](amadeus_context.md).
 

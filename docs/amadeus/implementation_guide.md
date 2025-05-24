@@ -1,4 +1,11 @@
-# Implementation Guide
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 This guide provides detailed information on implementing and integrating with the Amadeus Knowledge
 Graph system.
@@ -45,14 +52,12 @@ The Amadeus system consists of:
 ### 3.2. Building the CLI Tool
 
 ```bash
-# From the repository root
 go build -o bin/kgcli amadeus/cmd/kgcli/main.go
 ```
 
 ### 3.3. Verifying Installation
 
 ```bash
-# Test the CLI tool works correctly
 bin/kgcli get --path system_components
 ```
 
@@ -257,7 +262,6 @@ func updateServiceVersion(serviceName, version string) error {
 Add the following to your CI/CD pipeline to generate visualizations on each build:
 
 ```yaml
-# In .github/workflows/ci.yml or equivalent
 steps:
   # Other CI steps...
 

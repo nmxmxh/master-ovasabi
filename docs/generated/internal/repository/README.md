@@ -62,6 +62,10 @@ CachedMasterRepository wraps a MasterRepository with caching.
 
 Create creates a master record with cache invalidation.
 
+##### CreateMasterRecord
+
+Add CreateMasterRecord to implement MasterRepository interface.
+
 ##### Delete
 
 Delete deletes a master record with cache invalidation and locking.
@@ -109,6 +113,10 @@ DBTX represents a database connection that can execute queries or a transaction.
 ##### Create
 
 Create creates a new master record.
+
+##### CreateMasterRecord
+
+Add CreateMasterRecord to implement MasterRepository interface.
 
 ##### Delete
 
@@ -162,7 +170,7 @@ Master represents the core entity in the master table.
 
 ### MasterRepository
 
-MasterRepository defines the interface for master record operations.
+MasterRepository defines the interface for master entity operations, including caching and search.
 
 ### Provider
 

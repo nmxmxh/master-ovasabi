@@ -1,4 +1,11 @@
-# Amadeus Knowledge Graph
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 Welcome to the Amadeus Knowledge Graph documentation. This system provides a comprehensive and
 programmatically accessible knowledge graph of all system components and their relationships.

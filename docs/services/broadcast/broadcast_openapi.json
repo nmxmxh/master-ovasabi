@@ -1,0 +1,10 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Broadcast Service API",
+    "version": "1.0.0",
+    "description": "Initial OpenAPI schema for the Broadcast service."
+  },
+  "paths": {},
+  "components": {}
+}

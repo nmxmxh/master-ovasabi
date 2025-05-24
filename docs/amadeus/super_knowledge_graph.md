@@ -1,4 +1,11 @@
-# Super Knowledge Graph Configuration
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 > **Note:** Always refer to the Amadeus context and knowledge graph documentation before implementing or updating any service. This ensures all dependencies, capabilities, and integration points are current and consistent across the platform.
 

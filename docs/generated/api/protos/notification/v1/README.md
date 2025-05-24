@@ -90,6 +90,8 @@ Deprecated: Use AssetChunk.ProtoReflect.Descriptor instead.
 
 Deprecated: Use BroadcastEventRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetChannel
 
 ##### GetMessage
@@ -117,6 +119,8 @@ Deprecated: Use BroadcastEventRequest.ProtoReflect.Descriptor instead.
 Deprecated: Use BroadcastEventResponse.ProtoReflect.Descriptor instead.
 
 ##### GetBroadcastId
+
+##### GetCampaignId
 
 ##### GetStatus
 
@@ -176,6 +180,8 @@ Deprecated: Use GetNotificationResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ListNotificationEventsRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetNotificationId
 
 ##### GetPage
@@ -219,6 +225,8 @@ Deprecated: Use ListNotificationEventsResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use ListNotificationsRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetChannel
 
@@ -281,6 +289,10 @@ Deprecated: Use Notification.ProtoReflect.Descriptor instead.
 ##### GetCreatedAt
 
 ##### GetId
+
+##### GetMasterId
+
+##### GetMasterUuid
 
 ##### GetMetadata
 
@@ -468,6 +480,8 @@ Deprecated: Use SendEmailRequest.ProtoReflect.Descriptor instead.
 
 ##### GetBody
 
+##### GetCampaignId
+
 ##### GetHtml
 
 ##### GetMetadata
@@ -516,6 +530,8 @@ Deprecated: Use SendNotificationRequest.ProtoReflect.Descriptor instead.
 
 ##### GetBody
 
+##### GetCampaignId
+
 ##### GetChannel
 
 ##### GetMetadata
@@ -561,6 +577,8 @@ Deprecated: Use SendNotificationResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use SendPushNotificationRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetDeepLink
 
@@ -609,6 +627,8 @@ Deprecated: Use SendPushNotificationResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use SendSMSRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetMessage
 

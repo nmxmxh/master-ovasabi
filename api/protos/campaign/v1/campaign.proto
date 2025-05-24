@@ -19,6 +19,8 @@ message Campaign {
   common.Metadata metadata = 9; // Robust, extensible metadata
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
+  string master_uuid = 12; // Global UUID reference to master table
+  int64 master_id = 13; // Internal integer ID reference to master table
 }
 
 message CreateCampaignRequest {

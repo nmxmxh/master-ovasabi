@@ -16,6 +16,30 @@ copy)
 
 ## Types
 
+### AnalyticsEvent
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use AnalyticsEvent.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetEventId
+
+##### GetMetadata
+
+##### GetTimestamp
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### AnalyticsServiceClient
 
 AnalyticsServiceClient is the client API for AnalyticsService service.
@@ -66,6 +90,96 @@ Deprecated: Use BatchTrackEventsResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### CaptureEventRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use CaptureEventRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetContext
+
+##### GetEventType
+
+##### GetGdprObscure
+
+##### GetGroups
+
+##### GetProperties
+
+##### GetUserEmail
+
+##### GetUserId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### CaptureEventResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use CaptureEventResponse.ProtoReflect.Descriptor instead.
+
+##### GetEventId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### EnrichEventMetadataRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use EnrichEventMetadataRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetEventId
+
+##### GetNewFields
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### EnrichEventMetadataResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use EnrichEventMetadataResponse.ProtoReflect.Descriptor instead.
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### Event
 
 #### Methods
@@ -73,6 +187,8 @@ Deprecated: Use BatchTrackEventsResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use Event.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetEntityId
 
@@ -83,6 +199,8 @@ Deprecated: Use Event.ProtoReflect.Descriptor instead.
 ##### GetId
 
 ##### GetMasterId
+
+##### GetMasterUuid
 
 ##### GetMetadata
 
@@ -107,6 +225,8 @@ Deprecated: Use Event.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use GetProductEventsRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetPage
 
@@ -154,6 +274,8 @@ Deprecated: Use GetProductEventsResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use GetReportRequest.ProtoReflect.Descriptor instead.
 
+##### GetParameters
+
 ##### GetReportId
 
 ##### ProtoMessage
@@ -190,6 +312,8 @@ Deprecated: Use GetReportResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use GetUserEventsRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetPage
 
 ##### GetPageSize
@@ -219,6 +343,40 @@ Deprecated: Use GetUserEventsResponse.ProtoReflect.Descriptor instead.
 ##### GetTotalCount
 
 ##### GetTotalPages
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListEventsRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListEventsRequest.ProtoReflect.Descriptor instead.
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListEventsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListEventsResponse.ProtoReflect.Descriptor instead.
+
+##### GetEvents
 
 ##### ProtoMessage
 
@@ -347,11 +505,17 @@ methods are called.
 
 ##### BatchTrackEvents
 
+##### CaptureEvent
+
+##### EnrichEventMetadata
+
 ##### GetProductEvents
 
 ##### GetReport
 
 ##### GetUserEvents
+
+##### ListEvents
 
 ##### ListReports
 

@@ -1,4 +1,11 @@
-# Amadeus Knowledge Graph API Reference
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 This document provides a reference for the Amadeus Knowledge Graph API.
 

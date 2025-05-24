@@ -19,75 +19,7 @@ capabilities.
 This approach centralizes security, reduces boilerplate in each service, and ensures consistent
 enforcement and auditability across the platform.
 
-## Variables
-
-### ErrServiceDegraded
-
-Common errors.
-
 ## Types
-
-### CampaignWebSocketBus
-
-### KGHooks
-
-KGHooks manages real-time knowledge graph updates.
-
-#### Methods
-
-##### Start
-
-Start begins processing knowledge graph updates.
-
-##### Stop
-
-Stop gracefully shuts down the hooks.
-
-### KGService
-
-KGService manages the knowledge graph service.
-
-#### Methods
-
-##### IsDegraded
-
-IsDegraded returns whether the service is in degraded mode.
-
-##### PublishUpdate
-
-PublishUpdate sends an update to the knowledge graph.
-
-##### RecoverFromDegradedMode
-
-RecoverFromDegradedMode attempts to recover the service from degraded mode.
-
-##### RegisterService
-
-RegisterService registers a new service with the knowledge graph.
-
-##### Start
-
-Start initializes the knowledge graph service.
-
-##### Stop
-
-Stop gracefully shuts down the service.
-
-##### UpdateRelation
-
-UpdateRelation updates a relation in the knowledge graph.
-
-##### UpdateSchema
-
-UpdateSchema updates the schema for a service.
-
-### KGUpdate
-
-KGUpdate represents a knowledge graph update event.
-
-### KGUpdateType
-
-KGUpdateType represents the type of knowledge graph update.
 
 ### Server
 
@@ -97,9 +29,7 @@ KGUpdateType represents the type of knowledge graph update.
 
 ##### Stop
 
-### WebSocketBus
-
-### WebSocketEvent
+### ServiceRegistration
 
 ## Functions
 
@@ -107,24 +37,26 @@ KGUpdateType represents the type of knowledge graph update.
 
 RegisterAllServices registers all gRPC services with the server.
 
-### RegisterMediaUploadHandlers
-
-RegisterMediaUploadHandlers registers all media upload endpoints to the mux.
-
-### RegisterWebSocketHandlers
-
 ### Run
 
 Run starts the main server, including gRPC, health, and metrics endpoints.
 
 ### SecurityUnaryServerInterceptor
 
-SecurityUnaryServerInterceptor creates a new unary server interceptor that logs request details and
-checks authorization.
+SecurityUnaryServerInterceptor enforces security and audit logging for all gRPC requests.
 
-### StartHTTPServer
+Best Practice Pathway:
 
-StartHTTPServer sets up and starts the HTTP server in a goroutine.
+1. Extract user/session info, method, and resource from context/request if available.
+2. Prepare AuthorizeRequest with real data as soon as proto supports it.
+3. Only call AuditEvent after the handler, and only if the request was authorized and handled.
+4. Populate AuditEvent with as much context as possible: service, method, principal, resource,
+   status, error, timestamp.
+5. If authorization fails, do not call the handler or audit event.
+6. If audit logging fails, log a warning but do not fail the request.
+7. If guest_mode is detected, assign diminished responsibilities/permissions.
+8. Minimize allocations and logging overhead in the hot path.
+9. Add clear comments for future extensibility and best practices.
 
 ### StreamServerInterceptor
 

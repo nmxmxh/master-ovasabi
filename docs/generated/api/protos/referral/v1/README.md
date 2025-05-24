@@ -33,6 +33,8 @@ Deprecated: Use CreateReferralRequest.ProtoReflect.Descriptor instead.
 
 ##### GetReferrerMasterId
 
+##### GetReferrerMasterUuid
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -115,6 +117,8 @@ Deprecated: Use GetReferralStatsRequest.ProtoReflect.Descriptor instead.
 
 ##### GetMasterId
 
+##### GetMasterUuid
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -169,13 +173,21 @@ Deprecated: Use Referral.ProtoReflect.Descriptor instead.
 
 ##### GetId
 
+##### GetMasterId
+
+##### GetMasterUuid
+
 ##### GetMetadata
 
 ##### GetReferralCode
 
 ##### GetReferredMasterId
 
+##### GetReferredMasterUuid
+
 ##### GetReferrerMasterId
+
+##### GetReferrerMasterUuid
 
 ##### GetSuccessful
 
@@ -208,6 +220,8 @@ Deprecated: Use ReferralDetail.ProtoReflect.Descriptor instead.
 ##### GetReferralCode
 
 ##### GetReferredMasterId
+
+##### GetReferredMasterUuid
 
 ##### GetRewardPoints
 

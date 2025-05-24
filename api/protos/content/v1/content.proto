@@ -28,69 +28,80 @@ service ContentService {
 
 message Content {
   string id = 1;
-  string master_id = 2; // UUID reference to master table
-  string author_id = 3;
-  string type = 4; // "article", "micro", "video", "story", etc.
-  string title = 5;
-  string body = 6;
-  repeated string media_urls = 7;
-  common.Metadata metadata = 8;
-  repeated string tags = 9;
-  string parent_id = 10; // for comments/replies
-  string visibility = 11; // "public", "private", etc.
-  int64 created_at = 12;
-  int64 updated_at = 13;
-  int32 comment_count = 14;
-  map<string, int32> reaction_counts = 15;
-  reserved 16 to 19;
+  int64 master_id = 2; // Internal integer ID reference to master table
+  string master_uuid = 3; // Global UUID reference to master table
+  int64 campaign_id = 4; // NEW: campaign/tenant context
+  string author_id = 5;
+  string type = 6; // "article", "micro", "video", "story", etc.
+  string title = 7;
+  string body = 8;
+  repeated string media_urls = 9;
+  common.Metadata metadata = 10;
+  repeated string tags = 11;
+  string parent_id = 12; // for comments/replies
+  string visibility = 13; // "public", "private", etc.
+  int64 created_at = 14;
+  int64 updated_at = 15;
+  int32 comment_count = 16;
+  map<string, int32> reaction_counts = 17;
+  reserved 18 to 19;
 }
 
 message Comment {
   string id = 1;
   string content_id = 2;
-  string master_id = 3;
-  string author_id = 4;
-  string body = 5;
-  int64 created_at = 6;
-  int64 updated_at = 7;
-  common.Metadata metadata = 8;
-  reserved 9 to 19;
+  int64 master_id = 3; // Internal integer ID reference to master table
+  string master_uuid = 4; // Global UUID reference to master table
+  string author_id = 5;
+  string body = 6;
+  int64 created_at = 7;
+  int64 updated_at = 8;
+  common.Metadata metadata = 9;
+  reserved 10 to 19;
 }
 
 message ContentEvent {
   string id = 1;
   string content_id = 2;
-  string master_id = 3;
-  string event_type = 4;
-  string user_id = 5;
-  int64 occurred_at = 6;
-  map<string, string> payload = 7;
-  reserved 8 to 19;
+  int64 master_id = 3; // Internal integer ID reference to master table
+  string master_uuid = 4; // Global UUID reference to master table
+  int64 campaign_id = 5; // NEW: campaign/tenant context
+  string event_type = 6;
+  string user_id = 7;
+  int64 occurred_at = 8;
+  map<string, string> payload = 9;
+  reserved 10 to 19;
 }
 
-message CreateContentRequest { Content content = 1; }
+message CreateContentRequest {
+  int64 campaign_id = 1; // NEW: campaign/tenant context
+  Content content = 2;
+}
+
 message GetContentRequest { string id = 1; }
 message UpdateContentRequest { Content content = 1; }
 message DeleteContentRequest { string id = 1; }
 message ListContentRequest {
-  string author_id = 1;
-  string type = 2;
-  int32 page = 3;
-  int32 page_size = 4;
-  repeated string tags = 5;
-  common.Metadata metadata = 6;
-  string search_query = 7;
-  string parent_id = 8;
-  string visibility = 9;
-  reserved 10 to 19;
-}
-message SearchContentRequest {
-  string query = 1;
-  repeated string tags = 2;
-  common.Metadata metadata = 3;
+  int64 campaign_id = 1; // NEW: campaign/tenant context
+  string author_id = 2;
+  string type = 3;
   int32 page = 4;
   int32 page_size = 5;
-  reserved 6 to 19;
+  repeated string tags = 6;
+  common.Metadata metadata = 7;
+  string search_query = 8;
+  string parent_id = 9;
+  string visibility = 10;
+  reserved 11 to 19;
+}
+message SearchContentRequest {
+  int64 campaign_id = 1; // NEW: campaign/tenant context
+  string query = 2;
+  repeated string tags = 3;
+  common.Metadata metadata = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+  reserved 7 to 19;
 }
 message ListContentResponse { repeated Content contents = 1; int32 total = 2; }
 

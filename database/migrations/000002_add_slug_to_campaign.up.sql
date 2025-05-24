@@ -1,0 +1,2 @@
+ALTER TABLE service_campaign_main
+ADD COLUMN slug TEXT UNIQUE NOT NULL DEFAULT ''; 

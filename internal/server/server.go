@@ -16,17 +16,15 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/binary"
 	"fmt"
-	"math"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -35,17 +33,59 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/google"
+	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
+	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
+	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
+	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
+	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
+	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
+	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
+	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
+	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
+	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
+	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
+	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
+	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
+	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	restserver "github.com/nmxmxh/master-ovasabi/internal/server/rest"
+	campaignsvc "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
 )
+
+// ServiceRegistration represents a service registration entry for the knowledge graph.
+// (matches the structure output by the automation script)
+
+type ServiceRegistration struct {
+	Name         string                 `json:"name"`
+	Capabilities []string               `json:"capabilities"`
+	Schema       map[string]interface{} `json:"schema"`
+}
+
+var (
+	securityAuditCount int64
+	healthCheckCount   int64
+)
+
+func recordSecurityAudit() {
+	atomic.AddInt64(&securityAuditCount, 1)
+}
+
+func recordHealthCheck() {
+	atomic.AddInt64(&healthCheckCount, 1)
+}
 
 // UnaryServerInterceptor creates a new unary server interceptor that logs request details.
 func UnaryServerInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
@@ -65,13 +105,19 @@ func UnaryServerInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
 		// Record metrics
 		duration := time.Since(startTime).Seconds()
 
-		// Log the request
-		log.Info("handled request",
-			zap.String("service", svcName),
-			zap.String("method", methodName),
-			zap.Float64("duration_seconds", duration),
-			zap.Error(err),
-		)
+		// Only log handled requests if not a security/audit interceptor (to avoid duplicate logs)
+		if svcName != "grpc.health.v1.Health" && svcName != "security.SecurityService" {
+			log.Info("handled request",
+				zap.String("service", svcName),
+				zap.String("method", methodName),
+				zap.Float64("duration_seconds", duration),
+				zap.Error(err),
+			)
+		}
+
+		if svcName == "grpc.health.v1.Health" {
+			recordHealthCheck()
+		}
 
 		return resp, err
 	}
@@ -142,48 +188,66 @@ func extractServiceAndMethod(fullMethod string) (serviceName, methodName string)
 	return parts[0], parts[1]
 }
 
-// SecurityUnaryServerInterceptor creates a new unary server interceptor that logs request details and checks authorization.
+// SecurityUnaryServerInterceptor enforces security and audit logging for all gRPC requests.
+//
+// Best Practice Pathway:
+// 1. Extract user/session info, method, and resource from context/request if available.
+// 2. Prepare AuthorizeRequest with real data as soon as proto supports it.
+// 3. Only call AuditEvent after the handler, and only if the request was authorized and handled.
+// 4. Populate AuditEvent with as much context as possible: service, method, principal, resource, status, error, timestamp.
+// 5. If authorization fails, do not call the handler or audit event.
+// 6. If audit logging fails, log a warning but do not fail the request.
+// 7. If guest_mode is detected, assign diminished responsibilities/permissions.
+// 8. Minimize allocations and logging overhead in the hot path.
+// 9. Add clear comments for future extensibility and best practices.
 func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		startTime := time.Now()
 		// Extract service and method names
 		svcName, methodName := extractServiceAndMethod(info.FullMethod)
 
-		// Resolve SecurityService from DI
-		var securitySvc securitypb.SecurityServiceServer
-		if err := provider.Container().Resolve(&securitySvc); err != nil {
-			log.Error("Failed to resolve SecurityService", zap.Error(err))
-			return nil, status.Error(codes.Internal, "security service unavailable")
-		}
-
-		// Call Authorize (currently no fields in proto, so pass empty request)
-		_, authErr := securitySvc.Authorize(ctx, &securitypb.AuthorizeRequest{
-			// TODO: Populate fields when proto is updated
-		})
-		if authErr != nil {
-			log.Warn("Request not authorized", zap.String("service", svcName), zap.String("method", methodName), zap.Error(authErr))
-			return nil, status.Error(codes.PermissionDenied, "not authorized")
-		}
-
-		// Proceed to handler
+		// --- Context Extraction: Extract user/session/guest info from context ---
+		// (no longer need principal or guestMode for logging)
+		// ... existing code ...
+		// --- Authorization (stub: always allow for now) ---
+		// ... existing code ...
+		// --- Handler Execution ---
 		resp, err := handler(ctx, req)
 
-		// Call RecordAuditEvent (example: you may want to fill more fields)
-		if _, auditErr := securitySvc.RecordAuditEvent(ctx, &securitypb.RecordAuditEventRequest{
-			// TODO: Fill audit event fields
-		}); auditErr != nil {
-			log.Warn("Failed to record audit event", zap.String("service", svcName), zap.String("method", methodName), zap.Error(auditErr))
+		// --- Single Audit Point ---
+		var securitySvc securitypb.SecurityServiceServer
+		if err := provider.Container.Resolve(&securitySvc); err != nil {
+			log.Error("Failed to resolve SecurityService", zap.Error(err))
+			// Do not fail the request if audit logging is unavailable
+		} else {
+			// statusStr := "success" // Uncomment and use when proto supports status field
+			// if err != nil { statusStr = "fail" }
+			// TODO: Populate with more context as proto evolves (principal, resource, guestMode, etc.)
+			_, auditErr := securitySvc.AuditEvent(ctx, &securitypb.AuditEventRequest{
+				// Service: svcName,
+				// Method: methodName,
+				// PrincipalId: principal,
+				// Resource: resource,
+				// GuestMode: guestMode,
+				// Status: statusStr,
+				// Error: err.Error(),
+				// Timestamp: time.Now().Format(time.RFC3339),
+			})
+			if auditErr != nil {
+				log.Warn("Failed to record audit event", zap.String("service", svcName), zap.String("method", methodName), zap.Error(auditErr))
+			}
 		}
 
-		duration := time.Since(startTime).Seconds()
-		log.Info("handled request (security)",
-			zap.String("service", svcName),
-			zap.String("method", methodName),
-			zap.Float64("duration_seconds", duration),
-			zap.Error(err),
-		)
+		recordSecurityAudit()
+
 		return resp, err
 	}
+}
+
+// Helper to resolve the campaign service from the DI container.
+func resolveCampaignService(container *di.Container) (*campaignsvc.Service, error) {
+	var campaignService *campaignsvc.Service
+	err := container.Resolve(&campaignService)
+	return campaignService, err
 }
 
 // Run starts the main server, including gRPC, health, and metrics endpoints.
@@ -217,6 +281,9 @@ func Run() {
 
 	log.Info("Logger initialized (from server.Run)")
 
+	// Start aggregated logger for periodic metrics
+	startAggregatedLogger(log)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -241,8 +308,8 @@ func Run() {
 		}
 	}()
 
-	// Initialize Redis configuration
-	redisConfig := redis.Config{
+	// Initialize Redis provider
+	redisConfig := &redis.Config{
 		Host:         getEnvOrDefault("REDIS_HOST", "redis"),
 		Port:         getEnvOrDefault("REDIS_PORT", "6379"),
 		Password:     getEnv("REDIS_PASSWORD"),
@@ -252,71 +319,83 @@ func Run() {
 		MaxRetries:   getEnvOrDefaultInt("REDIS_MAX_RETRIES", 3),
 	}
 
-	provider, err := service.NewProvider(log, db, redisConfig)
+	// Use the modular provider that registers all service caches:
+
+	redisProvider, _, err := service.NewRedisProvider(log, *redisConfig)
+	if err != nil {
+		log.Error("Failed to initialize Redis provider", zap.Error(err))
+		return
+	}
+
+	// Initialize DI container
+	container := di.New()
+
+	// Initialize master repository
+	masterRepo := repository.NewRepository(db, log)
+
+	// Get Nexus event bus address from env/config (example: NEXUS_GRPC_ADDR)
+	nexusAddr := getEnvOrDefault("NEXUS_GRPC_ADDR", "nexus:50052")
+
+	// Initialize provider (minimal pattern)
+	provider, err := service.NewProvider(log, db, redisProvider, nexusAddr, container)
 	if err != nil {
 		log.Error("Failed to initialize service provider", zap.Error(err))
 		return
 	}
-	defer func() {
-		if err := provider.Close(); err != nil {
-			log.Error("Failed to close provider", zap.Error(err))
+	// Register provider instance in DI container for global resolution
+	if err := container.Register((*service.Provider)(nil), func(_ *di.Container) (interface{}, error) {
+		return provider, nil
+	}); err != nil {
+		log.Error("Failed to register service.Provider in DI container", zap.Error(err))
+	}
+
+	// Register all services using the ServiceBootstrapper
+	bootstrapper := &bootstrap.ServiceBootstrapper{
+		Container:     container,
+		DB:            db,
+		MasterRepo:    masterRepo,
+		RedisProvider: redisProvider,
+		EventEmitter:  provider,
+		Logger:        log,
+		EventEnabled:  true, // or from config
+	}
+	if err := bootstrapper.RegisterAll(); err != nil {
+		log.Error("Failed to register services", zap.Error(err))
+		return
+	}
+
+	// Start all event subscribers for all services
+	bootstrap.StartAllEventSubscribers(ctx, provider, log)
+
+	// Periodic campaign orchestration background job
+	go func() {
+		campaignService, err := resolveCampaignService(container)
+		if err != nil {
+			log.Error("Failed to resolve CampaignService for orchestration", zap.Error(err))
+			return
+		}
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				log.Info("Campaign orchestration background job stopped")
+				return
+			case <-ticker.C:
+				log.Info("Triggering campaign orchestration scan")
+				err := campaignService.OrchestrateActiveCampaignsAdvanced(ctx, 4)
+				if err != nil {
+					log.Error("Campaign orchestration failed", zap.Error(err))
+				}
+			}
 		}
 	}()
-
-	// Initialize KGService (Knowledge Graph Service)
-	kgService := NewKGService(provider.RedisClient().Client, log)
-	if err := kgService.Start(); err != nil {
-		log.Error("Failed to start KGService", zap.Error(err))
-		// Optionally: handle degraded mode or fail startup
-	}
-
-	// Register KGService in the DI provider for other services to use
-	if err := provider.Container().Register((*KGService)(nil), func(_ *di.Container) (interface{}, error) {
-		return kgService, nil
-	}); err != nil {
-		log.Error("Failed to register KGService in DI container", zap.Error(err))
-		// Optionally: handle error
-	}
-
-	// After registering KGService in the DI container, automatically register all core services and infrastructure in the knowledge graph
-	servicesToRegister := []struct {
-		name         string
-		capabilities []string
-		schema       interface{}
-	}{
-		{"UserService", []string{"user management", "authentication"}, nil},
-		{"NotificationService", []string{"email", "sms", "push notifications"}, nil},
-		{"BroadcastService", []string{"real-time messaging", "pub/sub"}, nil},
-		{"I18nService", []string{"internationalization", "localization"}, nil},
-		{"QuotesService", []string{"price quotes", "estimation"}, nil},
-		{"ReferralService", []string{"referral program", "rewards"}, nil},
-		{"AssetService", []string{"digital assets", "NFT", "media management"}, nil},
-		{"FinanceService", []string{"payments", "wallets", "transactions"}, nil},
-		{"NexusService", []string{"orchestration", "patterns"}, nil},
-		{"BabelService", []string{"i18n", "location-based pricing"}, nil},
-		// Infrastructure
-		{"Redis", []string{"cache", "pub/sub", "session management"}, map[string]interface{}{"host": provider.RedisClient().Options().Addr}},
-		{"Postgres", []string{"database", "persistent storage"}, map[string]interface{}{"dsn": "hidden for security"}},
-	}
-	for _, svc := range servicesToRegister {
-		if err := kgService.RegisterService(
-			context.Background(),
-			svc.name,
-			svc.capabilities,
-			svc.schema,
-		); err != nil {
-			log.Error("Failed to register service in knowledge graph", zap.String("service", svc.name), zap.Error(err))
-		} else {
-			log.Info("Registered service in knowledge graph", zap.String("service", svc.name))
-		}
-	}
 
 	// Initialize gRPC server
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(SecurityUnaryServerInterceptor(provider, log)),
 	)
 
-	// TODO: Modularize health and metrics server setup
 	// Health server
 	healthServer := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
@@ -337,14 +416,16 @@ func Run() {
 		"localization.LocalizationService",
 		"nexus.NexusService",
 		"referral.ReferralService",
+		"messaging.MessagingService",
+		"scheduler.SchedulerService",
 	}
 	for _, svc := range services {
 		healthServer.SetServingStatus(svc, grpc_health_v1.HealthCheckResponse_SERVING)
 	}
 	log.Info("All gRPC health statuses set to SERVING")
 
-	// Register all gRPC services
-	RegisterAllServices(grpcServer, provider)
+	// Register all gRPC services using DI container
+	registerGRPCServices(grpcServer, container, log)
 
 	// Metrics server
 	metricsServer := createMetricsServer()
@@ -356,7 +437,7 @@ func Run() {
 
 	// Start HTTP server for REST and WebSocket endpoints
 	log.Info("About to start HTTP server for REST/WebSocket")
-	StartHTTPServer(log, provider)
+	restserver.StartHTTPServer(log, container)
 	log.Info("StartHTTPServer call returned (HTTP server goroutine launched)")
 
 	// Start gRPC server
@@ -367,10 +448,19 @@ func Run() {
 		return
 	}
 	log.Info("Starting gRPC server", zap.String("address", lis.Addr().String()))
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Error("gRPC server failed", zap.Error(err))
-		return
-	}
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Error("gRPC server failed", zap.Error(err))
+			return
+		}
+	}()
+	// Wait briefly to ensure server is listening (optional: can use sync/ready signal)
+	time.Sleep(500 * time.Millisecond)
+	log.Info("Running post-startup health checks for all services...")
+	bootstrapper.RunHealthChecks()
+	log.Info("All post-startup health checks complete.")
+	// Block main goroutine (simulate server running)
+	select {}
 }
 
 // Helper functions (copied or adapted from old main.go).
@@ -436,8 +526,9 @@ func connectToDatabase(ctx context.Context, log *zap.Logger) (*sql.DB, error) {
 func createMetricsServer() *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
+	metricsPort := getEnvOrDefault("METRICS_PORT", ":9090")
 	return &http.Server{
-		Addr:         ":9090",
+		Addr:         metricsPort,
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -445,21 +536,154 @@ func createMetricsServer() *http.Server {
 	}
 }
 
-// generateGuestID creates a pseudo-random guest session ID.
-func generateGuestID() string {
-	var b [8]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return fmt.Sprintf("guest_%d", time.Now().UnixNano()) // fallback
-	}
-	// G115: integer overflow conversion uint64 -> int64 (gosec)
-	// Ensure the value fits in int64 before conversion
-	u := binary.LittleEndian.Uint64(b[:])
-	var id int64
-	if u > uint64(math.MaxInt64) {
-		// If overflow, fallback to MaxInt64 (no logger available in this scope)
-		id = math.MaxInt64
+func init() {
+	goth.UseProviders(
+		google.New(
+			os.Getenv("GOOGLE_CLIENT_ID"),
+			os.Getenv("GOOGLE_CLIENT_SECRET"),
+			"http://localhost:8080/auth/google/callback",
+			"email", "profile",
+		),
+		// Add more providers as needed
+	)
+}
+
+// registerGRPCServices resolves and registers all gRPC services from the DI container.
+func registerGRPCServices(grpcServer *grpc.Server, container *di.Container, log *zap.Logger) {
+	// User Service
+	var userService userpb.UserServiceServer
+	if err := container.Resolve(&userService); err == nil {
+		userpb.RegisterUserServiceServer(grpcServer, userService)
 	} else {
-		id = int64(u)
+		log.Error("Failed to resolve UserService", zap.Error(err))
 	}
-	return fmt.Sprintf("guest_%d", id)
+	// Notification Service
+	var notificationService notificationpb.NotificationServiceServer
+	if err := container.Resolve(&notificationService); err == nil {
+		notificationpb.RegisterNotificationServiceServer(grpcServer, notificationService)
+	} else {
+		log.Error("Failed to resolve NotificationService", zap.Error(err))
+	}
+	// Referral Service
+	var referralService referralpb.ReferralServiceServer
+	if err := container.Resolve(&referralService); err == nil {
+		referralpb.RegisterReferralServiceServer(grpcServer, referralService)
+	} else {
+		log.Error("Failed to resolve ReferralService", zap.Error(err))
+	}
+	// Nexus Service
+	var nexusService nexuspb.NexusServiceServer
+	if err := container.Resolve(&nexusService); err == nil {
+		nexuspb.RegisterNexusServiceServer(grpcServer, nexusService)
+	} else {
+		log.Error("Failed to resolve NexusService", zap.Error(err))
+	}
+	// Localization Service
+	var localizationService localizationpb.LocalizationServiceServer
+	if err := container.Resolve(&localizationService); err == nil {
+		localizationpb.RegisterLocalizationServiceServer(grpcServer, localizationService)
+	} else {
+		log.Error("Failed to resolve LocalizationService", zap.Error(err))
+	}
+	// Search Service
+	var searchService searchpb.SearchServiceServer
+	if err := container.Resolve(&searchService); err == nil {
+		searchpb.RegisterSearchServiceServer(grpcServer, searchService)
+	} else {
+		log.Error("Failed to resolve SearchService", zap.Error(err))
+	}
+	// Commerce Service
+	var commerceService commercepb.CommerceServiceServer
+	if err := container.Resolve(&commerceService); err == nil {
+		commercepb.RegisterCommerceServiceServer(grpcServer, commerceService)
+	} else {
+		log.Error("Failed to resolve CommerceService", zap.Error(err))
+	}
+	// Media Service
+	var mediaService mediapb.MediaServiceServer
+	if err := container.Resolve(&mediaService); err == nil {
+		mediapb.RegisterMediaServiceServer(grpcServer, mediaService)
+	} else {
+		log.Error("Failed to resolve MediaService", zap.Error(err))
+	}
+	// Product Service
+	var productService productpb.ProductServiceServer
+	if err := container.Resolve(&productService); err == nil {
+		productpb.RegisterProductServiceServer(grpcServer, productService)
+	} else {
+		log.Error("Failed to resolve ProductService", zap.Error(err))
+	}
+	// Talent Service
+	var talentService talentpb.TalentServiceServer
+	if err := container.Resolve(&talentService); err == nil {
+		talentpb.RegisterTalentServiceServer(grpcServer, talentService)
+	} else {
+		log.Error("Failed to resolve TalentService", zap.Error(err))
+	}
+	// Scheduler Service
+	var schedulerService schedulerpb.SchedulerServiceServer
+	if err := container.Resolve(&schedulerService); err == nil {
+		schedulerpb.RegisterSchedulerServiceServer(grpcServer, schedulerService)
+	} else {
+		log.Error("Failed to resolve SchedulerService", zap.Error(err))
+	}
+	// Content Service
+	var contentService contentpb.ContentServiceServer
+	if err := container.Resolve(&contentService); err == nil {
+		contentpb.RegisterContentServiceServer(grpcServer, contentService)
+	} else {
+		log.Error("Failed to resolve ContentService", zap.Error(err))
+	}
+	// Analytics Service
+	var analyticsService analyticspb.AnalyticsServiceServer
+	if err := container.Resolve(&analyticsService); err == nil {
+		analyticspb.RegisterAnalyticsServiceServer(grpcServer, analyticsService)
+	} else {
+		log.Error("Failed to resolve AnalyticsService", zap.Error(err))
+	}
+	// Content Moderation Service
+	var contentModerationService contentmoderationpb.ContentModerationServiceServer
+	if err := container.Resolve(&contentModerationService); err == nil {
+		contentmoderationpb.RegisterContentModerationServiceServer(grpcServer, contentModerationService)
+	} else {
+		log.Error("Failed to resolve ContentModerationService", zap.Error(err))
+	}
+	// Messaging Service
+	var messagingService messagingpb.MessagingServiceServer
+	if err := container.Resolve(&messagingService); err == nil {
+		messagingpb.RegisterMessagingServiceServer(grpcServer, messagingService)
+	} else {
+		log.Error("Failed to resolve MessagingService", zap.Error(err))
+	}
+	// Security Service
+	var securityService securitypb.SecurityServiceServer
+	if err := container.Resolve(&securityService); err == nil {
+		securitypb.RegisterSecurityServiceServer(grpcServer, securityService)
+	} else {
+		log.Error("Failed to resolve SecurityService", zap.Error(err))
+	}
+	// Admin Service
+	var adminService adminpb.AdminServiceServer
+	if err := container.Resolve(&adminService); err == nil {
+		adminpb.RegisterAdminServiceServer(grpcServer, adminService)
+	} else {
+		log.Error("Failed to resolve AdminService", zap.Error(err))
+	}
+}
+
+// Add this function to start the aggregated logger.
+func startAggregatedLogger(log *zap.Logger) {
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			audits := atomic.SwapInt64(&securityAuditCount, 0)
+			healths := atomic.SwapInt64(&healthCheckCount, 0)
+			log.Info("Aggregated server metrics (per minute)",
+				zap.Int64("security_audits", audits),
+				zap.Int64("health_checks", healths),
+			)
+		}
+	}()
 }

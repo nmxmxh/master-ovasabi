@@ -1,4 +1,4 @@
-# Package analyticsrepo
+# Package analytics
 
 ## Types
 

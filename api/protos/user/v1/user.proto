@@ -7,7 +7,7 @@ import "common/v1/metadata.proto";
 
 option go_package = "master-ovasabi/api/protos/user/v1;userv1";
 
-// UserService handles user management, authentication, RBAC, and audit operations
+// --- User Service: Full Social, Account, and Metadata API ---
 service UserService {
   // --- User Management ---
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {}
@@ -19,6 +19,8 @@ service UserService {
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {}
   rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse) {}
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse) {}
+  rpc RegisterInterest(RegisterInterestRequest) returns (RegisterInterestResponse) {}
+  rpc CreateReferral(CreateReferralRequest) returns (CreateReferralResponse) {}
 
   // --- Session Management ---
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse) {}
@@ -36,37 +38,80 @@ service UserService {
   rpc ListUserEvents(ListUserEventsRequest) returns (ListUserEventsResponse) {}
   rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse) {}
 
-  // --- SSO, MFA, SCIM Extensibility (placeholders for future expansion) ---
+  // --- SSO, MFA, SCIM Extensibility ---
   rpc InitiateSSO(InitiateSSORequest) returns (InitiateSSOResponse) {}
   rpc InitiateMFA(InitiateMFARequest) returns (InitiateMFAResponse) {}
   rpc SyncSCIM(SyncSCIMRequest) returns (SyncSCIMResponse) {}
 
-  // --- Legacy/Platform-specific ---
-  rpc RegisterInterest(RegisterInterestRequest) returns (RegisterInterestResponse) {}
-  rpc CreateReferral(CreateReferralRequest) returns (CreateReferralResponse) {}
+  // --- Social Graph APIs ---
+  rpc AddFriend(AddFriendRequest) returns (AddFriendResponse) {}
+  rpc RemoveFriend(RemoveFriendRequest) returns (RemoveFriendResponse) {}
+  rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse) {}
+
+  rpc FollowUser(FollowUserRequest) returns (FollowUserResponse) {}
+  rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse) {}
+  rpc ListFollowers(ListFollowersRequest) returns (ListFollowersResponse) {}
+  rpc ListFollowing(ListFollowingRequest) returns (ListFollowingResponse) {}
+
+  // --- Group APIs ---
+  rpc CreateUserGroup(CreateUserGroupRequest) returns (CreateUserGroupResponse) {}
+  rpc UpdateUserGroup(UpdateUserGroupRequest) returns (UpdateUserGroupResponse) {}
+  rpc DeleteUserGroup(DeleteUserGroupRequest) returns (DeleteUserGroupResponse) {}
+  rpc ListUserGroups(ListUserGroupsRequest) returns (ListUserGroupsResponse) {}
+  rpc ListUserGroupMembers(ListUserGroupMembersRequest) returns (ListUserGroupMembersResponse) {}
+
+  // --- Social Graph Discovery ---
+  rpc SuggestConnections(SuggestConnectionsRequest) returns (SuggestConnectionsResponse) {}
+  rpc ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse) {}
+
+  // --- Moderation/Interaction APIs ---
+  rpc BlockUser(BlockUserRequest) returns (BlockUserResponse) {}
+  rpc UnblockUser(UnblockUserRequest) returns (UnblockUserResponse) {}
+  rpc MuteUser(MuteUserRequest) returns (MuteUserResponse) {}
+  rpc UnmuteUser(UnmuteUserRequest) returns (UnmuteUserResponse) {}
+  rpc ReportUser(ReportUserRequest) returns (ReportUserResponse) {}
+
+  // For group/content moderation:
+  rpc BlockGroupContent(BlockGroupContentRequest) returns (BlockGroupContentResponse) {}
+  rpc ReportGroupContent(ReportGroupContentRequest) returns (ReportGroupContentResponse) {}
+  rpc MuteGroupContent(MuteGroupContentRequest) returns (MuteGroupContentResponse) {}
+  // Mute all members of a group (optionally, with a duration)
+  rpc MuteGroupIndividuals(MuteGroupIndividualsRequest) returns (MuteGroupIndividualsResponse) {}
+  // Block all members of a group (optionally, with a duration)
+  rpc BlockGroupIndividuals(BlockGroupIndividualsRequest) returns (BlockGroupIndividualsResponse) {}
+
+  rpc UnmuteGroup(UnmuteGroupRequest) returns (UnmuteGroupResponse);
+  rpc UnmuteGroupIndividuals(UnmuteGroupIndividualsRequest) returns (UnmuteGroupIndividualsResponse);
+  rpc UnblockGroupIndividuals(UnblockGroupIndividualsRequest) returns (UnblockGroupIndividualsResponse);
 }
 
 // --- Core Entities ---
 
 message User {
   string id = 1; // UUID
-  string master_id = 2; // For analytics/unified queries
-  string username = 3;
-  string email = 4;
-  string referral_code = 5;
-  string referred_by = 6;
-  string device_hash = 7;
-  string location = 8;
-  google.protobuf.Timestamp created_at = 9;
-  google.protobuf.Timestamp updated_at = 10;
-  string password_hash = 11;
-  common.Metadata metadata = 12;
-  UserProfile profile = 13;
-  repeated string roles = 14;
-  UserStatus status = 15;
-  repeated string tags = 16;
-  map<string, string> external_ids = 17;
-  reserved 18 to 29;
+  int64 master_id = 2; // Internal integer ID for analytics/unified queries
+  string master_uuid = 3; // Global UUID for external APIs and global uniqueness
+  string username = 4;
+  string email = 5;
+  string referral_code = 6;
+  string referred_by = 7;
+  string device_hash = 8;
+  string location = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  string password_hash = 12;
+  common.Metadata metadata = 13;
+  UserProfile profile = 14;
+  repeated string roles = 15;
+  UserStatus status = 16;
+  repeated string tags = 17;
+  map<string, string> external_ids = 18;
+  // --- Social graph fields ---
+  repeated string user_group_ids = 30;
+  repeated string friend_ids = 31;
+  repeated string follower_ids = 32;
+  repeated string following_ids = 33;
+  reserved 19 to 29, 34 to 39;
 }
 
 message UserProfile {
@@ -89,7 +134,55 @@ enum UserStatus {
   USER_STATUS_PENDING = 4;
 }
 
-// --- User Management Requests/Responses (existing, updated for UUID) ---
+// --- Social Entities ---
+// UserGroup: Identity/social group for membership, RBAC, and social graph.
+message UserGroup {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string member_ids = 4;
+  map<string, string> roles = 5; // user_id -> role (admin, member, etc.)
+  common.Metadata metadata = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message Friendship {
+  string id = 1;
+  string user_id = 2;
+  string friend_id = 3;
+  FriendshipStatus status = 4;
+  common.Metadata metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+enum FriendshipStatus {
+  FRIENDSHIP_STATUS_UNSPECIFIED = 0;
+  FRIENDSHIP_STATUS_PENDING = 1;
+  FRIENDSHIP_STATUS_ACCEPTED = 2;
+  FRIENDSHIP_STATUS_BLOCKED = 3;
+  FRIENDSHIP_STATUS_REJECTED = 4;
+}
+
+message Follow {
+  string id = 1;
+  string follower_id = 2;
+  string followee_id = 3;
+  FollowStatus status = 4;
+  common.Metadata metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+enum FollowStatus {
+  FOLLOW_STATUS_UNSPECIFIED = 0;
+  FOLLOW_STATUS_ACTIVE = 1;
+  FOLLOW_STATUS_BLOCKED = 2;
+}
+
+// --- Requests/Responses ---
+// User CRUD
 message CreateUserRequest {
   string username = 1;
   string email = 2;
@@ -103,19 +196,16 @@ message GetUserRequest { string user_id = 1; }
 message GetUserResponse { User user = 1; }
 message GetUserByUsernameRequest { string username = 1; }
 message GetUserByUsernameResponse { User user = 1; }
-message GetUserByEmailRequest {
-  string email = 1;
-}
-message GetUserByEmailResponse {
-  User user = 1;
-}
+message GetUserByEmailRequest { string email = 1; }
+message GetUserByEmailResponse { User user = 1; }
 message UpdateUserRequest {
   string user_id = 1;
   User user = 2;
   repeated string fields_to_update = 3;
+  common.Metadata metadata = 4;
 }
 message UpdateUserResponse { User user = 1; }
-message DeleteUserRequest { string user_id = 1; bool hard_delete = 2; }
+message DeleteUserRequest { string user_id = 1; bool hard_delete = 2; common.Metadata metadata = 3; }
 message DeleteUserResponse { bool success = 1; }
 message ListUsersRequest {
   int32 page = 1;
@@ -134,6 +224,7 @@ message ListUsersResponse {
   int32 page = 3;
   int32 total_pages = 4;
 }
+// Password/Profile
 message UpdatePasswordRequest {
   string user_id = 1;
   string current_password = 2;
@@ -146,23 +237,19 @@ message UpdateProfileRequest {
   repeated string fields_to_update = 3;
 }
 message UpdateProfileResponse { User user = 1; }
-
-// --- Session Management ---
+// Session
 message CreateSessionRequest {
   string user_id = 1;
   string password = 2;
   string device_info = 3;
 }
-message CreateSessionResponse {
-  Session session = 1;
-}
+message CreateSessionResponse { Session session = 1; }
 message GetSessionRequest { string session_id = 1; }
 message GetSessionResponse { Session session = 1; }
 message RevokeSessionRequest { string session_id = 1; }
 message RevokeSessionResponse { bool success = 1; }
 message ListSessionsRequest { string user_id = 1; }
 message ListSessionsResponse { repeated Session sessions = 1; }
-
 message Session {
   string id = 1;
   string user_id = 2;
@@ -175,63 +262,212 @@ message Session {
   common.Metadata metadata = 9;
   reserved 10 to 19;
 }
-
-// --- RBAC & Permissions ---
-message AssignRoleRequest {
-  string user_id = 1;
-  string role = 2;
-}
+// RBAC
+message AssignRoleRequest { string user_id = 1; string role = 2; }
 message AssignRoleResponse { bool success = 1; }
-message RemoveRoleRequest {
-  string user_id = 1;
-  string role = 2;
-}
+message RemoveRoleRequest { string user_id = 1; string role = 2; }
 message RemoveRoleResponse { bool success = 1; }
 message ListRolesRequest { string user_id = 1; }
 message ListRolesResponse { repeated string roles = 1; }
 message ListPermissionsRequest { string user_id = 1; }
 message ListPermissionsResponse { repeated string permissions = 1; }
-
-// --- Audit/Event Log ---
+// Audit/Event
 message ListUserEventsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; }
 message ListUserEventsResponse { repeated UserEvent events = 1; int32 total_count = 2; }
-message ListAuditLogsRequest { int32 page = 1; int32 page_size = 2; }
+message ListAuditLogsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; }
 message ListAuditLogsResponse { repeated AuditLog logs = 1; int32 total_count = 2; }
-
 message UserEvent {
   string id = 1;
-  string user_id = 2;
-  string master_id = 3;
-  string event_type = 4;
-  string description = 5;
-  google.protobuf.Timestamp occurred_at = 6;
-  common.Metadata metadata = 7;
-  map<string, string> payload = 8;
-  reserved 9 to 19;
+  int64 master_id = 2; // Internal integer ID for analytics/unified queries
+  string master_uuid = 3; // Global UUID for external APIs and global uniqueness
+  string user_id = 4;
+  string event_type = 5;
+  string description = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+  common.Metadata metadata = 8;
+  map<string, string> payload = 9;
+  reserved 10 to 19;
 }
-
 message AuditLog {
   string id = 1;
-  string user_id = 2;
-  string master_id = 3;
-  string action = 4;
-  string resource = 5;
-  google.protobuf.Timestamp occurred_at = 6;
-  common.Metadata metadata = 7;
-  map<string, string> payload = 8;
-  reserved 9 to 19;
+  int64 master_id = 2; // Internal integer ID for analytics/unified queries
+  string master_uuid = 3; // Global UUID for external APIs and global uniqueness
+  string user_id = 4;
+  string action = 5;
+  string resource = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+  common.Metadata metadata = 8;
+  map<string, string> payload = 9;
+  reserved 10 to 19;
 }
-
-// --- SSO, MFA, SCIM Extensibility (placeholders) ---
+// SSO/MFA/SCIM
 message InitiateSSORequest { string provider = 1; string redirect_uri = 2; }
 message InitiateSSOResponse { string sso_url = 1; }
 message InitiateMFARequest { string user_id = 1; string mfa_type = 2; }
 message InitiateMFAResponse { bool initiated = 1; string challenge_id = 2; }
 message SyncSCIMRequest { string scim_payload = 1; }
 message SyncSCIMResponse { bool success = 1; }
+// Social Graph
+message AddFriendRequest { string user_id = 1; string friend_id = 2; common.Metadata metadata = 3; }
+message AddFriendResponse { Friendship friendship = 1; }
+message RemoveFriendRequest { string user_id = 1; string friend_id = 2; common.Metadata metadata = 3; }
+message RemoveFriendResponse { bool success = 1; }
+message ListFriendsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; common.Metadata metadata = 4; }
+message ListFriendsResponse { repeated User friends = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+message FollowUserRequest { string follower_id = 1; string followee_id = 2; common.Metadata metadata = 3; }
+message FollowUserResponse { Follow follow = 1; }
+message UnfollowUserRequest { string follower_id = 1; string followee_id = 2; common.Metadata metadata = 3; }
+message UnfollowUserResponse { bool success = 1; }
+message ListFollowersRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; common.Metadata metadata = 4; }
+message ListFollowersResponse { repeated User followers = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+message ListFollowingRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; common.Metadata metadata = 4; }
+message ListFollowingResponse { repeated User following = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+// Groups
+message CreateUserGroupRequest { string name = 1; string description = 2; repeated string member_ids = 3; map<string, string> roles = 4; common.Metadata metadata = 5; }
+message CreateUserGroupResponse { UserGroup user_group = 1; }
+message UpdateUserGroupRequest { string user_group_id = 1; UserGroup user_group = 2; repeated string fields_to_update = 3; common.Metadata metadata = 4; }
+message UpdateUserGroupResponse { UserGroup user_group = 1; }
+message DeleteUserGroupRequest { string user_group_id = 1; common.Metadata metadata = 2; }
+message DeleteUserGroupResponse { bool success = 1; }
+message ListUserGroupsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; common.Metadata metadata = 4; }
+message ListUserGroupsResponse { repeated UserGroup user_groups = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+message ListUserGroupMembersRequest { string user_group_id = 1; int32 page = 2; int32 page_size = 3; common.Metadata metadata = 4; }
+message ListUserGroupMembersResponse { repeated User members = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; }
+// Social Graph Discovery
+message SuggestConnectionsRequest { string user_id = 1; common.Metadata metadata = 2; }
+message SuggestConnectionsResponse { repeated User suggestions = 1; }
+message ListConnectionsRequest { string user_id = 1; string type = 2; common.Metadata metadata = 3; }
+message ListConnectionsResponse { repeated User users = 1; }
+// Moderation/Interaction APIs
+message BlockUserRequest {
+  string user_id = 1; // The user performing the block
+  string target_user_id = 2; // The user being blocked
+  common.Metadata metadata = 3;
+}
+message BlockUserResponse { bool success = 1; }
 
-// --- Legacy/Platform-specific ---
-message RegisterInterestRequest { string email = 1; string device_hash = 2; string location = 3; }
-message RegisterInterestResponse { User user = 1; }
-message CreateReferralRequest { string user_id = 1; string campaign_slug = 2; string device_hash = 3; }
-message CreateReferralResponse { string referral_code = 1; bool success = 2; } 
+message UnblockUserRequest {
+  string target_user_id = 1;
+}
+message UnblockUserResponse {
+  bool success = 1;
+}
+
+message MuteUserRequest {
+  string user_id = 1;
+  string target_user_id = 2;
+  int32 duration_minutes = 3; // Optional: mute duration
+  common.Metadata metadata = 4;
+}
+message MuteUserResponse { bool success = 1; }
+
+message UnmuteUserRequest {
+  string target_user_id = 1;
+}
+message UnmuteUserResponse {
+  bool success = 1;
+}
+
+message ReportUserRequest {
+  string reporter_user_id = 1;
+  string reported_user_id = 2;
+  string reason = 3;
+  string details = 4;
+  common.Metadata metadata = 5;
+}
+message ReportUserResponse { bool success = 1; string report_id = 2; }
+
+// Group/content moderation
+message BlockGroupContentRequest {
+  string user_id = 1;
+  string group_id = 2;
+  string content_id = 3;
+  common.Metadata metadata = 4;
+}
+message BlockGroupContentResponse { bool success = 1; }
+
+message ReportGroupContentRequest {
+  string reporter_user_id = 1;
+  string group_id = 2;
+  string content_id = 3;
+  string reason = 4;
+  string details = 5;
+  common.Metadata metadata = 6;
+}
+message ReportGroupContentResponse { bool success = 1; string report_id = 2; }
+
+message MuteGroupContentRequest {
+  string user_id = 1;
+  string group_id = 2;
+  string content_id = 3;
+  int32 duration_minutes = 4;
+  common.Metadata metadata = 5;
+}
+message MuteGroupContentResponse { bool success = 1; }
+
+// Mute all members of a group for a user (optionally, with a duration)
+message MuteGroupIndividualsRequest {
+  string user_id = 1;           // The user performing the mute
+  string group_id = 2;          // The group whose members are to be muted
+  int32 duration_minutes = 3;   // Optional: mute duration
+  common.Metadata metadata = 4; // Extensible metadata
+}
+message MuteGroupIndividualsResponse {
+  bool success = 1;
+  repeated string muted_user_ids = 2; // List of muted individuals
+}
+// Block all members of a group for a user (optionally, with a duration)
+message BlockGroupIndividualsRequest {
+  string user_id = 1;           // The user performing the block
+  string group_id = 2;          // The group whose members are to be blocked
+  int32 duration_minutes = 3;   // Optional: block duration
+  common.Metadata metadata = 4; // Extensible metadata
+}
+message BlockGroupIndividualsResponse {
+  bool success = 1;
+  repeated string blocked_user_ids = 2; // List of blocked individuals
+}
+
+message UnmuteGroupRequest {
+  string user_id = 1;
+  string group_id = 2;
+}
+message UnmuteGroupResponse {
+  bool success = 1;
+}
+
+message UnmuteGroupIndividualsRequest {
+  string user_id = 1;
+  string group_id = 2;
+  repeated string target_user_ids = 3;
+}
+message UnmuteGroupIndividualsResponse {
+  bool success = 1;
+  repeated string unmuted_user_ids = 2;
+}
+
+message UnblockGroupIndividualsRequest {
+  string user_id = 1;
+  string group_id = 2;
+  repeated string target_user_ids = 3;
+}
+message UnblockGroupIndividualsResponse {
+  bool success = 1;
+  repeated string unblocked_user_ids = 2;
+}
+
+message RegisterInterestRequest {
+  string email = 1;
+}
+message RegisterInterestResponse {
+  User user = 1;
+}
+
+message CreateReferralRequest {
+  string user_id = 1;
+  string campaign_slug = 2;
+}
+message CreateReferralResponse {
+  string referral_code = 1;
+  bool success = 2;
+} 

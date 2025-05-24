@@ -1,8 +1,8 @@
-# Package nexuspb
+# Package nexus
 
 ## Constants
 
-### NexusService_ExecutePattern_FullMethodName
+### NexusService_RegisterPattern_FullMethodName
 
 ## Variables
 
@@ -15,19 +15,21 @@ direct use with grpc.RegisterService, and not to be introspected or modified (ev
 
 ## Types
 
-### ExecutePatternRequest
-
-ExecutePatternRequest represents a request to execute a pattern
+### EventRequest
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use ExecutePatternRequest.ProtoReflect.Descriptor instead.
+Deprecated: Use EventRequest.ProtoReflect.Descriptor instead.
 
-##### GetParameters
+##### GetCampaignId
 
-##### GetPatternName
+##### GetEntityId
+
+##### GetEventType
+
+##### GetMetadata
 
 ##### ProtoMessage
 
@@ -37,21 +39,19 @@ Deprecated: Use ExecutePatternRequest.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### ExecutePatternResponse
-
-ExecutePatternResponse represents the response from pattern execution
+### EventResponse
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use ExecutePatternResponse.ProtoReflect.Descriptor instead.
+Deprecated: Use EventResponse.ProtoReflect.Descriptor instead.
 
-##### GetMissingArguments
+##### GetMessage
 
-##### GetResult
+##### GetMetadata
 
-##### GetStatus
+##### GetSuccess
 
 ##### ProtoMessage
 
@@ -61,17 +61,23 @@ Deprecated: Use ExecutePatternResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### GetKnowledgeRequest
-
-GetKnowledgeRequest represents a request to get knowledge from the graph
+### FeedbackRequest
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use GetKnowledgeRequest.ProtoReflect.Descriptor instead.
+Deprecated: Use FeedbackRequest.ProtoReflect.Descriptor instead.
 
-##### GetPath
+##### GetCampaignId
+
+##### GetComments
+
+##### GetMetadata
+
+##### GetPatternId
+
+##### GetScore
 
 ##### ProtoMessage
 
@@ -81,19 +87,169 @@ Deprecated: Use GetKnowledgeRequest.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### GetKnowledgeResponse
-
-GetKnowledgeResponse represents the response containing knowledge graph data
+### FeedbackResponse
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use GetKnowledgeResponse.ProtoReflect.Descriptor instead.
+Deprecated: Use FeedbackResponse.ProtoReflect.Descriptor instead.
+
+##### GetError
+
+##### GetMetadata
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### HandleOpsRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use HandleOpsRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetMetadata
+
+##### GetOp
+
+##### GetParams
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### HandleOpsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use HandleOpsResponse.ProtoReflect.Descriptor instead.
 
 ##### GetData
 
-##### GetStatus
+##### GetMessage
+
+##### GetMetadata
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListPatternsRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListPatternsRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetMetadata
+
+##### GetPatternType
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ListPatternsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ListPatternsResponse.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetPatterns
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### MinePatternsRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use MinePatternsRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetMetadata
+
+##### GetSource
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### MinePatternsResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use MinePatternsResponse.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetPatterns
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### Nexus
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use Nexus.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### ProtoMessage
 
@@ -110,28 +266,40 @@ NexusServiceClient is the client API for NexusService service.
 For semantics around ctx use and closing/ending streaming RPCs, please refer to
 https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 
-NexusService provides pattern-based orchestration and knowledge graph management
+NexusService: High-level composer, orchestrator, and pattern identifier
 
 ### NexusServiceServer
 
 NexusServiceServer is the server API for NexusService service. All implementations must embed
 UnimplementedNexusServiceServer for forward compatibility.
 
-NexusService provides pattern-based orchestration and knowledge graph management
+NexusService: High-level composer, orchestrator, and pattern identifier
 
-### PatternDefinition
+### NexusService_SubscribeEventsClient
+
+This type alias is provided for backwards compatibility with existing code that references the prior
+non-generic stream type by name.
+
+### NexusService_SubscribeEventsServer
+
+This type alias is provided for backwards compatibility with existing code that references the prior
+non-generic stream type by name.
+
+### OrchestrateRequest
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use PatternDefinition.ProtoReflect.Descriptor instead.
+Deprecated: Use OrchestrateRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetInput
 
 ##### GetMetadata
 
-##### GetPatternName
-
-##### GetSteps
+##### GetPatternId
 
 ##### ProtoMessage
 
@@ -141,25 +309,53 @@ Deprecated: Use PatternDefinition.ProtoReflect.Descriptor instead.
 
 ##### String
 
-### PatternStep
+### OrchestrateResponse
 
 #### Methods
 
 ##### Descriptor
 
-Deprecated: Use PatternStep.ProtoReflect.Descriptor instead.
-
-##### GetAction
+Deprecated: Use OrchestrateResponse.ProtoReflect.Descriptor instead.
 
 ##### GetMetadata
 
-##### GetOptionalArgs
+##### GetOrchestrationId
 
-##### GetParams
+##### GetOutput
 
-##### GetRequiredArgs
+##### ProtoMessage
 
-##### GetService
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### Pattern
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use Pattern.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetDefinition
+
+##### GetLastUsed
+
+##### GetMetadata
+
+##### GetOrigin
+
+##### GetPatternId
+
+##### GetPatternType
+
+##### GetUsageCount
+
+##### GetVersion
 
 ##### ProtoMessage
 
@@ -171,19 +367,25 @@ Deprecated: Use PatternStep.ProtoReflect.Descriptor instead.
 
 ### RegisterPatternRequest
 
-RegisterPatternRequest represents a request to register a new pattern
-
 #### Methods
 
 ##### Descriptor
 
 Deprecated: Use RegisterPatternRequest.ProtoReflect.Descriptor instead.
 
-##### GetPatternName
+##### GetCampaignId
+
+##### GetDefinition
+
+##### GetMetadata
+
+##### GetOrigin
+
+##### GetPatternId
 
 ##### GetPatternType
 
-##### GetSteps
+##### GetVersion
 
 ##### ProtoMessage
 
@@ -195,17 +397,105 @@ Deprecated: Use RegisterPatternRequest.ProtoReflect.Descriptor instead.
 
 ### RegisterPatternResponse
 
-RegisterPatternResponse represents the response from pattern registration
-
 #### Methods
 
 ##### Descriptor
 
 Deprecated: Use RegisterPatternResponse.ProtoReflect.Descriptor instead.
 
-##### GetMessage
+##### GetError
 
-##### GetStatus
+##### GetMetadata
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### SubscribeRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetEventTypes
+
+##### GetMetadata
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### TracePatternRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use TracePatternRequest.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetOrchestrationId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### TracePatternResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use TracePatternResponse.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetSteps
+
+##### GetTraceId
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### TraceStep
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use TraceStep.ProtoReflect.Descriptor instead.
+
+##### GetAction
+
+##### GetDetails
+
+##### GetService
+
+##### GetTimestamp
 
 ##### ProtoMessage
 
@@ -224,11 +514,23 @@ methods are called.
 
 #### Methods
 
-##### ExecutePattern
+##### EmitEvent
 
-##### GetKnowledge
+##### Feedback
+
+##### HandleOps
+
+##### ListPatterns
+
+##### MinePatterns
+
+##### Orchestrate
 
 ##### RegisterPattern
+
+##### SubscribeEvents
+
+##### TracePattern
 
 ### UnsafeNexusServiceServer
 

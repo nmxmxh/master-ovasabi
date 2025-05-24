@@ -175,6 +175,8 @@ Deprecated: Use ListProductVariantsResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ListProductsRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetOwnerId
 
 ##### GetPage
@@ -227,6 +229,8 @@ Deprecated: Use ListProductsResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use Product.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetCreatedAt
 
 ##### GetDescription
@@ -238,6 +242,8 @@ Deprecated: Use Product.ProtoReflect.Descriptor instead.
 ##### GetMainImageUrl
 
 ##### GetMasterId
+
+##### GetMasterUuid
 
 ##### GetMetadata
 
@@ -362,6 +368,8 @@ Deprecated: Use ProductVariant.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use SearchProductsRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetPage
 

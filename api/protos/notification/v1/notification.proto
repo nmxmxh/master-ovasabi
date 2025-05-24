@@ -38,8 +38,10 @@ service NotificationService {
 // --- Notification Core ---
 message Notification {
   string id = 1;
+  int64 master_id = 13; // Internal integer ID reference to master table
+  string master_uuid = 14; // Global UUID reference to master table
   string user_id = 2;
-  string campaign_id = 3;
+  int64 campaign_id = 15; // campaign/tenant context
   string channel = 4; // email, sms, push, in_app, broadcast, etc.
   string title = 5;
   string body = 6;
@@ -66,6 +68,7 @@ message SendNotificationRequest {
   string body = 4;
   map<string, string> payload = 5;
   common.Metadata metadata = 6;
+  int64 campaign_id = 7; // campaign/tenant context
 }
 message SendNotificationResponse {
   Notification notification = 1;
@@ -79,6 +82,7 @@ message SendEmailRequest {
   string body = 3;
   common.Metadata metadata = 4;
   bool html = 5;
+  int64 campaign_id = 6; // campaign/tenant context
 }
 message SendEmailResponse {
   string message_id = 1;
@@ -89,6 +93,7 @@ message SendSMSRequest {
   string to = 1;
   string message = 2;
   common.Metadata metadata = 3;
+  int64 campaign_id = 4; // campaign/tenant context
 }
 message SendSMSResponse {
   string message_id = 1;
@@ -101,6 +106,7 @@ message SendPushNotificationRequest {
   string message = 3;
   common.Metadata metadata = 4;
   string deep_link = 5;
+  int64 campaign_id = 6; // campaign/tenant context
 }
 message SendPushNotificationResponse {
   string notification_id = 1;
@@ -115,10 +121,12 @@ message BroadcastEventRequest {
   string message = 3;
   common.Metadata payload = 4;
   google.protobuf.Timestamp scheduled_at = 5;
+  int64 campaign_id = 6; // campaign/tenant context
 }
 message BroadcastEventResponse {
   string broadcast_id = 1;
   string status = 2;
+  int64 campaign_id = 3; // campaign/tenant context
 }
 
 // --- Real-time Pub/Sub ---
@@ -166,6 +174,7 @@ message ListNotificationsRequest {
   int32 page = 3;
   int32 page_size = 4;
   string status = 5;
+  int64 campaign_id = 6; // campaign/tenant context
 }
 message ListNotificationsResponse {
   repeated Notification notifications = 1;
@@ -205,6 +214,7 @@ message ListNotificationEventsRequest {
   string notification_id = 2;
   int32 page = 3;
   int32 page_size = 4;
+  int64 campaign_id = 5; // campaign/tenant context
 }
 message ListNotificationEventsResponse {
   repeated NotificationEvent events = 1;

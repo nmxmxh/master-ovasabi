@@ -1,3 +1,7 @@
+# Dockerfile for main app (master-ovasabi)
+# This Dockerfile builds and packages the main app using a multi-stage build and Alpine runtime.
+# For the Nexus service, see Dockerfile.nexus.
+
 # ----------- Build Stage -----------
 FROM golang:1.24-alpine AS builder
 
@@ -39,6 +43,7 @@ RUN apk add --no-cache curl
 # Copy built binary and config file
 COPY --from=builder /app/master-ovasabi /
 COPY --from=builder /app/config/config.yaml /config/
+COPY --from=builder /app/service_registration.json /
 
 # Add grpc_health_probe for gRPC health checks
 ADD https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.19/grpc_health_probe-linux-amd64 /usr/local/bin/grpc_health_probe

@@ -28,7 +28,11 @@ It's only intended for direct use with grpc.RegisterService, and not to be intro
 
 Deprecated: Use ApproveContentRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetContentId
+
+##### GetMetadata
 
 ##### ProtoMessage
 
@@ -47,6 +51,42 @@ Deprecated: Use ApproveContentRequest.ProtoReflect.Descriptor instead.
 Deprecated: Use ApproveContentResponse.ProtoReflect.Descriptor instead.
 
 ##### GetResult
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ContentModeration
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ContentModeration.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetContentId
+
+##### GetCreatedAt
+
+##### GetId
+
+##### GetMetadata
+
+##### GetReason
+
+##### GetScores
+
+##### GetStatus
+
+##### GetUpdatedAt
+
+##### GetUserId
 
 ##### ProtoMessage
 
@@ -75,6 +115,8 @@ implementations must embed UnimplementedContentModerationServiceServer for forwa
 ##### Descriptor
 
 Deprecated: Use GetModerationResultRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetContentId
 
@@ -111,6 +153,8 @@ Deprecated: Use GetModerationResultResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use ListFlaggedContentRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetPage
 
@@ -210,7 +254,11 @@ Deprecated: Use ModerationStatus.Descriptor instead.
 
 Deprecated: Use RejectContentRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetContentId
+
+##### GetMetadata
 
 ##### GetReason
 
@@ -248,11 +296,15 @@ Deprecated: Use RejectContentResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use SubmitContentForModerationRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetContent
 
 ##### GetContentId
 
 ##### GetContentType
+
+##### GetMetadata
 
 ##### GetUserId
 

@@ -2,27 +2,26 @@ package campaign
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math"
+	"sort"
+	"sync"
 	"time"
 
+	"github.com/expr-lang/expr"
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/repository/campaign"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	events "github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-)
-
-var (
-	ErrCampaignNotFound = errors.New("campaign not found")
-	ErrCampaignExists   = errors.New("campaign already exists")
 )
 
 // Compile-time check.
@@ -31,18 +30,29 @@ var _ campaignpb.CampaignServiceServer = (*Service)(nil)
 // Service implements the CampaignService gRPC interface.
 type Service struct {
 	campaignpb.UnimplementedCampaignServiceServer
-	log        *zap.Logger
-	db         *sql.DB
-	masterRepo repository.MasterRepository
-	repo       *campaignrepo.Repository
-	cache      *redis.Cache
+	log          *zap.Logger
+	repo         *Repository
+	cache        *redis.Cache
+	eventEmitter EventEmitter
+	eventEnabled bool
+
+	// Broadcast and job scheduling fields
+	broadcastMu      sync.Mutex
+	activeBroadcasts map[string]context.CancelFunc
+	cronScheduler    *cron.Cron
+	scheduledJobs    map[string][]cron.EntryID
+
+	// WebSocket client registry for campaign/user streaming
+	clients *ws.ClientMap
 }
 
-func NewService(db *sql.DB, log *zap.Logger) *Service {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) *Service {
 	return &Service{
-		db:         db,
-		log:        log,
-		masterRepo: repository.NewMasterRepository(db, log),
+		log:          log,
+		repo:         repo,
+		cache:        cache,
+		eventEmitter: eventEmitter,
+		eventEnabled: eventEnabled,
 	}
 }
 
@@ -54,13 +64,7 @@ func SafeInt32(i int64) (int32, error) {
 	return int32(i), nil
 }
 
-// TODO: Implement CreateCampaign
-// Pseudocode:
-// 1. Validate campaign data
-// 2. Store campaign in DB
-// 3. Register campaign in Nexus for orchestration
-// 4. Optionally, integrate with Babel for locale-specific rules
-// 5. Return campaign details
+// Remove all TODO comments and any outdated pseudocode or comments about unimplemented features.
 
 func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCampaignRequest) (*campaignpb.CreateCampaignResponse, error) {
 	log := s.log.With(
@@ -71,19 +75,92 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 
 	// Input validation
 	if req.Slug == "" {
+		if s.eventEnabled && s.eventEmitter != nil {
+			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": "slug is required"})
+			if err != nil {
+				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
+				return nil, status.Error(codes.Internal, "internal error")
+			}
+			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+			if errEmit != nil {
+				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+			}
+		}
 		return nil, status.Error(codes.InvalidArgument, "slug is required")
 	}
 	if req.Title == "" {
+		if s.eventEnabled && s.eventEmitter != nil {
+			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": "title is required"})
+			if err != nil {
+				log.Error("Failed to create structpb.Struct for campaign.create_failed event", zap.Error(err))
+				return nil, status.Error(codes.Internal, "internal error")
+			}
+			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+			if errEmit != nil {
+				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+			}
+		}
 		return nil, status.Error(codes.InvalidArgument, "title is required")
 	}
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	// Parse and validate campaign metadata
+	var campaignMeta *Metadata
+	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+		if campaignField, ok := req.Metadata.ServiceSpecific.Fields["campaign"]; ok {
+			metaStruct := campaignField.GetStructValue()
+			var err error
+			campaignMeta, err = FromStruct(metaStruct)
+			if err != nil {
+				log.Error("Invalid campaign metadata", zap.Error(err))
+				if s.eventEnabled && s.eventEmitter != nil {
+					errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
+					if err != nil {
+						log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
+						return nil, status.Error(codes.Internal, "internal error")
+					}
+					errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+					errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+					if errEmit != nil {
+						log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+					}
+				}
+				return nil, status.Errorf(codes.InvalidArgument, "invalid campaign metadata: %v", err)
+			}
+			if err := campaignMeta.Validate(); err != nil {
+				log.Error("Missing required campaign metadata", zap.Error(err))
+				if s.eventEnabled && s.eventEmitter != nil {
+					errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
+					if err != nil {
+						log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
+						return nil, status.Error(codes.Internal, "internal error")
+					}
+					errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+					errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+					if errEmit != nil {
+						log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+					}
+				}
+				return nil, status.Errorf(codes.InvalidArgument, "invalid campaign metadata: %v", err)
+			}
+		}
 	}
-
 	// Start transaction
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		log.Error("Failed to begin transaction", zap.Error(err))
+		if s.eventEnabled && s.eventEmitter != nil {
+			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
+			if err != nil {
+				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
+				return nil, status.Error(codes.Internal, "internal error")
+			}
+			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+			if errEmit != nil {
+				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+			}
+		}
 		return nil, status.Error(codes.Internal, "failed to begin transaction")
 	}
 	defer func() {
@@ -91,9 +168,8 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 			s.log.Error("error rolling back transaction", zap.Error(rerr))
 		}
 	}()
-
 	// Create campaign with transaction
-	c := &campaignrepo.Campaign{
+	c := &Campaign{
 		Slug:           req.Slug,
 		Title:          req.Title,
 		Description:    req.Description,
@@ -106,29 +182,73 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if req.EndDate != nil {
 		c.EndDate = req.EndDate.AsTime()
 	}
-
 	created, err := s.repo.CreateWithTransaction(ctx, tx, c)
 	if err != nil {
-		if errors.Is(err, campaignrepo.ErrCampaignExists) {
+		if errors.Is(err, ErrCampaignExists) {
 			log.Warn("Campaign already exists", zap.Error(err))
+			if s.eventEnabled && s.eventEmitter != nil {
+				errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
+				if err != nil {
+					log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
+					return nil, status.Error(codes.Internal, "internal error")
+				}
+				errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+				errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+				if errEmit != nil {
+					log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+				}
+			}
 			return nil, status.Error(codes.AlreadyExists, "campaign already exists")
 		}
 		log.Error("Failed to create campaign", zap.Error(err))
+		if s.eventEnabled && s.eventEmitter != nil {
+			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
+			if err != nil {
+				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
+				return nil, status.Error(codes.Internal, "internal error")
+			}
+			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+			if errEmit != nil {
+				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+			}
+		}
 		return nil, status.Errorf(codes.Internal, "failed to create campaign: %v", err)
 	}
-
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		log.Error("Failed to commit transaction", zap.Error(err))
+		if s.eventEnabled && s.eventEmitter != nil {
+			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
+			if err != nil {
+				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
+				return nil, status.Error(codes.Internal, "internal error")
+			}
+			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+			if errEmit != nil {
+				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+			}
+		}
 		return nil, status.Error(codes.Internal, "failed to commit transaction")
 	}
-
 	id32, err := SafeInt32(created.ID)
 	if err != nil {
 		log.Error("Campaign ID overflow", zap.Error(err))
+		if s.eventEnabled && s.eventEmitter != nil {
+			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
+			if err != nil {
+				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
+				return nil, status.Error(codes.Internal, "internal error")
+			}
+			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
+			if errEmit != nil {
+				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
+			}
+		}
 		return nil, status.Errorf(codes.Internal, "campaign ID overflow: %v", err)
 	}
-
 	resp := &campaignpb.Campaign{
 		Id:             id32,
 		Slug:           created.Slug,
@@ -145,7 +265,6 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if !created.EndDate.IsZero() {
 		resp.EndDate = timestamppb.New(created.EndDate)
 	}
-
 	// Cache the new campaign
 	if s.cache != nil && created.Metadata != nil {
 		err := pattern.CacheMetadata(ctx, s.log, s.cache, "campaign", created.Slug, created.Metadata, 10*time.Minute)
@@ -165,11 +284,23 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if err != nil {
 		s.log.Error("failed to register with nexus", zap.Error(err))
 	}
-
 	log.Info("Campaign created successfully",
 		zap.Int32("id", id32),
 		zap.String("slug", created.Slug))
-
+	if s.eventEnabled && s.eventEmitter != nil {
+		meta := map[string]interface{}{"id": id32, "slug": created.Slug}
+		errStruct, err := structpb.NewStruct(meta)
+		if err != nil {
+			log.Warn("Failed to create structpb.Struct for campaign.created event", zap.Error(err))
+		} else {
+			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.created", created.Slug, errMeta)
+			if errEmit != nil {
+				log.Warn("Failed to emit campaign.created event", zap.Error(errEmit))
+			}
+		}
+	}
+	created.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "campaign.created", created.Slug, created.Metadata)
 	return &campaignpb.CreateCampaignResponse{Campaign: resp}, nil
 }
 
@@ -189,7 +320,7 @@ func (s *Service) GetCampaign(ctx context.Context, req *campaignpb.GetCampaignRe
 	// If not in cache, get from database
 	c, err := s.repo.GetBySlug(ctx, req.Slug)
 	if err != nil {
-		if errors.Is(err, campaignrepo.ErrCampaignNotFound) {
+		if errors.Is(err, ErrCampaignNotFound) {
 			log.Warn("Campaign not found", zap.Error(err))
 			return nil, status.Error(codes.NotFound, "campaign not found")
 		}
@@ -253,12 +384,26 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 	// Get existing campaign first
 	existing, err := s.repo.GetBySlug(ctx, req.Campaign.Slug)
 	if err != nil {
-		if errors.Is(err, campaignrepo.ErrCampaignNotFound) {
+		if errors.Is(err, ErrCampaignNotFound) {
 			log.Warn("Campaign not found", zap.Error(err))
 			return nil, status.Error(codes.NotFound, "campaign not found")
 		}
 		log.Error("Failed to get existing campaign", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get existing campaign: %v", err)
+	}
+
+	// Check if campaign is being deactivated or window is ending
+	wasActive := false
+	if existing.Metadata != nil && existing.Metadata.ServiceSpecific != nil {
+		if campaignField, ok := existing.Metadata.ServiceSpecific.Fields["campaign"]; ok {
+			if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
+				if statusVal, ok := campaignStruct.Fields["status"]; ok {
+					if statusVal.GetStringValue() == "active" {
+						wasActive = true
+					}
+				}
+			}
+		}
 	}
 
 	// Update fields
@@ -275,7 +420,7 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 
 	// Update in database
 	if err := s.repo.Update(ctx, existing); err != nil {
-		if errors.Is(err, campaignrepo.ErrCampaignNotFound) {
+		if errors.Is(err, ErrCampaignNotFound) {
 			log.Warn("Campaign not found during update", zap.Error(err))
 			return nil, status.Error(codes.NotFound, "campaign not found")
 		}
@@ -303,6 +448,24 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 		s.log.Error("failed to register with nexus", zap.Error(err))
 	}
 
+	// If campaign is now inactive or window ended, stop jobs and broadcasts
+	isActive := false
+	if existing.Metadata != nil && existing.Metadata.ServiceSpecific != nil {
+		if campaignField, ok := existing.Metadata.ServiceSpecific.Fields["campaign"]; ok {
+			if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
+				if statusVal, ok := campaignStruct.Fields["status"]; ok {
+					if statusVal.GetStringValue() == "active" {
+						isActive = true
+					}
+				}
+			}
+		}
+	}
+	if (!isActive && wasActive) || (!existing.EndDate.IsZero() && existing.EndDate.Before(time.Now())) {
+		s.stopJobs(ctx, existing.Slug, existing)
+		s.stopBroadcast(ctx, existing.Slug, existing)
+	}
+
 	// Get updated campaign
 	getResp, err := s.GetCampaign(ctx, &campaignpb.GetCampaignRequest{Slug: existing.Slug})
 	if err != nil {
@@ -318,15 +481,20 @@ func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCamp
 
 	log.Info("Deleting campaign")
 
-	// Get campaign first to get the slug for cache invalidation
+	// Get campaign first to get the slug for cache invalidation and to stop jobs/broadcasts
 	campaign, err := s.repo.GetBySlug(ctx, req.Slug)
-	if err != nil && !errors.Is(err, campaignrepo.ErrCampaignNotFound) {
+	if err != nil && !errors.Is(err, ErrCampaignNotFound) {
 		log.Error("Failed to get campaign for cache invalidation", zap.Error(err))
 		// Continue with deletion even if we can't get the campaign
 	}
 
+	if campaign != nil {
+		s.stopJobs(ctx, campaign.Slug, campaign)
+		s.stopBroadcast(ctx, campaign.Slug, campaign)
+	}
+
 	if err := s.repo.Delete(ctx, int64(req.Id)); err != nil {
-		if errors.Is(err, campaignrepo.ErrCampaignNotFound) {
+		if errors.Is(err, ErrCampaignNotFound) {
 			log.Warn("Campaign not found", zap.Error(err))
 			return nil, status.Error(codes.NotFound, "campaign not found")
 		}
@@ -420,11 +588,44 @@ func (s *Service) ListCampaigns(ctx context.Context, req *campaignpb.ListCampaig
 	return resp, nil
 }
 
-// GetLeaderboard returns the leaderboard for a campaign, applying the ranking formula.
-func (s *Service) GetLeaderboard(ctx context.Context, campaignSlug string, limit int) ([]campaignrepo.LeaderboardEntry, error) {
-	campaign, err := s.repo.GetBySlug(ctx, campaignSlug)
+// GetLeaderboard returns the leaderboard for a campaign, applying the dynamic ranking formula.
+func (s *Service) GetLeaderboard(ctx context.Context, campaignSlug string, limit int) ([]LeaderboardEntry, error) {
+	c, err := s.repo.GetBySlug(ctx, campaignSlug)
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.GetLeaderboard(ctx, campaignSlug, campaign.RankingFormula, limit)
+	formula := c.RankingFormula
+	if formula == "" {
+		return nil, fmt.Errorf("no ranking formula defined for campaign")
+	}
+	entries, err := s.repo.GetLeaderboard(ctx, campaignSlug, formula, limit)
+	if err != nil {
+		return nil, err
+	}
+	// Compile the formula once
+	program, err := expr.Compile(formula, expr.Env(map[string]interface{}{}))
+	if err != nil {
+		return nil, fmt.Errorf("invalid ranking formula: %w", err)
+	}
+	for i := range entries {
+		vars := entries[i].Variables // map[string]interface{} with user metrics
+		output, err := expr.Run(program, vars)
+		if err != nil {
+			entries[i].Score = 0 // or handle error as needed
+			continue
+		}
+		if score, ok := output.(float64); ok {
+			entries[i].Score = score
+		} else {
+			entries[i].Score = 0
+		}
+	}
+	// Sort entries by score descending
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Score > entries[j].Score
+	})
+	if limit > 0 && len(entries) > limit {
+		entries = entries[:limit]
+	}
+	return entries, nil
 }

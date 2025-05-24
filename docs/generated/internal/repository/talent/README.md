@@ -1,8 +1,8 @@
-# Package talentrepo
+# Package talent
 
 ## Types
 
-### PostgresRepository
+### Repository
 
 #### Methods
 
@@ -11,6 +11,8 @@
 ##### CreateTalentProfile
 
 ##### DeleteTalentProfile
+
+##### GetBooking
 
 ##### GetTalentProfile
 
@@ -21,3 +23,5 @@
 ##### SearchTalentProfiles
 
 ##### UpdateTalentProfile
+
+### TalentProfile

@@ -25,19 +25,23 @@ const (
 
 // Referral contains information about a referral
 type Referral struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Id               int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                                      // Primary key for the referral record
-	ReferrerMasterId string                 `protobuf:"bytes,2,opt,name=referrer_master_id,json=referrerMasterId,proto3" json:"referrer_master_id,omitempty"` // UUID of the user who referred
-	ReferredMasterId string                 `protobuf:"bytes,3,opt,name=referred_master_id,json=referredMasterId,proto3" json:"referred_master_id,omitempty"` // UUID of the user who was referred (if registered)
-	CampaignId       int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`                    // Campaign associated with the referral
-	DeviceHash       string                 `protobuf:"bytes,5,opt,name=device_hash,json=deviceHash,proto3" json:"device_hash,omitempty"`                     // Device identifier for fraud prevention
-	ReferralCode     string                 `protobuf:"bytes,6,opt,name=referral_code,json=referralCode,proto3" json:"referral_code,omitempty"`               // Unique referral code
-	Successful       bool                   `protobuf:"varint,7,opt,name=successful,proto3" json:"successful,omitempty"`                                      // Whether the referral was successful
-	CreatedAt        *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`                        // Creation timestamp
-	UpdatedAt        *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`                        // Last update timestamp
-	Metadata         *v1.Metadata           `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`                                          // Extensible metadata for future use
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Id                 int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                                                             // Primary key for the referral record
+	MasterId           int64                  `protobuf:"varint,11,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`                                // Internal integer ID reference to master table
+	MasterUuid         string                 `protobuf:"bytes,12,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`                           // Global UUID reference to master table
+	ReferrerMasterId   string                 `protobuf:"bytes,2,opt,name=referrer_master_id,json=referrerMasterId,proto3" json:"referrer_master_id,omitempty"`        // UUID of the user who referred
+	ReferrerMasterUuid string                 `protobuf:"bytes,13,opt,name=referrer_master_uuid,json=referrerMasterUuid,proto3" json:"referrer_master_uuid,omitempty"` // Global UUID of the user who referred
+	ReferredMasterId   string                 `protobuf:"bytes,3,opt,name=referred_master_id,json=referredMasterId,proto3" json:"referred_master_id,omitempty"`        // UUID of the user who was referred (if registered)
+	ReferredMasterUuid string                 `protobuf:"bytes,14,opt,name=referred_master_uuid,json=referredMasterUuid,proto3" json:"referred_master_uuid,omitempty"` // Global UUID of the user who was referred
+	CampaignId         int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`                           // Campaign associated with the referral
+	DeviceHash         string                 `protobuf:"bytes,5,opt,name=device_hash,json=deviceHash,proto3" json:"device_hash,omitempty"`                            // Device identifier for fraud prevention
+	ReferralCode       string                 `protobuf:"bytes,6,opt,name=referral_code,json=referralCode,proto3" json:"referral_code,omitempty"`                      // Unique referral code
+	Successful         bool                   `protobuf:"varint,7,opt,name=successful,proto3" json:"successful,omitempty"`                                             // Whether the referral was successful
+	CreatedAt          *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`                               // Creation timestamp
+	UpdatedAt          *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`                               // Last update timestamp
+	Metadata           *v1.Metadata           `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                 // Extensible metadata for future use
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Referral) Reset() {
@@ -77,6 +81,20 @@ func (x *Referral) GetId() int64 {
 	return 0
 }
 
+func (x *Referral) GetMasterId() int64 {
+	if x != nil {
+		return x.MasterId
+	}
+	return 0
+}
+
+func (x *Referral) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
+	}
+	return ""
+}
+
 func (x *Referral) GetReferrerMasterId() string {
 	if x != nil {
 		return x.ReferrerMasterId
@@ -84,9 +102,23 @@ func (x *Referral) GetReferrerMasterId() string {
 	return ""
 }
 
+func (x *Referral) GetReferrerMasterUuid() string {
+	if x != nil {
+		return x.ReferrerMasterUuid
+	}
+	return ""
+}
+
 func (x *Referral) GetReferredMasterId() string {
 	if x != nil {
 		return x.ReferredMasterId
+	}
+	return ""
+}
+
+func (x *Referral) GetReferredMasterUuid() string {
+	if x != nil {
+		return x.ReferredMasterUuid
 	}
 	return ""
 }
@@ -142,13 +174,14 @@ func (x *Referral) GetMetadata() *v1.Metadata {
 
 // CreateReferralRequest contains referral creation parameters
 type CreateReferralRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	ReferrerMasterId string                 `protobuf:"bytes,1,opt,name=referrer_master_id,json=referrerMasterId,proto3" json:"referrer_master_id,omitempty"` // UUID of the user who is referring
-	CampaignId       int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`                    // Campaign ID
-	DeviceHash       string                 `protobuf:"bytes,3,opt,name=device_hash,json=deviceHash,proto3" json:"device_hash,omitempty"`                     // Device identifier
-	Metadata         *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`                                           // Optional metadata
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ReferrerMasterId   string                 `protobuf:"bytes,1,opt,name=referrer_master_id,json=referrerMasterId,proto3" json:"referrer_master_id,omitempty"`       // UUID of the user who is referring
+	ReferrerMasterUuid string                 `protobuf:"bytes,5,opt,name=referrer_master_uuid,json=referrerMasterUuid,proto3" json:"referrer_master_uuid,omitempty"` // Global UUID of the user who is referring
+	CampaignId         int64                  `protobuf:"varint,2,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`                          // Campaign ID
+	DeviceHash         string                 `protobuf:"bytes,3,opt,name=device_hash,json=deviceHash,proto3" json:"device_hash,omitempty"`                           // Device identifier
+	Metadata           *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                 // Optional metadata
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *CreateReferralRequest) Reset() {
@@ -184,6 +217,13 @@ func (*CreateReferralRequest) Descriptor() ([]byte, []int) {
 func (x *CreateReferralRequest) GetReferrerMasterId() string {
 	if x != nil {
 		return x.ReferrerMasterId
+	}
+	return ""
+}
+
+func (x *CreateReferralRequest) GetReferrerMasterUuid() string {
+	if x != nil {
+		return x.ReferrerMasterUuid
 	}
 	return ""
 }
@@ -355,7 +395,8 @@ func (x *GetReferralResponse) GetReferral() *Referral {
 // GetReferralStatsRequest contains the user identifier
 type GetReferralStatsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MasterId      string                 `protobuf:"bytes,1,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // UUID of the user
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID reference to master table
+	MasterUuid    string                 `protobuf:"bytes,3,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -390,9 +431,16 @@ func (*GetReferralStatsRequest) Descriptor() ([]byte, []int) {
 	return file_referral_v1_referral_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *GetReferralStatsRequest) GetMasterId() string {
+func (x *GetReferralStatsRequest) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
+	}
+	return 0
+}
+
+func (x *GetReferralStatsRequest) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
 	}
 	return ""
 }
@@ -476,15 +524,16 @@ func (x *GetReferralStatsResponse) GetGeneratedAt() *timestamppb.Timestamp {
 
 // ReferralDetail contains information about a specific referral
 type ReferralDetail struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	ReferralCode     string                 `protobuf:"bytes,1,opt,name=referral_code,json=referralCode,proto3" json:"referral_code,omitempty"`
-	ReferredMasterId string                 `protobuf:"bytes,2,opt,name=referred_master_id,json=referredMasterId,proto3" json:"referred_master_id,omitempty"` // UUID of the referred user
-	CreatedAt        *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	IsActive         bool                   `protobuf:"varint,4,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
-	RewardPoints     int32                  `protobuf:"varint,5,opt,name=reward_points,json=rewardPoints,proto3" json:"reward_points,omitempty"`
-	Metadata         *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ReferralCode       string                 `protobuf:"bytes,1,opt,name=referral_code,json=referralCode,proto3" json:"referral_code,omitempty"`
+	ReferredMasterId   int64                  `protobuf:"varint,6,opt,name=referred_master_id,json=referredMasterId,proto3" json:"referred_master_id,omitempty"`      // Internal integer ID reference to master table
+	ReferredMasterUuid string                 `protobuf:"bytes,7,opt,name=referred_master_uuid,json=referredMasterUuid,proto3" json:"referred_master_uuid,omitempty"` // Global UUID reference to master table
+	CreatedAt          *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	IsActive           bool                   `protobuf:"varint,4,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	RewardPoints       int32                  `protobuf:"varint,5,opt,name=reward_points,json=rewardPoints,proto3" json:"reward_points,omitempty"`
+	Metadata           *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ReferralDetail) Reset() {
@@ -524,9 +573,16 @@ func (x *ReferralDetail) GetReferralCode() string {
 	return ""
 }
 
-func (x *ReferralDetail) GetReferredMasterId() string {
+func (x *ReferralDetail) GetReferredMasterId() int64 {
 	if x != nil {
 		return x.ReferredMasterId
+	}
+	return 0
+}
+
+func (x *ReferralDetail) GetReferredMasterUuid() string {
+	if x != nil {
+		return x.ReferredMasterUuid
 	}
 	return ""
 }
@@ -563,11 +619,16 @@ var File_referral_v1_referral_proto protoreflect.FileDescriptor
 
 const file_referral_v1_referral_proto_rawDesc = "" +
 	"\n" +
-	"\x1areferral/v1/referral.proto\x12\vreferral.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xa1\x03\n" +
+	"\x1areferral/v1/referral.proto\x12\vreferral.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xc3\x04\n" +
 	"\bReferral\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12,\n" +
-	"\x12referrer_master_id\x18\x02 \x01(\tR\x10referrerMasterId\x12,\n" +
-	"\x12referred_master_id\x18\x03 \x01(\tR\x10referredMasterId\x12\x1f\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1b\n" +
+	"\tmaster_id\x18\v \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\f \x01(\tR\n" +
+	"masterUuid\x12,\n" +
+	"\x12referrer_master_id\x18\x02 \x01(\tR\x10referrerMasterId\x120\n" +
+	"\x14referrer_master_uuid\x18\r \x01(\tR\x12referrerMasterUuid\x12,\n" +
+	"\x12referred_master_id\x18\x03 \x01(\tR\x10referredMasterId\x120\n" +
+	"\x14referred_master_uuid\x18\x0e \x01(\tR\x12referredMasterUuid\x12\x1f\n" +
 	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
 	"campaignId\x12\x1f\n" +
 	"\vdevice_hash\x18\x05 \x01(\tR\n" +
@@ -581,9 +642,10 @@ const file_referral_v1_referral_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12,\n" +
 	"\bmetadata\x18\n" +
-	" \x01(\v2\x10.common.MetadataR\bmetadata\"\xb5\x01\n" +
+	" \x01(\v2\x10.common.MetadataR\bmetadata\"\xe7\x01\n" +
 	"\x15CreateReferralRequest\x12,\n" +
-	"\x12referrer_master_id\x18\x01 \x01(\tR\x10referrerMasterId\x12\x1f\n" +
+	"\x12referrer_master_id\x18\x01 \x01(\tR\x10referrerMasterId\x120\n" +
+	"\x14referrer_master_uuid\x18\x05 \x01(\tR\x12referrerMasterUuid\x12\x1f\n" +
 	"\vcampaign_id\x18\x02 \x01(\x03R\n" +
 	"campaignId\x12\x1f\n" +
 	"\vdevice_hash\x18\x03 \x01(\tR\n" +
@@ -595,23 +657,26 @@ const file_referral_v1_referral_proto_rawDesc = "" +
 	"\x12GetReferralRequest\x12#\n" +
 	"\rreferral_code\x18\x01 \x01(\tR\freferralCode\"H\n" +
 	"\x13GetReferralResponse\x121\n" +
-	"\breferral\x18\x01 \x01(\v2\x15.referral.v1.ReferralR\breferral\"6\n" +
+	"\breferral\x18\x01 \x01(\v2\x15.referral.v1.ReferralR\breferral\"W\n" +
 	"\x17GetReferralStatsRequest\x12\x1b\n" +
-	"\tmaster_id\x18\x01 \x01(\tR\bmasterId\"\x8d\x02\n" +
+	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x03 \x01(\tR\n" +
+	"masterUuid\"\x8d\x02\n" +
 	"\x18GetReferralStatsResponse\x12'\n" +
 	"\x0ftotal_referrals\x18\x01 \x01(\x05R\x0etotalReferrals\x12)\n" +
 	"\x10active_referrals\x18\x02 \x01(\x05R\x0factiveReferrals\x12#\n" +
 	"\rtotal_rewards\x18\x03 \x01(\x05R\ftotalRewards\x129\n" +
 	"\treferrals\x18\x04 \x03(\v2\x1b.referral.v1.ReferralDetailR\treferrals\x12=\n" +
-	"\fgenerated_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vgeneratedAt\"\x8e\x02\n" +
+	"\fgenerated_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vgeneratedAt\"\xc0\x02\n" +
 	"\x0eReferralDetail\x12#\n" +
 	"\rreferral_code\x18\x01 \x01(\tR\freferralCode\x12,\n" +
-	"\x12referred_master_id\x18\x02 \x01(\tR\x10referredMasterId\x129\n" +
+	"\x12referred_master_id\x18\x06 \x01(\x03R\x10referredMasterId\x120\n" +
+	"\x14referred_master_uuid\x18\a \x01(\tR\x12referredMasterUuid\x129\n" +
 	"\n" +
 	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1b\n" +
 	"\tis_active\x18\x04 \x01(\bR\bisActive\x12#\n" +
 	"\rreward_points\x18\x05 \x01(\x05R\frewardPoints\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata2\xa5\x02\n" +
+	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata2\xa5\x02\n" +
 	"\x0fReferralService\x12[\n" +
 	"\x0eCreateReferral\x12\".referral.v1.CreateReferralRequest\x1a#.referral.v1.CreateReferralResponse\"\x00\x12R\n" +
 	"\vGetReferral\x12\x1f.referral.v1.GetReferralRequest\x1a .referral.v1.GetReferralResponse\"\x00\x12a\n" +

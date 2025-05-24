@@ -259,3 +259,232 @@ For a comprehensive architectural overview, see
 
 **See also:** [Master-Client-Service-Event Pattern](../architecture/master_client_event_pattern.md)
 for rationale, trade-offs, and further best practices.
+
+# Potentially Disastrous Database Operations
+
+## Warning: Destructive Actions
+
+Certain SQL operations can cause irreversible data loss or system outages if run on a populated or
+production database. These include:
+
+- `DROP TABLE` or `DROP DATABASE`: Removes all data and structure. Only use in local/dev
+  environments or with explicit backups.
+- `DELETE FROM ...` (without a `WHERE` clause): Removes all rows from a table. Always use with
+  extreme caution and only with explicit intent.
+- `TRUNCATE TABLE`: Removes all rows instantly and cannot be rolled back in most cases.
+- Destructive migrations: Any migration that deletes, overwrites, or recreates records (especially
+  root/system records) can break foreign keys, audit trails, and application logic.
+
+## Best Practices for Safe Migrations
+
+- **Never use destructive operations in production migrations.**
+- **Use 'insert if not exists' or 'update if needed' patterns for root/system records.**
+- **Always back up your database before running migrations.**
+- **Test migrations on a staging environment with production-like data.**
+- **Review all migration scripts for accidental data loss or schema changes.**
+- **Log and alert on any migration that affects critical or root records.**
+- **Document all potentially destructive operations in migration and ops documentation.**
+
+## Example: Safe System Root Creation
+
+```sql
+-- Safe: Only inserts if not present
+INSERT INTO service_security_master (type, status, created_at, updated_at, metadata)
+SELECT 'system', 'active', NOW(), NOW(), '{}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM service_security_master WHERE type = 'system'
+);
+```
+
+## Further Reading
+
+- [PostgreSQL Safe Migration Practices](https://www.postgresql.org/docs/current/sql-altertable.html)
+- [OVASABI Migration Standards](../amadeus/amadeus_context.md)
+
+# Multi-Campaign/Domain Optimization for Fast Lookups and Rich Content
+
+## Multi-Tenant/Campaign-Aware Data Modeling
+
+- Add a `campaign_id` (or `tenant_id`) column to all major service tables (e.g.,
+  `service_content_main`, `service_product_main`, etc.).
+- Index this column and consider composite indexes (e.g., `(campaign_id, created_at)`).
+- All queries and searches should filter by `campaign_id` to ensure isolation and performance.
+
+## Partitioning by Campaign
+
+- Use PostgreSQL table partitioning (by `campaign_id`) for very large tables.
+- Queries for a single campaign only scan relevant partitions.
+- Easy to archive or drop old/unused campaigns.
+
+## Search Optimization
+
+- Use a `tsvector` column for FTS, and include `campaign_id` in the index.
+- All FTS queries should filter by `campaign_id` for speed and relevance.
+- Store campaign/domain-specific metadata in `jsonb` and index hot keys.
+
+## Metadata Enrichment
+
+- Store campaign-specific content rules, features, and presentation info in the `metadata` field.
+- Use service-specific extensions (e.g., `metadata.service_specific.store`,
+  `metadata.service_specific.blog`).
+
+## Caching Hot Data
+
+- Cache hot queries/results per campaign (e.g., `cache:search:{campaign_id}:{query_hash}`).
+- Invalidate cache on content updates per campaign.
+
+## Central vs. Campaign-Scoped Services
+
+- Some services (like User) should remain central and not be partitioned by campaign. These should
+  have a global scope and unique identifiers.
+- Campaign-scoped services (content, product, etc.) should always include `campaign_id` for
+  isolation and performance.
+
+## Can Campaign Scoping Be Implemented with Just Metadata?
+
+- **Storing campaign info only in metadata (jsonb) is possible, but not recommended for
+  high-performance, high-scale systems.**
+- Using a dedicated `campaign_id` column enables:
+  - Fast, indexed lookups and partitioning
+  - Referential integrity (FKs)
+  - Efficient analytics and reporting
+- If campaign is only in metadata, queries must scan and filter on `jsonb`, which is slower and
+  harder to index/partition.
+- **Best practice:** Use a dedicated column for campaign/tenant, and use metadata for
+  campaign-specific extensions.
+
+## Example Table Schema
+
+```sql
+CREATE TABLE service_content_main (
+    id BIGSERIAL PRIMARY KEY,
+    campaign_id BIGINT NOT NULL,
+    master_id BIGINT NOT NULL REFERENCES master(id),
+    title TEXT,
+    body TEXT,
+    search_vector tsvector,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_content_campaign_id ON service_content_main (campaign_id);
+CREATE INDEX idx_content_campaign_fts ON service_content_main USING GIN (campaign_id, search_vector);
+```
+
+## Summary Table
+
+| Optimization         | Technique/Pattern                      | Benefit                          |
+| -------------------- | -------------------------------------- | -------------------------------- |
+| Tenant isolation     | campaign_id column + index/partition   | Fast, isolated queries           |
+| Search performance   | campaign_id in FTS index, partitioning | Fast, relevant search            |
+| Metadata flexibility | service_specific in jsonb              | Rich, campaign-specific content  |
+| Caching              | Redis per-campaign keys                | Low-latency for hot queries      |
+| Analytics            | Partitioned event tables by campaign   | Fast, scalable reporting         |
+| Central services     | No campaign_id, global unique IDs      | Consistent user/service identity |
+
+## Recommendation
+
+- Use a dedicated `campaign_id` column for all campaign-scoped data.
+- Keep central services (like User) global.
+- Use metadata for campaign-specific extensions, not for core scoping.
+
+# Migrate to Campaign-Specific Architecture
+
+## Overview
+
+To support multi-domain, multi-campaign use cases, migrate the platform to a campaign-specific
+architecture. This ensures fast, isolated queries and rich content for each campaign (e.g., store,
+blog, photo app), while keeping core services (User, Admin, Security) global.
+
+## Global vs. Campaign-Scoped Services
+
+- **Global (no campaign_id):**
+  - User
+  - Admin
+  - Security
+- **Campaign-Scoped (add campaign_id):**
+  - Notification
+  - Campaign
+  - Referral
+  - Product
+  - Commerce
+  - Talent (if campaign-specific)
+  - Analytics
+  - Content
+  - ContentModeration
+  - Nexus (if patterns are campaign-specific)
+  - Messaging (if chat is campaign-specific)
+  - Localization
+  - Search
+  - Scheduler
+  - Broadcast
+  - Quotes
+  - Asset
+
+## Migration Steps
+
+### 1. Proto Changes
+
+- Add a `campaign_id` field to all relevant request/response and entity protos.
+- Update all create, update, and list requests to accept a `campaign_id`.
+- Document the new field in proto comments and onboarding docs.
+
+### 2. Table and Index Changes
+
+- Add a `campaign_id` column to all relevant tables.
+- Add B-tree and/or composite indexes on `campaign_id` (and FTS indexes if needed).
+- Update migrations to add the new column and indexes.
+
+### 3. Repository and Query Changes
+
+- Update all repository methods to:
+  - Accept `campaign_id` as a parameter.
+  - Filter queries by `campaign_id`.
+  - Include `campaign_id` in inserts and updates.
+
+### 4. Business Logic Changes
+
+- Ensure all service logic passes the correct `campaign_id` from the request context.
+- Enforce campaign isolation in all business logic and queries.
+
+## Example: Proto Change
+
+```proto
+message Content {
+  int64 id = 1;
+  int64 campaign_id = 2; // NEW: campaign/tenant context
+  string title = 3;
+  string body = 4;
+  // ...
+}
+message CreateContentRequest {
+  int64 campaign_id = 1; // NEW
+  string title = 2;
+  string body = 3;
+  // ...
+}
+```
+
+## Example: Table and Index Change
+
+```sql
+ALTER TABLE service_content_main ADD COLUMN campaign_id BIGINT NOT NULL DEFAULT 0;
+CREATE INDEX idx_content_campaign_id ON service_content_main (campaign_id);
+CREATE INDEX idx_content_campaign_fts ON service_content_main USING GIN (campaign_id, search_vector);
+```
+
+## Example: Repository Change
+
+```go
+func (r *Repository) ListContent(ctx context.Context, campaignID int64, ...) ([]*Content, error) {
+    query := `SELECT ... FROM service_content_main WHERE campaign_id = $1 ...`
+    // ...
+}
+```
+
+## Recommendation
+
+- Migrate all campaign-scoped services to include and use `campaign_id` in protos, tables, queries,
+  and business logic.
+- Keep User, Admin, and Security global.
+- Update onboarding and documentation to reflect the new architecture.

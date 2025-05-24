@@ -40,7 +40,7 @@ type DefaultMasterRepository struct {
 }
 
 // NewMasterRepository creates a new master repository instance.
-func NewMasterRepository(db *sql.DB, log *zap.Logger) MasterRepository {
+func NewRepository(db *sql.DB, log *zap.Logger) MasterRepository {
 	return &DefaultMasterRepository{
 		BaseRepository: NewBaseRepository(db),
 		log:            log,
@@ -573,4 +573,9 @@ func (r *DefaultMasterRepository) UpdateWithTransaction(ctx context.Context, tx 
 
 	master.Version++
 	return nil
+}
+
+// Add CreateMasterRecord to implement MasterRepository interface.
+func (r *DefaultMasterRepository) CreateMasterRecord(ctx context.Context, entityType, name string) (int64, error) {
+	return r.Create(ctx, EntityType(entityType), name)
 }

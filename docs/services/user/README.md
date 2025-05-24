@@ -1,7 +1,23 @@
-# User Service
+# User Service Documentation
 
-The User service is a core service that manages user profiles, authentication integration, and
-role-based access control in the OVASABI platform.
+version: 2025-05-14
+
+> **Standard:** This service follows the
+> [Unified Communication & Calculation Standard](../../amadeus/amadeus_context.md#unified-communication--calculation-standard-grpc-rest-websocket-and-metadata-driven-orchestration).
+>
+> - Exposes calculation/enrichment endpoints using canonical metadata
+> - Documents all metadata fields and calculation chains
+> - References the Amadeus context and unified standard
+> - Uses Makefile/Docker for all builds and proto generation
+
+> **Note:** The Auth service is deprecated. All authentication and authorization is now handled by
+> the User service. See
+> [Amadeus context](../../amadeus/amadeus_context.md#user-service-canonical-identity--access-management)
+> and [Service List](../service_list.md#obsolete-service-migration-guide) for migration details.
+
+The User service is the canonical service for user management, authentication, RBAC, and audit
+logging in the OVASABI platform. It implements all identity and access management logic, following
+the robust metadata pattern and platform-wide standards.
 
 ## Architecture
 
@@ -13,326 +29,169 @@ graph TD
     C -->|Caches| E[Redis]
     F[Master Repository] -->|References| D
     G[Event Log] -->|Records| D
-    H[Auth Service] -->|Validates| B
+    H[Scheduler/Nexus] -->|Orchestrates| B
 ```
 
 ## Features
 
 1. **User Management**
+   - User registration, CRUD, and profile management
+   - Account deactivation, search, and filtering
+2. **Authentication & Session Management**
+   - Secure password hashing (bcrypt)
+   - Session/token management (JWT, Redis)
+   - Login, logout, refresh endpoints
+   - All events logged in metadata
+3. **Role Management (RBAC)**
+   - Role assignment, permission management
+   - Access level control, role hierarchies
+   - All RBAC events logged in metadata
+4. **Audit Logging**
+   - All critical user/auth actions are logged in metadata and audit logs
+5. **Integration Points**
+   - Centralized with all services via metadata, Scheduler, Nexus, and Knowledge Graph
+   - Caches metadata, registers with Scheduler, enriches Knowledge Graph, and orchestrates with
+     Nexus
 
-   - User registration
-   - Profile updates
-   - Account deactivation
-   - User search and filtering
+## Communication Channels
 
-2. **Profile Handling**
+- **gRPC:** Implements all endpoints in `api/protos/user/v1/user.proto` (CRUD, session, RBAC, audit,
+  SSO/MFA, etc.)
+- **REST:** Exposed via gRPC-Gateway/REST layer, following the composable request pattern (see
+  OpenAPI spec)
+- **WebSocket:** Real-time state updates and notifications propagate user metadata
+- **Orchestration:** Integrated with Nexus for cross-service orchestration and automation
+- **Knowledge Graph:** All metadata is ingested for analytics, impact analysis, and orchestration
 
-   - Basic information
-   - Extended attributes
-   - Profile pictures
-   - User preferences
+## Metadata Pattern
 
-3. **Role Management**
-
-   - Role assignment
-   - Permission management
-   - Access level control
-   - Role hierarchies
-
-4. **Integration Points**
-   - Auth service integration
-   - Profile verification
-   - Social connections
-   - Activity tracking
+- Uses `common.Metadata` for all extensible fields, including `service_specific.user` (see
+  [metadata.md](../metadata.md))
+- All communication (REST, gRPC, WebSocket, orchestration, analytics, audit) propagates and updates
+  metadata
+- Implements bad actor detection, compliance, accessibility, and audit fields as per platform
+  standards
 
 ## API Reference
 
-### Proto Definition
+### Proto Definition (see `api/protos/user/v1/user.proto`)
 
 ```protobuf
 service UserService {
-    rpc CreateUser(CreateUserRequest) returns (UserResponse);
-    rpc GetUser(GetUserRequest) returns (UserResponse);
-    rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
-    rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
-    rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
-    rpc AssignRole(AssignRoleRequest) returns (UserResponse);
-    rpc GetUserRoles(GetUserRolesRequest) returns (GetUserRolesResponse);
-    rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+  // User Management
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetUserByUsername(GetUserByUsernameRequest) returns (GetUserByUsernameResponse);
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  // Session Management
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  // RBAC & Permissions
+  rpc AssignRole(AssignRoleRequest) returns (AssignRoleResponse);
+  rpc RemoveRole(RemoveRoleRequest) returns (RemoveRoleResponse);
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse);
+  // Audit/Event Log
+  rpc ListUserEvents(ListUserEventsRequest) returns (ListUserEventsResponse);
+  rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
+  // SSO, MFA, SCIM
+  rpc InitiateSSO(InitiateSSORequest) returns (InitiateSSOResponse);
+  rpc InitiateMFA(InitiateMFARequest) returns (InitiateMFAResponse);
+  rpc SyncSCIM(SyncSCIMRequest) returns (SyncSCIMResponse);
+  // Legacy/Platform-specific
+  rpc RegisterInterest(RegisterInterestRequest) returns (RegisterInterestResponse);
+  rpc CreateReferral(CreateReferralRequest) returns (CreateReferralResponse);
 }
 ```
 
 ### Methods
 
-#### CreateUser
-
-Creates a new user profile.
-
-```go
-func (s *service) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.UserResponse, error)
-```
-
-#### GetUser
-
-Retrieves a user's profile.
-
-```go
-func (s *service) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.UserResponse, error)
-```
+- All methods accept and return messages with a `metadata` field for extensibility and audit
+- See proto for full request/response details
 
 ## Data Model
 
-### User Model
-
-```go
-type UserModel struct {
-    ID            uuid.UUID
-    Email         string
-    Username      string
-    FullName      string
-    ProfilePicURL string
-    Metadata      map[string]interface{} // JSONB in DB
-    Roles         []string
-    Status        string // active, inactive, suspended
-    CreatedAt     time.Time
-    UpdatedAt     time.Time
-    LastLoginAt   *time.Time
-}
-```
-
-### Database Schema
-
-```sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    master_id INTEGER NOT NULL REFERENCES master(id),
-    email TEXT UNIQUE NOT NULL,
-    username TEXT UNIQUE NOT NULL,
-    full_name TEXT,
-    profile_pic_url TEXT,
-    metadata JSONB DEFAULT '{}',
-    roles TEXT[] DEFAULT '{}',
-    status TEXT NOT NULL DEFAULT 'active',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_login_at TIMESTAMPTZ
-);
-
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_roles ON users USING gin(roles);
-CREATE INDEX idx_users_metadata ON users USING gin(metadata);
-```
+- See proto and repository for canonical user model
+- Metadata is stored as `jsonb` in Postgres and cached in Redis
 
 ## Caching Strategy
 
-### Key Structure
+- User Profile: `cache:user:profile:{user_id}` (TTL: 1 hour)
+- User Roles: `cache:user:roles:{user_id}` (TTL: 30 minutes)
+- Username/Email Lookup: `cache:user:username:{username}`, `cache:user:email:{email}` (TTL: 24
+  hours)
 
-- User Profile: `cache:user:profile:{user_id}`
-- User Roles: `cache:user:roles:{user_id}`
-- Username Lookup: `cache:user:username:{username}`
-- Email Lookup: `cache:user:email:{email}`
+## Knowledge Graph & Orchestration
 
-### TTL Values
+- All user metadata is ingested into the Knowledge Graph for analytics, orchestration, and impact
+  analysis
+- Scheduler and Nexus use metadata for dynamic orchestration and automation
 
-- Profile: 1 hour
-- Roles: 30 minutes
-- Lookups: 24 hours
+## Translator Role
 
-## Knowledge Graph
+- Translators can be assigned as a user role (RBAC/workflow)
+- Linked to talent profiles and referenced in `translation_provenance` for localization/content
+  metadata
+- See
+  [Amadeus context](../../amadeus/amadeus_context.md#machine-vs-human-translation--translator-roles)
+  and [metadata.md](../metadata.md)
 
-### Capabilities
+## OAuth 2.0 Authentication
 
-```go
-type UserCapabilities struct {
-    ProfileManagement struct {
-        BasicInfo    bool `json:"basic_info"`
-        ExtendedInfo bool `json:"extended_info"`
-        Preferences  bool `json:"preferences"`
-        Pictures     bool `json:"pictures"`
-    } `json:"profile_management"`
+The User Service supports robust OAuth 2.0 authentication using the
+[markbates/goth](https://github.com/markbates/goth) library for multi-provider support (Google,
+GitHub, etc.).
 
-    RoleManagement struct {
-        Assignment bool `json:"assignment"`
-        Hierarchy  bool `json:"hierarchy"`
-        Custom     bool `json:"custom"`
-    } `json:"role_management"`
+### How It Works
 
-    Integration struct {
-        Auth        bool `json:"auth"`
-        Social      bool `json:"social"`
-        Verification bool `json:"verification"`
-    } `json:"integration"`
+- **Providers:** Easily add Google, GitHub, and other OAuth providers via configuration.
+- **Endpoints:**
+  - `/auth/{provider}`: Initiates the OAuth flow for the given provider.
+  - `/auth/{provider}/callback`: Handles the OAuth callback, processes the user profile, and creates
+    or looks up a user in the system.
+- **User Flow:**
+  1. User clicks 'Sign in with Google' (or other provider).
+  2. User is redirected to the provider's login/consent screen.
+  3. On success, the callback handler receives the user's profile info and tokens.
+  4. The service looks up or creates a user, issues a session, and updates user metadata with OAuth
+     info (provider, provider_user_id, email, etc.).
+  5. All OAuth logins are logged in the audit metadata for compliance and traceability.
 
-    Analytics struct {
-        UserMetrics bool `json:"user_metrics"`
-        Behavior    bool `json:"behavior"`
-        Growth      bool `json:"growth"`
-    } `json:"analytics"`
-}
-```
+### Metadata Pattern
 
-### Growth Patterns
+- OAuth provider info is stored in `user.Metadata.ServiceSpecific["user"].oauth`:
+  ```json
+  {
+    "provider": "google",
+    "provider_user_id": "123456789",
+    "email": "user@example.com",
+    "name": "Jane Doe",
+    "avatar_url": "https://..."
+  }
+  ```
+- All logins (including OAuth) are recorded in the audit history.
 
-```mermaid
-graph TD
-    A[Basic Profile] -->|Add Preferences| B[Enhanced Profile]
-    B -->|Add Social| C[Connected Profile]
-    C -->|Add Analytics| D[Smart Profile]
+### Security
 
-    E[Basic Roles] -->|Add Hierarchy| F[Role Trees]
-    F -->|Add Custom| G[Dynamic Roles]
-    G -->|Add ML| H[Adaptive Roles]
+- Access tokens are stored securely (server-side session or encrypted cookie).
+- All OAuth events are logged for audit and compliance.
 
-    I[Local Auth] -->|Add Social| J[Multi Auth]
-    J -->|Add MFA| K[Secure Auth]
-    K -->|Add Biometric| L[Advanced Auth]
-```
+### References
 
-### Evolution Tracking
+- [Permify: How to Implement OAuth 2.0 into a Golang App](https://permify.co/post/implement-oauth-2-golang-app/)
+- [Dev.to: OAuth 2.0 Implementation in Golang](http://dev.to/siddheshk02/oauth-20-implementation-in-golang-3mj1)
+- [Goth Documentation](https://github.com/markbates/goth)
 
-```go
-type UserEvolution struct {
-    ProfileCapabilities []string `json:"profile_capabilities"`
-    RoleCapabilities   []string `json:"role_capabilities"`
-    IntegrationPoints  []string `json:"integration_points"`
-    AnalyticsFeatures  []string `json:"analytics_features"`
-    Version           string    `json:"version"`
-    LastUpdated       time.Time `json:"last_updated"`
-}
-```
+## References
 
-## Error Handling
-
-### Error Types
-
-1. **ValidationError**
-
-   - Invalid email format
-   - Invalid username format
-   - Missing required fields
-
-2. **ConflictError**
-
-   - Duplicate email
-   - Duplicate username
-   - Role conflicts
-
-3. **NotFoundError**
-   - User not found
-   - Role not found
-   - Profile not found
-
-## Monitoring
-
-### Metrics
-
-1. **User Metrics**
-
-   - Active users
-   - Registration rate
-   - Profile completion
-   - Role distribution
-
-2. **Performance Metrics**
-   - Query latency
-   - Cache hit ratio
-   - Error rates
-   - API usage
-
-## Security
-
-1. **Data Protection**
-
-   - Email encryption
-   - Profile data encryption
-   - Secure attribute storage
-
-2. **Access Control**
-   - Role-based access
-   - Permission validation
-   - Action auditing
-
-## Future Improvements
-
-1. **Phase 1 - Enhanced Profiles**
-
-   - Custom attributes
-   - Profile templates
-   - Validation rules
-
-2. **Phase 2 - Advanced Roles**
-
-   - Dynamic permissions
-   - Role inheritance
-   - Context-aware roles
-
-3. **Phase 3 - Smart Features**
-
-   - Behavior analysis
-   - Recommendation engine
-   - Automated role optimization
-
-4. **Phase 4 - Integration**
-   - OAuth provider
-   - SSO integration
-   - External identity providers
-
-## Dependencies
-
-- Auth Service (v1)
-- Redis Cache
-- Postgres Database
-- Object Storage (for profile pictures)
-
-## Configuration
-
-```yaml
-user:
-  database:
-    pool_size: 20
-    max_idle: 10
-    max_lifetime: 1h
-  cache:
-    ttl:
-      profile: 1h
-      roles: 30m
-      lookup: 24h
-  limits:
-    max_roles_per_user: 10
-    max_profile_pic_size: 5MB
-    username_min_length: 3
-    username_max_length: 32
-```
-
-## Deployment
-
-### Resource Requirements
-
-- CPU: 4 cores
-- Memory: 8GB
-- Storage: 40GB
-- Cache: 4GB Redis
-
-### Environment Variables
-
-```bash
-USER_DB_URL=postgres://user:pass@host:5432/db
-USER_REDIS_URL=redis://host:6379
-USER_LOG_LEVEL=info
-USER_API_PORT=50052
-USER_STORAGE_URL=s3://bucket/profiles
-```
-
-## Dependency Injection & Provider Pattern
-
-- The User service is registered and resolved via the central Provider using a DI container
-  (`internal/service/provider.go`).
-- Modular registration ensures the service is only registered once.
-- Health and metrics are managed centrally and exposed for observability.
-- Amadeus registration is performed at service startup for capability tracking.
-
-## Amadeus Integration & Observability
-
-- The service registers its capabilities and dependencies with Amadeus at startup.
-- Health checks and metrics are exposed and tracked centrally.
+- [Amadeus Context: User Service](../../amadeus/amadeus_context.md#user-service-canonical-identity--access-management)
+- [General Metadata Documentation](../metadata.md)
+- [Versioning Standard & Documentation](../versioning.md)
+- [Service List](../service_list.md)

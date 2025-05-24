@@ -329,6 +329,8 @@ Deprecated: Use Media.ProtoReflect.Descriptor instead.
 
 ##### GetMasterId
 
+##### GetMasterUuid
+
 ##### GetMetadata
 
 ##### GetMimeType

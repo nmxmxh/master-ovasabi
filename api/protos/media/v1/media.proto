@@ -51,8 +51,11 @@ message Media {
   // Unique identifier
   string id = 1;
 
-  // UUID reference to master table
-  string master_id = 2;
+  // Internal integer ID reference to master table
+  int64 master_id = 2;
+
+  // Global UUID reference to master table
+  string master_uuid = 15;
 
   // Owner user ID
   string user_id = 3;

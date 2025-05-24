@@ -10,6 +10,7 @@ import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -25,14 +26,16 @@ const (
 type Event struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      string                 `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // Master ID for analytics/unified queries
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`       // Internal integer ID for analytics/unified queries
+	MasterUuid    string                 `protobuf:"bytes,10,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID for external APIs and global uniqueness
 	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	EventType     string                 `protobuf:"bytes,4,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	EntityId      string                 `protobuf:"bytes,5,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
 	EntityType    string                 `protobuf:"bytes,6,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
 	Properties    map[string]string      `protobuf:"bytes,7,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Timestamp     int64                  `protobuf:"varint,8,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for orchestration, AI/ML, etc.
+	Metadata      *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`                         // Robust, extensible metadata
+	CampaignId    int64                  `protobuf:"varint,11,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -74,9 +77,16 @@ func (x *Event) GetId() string {
 	return ""
 }
 
-func (x *Event) GetMasterId() string {
+func (x *Event) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
+	}
+	return 0
+}
+
+func (x *Event) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
 	}
 	return ""
 }
@@ -128,6 +138,13 @@ func (x *Event) GetMetadata() *v1.Metadata {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *Event) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type TrackEventRequest struct {
@@ -319,6 +336,7 @@ type GetUserEventsRequest struct {
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -370,6 +388,13 @@ func (x *GetUserEventsRequest) GetPage() int32 {
 func (x *GetUserEventsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
+	}
+	return 0
+}
+
+func (x *GetUserEventsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
 	}
 	return 0
 }
@@ -447,6 +472,7 @@ type GetProductEventsRequest struct {
 	ProductId     string                 `protobuf:"bytes,1,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -498,6 +524,13 @@ func (x *GetProductEventsRequest) GetPage() int32 {
 func (x *GetProductEventsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
+	}
+	return 0
+}
+
+func (x *GetProductEventsRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
 	}
 	return 0
 }
@@ -573,6 +606,7 @@ func (x *GetProductEventsResponse) GetTotalPages() int32 {
 type GetReportRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReportId      string                 `protobuf:"bytes,1,opt,name=report_id,json=reportId,proto3" json:"report_id,omitempty"`
+	Parameters    map[string]string      `protobuf:"bytes,2,rep,name=parameters,proto3" json:"parameters,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -612,6 +646,13 @@ func (x *GetReportRequest) GetReportId() string {
 		return x.ReportId
 	}
 	return ""
+}
+
+func (x *GetReportRequest) GetParameters() map[string]string {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
 }
 
 type GetReportResponse struct {
@@ -862,14 +903,413 @@ func (x *Report) GetCreatedAt() int64 {
 	return 0
 }
 
+type CaptureEventRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventType     string                 `protobuf:"bytes,1,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserEmail     string                 `protobuf:"bytes,3,opt,name=user_email,json=userEmail,proto3" json:"user_email,omitempty"`
+	Properties    *structpb.Struct       `protobuf:"bytes,4,opt,name=properties,proto3" json:"properties,omitempty"`
+	Groups        *structpb.Struct       `protobuf:"bytes,5,opt,name=groups,proto3" json:"groups,omitempty"`
+	Context       *structpb.Struct       `protobuf:"bytes,6,opt,name=context,proto3" json:"context,omitempty"`
+	GdprObscure   bool                   `protobuf:"varint,7,opt,name=gdpr_obscure,json=gdprObscure,proto3" json:"gdpr_obscure,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,8,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CaptureEventRequest) Reset() {
+	*x = CaptureEventRequest{}
+	mi := &file_analytics_v1_analytics_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CaptureEventRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CaptureEventRequest) ProtoMessage() {}
+
+func (x *CaptureEventRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_analytics_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CaptureEventRequest.ProtoReflect.Descriptor instead.
+func (*CaptureEventRequest) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_analytics_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *CaptureEventRequest) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+func (x *CaptureEventRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CaptureEventRequest) GetUserEmail() string {
+	if x != nil {
+		return x.UserEmail
+	}
+	return ""
+}
+
+func (x *CaptureEventRequest) GetProperties() *structpb.Struct {
+	if x != nil {
+		return x.Properties
+	}
+	return nil
+}
+
+func (x *CaptureEventRequest) GetGroups() *structpb.Struct {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+func (x *CaptureEventRequest) GetContext() *structpb.Struct {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *CaptureEventRequest) GetGdprObscure() bool {
+	if x != nil {
+		return x.GdprObscure
+	}
+	return false
+}
+
+func (x *CaptureEventRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type CaptureEventResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CaptureEventResponse) Reset() {
+	*x = CaptureEventResponse{}
+	mi := &file_analytics_v1_analytics_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CaptureEventResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CaptureEventResponse) ProtoMessage() {}
+
+func (x *CaptureEventResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_analytics_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CaptureEventResponse.ProtoReflect.Descriptor instead.
+func (*CaptureEventResponse) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_analytics_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *CaptureEventResponse) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+type AnalyticsEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	Timestamp     int64                  `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`                         // Robust, extensible metadata
+	CampaignId    int64                  `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AnalyticsEvent) Reset() {
+	*x = AnalyticsEvent{}
+	mi := &file_analytics_v1_analytics_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AnalyticsEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AnalyticsEvent) ProtoMessage() {}
+
+func (x *AnalyticsEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_analytics_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AnalyticsEvent.ProtoReflect.Descriptor instead.
+func (*AnalyticsEvent) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_analytics_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *AnalyticsEvent) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *AnalyticsEvent) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+func (x *AnalyticsEvent) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *AnalyticsEvent) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type ListEventsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEventsRequest) Reset() {
+	*x = ListEventsRequest{}
+	mi := &file_analytics_v1_analytics_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEventsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEventsRequest) ProtoMessage() {}
+
+func (x *ListEventsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_analytics_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEventsRequest.ProtoReflect.Descriptor instead.
+func (*ListEventsRequest) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_analytics_proto_rawDescGZIP(), []int{17}
+}
+
+type ListEventsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*AnalyticsEvent      `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEventsResponse) Reset() {
+	*x = ListEventsResponse{}
+	mi := &file_analytics_v1_analytics_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEventsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEventsResponse) ProtoMessage() {}
+
+func (x *ListEventsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_analytics_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEventsResponse.ProtoReflect.Descriptor instead.
+func (*ListEventsResponse) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_analytics_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListEventsResponse) GetEvents() []*AnalyticsEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+type EnrichEventMetadataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	NewFields     *structpb.Struct       `protobuf:"bytes,2,opt,name=new_fields,json=newFields,proto3" json:"new_fields,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrichEventMetadataRequest) Reset() {
+	*x = EnrichEventMetadataRequest{}
+	mi := &file_analytics_v1_analytics_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrichEventMetadataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrichEventMetadataRequest) ProtoMessage() {}
+
+func (x *EnrichEventMetadataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_analytics_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrichEventMetadataRequest.ProtoReflect.Descriptor instead.
+func (*EnrichEventMetadataRequest) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_analytics_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *EnrichEventMetadataRequest) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *EnrichEventMetadataRequest) GetNewFields() *structpb.Struct {
+	if x != nil {
+		return x.NewFields
+	}
+	return nil
+}
+
+func (x *EnrichEventMetadataRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+type EnrichEventMetadataResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrichEventMetadataResponse) Reset() {
+	*x = EnrichEventMetadataResponse{}
+	mi := &file_analytics_v1_analytics_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrichEventMetadataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrichEventMetadataResponse) ProtoMessage() {}
+
+func (x *EnrichEventMetadataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_analytics_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrichEventMetadataResponse.ProtoReflect.Descriptor instead.
+func (*EnrichEventMetadataResponse) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_analytics_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *EnrichEventMetadataResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
 var File_analytics_v1_analytics_proto protoreflect.FileDescriptor
 
 const file_analytics_v1_analytics_proto_rawDesc = "" +
 	"\n" +
-	"\x1canalytics/v1/analytics.proto\x12\fanalytics.v1\x1a\x18common/v1/metadata.proto\"\xfa\x02\n" +
+	"\x1canalytics/v1/analytics.proto\x12\fanalytics.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xbc\x03\n" +
 	"\x05Event\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tmaster_id\x18\x02 \x01(\tR\bmasterId\x12\x17\n" +
+	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\n" +
+	" \x01(\tR\n" +
+	"masterUuid\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +
 	"event_type\x18\x04 \x01(\tR\teventType\x12\x1b\n" +
@@ -880,7 +1320,9 @@ const file_analytics_v1_analytics_proto_rawDesc = "" +
 	"properties\x18\a \x03(\v2#.analytics.v1.Event.PropertiesEntryR\n" +
 	"properties\x12\x1c\n" +
 	"\ttimestamp\x18\b \x01(\x03R\ttimestamp\x12,\n" +
-	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x1a=\n" +
+	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\v \x01(\x03R\n" +
+	"campaignId\x1a=\n" +
 	"\x0fPropertiesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\">\n" +
@@ -892,32 +1334,42 @@ const file_analytics_v1_analytics_proto_rawDesc = "" +
 	"\x06events\x18\x01 \x03(\v2\x13.analytics.v1.EventR\x06events\"d\n" +
 	"\x18BatchTrackEventsResponse\x12#\n" +
 	"\rsuccess_count\x18\x01 \x01(\x05R\fsuccessCount\x12#\n" +
-	"\rfailure_count\x18\x02 \x01(\x05R\ffailureCount\"`\n" +
+	"\rfailure_count\x18\x02 \x01(\x05R\ffailureCount\"\x81\x01\n" +
 	"\x14GetUserEventsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"\x9a\x01\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"\x9a\x01\n" +
 	"\x15GetUserEventsResponse\x12+\n" +
 	"\x06events\x18\x01 \x03(\v2\x13.analytics.v1.EventR\x06events\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"i\n" +
+	"totalPages\"\x8a\x01\n" +
 	"\x17GetProductEventsRequest\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\tR\tproductId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"\x9d\x01\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"campaignId\"\x9d\x01\n" +
 	"\x18GetProductEventsResponse\x12+\n" +
 	"\x06events\x18\x01 \x03(\v2\x13.analytics.v1.EventR\x06events\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"/\n" +
+	"totalPages\"\xbe\x01\n" +
 	"\x10GetReportRequest\x12\x1b\n" +
-	"\treport_id\x18\x01 \x01(\tR\breportId\"A\n" +
+	"\treport_id\x18\x01 \x01(\tR\breportId\x12N\n" +
+	"\n" +
+	"parameters\x18\x02 \x03(\v2..analytics.v1.GetReportRequest.ParametersEntryR\n" +
+	"parameters\x1a=\n" +
+	"\x0fParametersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"A\n" +
 	"\x11GetReportResponse\x12,\n" +
 	"\x06report\x18\x01 \x01(\v2\x14.analytics.v1.ReportR\x06report\"E\n" +
 	"\x12ListReportsRequest\x12\x12\n" +
@@ -942,7 +1394,41 @@ const file_analytics_v1_analytics_proto_rawDesc = "" +
 	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x1a=\n" +
 	"\x0fParametersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xa5\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcd\x02\n" +
+	"\x13CaptureEventRequest\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x01 \x01(\tR\teventType\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"user_email\x18\x03 \x01(\tR\tuserEmail\x127\n" +
+	"\n" +
+	"properties\x18\x04 \x01(\v2\x17.google.protobuf.StructR\n" +
+	"properties\x12/\n" +
+	"\x06groups\x18\x05 \x01(\v2\x17.google.protobuf.StructR\x06groups\x121\n" +
+	"\acontext\x18\x06 \x01(\v2\x17.google.protobuf.StructR\acontext\x12!\n" +
+	"\fgdpr_obscure\x18\a \x01(\bR\vgdprObscure\x12\x1f\n" +
+	"\vcampaign_id\x18\b \x01(\x03R\n" +
+	"campaignId\"1\n" +
+	"\x14CaptureEventResponse\x12\x19\n" +
+	"\bevent_id\x18\x01 \x01(\tR\aeventId\"\x98\x01\n" +
+	"\x0eAnalyticsEvent\x12\x19\n" +
+	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\x12,\n" +
+	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\n" +
+	" \x01(\x03R\n" +
+	"campaignId\"\x13\n" +
+	"\x11ListEventsRequest\"J\n" +
+	"\x12ListEventsResponse\x124\n" +
+	"\x06events\x18\x01 \x03(\v2\x1c.analytics.v1.AnalyticsEventR\x06events\"\x90\x01\n" +
+	"\x1aEnrichEventMetadataRequest\x12\x19\n" +
+	"\bevent_id\x18\x01 \x01(\tR\aeventId\x126\n" +
+	"\n" +
+	"new_fields\x18\x02 \x01(\v2\x17.google.protobuf.StructR\tnewFields\x12\x1f\n" +
+	"\vcampaign_id\x18\x03 \x01(\x03R\n" +
+	"campaignId\"7\n" +
+	"\x1bEnrichEventMetadataResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2\xb9\x06\n" +
 	"\x10AnalyticsService\x12O\n" +
 	"\n" +
 	"TrackEvent\x12\x1f.analytics.v1.TrackEventRequest\x1a .analytics.v1.TrackEventResponse\x12a\n" +
@@ -950,7 +1436,11 @@ const file_analytics_v1_analytics_proto_rawDesc = "" +
 	"\rGetUserEvents\x12\".analytics.v1.GetUserEventsRequest\x1a#.analytics.v1.GetUserEventsResponse\x12a\n" +
 	"\x10GetProductEvents\x12%.analytics.v1.GetProductEventsRequest\x1a&.analytics.v1.GetProductEventsResponse\x12L\n" +
 	"\tGetReport\x12\x1e.analytics.v1.GetReportRequest\x1a\x1f.analytics.v1.GetReportResponse\x12R\n" +
-	"\vListReports\x12 .analytics.v1.ListReportsRequest\x1a!.analytics.v1.ListReportsResponseBFZDgithub.com/nmxmxh/master-ovasabi/api/protos/analytics/v1;analyticspbb\x06proto3"
+	"\vListReports\x12 .analytics.v1.ListReportsRequest\x1a!.analytics.v1.ListReportsResponse\x12U\n" +
+	"\fCaptureEvent\x12!.analytics.v1.CaptureEventRequest\x1a\".analytics.v1.CaptureEventResponse\x12O\n" +
+	"\n" +
+	"ListEvents\x12\x1f.analytics.v1.ListEventsRequest\x1a .analytics.v1.ListEventsResponse\x12j\n" +
+	"\x13EnrichEventMetadata\x12(.analytics.v1.EnrichEventMetadataRequest\x1a).analytics.v1.EnrichEventMetadataResponseBFZDgithub.com/nmxmxh/master-ovasabi/api/protos/analytics/v1;analyticspbb\x06proto3"
 
 var (
 	file_analytics_v1_analytics_proto_rawDescOnce sync.Once
@@ -964,53 +1454,75 @@ func file_analytics_v1_analytics_proto_rawDescGZIP() []byte {
 	return file_analytics_v1_analytics_proto_rawDescData
 }
 
-var file_analytics_v1_analytics_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_analytics_v1_analytics_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_analytics_v1_analytics_proto_goTypes = []any{
-	(*Event)(nil),                    // 0: analytics.v1.Event
-	(*TrackEventRequest)(nil),        // 1: analytics.v1.TrackEventRequest
-	(*TrackEventResponse)(nil),       // 2: analytics.v1.TrackEventResponse
-	(*BatchTrackEventsRequest)(nil),  // 3: analytics.v1.BatchTrackEventsRequest
-	(*BatchTrackEventsResponse)(nil), // 4: analytics.v1.BatchTrackEventsResponse
-	(*GetUserEventsRequest)(nil),     // 5: analytics.v1.GetUserEventsRequest
-	(*GetUserEventsResponse)(nil),    // 6: analytics.v1.GetUserEventsResponse
-	(*GetProductEventsRequest)(nil),  // 7: analytics.v1.GetProductEventsRequest
-	(*GetProductEventsResponse)(nil), // 8: analytics.v1.GetProductEventsResponse
-	(*GetReportRequest)(nil),         // 9: analytics.v1.GetReportRequest
-	(*GetReportResponse)(nil),        // 10: analytics.v1.GetReportResponse
-	(*ListReportsRequest)(nil),       // 11: analytics.v1.ListReportsRequest
-	(*ListReportsResponse)(nil),      // 12: analytics.v1.ListReportsResponse
-	(*Report)(nil),                   // 13: analytics.v1.Report
-	nil,                              // 14: analytics.v1.Event.PropertiesEntry
-	nil,                              // 15: analytics.v1.Report.ParametersEntry
-	(*v1.Metadata)(nil),              // 16: common.Metadata
+	(*Event)(nil),                       // 0: analytics.v1.Event
+	(*TrackEventRequest)(nil),           // 1: analytics.v1.TrackEventRequest
+	(*TrackEventResponse)(nil),          // 2: analytics.v1.TrackEventResponse
+	(*BatchTrackEventsRequest)(nil),     // 3: analytics.v1.BatchTrackEventsRequest
+	(*BatchTrackEventsResponse)(nil),    // 4: analytics.v1.BatchTrackEventsResponse
+	(*GetUserEventsRequest)(nil),        // 5: analytics.v1.GetUserEventsRequest
+	(*GetUserEventsResponse)(nil),       // 6: analytics.v1.GetUserEventsResponse
+	(*GetProductEventsRequest)(nil),     // 7: analytics.v1.GetProductEventsRequest
+	(*GetProductEventsResponse)(nil),    // 8: analytics.v1.GetProductEventsResponse
+	(*GetReportRequest)(nil),            // 9: analytics.v1.GetReportRequest
+	(*GetReportResponse)(nil),           // 10: analytics.v1.GetReportResponse
+	(*ListReportsRequest)(nil),          // 11: analytics.v1.ListReportsRequest
+	(*ListReportsResponse)(nil),         // 12: analytics.v1.ListReportsResponse
+	(*Report)(nil),                      // 13: analytics.v1.Report
+	(*CaptureEventRequest)(nil),         // 14: analytics.v1.CaptureEventRequest
+	(*CaptureEventResponse)(nil),        // 15: analytics.v1.CaptureEventResponse
+	(*AnalyticsEvent)(nil),              // 16: analytics.v1.AnalyticsEvent
+	(*ListEventsRequest)(nil),           // 17: analytics.v1.ListEventsRequest
+	(*ListEventsResponse)(nil),          // 18: analytics.v1.ListEventsResponse
+	(*EnrichEventMetadataRequest)(nil),  // 19: analytics.v1.EnrichEventMetadataRequest
+	(*EnrichEventMetadataResponse)(nil), // 20: analytics.v1.EnrichEventMetadataResponse
+	nil,                                 // 21: analytics.v1.Event.PropertiesEntry
+	nil,                                 // 22: analytics.v1.GetReportRequest.ParametersEntry
+	nil,                                 // 23: analytics.v1.Report.ParametersEntry
+	(*v1.Metadata)(nil),                 // 24: common.Metadata
+	(*structpb.Struct)(nil),             // 25: google.protobuf.Struct
 }
 var file_analytics_v1_analytics_proto_depIdxs = []int32{
-	14, // 0: analytics.v1.Event.properties:type_name -> analytics.v1.Event.PropertiesEntry
-	16, // 1: analytics.v1.Event.metadata:type_name -> common.Metadata
+	21, // 0: analytics.v1.Event.properties:type_name -> analytics.v1.Event.PropertiesEntry
+	24, // 1: analytics.v1.Event.metadata:type_name -> common.Metadata
 	0,  // 2: analytics.v1.TrackEventRequest.event:type_name -> analytics.v1.Event
 	0,  // 3: analytics.v1.BatchTrackEventsRequest.events:type_name -> analytics.v1.Event
 	0,  // 4: analytics.v1.GetUserEventsResponse.events:type_name -> analytics.v1.Event
 	0,  // 5: analytics.v1.GetProductEventsResponse.events:type_name -> analytics.v1.Event
-	13, // 6: analytics.v1.GetReportResponse.report:type_name -> analytics.v1.Report
-	13, // 7: analytics.v1.ListReportsResponse.reports:type_name -> analytics.v1.Report
-	15, // 8: analytics.v1.Report.parameters:type_name -> analytics.v1.Report.ParametersEntry
-	1,  // 9: analytics.v1.AnalyticsService.TrackEvent:input_type -> analytics.v1.TrackEventRequest
-	3,  // 10: analytics.v1.AnalyticsService.BatchTrackEvents:input_type -> analytics.v1.BatchTrackEventsRequest
-	5,  // 11: analytics.v1.AnalyticsService.GetUserEvents:input_type -> analytics.v1.GetUserEventsRequest
-	7,  // 12: analytics.v1.AnalyticsService.GetProductEvents:input_type -> analytics.v1.GetProductEventsRequest
-	9,  // 13: analytics.v1.AnalyticsService.GetReport:input_type -> analytics.v1.GetReportRequest
-	11, // 14: analytics.v1.AnalyticsService.ListReports:input_type -> analytics.v1.ListReportsRequest
-	2,  // 15: analytics.v1.AnalyticsService.TrackEvent:output_type -> analytics.v1.TrackEventResponse
-	4,  // 16: analytics.v1.AnalyticsService.BatchTrackEvents:output_type -> analytics.v1.BatchTrackEventsResponse
-	6,  // 17: analytics.v1.AnalyticsService.GetUserEvents:output_type -> analytics.v1.GetUserEventsResponse
-	8,  // 18: analytics.v1.AnalyticsService.GetProductEvents:output_type -> analytics.v1.GetProductEventsResponse
-	10, // 19: analytics.v1.AnalyticsService.GetReport:output_type -> analytics.v1.GetReportResponse
-	12, // 20: analytics.v1.AnalyticsService.ListReports:output_type -> analytics.v1.ListReportsResponse
-	15, // [15:21] is the sub-list for method output_type
-	9,  // [9:15] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	22, // 6: analytics.v1.GetReportRequest.parameters:type_name -> analytics.v1.GetReportRequest.ParametersEntry
+	13, // 7: analytics.v1.GetReportResponse.report:type_name -> analytics.v1.Report
+	13, // 8: analytics.v1.ListReportsResponse.reports:type_name -> analytics.v1.Report
+	23, // 9: analytics.v1.Report.parameters:type_name -> analytics.v1.Report.ParametersEntry
+	25, // 10: analytics.v1.CaptureEventRequest.properties:type_name -> google.protobuf.Struct
+	25, // 11: analytics.v1.CaptureEventRequest.groups:type_name -> google.protobuf.Struct
+	25, // 12: analytics.v1.CaptureEventRequest.context:type_name -> google.protobuf.Struct
+	24, // 13: analytics.v1.AnalyticsEvent.metadata:type_name -> common.Metadata
+	16, // 14: analytics.v1.ListEventsResponse.events:type_name -> analytics.v1.AnalyticsEvent
+	25, // 15: analytics.v1.EnrichEventMetadataRequest.new_fields:type_name -> google.protobuf.Struct
+	1,  // 16: analytics.v1.AnalyticsService.TrackEvent:input_type -> analytics.v1.TrackEventRequest
+	3,  // 17: analytics.v1.AnalyticsService.BatchTrackEvents:input_type -> analytics.v1.BatchTrackEventsRequest
+	5,  // 18: analytics.v1.AnalyticsService.GetUserEvents:input_type -> analytics.v1.GetUserEventsRequest
+	7,  // 19: analytics.v1.AnalyticsService.GetProductEvents:input_type -> analytics.v1.GetProductEventsRequest
+	9,  // 20: analytics.v1.AnalyticsService.GetReport:input_type -> analytics.v1.GetReportRequest
+	11, // 21: analytics.v1.AnalyticsService.ListReports:input_type -> analytics.v1.ListReportsRequest
+	14, // 22: analytics.v1.AnalyticsService.CaptureEvent:input_type -> analytics.v1.CaptureEventRequest
+	17, // 23: analytics.v1.AnalyticsService.ListEvents:input_type -> analytics.v1.ListEventsRequest
+	19, // 24: analytics.v1.AnalyticsService.EnrichEventMetadata:input_type -> analytics.v1.EnrichEventMetadataRequest
+	2,  // 25: analytics.v1.AnalyticsService.TrackEvent:output_type -> analytics.v1.TrackEventResponse
+	4,  // 26: analytics.v1.AnalyticsService.BatchTrackEvents:output_type -> analytics.v1.BatchTrackEventsResponse
+	6,  // 27: analytics.v1.AnalyticsService.GetUserEvents:output_type -> analytics.v1.GetUserEventsResponse
+	8,  // 28: analytics.v1.AnalyticsService.GetProductEvents:output_type -> analytics.v1.GetProductEventsResponse
+	10, // 29: analytics.v1.AnalyticsService.GetReport:output_type -> analytics.v1.GetReportResponse
+	12, // 30: analytics.v1.AnalyticsService.ListReports:output_type -> analytics.v1.ListReportsResponse
+	15, // 31: analytics.v1.AnalyticsService.CaptureEvent:output_type -> analytics.v1.CaptureEventResponse
+	18, // 32: analytics.v1.AnalyticsService.ListEvents:output_type -> analytics.v1.ListEventsResponse
+	20, // 33: analytics.v1.AnalyticsService.EnrichEventMetadata:output_type -> analytics.v1.EnrichEventMetadataResponse
+	25, // [25:34] is the sub-list for method output_type
+	16, // [16:25] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_analytics_v1_analytics_proto_init() }
@@ -1024,7 +1536,7 @@ func file_analytics_v1_analytics_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_analytics_v1_analytics_proto_rawDesc), len(file_analytics_v1_analytics_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

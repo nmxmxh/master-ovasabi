@@ -84,7 +84,7 @@ type Cache struct {
 }
 
 // NewCache creates a new Redis cache instance.
-func NewCache(opts *Options, log *zap.Logger) (*Cache, error) {
+func NewCache(ctx context.Context, opts *Options, log *zap.Logger) (*Cache, error) {
 	if opts == nil {
 		opts = DefaultOptions()
 	}
@@ -112,10 +112,10 @@ func NewCache(opts *Options, log *zap.Logger) (*Cache, error) {
 	})
 
 	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctxPing, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := client.Ping(ctx).Err(); err != nil {
+	if err := client.Ping(ctxPing).Err(); err != nil {
 		if log != nil {
 			log.Error("Failed to connect to Redis",
 				zap.String("addr", opts.Addr),

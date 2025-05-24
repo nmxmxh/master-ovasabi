@@ -7,21 +7,22 @@ import (
 	"os"
 	"time"
 
-	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
-	"github.com/nmxmxh/master-ovasabi/internal/health"
-	"github.com/nmxmxh/master-ovasabi/internal/metrics"
+	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 )
 
 type Server struct {
-	GRPC     *grpc.Server
-	Metrics  *http.Server
-	Logger   *zap.Logger
-	Provider *bootstrap.Dependencies
+	GRPCServer *grpc.Server
+	Metrics    *http.Server
+	Logger     *zap.Logger
+	Container  *di.Container
 }
 
-func New(deps *bootstrap.Dependencies) *Server {
+func NewServer(container *di.Container, logger *zap.Logger) *Server {
 	grpcServer := grpc.NewServer()
 	metricsServer := &http.Server{
 		Addr:         ":9090",
@@ -31,31 +32,52 @@ func New(deps *bootstrap.Dependencies) *Server {
 		IdleTimeout:  15 * time.Second,
 	}
 	return &Server{
-		GRPC:     grpcServer,
-		Metrics:  metricsServer,
-		Logger:   deps.Logger,
-		Provider: deps,
+		GRPCServer: grpcServer,
+		Metrics:    metricsServer,
+		Logger:     logger,
+		Container:  container,
 	}
 }
 
 func (s *Server) Start() error {
-	cancel := func() {}
-	WaitForShutdown(cancel)
+	// Register health server
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(s.GRPCServer, healthServer)
+	reflection.Register(s.GRPCServer)
 
-	health.Register(s.GRPC)
-	RegisterAllServices(s.GRPC, s.Provider.Provider)
-
-	metricsAddr := os.Getenv("METRICS_PORT")
-	if metricsAddr == "" {
-		metricsAddr = ":9090"
+	// Set health status for all services (update as needed)
+	services := []string{
+		"user.UserService",
+		"notification.NotificationService",
+		"commerce.CommerceService",
+		"content.ContentService",
+		"search.SearchService",
+		"admin.AdminService",
+		"analytics.AnalyticsService",
+		"contentmoderation.ContentModerationService",
+		"talent.TalentService",
+		"security.SecurityService",
+		"localization.LocalizationService",
+		"nexus.NexusService",
+		"referral.ReferralService",
+		"messaging.MessagingService",
+		"scheduler.SchedulerService",
 	}
-	s.Metrics = metrics.NewServer(metricsAddr)
+	for _, svc := range services {
+		healthServer.SetServingStatus(svc, grpc_health_v1.HealthCheckResponse_SERVING)
+	}
+
+	// Register all gRPC services using DI container
+	registerGRPCServices(s.GRPCServer, s.Container, s.Logger)
+
+	// Start metrics server
 	go func() {
 		if err := s.Metrics.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.Logger.Error("Metrics server failed", zap.Error(err))
 		}
 	}()
 
+	// Start gRPC server
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8080"
@@ -65,11 +87,11 @@ func (s *Server) Start() error {
 		s.Logger.Fatal("Failed to create listener", zap.Error(err))
 	}
 	s.Logger.Info("Starting gRPC server", zap.String("address", lis.Addr().String()))
-	return s.GRPC.Serve(lis)
+	return s.GRPCServer.Serve(lis)
 }
 
 func (s *Server) Stop(ctx context.Context) error {
 	err := s.Metrics.Shutdown(ctx)
-	s.GRPC.GracefulStop()
+	s.GRPCServer.GracefulStop()
 	return err
 }

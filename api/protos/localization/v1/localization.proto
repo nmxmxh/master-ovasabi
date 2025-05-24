@@ -46,6 +46,7 @@ message CreateTranslationRequest {
   string language = 2;
   string value = 3;
   common.Metadata metadata = 4;
+  int64 campaign_id = 5;
 }
 message CreateTranslationResponse {
   Translation translation = 1;
@@ -61,6 +62,7 @@ message ListTranslationsRequest {
   string language = 1;
   int32 page = 2;
   int32 page_size = 3;
+  int64 campaign_id = 4;
 }
 message ListTranslationsResponse {
   repeated Translation translations = 1;
@@ -75,6 +77,7 @@ message Translation {
   string value = 4;
   common.Metadata metadata = 5;
   google.protobuf.Timestamp created_at = 6;
+  int64 campaign_id = 7;
 }
 
 message GetPricingRuleRequest {
@@ -137,4 +140,14 @@ message Locale {
   string currency = 4;
   repeated string regions = 5;
   common.Metadata metadata = 6;
+}
+
+message Localization {
+  string id = 1;
+  string key = 2;
+  string language = 3;
+  string value = 4;
+  common.Metadata metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+  int64 campaign_id = 7;
 } 

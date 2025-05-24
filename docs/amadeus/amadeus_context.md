@@ -1,9 +1,18 @@
-# Amadeus Context File
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 
 > **Note:** Always refer to this Amadeus context and knowledge graph documentation before implementing or updating any service. This ensures all dependencies, capabilities, and integration points are current and consistent across the platform.
 > **New:** For research-backed best practices and reference architectures for each service, see [Service Patterns & Research-Backed Best Practices](service_patterns_and_research.md). All new and refactored services must follow the patterns, integration points, and extensibility guidelines described there. Use this guide to update the knowledge graph and document all relationships.
 
 > **Database Reference:** For a full list of all tables, functions, and their responsibilities, see [Database Tables & Functions Reference](../development/database_tables.md). This document is tightly integrated with the Amadeus context for system-wide knowledge, impact analysis, and documentation.
+
+> **Summary:** This file is tightly integrated with [General Metadata Documentation](../services/metadata.md) and [Versioning Standard & Documentation](../services/versioning.md). All service, orchestration, and knowledge graph documentation must reference these for metadata and versioning standards.
 
 This file provides continuous context about the Amadeus Knowledge Graph system for AI assistants
 working with the OVASABI platform.
@@ -33,6 +42,149 @@ system.
 | ContentModeration | ✅ | Moderation, compliance        | Content, User      | Nexus                |
 | Talent       | ✅     | Talent profiles, bookings     | User               | Nexus                |
 | Nexus        | ✅     | Orchestration, patterns       | All services       | Amadeus, All         |
+
+## Search Service: Documentation & Architecture
+
+The Search Service provides unified, high-performance, and extensible search capabilities across all major entities (content, user, campaign, etc.) in the OVASABI platform. It leverages PostgreSQL's full-text search, Redis caching, and the platform's robust metadata pattern, while integrating tightly with the master-client-service-event database architecture.
+
+### Key Design Principles
+- **PostgreSQL Full-Text Search First:** Uses `tsvector` columns and GIN indexes for scalable, relevance-ranked, multi-field search. No need for Elasticsearch for most use cases ([Qonto](https://medium.com/qonto-way/do-you-need-elasticsearch-when-you-have-postgresql-94ef69f5570f), [Huda](https://iniakunhuda.medium.com/postgresql-full-text-search-a-powerful-alternative-to-elasticsearch-for-small-to-medium-d9524e001fe0), [Xata](https://xata.io/blog/postgres-full-text-search-engine)).
+- **Redis for Hot Query/Result Caching:** Caches frequent queries and results for low-latency responses and reduced DB load ([Redis Practices](../development/redis_practices.md)).
+- **Metadata-Driven Extensibility:** All requests and results use the canonical `common.Metadata` pattern, enabling dynamic filters, context, and enrichment ([Metadata Pattern](#standard-robust-metadata-pattern-for-extensible-services)).
+- **Master Table Integration:** All search operations are anchored to the `master` table, enabling polymorphic, cross-entity search, analytics, and event logging ([Database Practices](../development/database_practices.md)).
+- **Composable, Future-Proof API:** Proto and REST APIs use composable request/response patterns, supporting new entity types, filters, and ranking strategies without breaking changes.
+
+### System Architecture
+
+#### 1. Database Layer
+- **Master Table as Anchor:** All searchable entities (content, user, campaign, etc.) are referenced in the `master` table. Each service/entity table (e.g., `service_content_main`, `service_user_master`) has a `master_id` foreign key. Enables unified, cross-entity search and analytics.
+- **Full-Text Search Columns:** Each entity table includes a `tsvector` column (e.g., `search_vector`) indexed with GIN. Populated/updated on insert/update triggers.
+- **Flexible Metadata Storage:** Entity metadata is stored as `jsonb` for efficient filtering and enrichment.
+
+#### 2. Search Service Layer
+- **Unified Search API:** Accepts a query string, entity types, filters, and metadata. Supports full-text, fuzzy, and entity search. Returns paginated, relevance-ranked results with metadata enrichment.
+- **Faceted Filtering & Aggregations:** Supports filtering by type, date, tags, and any metadata field. Returns facets/aggregations in response metadata for UI/analytics.
+- **Suggest/Autocomplete API:** Provides fast, context-aware suggestions for query prefixes.
+
+#### 3. Caching Layer
+- **Redis Hot Query/Result Cache:** Caches results for frequent queries using structured keys (e.g., `cache:search:{hash(query+filters)}`). TTL and cache invalidation policies per [Redis Practices](../development/redis_practices.md).
+
+#### 4. Event & Analytics Layer
+- **Event Logging:** All search actions/events are logged in the `service_event` table, referencing `master_id` and including event type, payload, and metadata. Enables analytics, monitoring, and ML.
+
+### Metadata Pattern Integration
+- **All requests and results include a `metadata` field** (see [Robust Metadata Pattern](#standard-robust-metadata-pattern-for-extensible-services)):
+  - **Filters:** Date ranges, tags, entity-specific fields.
+  - **Context:** User, locale, device, session.
+  - **Enrichment:** Facets, aggregations, audit info.
+  - **Versioning:** All metadata includes version/environment fields for traceability.
+
+### Example: Search Flow
+1. **User submits a search query** (e.g., "AI orchestration") for content and campaigns.
+2. **Search Service**:
+   - Checks Redis for cached results.
+   - If cache miss, queries Postgres using FTS on `service_content_main` and `service_campaign_main`, joining via `master_id`.
+   - Applies filters from metadata (e.g., date, tags).
+   - Ranks results using `ts_rank` and custom weights.
+   - Logs the search event in `service_event`.
+   - Caches the result in Redis.
+3. **Response**:
+   - Returns paginated, ranked results with key fields and enriched metadata (facets, context, etc.).
+
+### Example: SearchRequest & SearchResult (Proto/JSON)
+```json
+{
+  "query": "AI orchestration",
+  "types": ["content", "campaign"],
+  "page_size": 10,
+  "page_number": 1,
+  "metadata": {
+    "service_specific": {
+      "search": {
+        "filters": {
+          "date_from": "2024-01-01",
+          "tags": ["ai", "orchestration"]
+        },
+        "user_context": {
+          "user_id": "user_123",
+          "locale": "en-US"
+        }
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "results": [
+    {
+      "id": "content_456",
+      "type": "content",
+      "score": 0.98,
+      "fields": {
+        "title": "AI Orchestration Patterns",
+        "snippet": "Learn how to orchestrate AI services at scale..."
+      },
+      "metadata": {
+        "service_specific": {
+          "content": {
+            "editor_mode": "richtext",
+            "tags": ["ai", "orchestration"]
+          }
+        }
+      }
+    }
+  ],
+  "total": 42,
+  "page_number": 1,
+  "page_size": 10,
+  "metadata": {
+    "service_specific": {
+      "search": {
+        "facets": {
+          "tags": {"ai": 30, "orchestration": 12}
+        }
+      }
+    }
+  }
+}
+```
+
+### Best Practices & References
+- **Postgres FTS:** Use `tsvector`, GIN indexes, and weighted ranking ([Xata](https://xata.io/blog/postgres-full-text-search-engine), [Huda](https://iniakunhuda.medium.com/postgresql-full-text-search-a-powerful-alternative-to-elasticsearch-for-small-to-medium-d9524e001fe0)).
+- **Master Table:** Anchor all search and analytics to the `master` table for extensibility and cross-entity queries ([Database Practices](../development/database_practices.md)).
+- **Redis:** Cache hot queries/results, use structured key naming, and set appropriate TTLs ([Redis Practices](../development/redis_practices.md)).
+- **Metadata:** Use the robust, extensible metadata pattern for all filters, context, and enrichment ([Amadeus Context](#standard-robust-metadata-pattern-for-extensible-services)).
+- **Composable API:** All endpoints use composable request/response objects with metadata for future-proofing ([Composable Request Pattern](#composable-request-pattern-standard)).
+
+### References
+- [Do you need ElasticSearch when you have PostgreSQL? (Qonto)](https://medium.com/qonto-way/do-you-need-elasticsearch-when-you-have-postgresql-94ef69f5570f)
+- [PostgreSQL Full-Text Search: A Powerful Alternative to Elasticsearch](https://iniakunhuda.medium.com/postgresql-full-text-search-a-powerful-alternative-to-elasticsearch-for-small-to-medium-d9524e001fe0)
+- [How to build a full-text search engine with Postgres (Xata)](https://xata.io/blog/postgres-full-text-search-engine)
+- [How to optimize PostgreSQL queries (v-checha)](https://v-checha.medium.com/how-to-optimize-postgresql-queries-226e6ff15f72)
+- [OVASABI Metadata Pattern](#standard-robust-metadata-pattern-for-extensible-services)
+- [Database Practices](../development/database_practices.md)
+- [Redis Practices](../development/redis_practices.md)
+
+**This documentation is the canonical reference for the Search Service. All implementation, onboarding, and future evolution must follow these patterns and reference this section.**
+
+## User Service (Canonical Identity & Access Management)
+
+The User Service is the platform's canonical service for all user management, authentication, authorization, RBAC (role-based access control), and audit logging. It replaces the deprecated Auth service and centralizes all identity and access management logic.
+
+**Responsibilities:**
+- User CRUD and profile management
+- Authentication (login, token, session)
+- Authorization (role/permission checks)
+- RBAC (role assignment, permission management)
+- Audit logging (login attempts, permission changes, etc.)
+- Metadata-driven event logging for all user/auth actions
+
+**Implementation:**
+- All authentication and authorization logic is now handled by the User Service.
+- All dependencies, integrations, and event logging should use the User Service.
+- See [User Service Implementation Guide](user_service.md) for step-by-step migration and best practices.
 
 ## Core Capabilities
 
@@ -83,12 +235,12 @@ For more details and the latest campaign scaffolding best practices, always refe
 - **Knowledge Graph Store** (`amadeus/knowledge_graph.json`): JSON-based data store
 - **Knowledge Graph API** (`amadeus/pkg/kg`): Go package for programmatic access
 - **CLI Tool** (`amadeus/cmd/kgcli`): Command-line interface for knowledge graph access
-- **Nexus Pattern** (`amadeus/nexus/pattern`): Integration with Nexus orchestration
+- **Nexus Pattern** (`internal/nexus/service/pattern`): Canonical integration with Nexus orchestration
 - **Service Hooks** (`amadeus/examples`): Integration points for services
 - **Provider/DI Container** (`internal/service/provider.go`): Centralized service registration and
   dependency injection
 - **Babel Service** (`internal/service/babel`): Unified i18n and location-based pricing logic
-- **PatternStore** (`internal/nexus/service/pattern_store.go`): Modular pattern registration for all services
+- **PatternStore** (`internal/nexus/service/pattern_store.go`): Modular pattern registration for all services (canonical path)
 
 ## Knowledge Graph Structure
 
@@ -105,7 +257,7 @@ The knowledge graph is structured with these main sections:
 - `service_registration`: Tracks all service registrations, DI relationships, and health/metrics
   endpoints
 - `babel_integration`: Tracks Babel service integration points and pricing/i18n relationships
-- `pattern_orchestration`: Tracks all service pattern registrations and orchestration logic
+- **pattern_orchestration**: Tracks all service pattern registrations and orchestration logic
 
 For advanced configuration and implementation details, see the
 [Super Knowledge Graph Configuration](super_knowledge_graph.md) and
@@ -364,6 +516,86 @@ accurate and valuable:
 For detailed implementation of advanced querying, perspective-aware AI systems, and language model
 integration, refer to the [Super Knowledge Graph Configuration](super_knowledge_graph.md).
 
+## Accessibility & Compliance Metadata Pattern
+
+To ensure all campaigns and localized assets are accessible and compliant with global standards, the platform implements a comprehensive accessibility and compliance metadata structure. This pattern enables:
+- Tracking of language, script, and text direction for each asset
+- Documentation of compliance with standards (WCAG, Section 508, EN 301 549, ADA, etc.)
+- Recording of accessibility features (alt text, captions, ARIA labels, color contrast, font scalability, keyboard navigation, etc.)
+- Audit and provenance information (who/what performed checks, when, method, issues found/resolved)
+- Media-specific accessibility (alt text for images, captions/transcripts for video/audio)
+- Platform support (desktop, mobile, screen reader, braille, voice input)
+
+### Example Metadata Structure
+```json
+{
+  "locale": "ar-EG",
+  "script_code": "Arab",
+  "text_direction": "rtl",
+  "compliance": {
+    "standards": [
+      { "name": "WCAG", "level": "AA", "version": "2.1" },
+      { "name": "Section 508", "compliant": true },
+      { "name": "EN 301 549", "compliant": true }
+    ],
+    "features": {
+      "alt_text": true,
+      "captions": true,
+      "transcripts": true,
+      "aria_labels": true,
+      "color_contrast_ratio": "4.5:1",
+      "font_scalable": true,
+      "keyboard_navigation": true,
+      "language_attribute": true,
+      "direction_attribute": true
+    },
+    "audit": {
+      "checked_by": "localization-service-v2.3",
+      "checked_at": "2024-05-15T12:00:00Z",
+      "method": "automated",
+      "issues_found": [
+        {
+          "type": "missing_alt_text",
+          "location": "banner_image",
+          "resolved": true
+        }
+      ]
+    }
+  },
+  "media": {
+    "images": [
+      {
+        "src": "banner.jpg",
+        "alt": "Spring Sale Banner",
+        "description": "A banner showing spring flowers and sale text"
+      }
+    ],
+    "videos": [
+      {
+        "src": "promo.mp4",
+        "captions": "promo_captions.vtt",
+        "transcript": "promo_transcript.txt",
+        "audio_description": true
+      }
+    ]
+  },
+  "platform_support": {
+    "desktop": true,
+    "mobile": true,
+    "screen_reader": true,
+    "braille": false,
+    "voice_input": true
+  }
+}
+```
+
+### Integration with Campaign and Localization Services
+- **Campaign Service:** When creating or updating a campaign, include an `accessibility` field in the metadata. This field should be populated or updated as localization and accessibility checks are performed.
+- **Localization Service:** When generating or updating localized assets, automatically run accessibility checks and populate the compliance metadata. Store this metadata alongside each localized script/asset and return it to the campaign service for inclusion in campaign metadata.
+- **Knowledge Graph:** Track accessibility and compliance metadata for all campaigns and assets, enabling queries, audits, and compliance reporting.
+
+For more, see the [Metadata Pattern](#standard-robust-metadata-pattern-for-extensible-services) and [Accessibility & Compliance Metadata Pattern](#accessibility--compliance-metadata-pattern) sections.
+
 ## References
 
 For detailed information, see:
@@ -383,22 +615,19 @@ For detailed information, see:
 ## Build and Development Commands
 
 The project includes a comprehensive Makefile that provides standardized commands for development,
-testing, and deployment. Here are the key command categories:
+testing, and deployment. **Always use the Makefile and Docker configuration for proto generation, code generation, and service builds to ensure consistency across environments.** Here are the key command categories:
 
 ### Core Development Commands
 
 ```makefile
-# Setup and Installation
 setup              # Sets up development environment
 install-tools      # Installs required Go tools
 deps              # Installs additional dependencies
 
-# Build and Development
 build             # Builds the binary with proto generation
 dev               # Runs the server in development mode
 clean             # Cleans build artifacts
 
-# Testing
 test              # Runs all tests (unit + integration)
 test-unit         # Runs only unit tests
 test-integration  # Runs integration tests
@@ -408,12 +637,10 @@ coverage          # Generates test coverage report
 ### Code Quality and Documentation
 
 ```makefile
-# Linting
 lint              # Full linting suite
 lint-focused      # Excludes backup files and amadeus utilities
 lint-safe         # Completely excludes amadeus directory
 
-# Documentation
 docs-format       # Formats documentation
 docs-validate     # Validates documentation
 docs-serve        # Serves documentation locally
@@ -423,18 +650,15 @@ docs-deploy-github # Deploys to GitHub Pages
 ### Container and Deployment
 
 ```makefile
-# Docker Operations
 docker-build      # Builds Docker images
 docker-up         # Starts containers
 docker-down       # Stops containers
 docker-logs       # Shows container logs
 docker-clean      # Removes containers and volumes
 
-# Security Scanning
 trivy-scan        # Vulnerability scanning
 trivy-scan-ci     # CI/CD vulnerability checks
 
-# Kubernetes Deployment
 k8s-deploy        # Deploys to Kubernetes
 k8s-status        # Shows deployment status
 ```
@@ -566,6 +790,35 @@ The Metadata pattern provides a unified, extensible structure for attaching rich
 - Rich, queryable nodes and edges in the knowledge graph
 - Contextual, data-rich inputs for AI/ML
 - Consistent, high-performance storage via Postgres `jsonb`
+
+### Versioning & Environment Field (Required)
+
+> **Standard:** All extensible metadata (including `service_specific` fields) MUST include a `versioning` field as described in [Versioning Standard & Documentation](../services/versioning.md). This field connects user, system, and environment versioning, and is required for all REST, gRPC, WebSocket, orchestration, analytics, and audit communication.
+
+#### Canonical Example:
+```json
+{
+  "metadata": {
+    "service_specific": {
+      "user": {
+        "versioning": {
+          "system_version": "2.0.0",
+          "service_version": "1.2.0",
+          "user_version": "1.0.0",
+          "environment": "beta",
+          "user_type": "beta_user",
+          "feature_flags": ["new_ui"],
+          "last_migrated_at": "2025-05-11T00:00:00Z"
+        },
+        "login_source": "mobile_app"
+      }
+    }
+  }
+}
+```
+- This field must be set at entity creation and updated on migration, environment, or user type change.
+- All communication (REST, gRPC, WebSocket, orchestration, analytics, audit) must propagate and update this field as appropriate.
+- See [Versioning Standard & Documentation](../services/versioning.md) for full schema, best practices, and implementation guidance.
 
 ### Metadata Structure
 
@@ -707,3 +960,656 @@ The platform now implements a robust, production-grade WebSocket management patt
 - **Metrics endpoint**: `/metrics` on port 9090
 
 **This standard is required for all new and refactored real-time/broadcast services.**
+
+## Composable Request Pattern Standard
+
+All service endpoints that accept POST, PATCH, or PUT requests must use a composable request pattern. This ensures extensibility, discoverability, and future-proofing across the platform.
+
+### Naming Convention
+- Top-level request object: `{Service}{Action}Request` (e.g., `UserLoginRequest`, `CampaignCreateRequest`, `CommercePaymentRequest`).
+- Metadata field: Always named `metadata`, an object with `service_specific` keys.
+- Service-specific fields: Namespaced under `metadata.service_specific.{service}` (e.g., `metadata.service_specific.user`).
+
+### OpenAPI Schema Example
+```yaml
+components:
+  schemas:
+    UserLoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        metadata:
+          type: object
+          properties:
+            service_specific:
+              type: object
+              properties:
+                user:
+                  type: object
+                  additionalProperties: true
+      required:
+        - email
+        - password
+    CampaignCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        start_date:
+          type: string
+          format: date
+        metadata:
+          type: object
+          properties:
+            service_specific:
+              type: object
+              properties:
+                campaign:
+                  type: object
+                  additionalProperties: true
+      required:
+        - name
+        - start_date
+```
+- For advanced extensibility, use `oneOf` or `anyOf` for alternative request types or extensions.
+
+### Best Practices
+- Always include a `metadata` field in composable requests, even if initially empty.
+- Service-specific extensions must be namespaced under `metadata.service_specific.{service}`.
+- Use `additionalProperties: true` for maximum flexibility.
+- Document all possible extensions in your OpenAPI spec and onboarding docs.
+- Version your schemas and use `allOf`, `oneOf`, `anyOf` for future-proofing.
+
+### Example: Service-Based Metadata in a Request
+```json
+{
+  "email": "user@example.com",
+  "password": "hunter2",
+  "metadata": {
+    "service_specific": {
+      "user": {
+        "login_source": "mobile_app",
+        "device_id": "abc123"
+      }
+    }
+  }
+}
+```
+```json
+{
+  "name": "Spring Sale",
+  "start_date": "2024-06-01",
+  "metadata": {
+    "service_specific": {
+      "campaign": {
+        "priority": "high",
+        "target_audience": ["students", "teachers"]
+      }
+    }
+  }
+}
+```
+
+### Checklist for Every Service
+- [ ] All POST/PATCH/PUT requests use a `{Service}{Action}Request` object.
+- [ ] All requests include a `metadata` field with `service_specific` keys.
+- [ ] Service-specific extensions are namespaced under `metadata.service_specific.{service}`.
+- [ ] OpenAPI spec documents all extensions and uses `additionalProperties: true`.
+- [ ] All new features/extensions are added under the correct namespace.
+
+### Benefits
+- Extensible and future-proof API design
+- Rapid onboarding of new features and request types
+- Easier integration for clients and internal teams
+
+### References
+- [Practical OpenAPI in Go (ITNEXT)](https://medium.com/itnext/practical-openapi-in-go-1e9e6c4ed439)
+- [OpenAPI Specification](https://swagger.io/specification/)
+- [JSON Schema: oneOf, anyOf, allOf](https://json-schema.org/understanding-json-schema/reference/combining.html)
+
+**All services must follow this pattern for extensibility and future-proofing.**
+
+## Bad Actor Identification Standard
+
+To protect platform integrity and user safety, all services handling user actions, authentication, or moderation must implement a bad actor identification pattern using device/location triangulation and frequency analysis.
+
+### Signals to Use
+- **Device ID**: Unique identifier for each device (e.g., fingerprint, UUID, hardware ID)
+- **Location**: Geo-location (city, country, region) and IP address
+- **Frequency**: Number of suspicious or abusive actions/events within a time window
+- **Account Linkage**: Multiple accounts using the same device/location
+- **Behavioral Patterns**: Rapid signups, repeated failed logins, repeated content violations, etc.
+
+### Metadata Structure Example
+```json
+{
+  "bad_actor": {
+    "score": 0.92,
+    "reason": "Multiple abusive actions from same device/location",
+    "device_ids": ["device_abc123", "device_xyz789"],
+    "locations": [
+      { "ip": "203.0.113.42", "city": "Berlin", "country": "DE" },
+      { "ip": "203.0.113.43", "city": "Berlin", "country": "DE" }
+    ],
+    "frequency": {
+      "window": "24h",
+      "count": 7
+    },
+    "accounts_linked": ["user_456", "user_789"],
+    "last_flagged_at": "2024-05-15T12:10:00Z",
+    "history": [
+      { "event": "content_violation", "timestamp": "2024-05-15T10:00:00Z" },
+      { "event": "failed_login", "timestamp": "2024-05-15T11:00:00Z" }
+    ]
+  }
+}
+```
+
+### Detection Logic (Pseudocode)
+- On every suspicious event (e.g., content violation, failed login, rapid signup):
+  1. Log device ID and location in the user's metadata.
+  2. Increment frequency counter for the device/location/user.
+  3. Check for multiple accounts using the same device/location.
+  4. Calculate a "bad actor score" (e.g., using a weighted sum or ML model).
+  5. If score exceeds threshold, flag user as a bad actor and take action (e.g., require CAPTCHA, block, escalate for review).
+
+### Best Practices
+- **Privacy:** Store only what's necessary, and comply with GDPR/CCPA for device/location data.
+- **Transparency:** Log reasons and history for every flag (for audit and appeals).
+- **Extensibility:** Allow new signals (e.g., browser fingerprint, behavioral biometrics) to be added to the metadata.
+- **Automation:** Integrate with moderation and security services for real-time action.
+
+### Checklist
+- [ ] Add "bad_actor" section to user/content metadata schema.
+- [ ] Log device ID, location, and event frequency for all suspicious actions.
+- [ ] Implement logic to triangulate and score bad actor risk.
+- [ ] Link accounts by device/location where possible.
+- [ ] Store flagging history and reasons in metadata.
+- [ ] Integrate with moderation and security workflows.
+
+### References
+- [OWASP Automated Threats to Web Applications](https://owasp.org/www-project-automated-threats-to-web-applications/)
+- [Google Account Abuse Detection](https://security.googleblog.com/2019/05/new-research-how-effective-is-basic.html)
+- [GDPR and Device Fingerprinting](https://gdpr.eu/fingerprinting/)
+
+**All services must use this standard for consistent, privacy-aware bad actor detection and response.**
+
+
+This section provides a canonical reference for how the platform's major standards and patterns are chained and enforced across all services. It is designed to help implementers, reviewers, and architects ensure that every service, endpoint, and workflow consistently applies the platform's extensibility, compliance, and orchestration standards.
+
+## Overview
+
+The following standards are foundational to the OVASABI platform:
+- **Robust Metadata Pattern** (system-wide extensibility)
+- **Accessibility & Compliance Metadata** (global accessibility/compliance)
+- **Bad Actor Identification** (security, moderation, and abuse prevention)
+- **Composable Request Pattern** (future-proof, extensible APIs)
+
+Each standard is referenced, extended, and enforced at multiple layers and services. This section documents the canonical "path" through the services, showing how these standards are applied, extended, and chained together.
+
+---
+
+## 1. Robust Metadata Pattern (System-Wide)
+
+**Purpose:**
+- Provides a unified, extensible structure for attaching rich, structured, and service-specific information to any entity (campaign, content, user, etc.).
+- Enables orchestration, analytics, AI/ML, and compliance across the platform.
+
+**Chaining Path:**
+- **Proto Layer:** All core entities use `common.Metadata` (see [Standard: Robust Metadata Pattern for Extensible Services](#standard-robust-metadata-pattern-for-extensible-services)).
+- **Service Layer:** Business logic reads/writes metadata, including service-specific extensions under `metadata.service_specific.{service}`.
+- **Repository Layer:** Metadata is stored as `jsonb` in Postgres, indexed for analytics and orchestration.
+- **Integration Points:**
+  - **Scheduler:** Uses `metadata.scheduling` for time-based actions.
+  - **Nexus:** Orchestrates services using metadata.
+  - **Knowledge Graph:** Ingests metadata for enrichment and impact analysis.
+  - **Redis:** Caches hot metadata for low-latency access.
+
+**Example:**
+```json
+{
+  "metadata": {
+    "features": ["referral", "notification"],
+    "service_specific": {
+      "campaign": {"priority": "high"},
+      "user": {"login_source": "mobile_app"}
+    }
+  }
+}
+```
+
+---
+
+## 2. Accessibility & Compliance Metadata
+
+**Purpose:**
+- Ensures all campaigns and localized assets are accessible and compliant with global standards (WCAG, Section 508, EN 301 549, ADA, etc.).
+- Enables audit, provenance, and platform support tracking.
+
+**Chaining Path:**
+- **Campaign Service:** Includes an `accessibility` or `compliance` field in campaign metadata (under `metadata.service_specific.campaign.accessibility`).
+- **Localization Service:** On asset creation/update, runs accessibility checks and populates compliance metadata (under `metadata.service_specific.localization.compliance`).
+- **Content Service:** Stores accessibility features for all media/content assets (under `metadata.service_specific.content.accessibility`).
+- **Knowledge Graph:** Tracks accessibility/compliance metadata for all campaigns and assets, enabling queries, audits, and compliance reporting.
+
+**Example:**
+```json
+{
+  "metadata": {
+    "service_specific": {
+      "campaign": {
+        "accessibility": {
+          "compliance": {"standards": [{"name": "WCAG", "level": "AA"}]},
+          "features": {"alt_text": true, "captions": true}
+        }
+      },
+      "localization": {
+        "compliance": {"checked_by": "localization-service-v2.3"}
+      }
+    }
+  }
+}
+```
+
+**Reference:** See [Accessibility & Compliance Metadata Pattern](#accessibility--compliance-metadata-pattern)
+
+---
+
+## 3. Bad Actor Identification
+
+**Purpose:**
+- Detects and mitigates abusive, fraudulent, or suspicious behavior using device/location triangulation, frequency analysis, and behavioral patterns.
+
+**Chaining Path:**
+- **User Service:** Adds/updates `bad_actor` section in user metadata (under `metadata.service_specific.user.bad_actor`).
+- **Content Moderation Service:** Flags content/users and updates `bad_actor` metadata on violations (under `metadata.service_specific.content.bad_actor`).
+- **Security Service:** Aggregates signals from all services, escalates or blocks as needed (under `metadata.service_specific.security.bad_actor`).
+- **Audit Logging:** All flagging and actions are logged for transparency and appeals.
+- **Knowledge Graph:** Enables queries and reporting on bad actor risk and history.
+
+**Example:**
+```json
+{
+  "metadata": {
+    "service_specific": {
+      "user": {
+        "bad_actor": {
+          "score": 0.92,
+          "reason": "Multiple abusive actions from same device/location",
+          "device_ids": ["device_abc123"],
+          "locations": [{"ip": "203.0.113.42", "city": "Berlin"}],
+          "frequency": {"window": "24h", "count": 7},
+          "accounts_linked": ["user_456"],
+          "last_flagged_at": "2024-05-15T12:10:00Z"
+        }
+      }
+    }
+  }
+}
+```
+
+**Reference:** See [Bad Actor Identification Standard](#bad-actor-identification-standard)
+
+---
+
+## 4. Composable Request Pattern
+
+**Purpose:**
+- Ensures all POST/PATCH/PUT requests are extensible, discoverable, and future-proof by using a `{Service}{Action}Request` object with a `metadata` field.
+
+**Chaining Path:**
+- **API Layer:** All endpoints accept composable request objects (e.g., `UserLoginRequest`, `CampaignCreateRequest`).
+- **Service Layer:** Reads/writes to the `metadata` field, including service-specific extensions.
+- **OpenAPI/Docs:** All extensions and request patterns are documented and versioned.
+- **Integration:** Enables rapid onboarding of new features and request types without breaking changes.
+
+**Example:**
+```json
+{
+  "name": "Spring Sale",
+  "start_date": "2024-06-01",
+  "metadata": {
+    "service_specific": {
+      "campaign": {"priority": "high"},
+      "localization": {"locale": "ar-EG"}
+    }
+  }
+}
+```
+
+**Reference:** See [Composable Request Pattern Standard](#composable-request-pattern-standard)
+
+---
+
+## 5. Chaining Example: Campaign Creation & Localization
+
+1. **Campaign Service:** Receives a `CampaignCreateRequest` with `metadata` (including accessibility, scheduling, and custom rules).
+2. **Localization Service:** On campaign creation, generates localized assets, runs accessibility checks, and updates compliance metadata under `metadata.service_specific.localization.compliance`.
+3. **Content Service:** Stores all media/content with accessibility features in `metadata.service_specific.content.accessibility`.
+4. **Security/Moderation:** Monitors for abuse, updates `bad_actor` metadata as needed.
+5. **Knowledge Graph:** Ingests all metadata, enabling orchestration, analytics, and compliance reporting.
+
+---
+
+## 6. Implementation Checklist
+- [ ] All services use `common.Metadata` for extensible fields.
+- [ ] Accessibility/compliance metadata is populated and updated at each relevant service.
+- [ ] Bad actor signals are logged and aggregated in user/content/security metadata.
+- [ ] All POST/PATCH/PUT requests use the composable request pattern.
+- [ ] All extensions are namespaced under `metadata.service_specific.{service}`.
+- [ ] Knowledge graph is updated with all new fields and relationships.
+
+---
+
+## References
+- [Robust Metadata Pattern](#standard-robust-metadata-pattern-for-extensible-services)
+- [Accessibility & Compliance Metadata Pattern](#accessibility--compliance-metadata-pattern)
+- [Bad Actor Identification Standard](#bad-actor-identification-standard)
+- [Composable Request Pattern Standard](#composable-request-pattern-standard)
+- [Service Patterns & Research-Backed Best Practices](service_patterns_and_research.md)
+- [Implementation Guide](implementation_guide.md)
+- [Integration Examples](integration_examples.md)
+
+**This section is a living reference. Update it as new standards, patterns, or integration points are added to the platform.**
+
+
+This section defines the new platform-wide standard for all service communication, calculation, and orchestration. It unifies gRPC, REST, and WebSocket patterns under a single, metadata-driven approach, ensuring all services, the knowledge graph, and Nexus orchestration are consistent, extensible, and UI-ready.
+
+## 1. Canonical gRPC Calculation/Enrichment Pattern
+- All services expose explicit calculation/enrichment endpoints (e.g., `CalculateRisk`, `EnrichLocalization`) that accept and return `common.Metadata`.
+- These endpoints are chained together for cross-service calculation and metadata enrichment.
+- See: [Canonical gRPC Calculation/Enrichment Endpoint Pattern](#canonical-grpc-calculationenrichment-endpoint-pattern)
+
+## 2. REST/Web-Server Pattern
+- All REST endpoints use the composable request pattern, with a `metadata` field for extensibility.
+- Responses include enriched metadata, enabling orchestration and UI state hydration.
+- REST endpoints should mirror gRPC calculation/enrichment endpoints where possible.
+
+## 3. WebSocket Pattern
+- All WebSocket endpoints use per-client buffered channels and metadata-driven state updates.
+- Outgoing frames include the latest metadata for the relevant entity (user, campaign, etc.), enabling real-time UI state sync.
+- WebSocket servers should support dynamic broadcast frequency and state updates based on metadata changes.
+
+## 4. Metadata-Driven Orchestration (Nexus)
+- Nexus orchestrates all service patterns using metadata as the canonical communication format.
+- All orchestration, scheduling, and automation flows use metadata to enable dynamic, cross-service calculation and state management.
+- The knowledge graph is updated in real time with all metadata changes, enabling advanced queries and impact analysis.
+
+## 5. UI State Handling
+- All UI clients (web, mobile, etc.) hydrate their state from the enriched metadata returned by REST/gRPC/WebSocket endpoints.
+- UI state is kept in sync with backend state via real-time metadata updates (WebSocket) and on-demand fetches (REST/gRPC).
+- Metadata includes all necessary fields for UI rendering, feature toggles, and compliance.
+
+## 6. Documentation & Knowledge Graph Updates
+- All service documentation, knowledge graph entries, and Nexus orchestration docs must reference this standard.
+- Service onboarding and API docs must document calculation/enrichment endpoints, metadata fields, and UI state patterns.
+- The knowledge graph tracks all metadata fields, calculation chains, and orchestration flows for system-wide visibility.
+
+## References
+- [Canonical gRPC Calculation/Enrichment Endpoint Pattern](#canonical-grpc-calculationenrichment-endpoint-pattern)
+- [gRPC Calculation Chains for Cross-Service Metadata Enrichment](#grpc-calculation-chains-for-cross-service-metadata-enrichment)
+- [Cross-Service Standards Integration Path](#cross-service-standards-integration-path)
+- [Service Patterns & Research-Backed Best Practices](service_patterns_and_research.md)
+- [Nexus Orchestration Docs](../nexus/pattern/README.md)
+
+**This unified standard is required for all new and refactored services, orchestration flows, and UI integrations.**
+
+## Metadata as the Backbone of Cross-Service Communication
+
+All services (User, Security, Campaign, Notification, Referral, Asset, etc.) must use the canonical metadata pattern as defined in [General Metadata Documentation](../services/metadata.md). This includes the required versioning/environment field as described in [Versioning Standard & Documentation](../services/versioning.md). This pattern is mandatory for all communication (REST, gRPC, WebSocket, orchestration, analytics, audit, etc.), and is the backbone for:
+- Cross-service orchestration (Nexus)
+- Knowledge graph enrichment
+- Scheduling and automation
+- Real-time state sync (WebSocket)
+- Analytics, compliance, and audit
+
+**Authoritative Source:** For all metadata fields, patterns, and service-specific extensions, see [General Metadata Documentation](../services/metadata.md). All new and refactored services must register their metadata actions/extensions in this file and reference it in their service README.
+
+## Service-Specific Metadata Actions/Extensions
+
+| Service        | Metadata Namespace                | Example Actions/Fields                | Reference Location(s)                |
+| -------------- | -------------------------------- | ------------------------------------- | ------------------------------------ |
+| User           | service_specific.user             | login_source, bad_actor, versioning   | user/metadata.go, README, metadata.md|
+| Security       | service_specific.security         | risk_score, audit, bad_actor          | security/metadata.go, README, metadata.md|
+| Campaign       | service_specific.campaign         | accessibility, scheduling, rules      | campaign/metadata.go, README, metadata.md|
+| Notification   | service_specific.notification     | delivery_channel, template_id         | notification/metadata.go, README, metadata.md|
+| Referral       | service_specific.referral         | referral_code, fraud_signals          | referral/metadata.go, README, metadata.md|
+| Asset          | service_specific.asset            | asset_type, compliance                | asset/metadata.go, README, metadata.md|
+| Localization   | service_specific.localization     | locale, compliance, audit             | localization/metadata.go, README, metadata.md|
+| Content        | service_specific.content          | editor_mode, accessibility, bad_actor | content/metadata.go, README, metadata.md|
+| Commerce       | service_specific.commerce         | payment_window, billing_info          | commerce/metadata.go, README, metadata.md|
+| Analytics      | service_specific.analytics        | event_type, reporting                 | analytics/metadata.go, README, metadata.md|
+| Talent         | service_specific.talent           | profile_type, booking_info            | talent/metadata.go, README, metadata.md|
+| Admin          | service_specific.admin            | admin_role, audit                     | admin/metadata.go, README, metadata.md|
+| ContentModeration| service_specific.contentmoderation| moderation_flags, compliance         | contentmoderation/metadata.go, README, metadata.md|
+| Search         | service_specific.search           | query_type, filters                   | search/metadata.go, README, metadata.md|
+| Nexus          | service_specific.nexus            | orchestration_pattern                 | nexus/metadata.go, README, metadata.md|
+
+> **Process Note:** Whenever a new service or metadata field is added, it must be registered in [General Metadata Documentation](../services/metadata.md) and referenced in this Amadeus context. Service READMEs must also reference both docs/services/metadata.md and docs/services/versioning.md for all extensible fields.
+
+## Integration Points
+- **Nexus:** Orchestrates all service patterns using canonical metadata ([metadata.md](../services/metadata.md)).
+- **Knowledge Graph:** Ingests and enriches all metadata fields ([metadata.md](../services/metadata.md)).
+- **Scheduler:** Uses metadata.scheduling for time-based actions ([metadata.md](../services/metadata.md)).
+- **Redis:** Caches hot metadata for low-latency access ([metadata.md](../services/metadata.md)).
+- **All Communication:** REST, gRPC, WebSocket, analytics, and audit must propagate and update metadata as per [metadata.md](../services/metadata.md) and [versioning.md](../services/versioning.md).
+
+## Onboarding, Implementation, and Orchestration Guidance
+- All onboarding, implementation, and orchestration documentation must point to [General Metadata Documentation](../services/metadata.md) for canonical patterns, required fields, and best practices.
+- The [Versioning Standard & Documentation](../services/versioning.md) is required reading for all versioning/environment fields in metadata.
+- All new and refactored services must follow these standards and register their metadata actions/extensions accordingly.
+
+## Machine vs Human Translation & Translator Roles
+
+### Translation Provenance in Metadata
+
+To ensure transparency, quality, and compliance in all localized content, the metadata pattern must distinguish between machine-translated and human-translated assets. This is tracked in the `service_specific.localization` and `service_specific.content` fields as follows:
+
+```json
+{
+  "metadata": {
+    "service_specific": {
+      "localization": {
+        "translation_provenance": {
+          "type": "machine", // or "human"
+          "engine": "google_translate_v3", // if machine
+          "translator_id": "talent_123",   // if human
+          "translator_name": "Jane Doe",   // if human
+          "reviewed_by": "talent_456",     // optional, for human QA
+          "quality_score": 0.98,
+          "timestamp": "2024-05-15T12:00:00Z"
+        },
+        "locale": "fr-FR"
+      }
+    }
+  }
+}
+```
+- `type`: "machine" or "human"
+- `engine`: Name/version of MT engine (if machine)
+- `translator_id`/`translator_name`: Reference to the human translator (if human)
+- `reviewed_by`: Optional, for human QA/review
+- `quality_score`: Numeric score (automated or human-assigned)
+- `timestamp`: When translation was performed
+
+### Translators as Role and Talent
+- **Role:** Translators can be assigned as a user role (e.g., `role: translator`) in the User and Talent services. This enables RBAC, audit, and workflow assignment.
+- **Talent:** Translators are also tracked as talent profiles in the Talent service, with language pairs, expertise, and ratings.
+- **Optimization:** Translators (human or machine) can optimize language fields for clarity, compliance, and accessibility. This is tracked in the metadata under `service_specific.localization.optimizations` or `service_specific.content.optimizations`.
+
+### Metadata Table Update
+| Service        | Metadata Namespace                | Example Actions/Fields                | Reference Location(s)                |
+| -------------- | -------------------------------- | ------------------------------------- | ------------------------------------ |
+| Localization   | service_specific.localization     | translation_provenance, locale, compliance, audit, optimizations | localization/metadata.go, README, metadata.md|
+| Content        | service_specific.content          | translation_provenance, accessibility, bad_actor, optimizations | content/metadata.go, README, metadata.md|
+| Talent         | service_specific.talent           | profile_type, language_pairs, rating, booking_info | talent/metadata.go, README, metadata.md|
+
+### Integration Points
+- **Localization Service:** Must set `translation_provenance` for all translations, and reference the translator (human or machine).
+- **Talent Service:** Tracks translators as talent, with language pairs, ratings, and booking history.
+- **User Service:** Assigns `translator` role for RBAC and workflow.
+- **Content Service:** Stores translation provenance and optimizations for all localized content.
+- **Knowledge Graph:** Enables queries for translation provenance, translator performance, and optimization history.
+
+### Guidance for Implementation
+- Always set `translation_provenance` in metadata for any localized asset.
+- Use the `translator_id` to link to a Talent profile for human translations.
+- Use the `engine` field for machine translations.
+- Track optimizations and reviews for continuous quality improvement.
+- Reference [General Metadata Documentation](../services/metadata.md) for schema and best practices.
+
+## OVASABI Service Instantiation Pattern (Canonical)
+
+## Consistent Service Construction Standard (2025)
+
+**All services in the OVASABI backend must be instantiated with both a repository and a cache.**
+
+### Canonical Pattern
+
+```go
+// Master repository (shared)
+masterRepo := repository.NewRepository(db, log)
+
+// Example for a service that requires masterRepo (e.g., user, notification, referral):
+serviceRepo := servicerepo.NewServiceRepository(db, masterRepo)
+serviceCache, _ := redisProvider.GetCache("service_name")
+serviceServer := service.NewService(log, serviceRepo, serviceCache)
+
+// Example for a service that does not require masterRepo (e.g., commerce, localization, search, analytics, etc.):
+serviceRepo := servicerepo.NewRepository(db)
+serviceCache, _ := redisProvider.GetCache("service_name")
+serviceServer := service.NewService(log, serviceRepo, serviceCache)
+```
+
+- **All service constructors must accept both a repository and a cache, even if the cache is not used immediately.**
+- **All repositories should be constructed with `db` and, if required, `masterRepo`.**
+- **All caches are retrieved from the Redis provider using `GetCache("service_name")`.**
+
+### Why do some services use `masterRepo` and others do not?
+- The `masterRepo` is used for services/entities that need to be tracked in the platform's master table for cross-entity relationships, analytics, and orchestration (e.g., user, notification, referral).
+- Some services (e.g., commerce, localization, analytics) may not have originally required masterRepo if they did not participate in cross-entity orchestration or were designed as standalone modules.
+- **Standardization:** Going forward, all repositories should accept `masterRepo` if their entities participate in the knowledge graph or cross-service orchestration.
+
+### Why didn't analytics (or others) expect a cache?
+- Some services may not have originally used a cache if their data was not performance-critical or if caching was not implemented at the time.
+- **Standardization:** All services should now accept a cache for future extensibility, even if not immediately used. This enables hot data caching, event caching, and consistent patterns for all services.
+
+### Summary Table
+| Service         | Repository Constructor                | Requires masterRepo? | Requires Cache? |
+|-----------------|--------------------------------------|----------------------|-----------------|
+| User            | NewUserRepository(db, masterRepo)    | Yes                  | Yes             |
+| Notification    | NewNotificationRepository(db, masterRepo) | Yes             | Yes             |
+| Referral        | NewReferralRepository(db, masterRepo)| Yes                  | Yes             |
+| Commerce        | NewRepository(db)                    | No                   | Yes             |
+| Localization    | NewRepository(db)                    | No                   | Yes             |
+| Search          | NewRepository(db)                    | No                   | Yes             |
+| Admin           | NewRepository(db)                    | No                   | Yes             |
+| Analytics       | NewRepository(db)                    | No                   | Yes             |
+| ContentModeration| NewRepository(db)                   | No                   | Yes             |
+| Talent          | NewRepository(db)                    | No                   | Yes             |
+
+**All new and refactored services must follow this pattern.**
+
+## New Standard: Minimal Provider, Event-Driven Orchestration, and Metadata-Driven Self-Registration (2025)
+
+### Overview
+
+The OVASABI backend now follows a **hybrid orchestration and dependency injection (DI) pattern** that maximizes modularity, testability, and extensibility, while minimizing boilerplate and central wiring. This approach is designed for modern, event-driven, metadata-centric architectures.
+
+### Key Principles
+
+1. **Minimal Provider**
+   - The main provider is responsible only for wiring up shared resources: database, Redis, event bus (Nexus), and the DI container.
+   - It does **not** manually construct or register every service; instead, it exposes the shared dependencies for use by services and modules.
+
+2. **Service Self-Registration**
+   - Each service is responsible for registering itself with the event bus and DI container, typically via a `Register` method or a module struct (e.g., `UserModule.Register(container, eventBus, db, redis)`).
+   - This enables modular onboarding, hot-swapping, and feature-flagged services.
+
+3. **Event Bus for Orchestration**
+   - The Nexus event bus is the primary integration and orchestration point for all services.
+   - Services emit and consume events for cross-service workflows, automation, and dynamic orchestration, rather than relying on direct service-to-service calls.
+
+4. **Retain DI for Testability**
+   - Services still accept dependencies (event bus, DB, cache, etc.) via constructors for testability and modularity.
+   - This enables easy mocking, unit testing, and flexible configuration.
+
+### Benefits
+- **Modularity:** Services can be added, removed, or replaced without changing the provider.
+- **Testability:** DI is retained for easy testing and mocking.
+- **Decoupling:** Event-driven communication reduces tight coupling between services.
+- **Extensibility:** New services and features can be introduced by simply registering with the event bus and DI container.
+- **Minimal Provider:** The provider is easy to maintain and reason about, with no service-specific wiring.
+
+### How the Common Metadata Pattern Improves This Architecture
+
+The canonical `common.Metadata` pattern is foundational to this architecture, providing:
+
+- **Rich, Extensible Event Payloads:** All events and service-to-service messages use the metadata pattern, enabling dynamic context, feature negotiation, and extensibility without breaking changes.
+- **Versioning and Compliance:** Metadata includes versioning, audit, and compliance fields, ensuring traceability and forward compatibility across all services and events.
+- **Dynamic Orchestration:** The event bus and orchestrator (Nexus) can route, enrich, and transform events based on metadata fields, supporting advanced workflows and automation.
+- **Unified Context:** All services, events, and workflows share a common context, making analytics, monitoring, and impact analysis straightforward.
+- **Service Discovery and Feature Flags:** Metadata can be used for dynamic service discovery, feature toggling, and capability negotiation at runtime.
+- **AI/ML Enablement:** Rich metadata enables advanced analytics, anomaly detection, and AI-driven orchestration.
+
+**Summary:**
+This new standard combines the best of DI and event-driven patterns, powered by a robust metadata foundation. It enables OVASABI to scale, evolve, and onboard new features rapidly, while maintaining clarity, testability, and compliance across the platform.
+
+---
+
+## Unified Event Bus, WebSocket, and REST Architecture
+
+The new event bus pattern (Nexus) is the backbone of all communication in the OVASABI backend, enabling seamless integration between REST APIs, WebSocket real-time updates, and service-to-service orchestration.
+
+### How It Works
+
+- **Event Bus as Backbone:** All services emit events to the Nexus event bus after important actions (create, update, delete, etc.). Services can also subscribe to relevant events for cross-service workflows.
+
+- **WebSocket Integration:** WebSocket servers subscribe to the event bus for relevant event types (e.g., `campaign.updated`, `user.notification`). When an event is received, the WebSocket server broadcasts it to connected clients, enabling real-time updates to the frontend with no direct coupling between services and WebSocket logic.
+
+- **REST API Integration:** REST endpoints perform actions (e.g., POST /api/campaigns). After a successful action, the service emits an event to the event bus. Other services or the WebSocket server can react to these events as needed. REST clients can poll for state, but real-time updates are handled via WebSocket.
+
+- **Unified Metadata:** All events, regardless of origin (REST, gRPC, WebSocket), use the canonical metadata pattern. This ensures context, versioning, and service-specific data are always available.
+
+### Benefits
+- **Loose Coupling:** Services, REST, and WebSocket layers communicate via events, not direct calls.
+- **Real-Time UX:** WebSocket clients get instant updates as soon as events occur.
+- **Extensibility:** New event types or consumers (e.g., analytics, audit) can be added without changing existing code.
+- **Unified Context:** All communication shares the same metadata structure for context, versioning, and auditing.
+
+### Summary Table
+| Flow                  | Pattern                                                                 |
+|-----------------------|-------------------------------------------------------------------------|
+| REST → Event Bus      | REST handler emits event after action                                   |
+| WebSocket → Event Bus | WebSocket server subscribes to event bus, broadcasts to clients         |
+| Service → Event Bus   | Services emit/subscribe to events for orchestration and automation      |
+| All → Metadata        | All events carry common metadata for context, versioning, and auditing  |
+
+**In short:**
+The event bus acts as the "spinal cord" of your backend, connecting REST, WebSocket, and service logic in a unified, extensible, and real-time way.
+
+---
+
+# Error Handling Standard (Platform-Wide)
+
+**All errors must be handled explicitly. Never ignore errors or assign them to underscore (`_`).**
+
+- Every error returned by a function, especially in business logic, event emission, and integration points, must be checked and handled appropriately.
+- Log all errors with sufficient context for observability and debugging.
+- If an error is non-fatal but important, log it at the appropriate level (warn, info, etc.).
+- If an error is fatal, propagate it with context using error wrapping or gRPC status codes.
+- This standard applies to all Go code, service logic, event bus usage, and orchestration flows.
+- **Rationale:** Ignoring errors leads to silent failures, poor observability, and unreliable systems. Robust error handling is required for production-grade, maintainable, and auditable services.
+
+> **Checklist:**
+> - [ ] Never use `_` for errors.
+> - [ ] Always check and log errors from event emission, DB calls, and external integrations.
+> - [ ] Propagate or wrap errors with context for upstream handling.
+> - [ ] Review all code for error handling as part of onboarding and code review.
+
+Reference this section in all service onboarding, implementation, and review checklists.
+
+---

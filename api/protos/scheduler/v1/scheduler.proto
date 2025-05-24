@@ -23,42 +23,84 @@ enum TriggerType {
   TRIGGER_TYPE_CDC = 3;
 }
 
+// JobType classifies the type of job for better filtering and handling.
+enum JobType {
+  JOB_TYPE_UNSPECIFIED = 0;
+  JOB_TYPE_MAINTENANCE = 1;
+  JOB_TYPE_CLEANUP = 2;
+  JOB_TYPE_NOTIFY = 3;
+  JOB_TYPE_CUSTOM = 4;
+}
+
+// JobStatus provides canonical job status values.
+enum JobStatus {
+  JOB_STATUS_UNSPECIFIED = 0;
+  JOB_STATUS_ACTIVE = 1;
+  JOB_STATUS_PAUSED = 2;
+  JOB_STATUS_DISABLED = 3;
+  JOB_STATUS_COMPLETED = 4;
+  JOB_STATUS_FAILED = 5;
+}
+
+// RetryPolicy defines how failed jobs are retried.
+message RetryPolicy {
+  int32 max_attempts = 1; // Maximum number of retry attempts
+  int64 backoff_seconds = 2; // Backoff between retries in seconds
+  bool exponential = 3; // Use exponential backoff if true
+}
+
+// JobHistory tracks past runs for a job (optional, for future use).
+message JobHistory {
+  repeated JobRun runs = 1;
+}
+
+// CDCTrigger defines a change data capture trigger for event-based jobs.
 message CDCTrigger {
-  string table = 1;
+  string table = 1; // Table to watch
   string event_type = 2; // insert, update, delete
   string filter = 3; // e.g., JSONPath or SQL WHERE
 }
 
-// Robust, extensible metadata for all services
-
+// Job represents a scheduled or event-driven job.
 message Job {
-  string id = 1;
-  string name = 2;
-  string schedule = 3; // cron or interval expression
-  string payload = 4;
-  string status = 5; // active, paused, disabled
-  common.Metadata metadata = 6;
-  string last_run_id = 7;
-  int64 created_at = 8;
-  int64 updated_at = 9;
-  TriggerType trigger_type = 10;
-  CDCTrigger cdc_trigger = 11;
+  string id = 1; // Unique job ID
+  string name = 2; // Human-readable job name
+  string schedule = 3; // Cron or interval expression
+  string payload = 4; // Opaque payload for the job handler
+  JobStatus status = 5; // Canonical job status
+  common.Metadata metadata = 6; // Extensible metadata
+  string last_run_id = 7; // Last run ID
+  int64 created_at = 8; // Creation timestamp (unix seconds)
+  int64 updated_at = 9; // Last update timestamp (unix seconds)
+  TriggerType trigger_type = 10; // How the job is triggered
+  CDCTrigger cdc_trigger = 11; // CDC trigger details (if event-based)
+  JobType job_type = 12; // Classification of the job
+  RetryPolicy retry_policy = 13; // Retry policy for failed jobs
+  string owner = 14; // User or service that owns the job
+  int64 next_run_time = 15; // Next scheduled run (unix seconds)
+  map<string, string> labels = 16; // Arbitrary labels for filtering
+  JobHistory history = 17; // (Optional) History of job runs
+  string master_uuid = 18; // Master UUID
+  int64 campaign_id = 19; // campaign/tenant context
 }
 
 message CreateJobRequest {
   Job job = 1;
+  int64 campaign_id = 2; // campaign/tenant context
 }
 message CreateJobResponse {
   Job job = 1;
 }
 message UpdateJobRequest {
   Job job = 1;
+  int64 campaign_id = 2; // campaign/tenant context
 }
 message UpdateJobResponse {
   Job job = 1;
 }
 message DeleteJobRequest {
   string job_id = 1;
+  int64 campaign_id = 2; // campaign/tenant context
 }
 message DeleteJobResponse {
   bool success = 1;
@@ -67,6 +109,7 @@ message ListJobsRequest {
   int32 page = 1;
   int32 page_size = 2;
   string status = 3;
+  int64 campaign_id = 4; // campaign/tenant context
 }
 message ListJobsResponse {
   repeated Job jobs = 1;
@@ -76,12 +119,14 @@ message ListJobsResponse {
 }
 message GetJobRequest {
   string job_id = 1;
+  int64 campaign_id = 2; // campaign/tenant context
 }
 message GetJobResponse {
   Job job = 1;
 }
 message RunJobRequest {
   string job_id = 1;
+  int64 campaign_id = 2; // campaign/tenant context
 }
 message RunJobResponse {
   JobRun run = 1;
@@ -90,6 +135,7 @@ message ListJobRunsRequest {
   string job_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+  int64 campaign_id = 4; // campaign/tenant context
 }
 message ListJobRunsResponse {
   repeated JobRun runs = 1;
@@ -107,4 +153,6 @@ message JobRun {
   string result = 6;
   string error = 7;
   common.Metadata metadata = 8;
+  string master_uuid = 9; // Master UUID
+  int64 campaign_id = 10; // campaign/tenant context
 } 

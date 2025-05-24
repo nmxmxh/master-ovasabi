@@ -1,4 +1,10 @@
-# Integrated Founder Economics: Service-Token Hybrid Model
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
 
 This document outlines the comprehensive capital accumulation strategy available to the
 founder/owner of the OVASABI integrated service-token platform. It details how the pattern-based

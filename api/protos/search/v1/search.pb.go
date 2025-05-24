@@ -4,12 +4,13 @@
 // 	protoc        v5.29.2
 // source: search/v1/search.proto
 
-package searchpb
+package search
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -22,17 +23,15 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Request for a search query.
 type SearchRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
-	MasterId      string                 `protobuf:"bytes,3,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // Optional filter by master entity
-	Page          int32                  `protobuf:"varint,4,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize      int32                  `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	Fields        []string               `protobuf:"bytes,6,rep,name=fields,proto3" json:"fields,omitempty"`     // Columns to return
-	Metadata      *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"` // Metadata filters
-	Fuzzy         bool                   `protobuf:"varint,8,opt,name=fuzzy,proto3" json:"fuzzy,omitempty"`      // Fuzzy search
-	Language      string                 `protobuf:"bytes,9,opt,name=language,proto3" json:"language,omitempty"` // Language for FTS
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`                              // The search query string
+	Types         []string               `protobuf:"bytes,2,rep,name=types,proto3" json:"types,omitempty"`                              // Entity types to search (e.g., "content", "user", "campaign")
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`       // Results per page
+	PageNumber    int32                  `protobuf:"varint,4,opt,name=page_number,json=pageNumber,proto3" json:"page_number,omitempty"` // Page number (1-based)
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`                        // Extensible filters, context, etc.
+	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -74,25 +73,11 @@ func (x *SearchRequest) GetQuery() string {
 	return ""
 }
 
-func (x *SearchRequest) GetEntityType() string {
+func (x *SearchRequest) GetTypes() []string {
 	if x != nil {
-		return x.EntityType
+		return x.Types
 	}
-	return ""
-}
-
-func (x *SearchRequest) GetMasterId() string {
-	if x != nil {
-		return x.MasterId
-	}
-	return ""
-}
-
-func (x *SearchRequest) GetPage() int32 {
-	if x != nil {
-		return x.Page
-	}
-	return 0
+	return nil
 }
 
 func (x *SearchRequest) GetPageSize() int32 {
@@ -102,11 +87,11 @@ func (x *SearchRequest) GetPageSize() int32 {
 	return 0
 }
 
-func (x *SearchRequest) GetFields() []string {
+func (x *SearchRequest) GetPageNumber() int32 {
 	if x != nil {
-		return x.Fields
+		return x.PageNumber
 	}
-	return nil
+	return 0
 }
 
 func (x *SearchRequest) GetMetadata() *v1.Metadata {
@@ -116,128 +101,28 @@ func (x *SearchRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *SearchRequest) GetFuzzy() bool {
+func (x *SearchRequest) GetCampaignId() int64 {
 	if x != nil {
-		return x.Fuzzy
-	}
-	return false
-}
-
-func (x *SearchRequest) GetLanguage() string {
-	if x != nil {
-		return x.Language
-	}
-	return ""
-}
-
-type EntityResult struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	EntityId      string                 `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
-	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Summary       string                 `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Rank          float32                `protobuf:"fixed32,6,opt,name=rank,proto3" json:"rank,omitempty"`
-	Similarity    float32                `protobuf:"fixed32,7,opt,name=similarity,proto3" json:"similarity,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EntityResult) Reset() {
-	*x = EntityResult{}
-	mi := &file_search_v1_search_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EntityResult) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EntityResult) ProtoMessage() {}
-
-func (x *EntityResult) ProtoReflect() protoreflect.Message {
-	mi := &file_search_v1_search_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EntityResult.ProtoReflect.Descriptor instead.
-func (*EntityResult) Descriptor() ([]byte, []int) {
-	return file_search_v1_search_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *EntityResult) GetEntityId() string {
-	if x != nil {
-		return x.EntityId
-	}
-	return ""
-}
-
-func (x *EntityResult) GetEntityType() string {
-	if x != nil {
-		return x.EntityType
-	}
-	return ""
-}
-
-func (x *EntityResult) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *EntityResult) GetSummary() string {
-	if x != nil {
-		return x.Summary
-	}
-	return ""
-}
-
-func (x *EntityResult) GetMetadata() *v1.Metadata {
-	if x != nil {
-		return x.Metadata
-	}
-	return nil
-}
-
-func (x *EntityResult) GetRank() float32 {
-	if x != nil {
-		return x.Rank
+		return x.CampaignId
 	}
 	return 0
 }
 
-func (x *EntityResult) GetSimilarity() float32 {
-	if x != nil {
-		return x.Similarity
-	}
-	return 0
-}
-
+// A single search result.
 type SearchResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      string                 `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // UUID reference to master table
-	EntityType    string                 `protobuf:"bytes,3,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
-	Title         string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
-	Snippet       string                 `protobuf:"bytes,5,opt,name=snippet,proto3" json:"snippet,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Score         float64                `protobuf:"fixed64,7,opt,name=score,proto3" json:"score,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                   // Entity ID
+	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"` // Entity type (e.g., content, campaign, user, talent)
+	Score         float32                `protobuf:"fixed32,3,opt,name=score,proto3" json:"score,omitempty"`                           // Relevance score
+	Fields        *structpb.Struct       `protobuf:"bytes,4,opt,name=fields,proto3" json:"fields,omitempty"`                           // Key fields (title, snippet, etc.)
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`                       // Enriched metadata
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SearchResult) Reset() {
 	*x = SearchResult{}
-	mi := &file_search_v1_search_proto_msgTypes[2]
+	mi := &file_search_v1_search_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -249,7 +134,7 @@ func (x *SearchResult) String() string {
 func (*SearchResult) ProtoMessage() {}
 
 func (x *SearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_search_v1_search_proto_msgTypes[2]
+	mi := &file_search_v1_search_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -262,19 +147,12 @@ func (x *SearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchResult.ProtoReflect.Descriptor instead.
 func (*SearchResult) Descriptor() ([]byte, []int) {
-	return file_search_v1_search_proto_rawDescGZIP(), []int{2}
+	return file_search_v1_search_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SearchResult) GetId() string {
 	if x != nil {
 		return x.Id
-	}
-	return ""
-}
-
-func (x *SearchResult) GetMasterId() string {
-	if x != nil {
-		return x.MasterId
 	}
 	return ""
 }
@@ -286,18 +164,18 @@ func (x *SearchResult) GetEntityType() string {
 	return ""
 }
 
-func (x *SearchResult) GetTitle() string {
+func (x *SearchResult) GetScore() float32 {
 	if x != nil {
-		return x.Title
+		return x.Score
 	}
-	return ""
+	return 0
 }
 
-func (x *SearchResult) GetSnippet() string {
+func (x *SearchResult) GetFields() *structpb.Struct {
 	if x != nil {
-		return x.Snippet
+		return x.Fields
 	}
-	return ""
+	return nil
 }
 
 func (x *SearchResult) GetMetadata() *v1.Metadata {
@@ -307,24 +185,21 @@ func (x *SearchResult) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *SearchResult) GetScore() float64 {
-	if x != nil {
-		return x.Score
-	}
-	return 0
-}
-
+// Response for a search query.
 type SearchResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Results       []*SearchResult        `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
-	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"` // Total results
+	PageNumber    int32                  `protobuf:"varint,3,opt,name=page_number,json=pageNumber,proto3" json:"page_number,omitempty"`
+	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"` // Aggregations, facets, etc.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SearchResponse) Reset() {
 	*x = SearchResponse{}
-	mi := &file_search_v1_search_proto_msgTypes[3]
+	mi := &file_search_v1_search_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -336,7 +211,7 @@ func (x *SearchResponse) String() string {
 func (*SearchResponse) ProtoMessage() {}
 
 func (x *SearchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_search_v1_search_proto_msgTypes[3]
+	mi := &file_search_v1_search_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -349,7 +224,7 @@ func (x *SearchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchResponse.ProtoReflect.Descriptor instead.
 func (*SearchResponse) Descriptor() ([]byte, []int) {
-	return file_search_v1_search_proto_rawDescGZIP(), []int{3}
+	return file_search_v1_search_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SearchResponse) GetResults() []*SearchResult {
@@ -366,47 +241,198 @@ func (x *SearchResponse) GetTotal() int32 {
 	return 0
 }
 
+func (x *SearchResponse) GetPageNumber() int32 {
+	if x != nil {
+		return x.PageNumber
+	}
+	return 0
+}
+
+func (x *SearchResponse) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *SearchResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// Request for suggestions/autocomplete.
+type SuggestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Prefix        string                 `protobuf:"bytes,1,opt,name=prefix,proto3" json:"prefix,omitempty"` // Partial query for autocomplete
+	Types         []string               `protobuf:"bytes,2,rep,name=types,proto3" json:"types,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SuggestRequest) Reset() {
+	*x = SuggestRequest{}
+	mi := &file_search_v1_search_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SuggestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SuggestRequest) ProtoMessage() {}
+
+func (x *SuggestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_search_v1_search_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SuggestRequest.ProtoReflect.Descriptor instead.
+func (*SuggestRequest) Descriptor() ([]byte, []int) {
+	return file_search_v1_search_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SuggestRequest) GetPrefix() string {
+	if x != nil {
+		return x.Prefix
+	}
+	return ""
+}
+
+func (x *SuggestRequest) GetTypes() []string {
+	if x != nil {
+		return x.Types
+	}
+	return nil
+}
+
+func (x *SuggestRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *SuggestRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *SuggestRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+// Response for suggestions/autocomplete.
+type SuggestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Suggestions   []string               `protobuf:"bytes,1,rep,name=suggestions,proto3" json:"suggestions,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SuggestResponse) Reset() {
+	*x = SuggestResponse{}
+	mi := &file_search_v1_search_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SuggestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SuggestResponse) ProtoMessage() {}
+
+func (x *SuggestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_search_v1_search_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SuggestResponse.ProtoReflect.Descriptor instead.
+func (*SuggestResponse) Descriptor() ([]byte, []int) {
+	return file_search_v1_search_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SuggestResponse) GetSuggestions() []string {
+	if x != nil {
+		return x.Suggestions
+	}
+	return nil
+}
+
+func (x *SuggestResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 var File_search_v1_search_proto protoreflect.FileDescriptor
 
 const file_search_v1_search_proto_rawDesc = "" +
 	"\n" +
-	"\x16search/v1/search.proto\x12\tsearch.v1\x1a\x18common/v1/metadata.proto\"\x8c\x02\n" +
+	"\x16search/v1/search.proto\x12\tsearch.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xc8\x01\n" +
 	"\rSearchRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1f\n" +
-	"\ventity_type\x18\x02 \x01(\tR\n" +
-	"entityType\x12\x1b\n" +
-	"\tmaster_id\x18\x03 \x01(\tR\bmasterId\x12\x12\n" +
-	"\x04page\x18\x04 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x05 \x01(\x05R\bpageSize\x12\x16\n" +
-	"\x06fields\x18\x06 \x03(\tR\x06fields\x12,\n" +
-	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x12\x14\n" +
-	"\x05fuzzy\x18\b \x01(\bR\x05fuzzy\x12\x1a\n" +
-	"\blanguage\x18\t \x01(\tR\blanguage\"\xdc\x01\n" +
-	"\fEntityResult\x12\x1b\n" +
-	"\tentity_id\x18\x01 \x01(\tR\bentityId\x12\x1f\n" +
-	"\ventity_type\x18\x02 \x01(\tR\n" +
-	"entityType\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x18\n" +
-	"\asummary\x18\x04 \x01(\tR\asummary\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x12\n" +
-	"\x04rank\x18\x06 \x01(\x02R\x04rank\x12\x1e\n" +
-	"\n" +
-	"similarity\x18\a \x01(\x02R\n" +
-	"similarity\"\xd0\x01\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
+	"\x05types\x18\x02 \x03(\tR\x05types\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\x1f\n" +
+	"\vpage_number\x18\x04 \x01(\x05R\n" +
+	"pageNumber\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
+	"campaignId\"\xb4\x01\n" +
 	"\fSearchResult\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tmaster_id\x18\x02 \x01(\tR\bmasterId\x12\x1f\n" +
-	"\ventity_type\x18\x03 \x01(\tR\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
+	"\ventity_type\x18\x02 \x01(\tR\n" +
 	"entityType\x12\x14\n" +
-	"\x05title\x18\x04 \x01(\tR\x05title\x12\x18\n" +
-	"\asnippet\x18\x05 \x01(\tR\asnippet\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x14\n" +
-	"\x05score\x18\a \x01(\x01R\x05score\"Y\n" +
+	"\x05score\x18\x03 \x01(\x02R\x05score\x12/\n" +
+	"\x06fields\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x06fields\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"\xc5\x01\n" +
 	"\x0eSearchResponse\x121\n" +
 	"\aresults\x18\x01 \x03(\v2\x17.search.v1.SearchResultR\aresults\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total2V\n" +
-	"\rSearchService\x12E\n" +
-	"\x0eSearchEntities\x12\x18.search.v1.SearchRequest\x1a\x19.search.v1.SearchResponseB@Z>github.com/nmxmxh/master-ovasabi/api/protos/search/v1;searchpbb\x06proto3"
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x1f\n" +
+	"\vpage_number\x18\x03 \x01(\x05R\n" +
+	"pageNumber\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"\xa3\x01\n" +
+	"\x0eSuggestRequest\x12\x16\n" +
+	"\x06prefix\x18\x01 \x01(\tR\x06prefix\x12\x14\n" +
+	"\x05types\x18\x02 \x03(\tR\x05types\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"a\n" +
+	"\x0fSuggestResponse\x12 \n" +
+	"\vsuggestions\x18\x01 \x03(\tR\vsuggestions\x12,\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata2\x90\x01\n" +
+	"\rSearchService\x12=\n" +
+	"\x06Search\x12\x18.search.v1.SearchRequest\x1a\x19.search.v1.SearchResponse\x12@\n" +
+	"\aSuggest\x12\x19.search.v1.SuggestRequest\x1a\x1a.search.v1.SuggestResponseB4Z2github.com/nmxmxh/master-ovasabi/api/protos/searchb\x06proto3"
 
 var (
 	file_search_v1_search_proto_rawDescOnce sync.Once
@@ -420,26 +446,33 @@ func file_search_v1_search_proto_rawDescGZIP() []byte {
 	return file_search_v1_search_proto_rawDescData
 }
 
-var file_search_v1_search_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_search_v1_search_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_search_v1_search_proto_goTypes = []any{
-	(*SearchRequest)(nil),  // 0: search.v1.SearchRequest
-	(*EntityResult)(nil),   // 1: search.v1.EntityResult
-	(*SearchResult)(nil),   // 2: search.v1.SearchResult
-	(*SearchResponse)(nil), // 3: search.v1.SearchResponse
-	(*v1.Metadata)(nil),    // 4: common.Metadata
+	(*SearchRequest)(nil),   // 0: search.v1.SearchRequest
+	(*SearchResult)(nil),    // 1: search.v1.SearchResult
+	(*SearchResponse)(nil),  // 2: search.v1.SearchResponse
+	(*SuggestRequest)(nil),  // 3: search.v1.SuggestRequest
+	(*SuggestResponse)(nil), // 4: search.v1.SuggestResponse
+	(*v1.Metadata)(nil),     // 5: common.Metadata
+	(*structpb.Struct)(nil), // 6: google.protobuf.Struct
 }
 var file_search_v1_search_proto_depIdxs = []int32{
-	4, // 0: search.v1.SearchRequest.metadata:type_name -> common.Metadata
-	4, // 1: search.v1.EntityResult.metadata:type_name -> common.Metadata
-	4, // 2: search.v1.SearchResult.metadata:type_name -> common.Metadata
-	2, // 3: search.v1.SearchResponse.results:type_name -> search.v1.SearchResult
-	0, // 4: search.v1.SearchService.SearchEntities:input_type -> search.v1.SearchRequest
-	3, // 5: search.v1.SearchService.SearchEntities:output_type -> search.v1.SearchResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	5, // 0: search.v1.SearchRequest.metadata:type_name -> common.Metadata
+	6, // 1: search.v1.SearchResult.fields:type_name -> google.protobuf.Struct
+	5, // 2: search.v1.SearchResult.metadata:type_name -> common.Metadata
+	1, // 3: search.v1.SearchResponse.results:type_name -> search.v1.SearchResult
+	5, // 4: search.v1.SearchResponse.metadata:type_name -> common.Metadata
+	5, // 5: search.v1.SuggestRequest.metadata:type_name -> common.Metadata
+	5, // 6: search.v1.SuggestResponse.metadata:type_name -> common.Metadata
+	0, // 7: search.v1.SearchService.Search:input_type -> search.v1.SearchRequest
+	3, // 8: search.v1.SearchService.Suggest:input_type -> search.v1.SuggestRequest
+	2, // 9: search.v1.SearchService.Search:output_type -> search.v1.SearchResponse
+	4, // 10: search.v1.SearchService.Suggest:output_type -> search.v1.SuggestResponse
+	9, // [9:11] is the sub-list for method output_type
+	7, // [7:9] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_search_v1_search_proto_init() }
@@ -453,7 +486,7 @@ func file_search_v1_search_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_search_v1_search_proto_rawDesc), len(file_search_v1_search_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -23,6 +23,8 @@ direct use with grpc.RegisterService, and not to be introspected or modified (ev
 
 Deprecated: Use BookTalentRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetEndTime
 
 ##### GetMetadata
@@ -53,6 +55,8 @@ Deprecated: Use BookTalentResponse.ProtoReflect.Descriptor instead.
 
 ##### GetBooking
 
+##### GetCampaignId
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -68,6 +72,8 @@ Deprecated: Use BookTalentResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use Booking.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetCreatedAt
 
@@ -103,6 +109,8 @@ Deprecated: Use Booking.ProtoReflect.Descriptor instead.
 
 Deprecated: Use CreateTalentProfileRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetProfile
 
 ##### ProtoMessage
@@ -120,6 +128,8 @@ Deprecated: Use CreateTalentProfileRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use CreateTalentProfileResponse.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetProfile
 
@@ -139,6 +149,8 @@ Deprecated: Use CreateTalentProfileResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use DeleteTalentProfileRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetProfileId
 
 ##### ProtoMessage
@@ -156,6 +168,8 @@ Deprecated: Use DeleteTalentProfileRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use DeleteTalentProfileResponse.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetSuccess
 
@@ -231,6 +245,8 @@ Deprecated: Use Experience.ProtoReflect.Descriptor instead.
 
 Deprecated: Use GetTalentProfileRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetProfileId
 
 ##### ProtoMessage
@@ -249,6 +265,8 @@ Deprecated: Use GetTalentProfileRequest.ProtoReflect.Descriptor instead.
 
 Deprecated: Use GetTalentProfileResponse.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetProfile
 
 ##### ProtoMessage
@@ -266,6 +284,8 @@ Deprecated: Use GetTalentProfileResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use ListBookingsRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetPage
 
@@ -291,6 +311,8 @@ Deprecated: Use ListBookingsResponse.ProtoReflect.Descriptor instead.
 
 ##### GetBookings
 
+##### GetCampaignId
+
 ##### GetPage
 
 ##### GetTotalCount
@@ -312,6 +334,8 @@ Deprecated: Use ListBookingsResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use ListTalentProfilesRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetLocation
 
@@ -339,6 +363,8 @@ Deprecated: Use ListTalentProfilesRequest.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ListTalentProfilesResponse.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetPage
 
 ##### GetProfiles
@@ -362,6 +388,8 @@ Deprecated: Use ListTalentProfilesResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use SearchTalentProfilesRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetLocation
 
@@ -391,6 +419,8 @@ Deprecated: Use SearchTalentProfilesRequest.ProtoReflect.Descriptor instead.
 
 Deprecated: Use SearchTalentProfilesResponse.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetPage
 
 ##### GetProfiles
@@ -419,6 +449,8 @@ Deprecated: Use TalentProfile.ProtoReflect.Descriptor instead.
 
 ##### GetBio
 
+##### GetCampaignId
+
 ##### GetCreatedAt
 
 ##### GetDisplayName
@@ -432,6 +464,8 @@ Deprecated: Use TalentProfile.ProtoReflect.Descriptor instead.
 ##### GetLocation
 
 ##### GetMasterId
+
+##### GetMasterUuid
 
 ##### GetMetadata
 
@@ -502,6 +536,8 @@ compilation errors.
 
 Deprecated: Use UpdateTalentProfileRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetProfile
 
 ##### ProtoMessage
@@ -519,6 +555,8 @@ Deprecated: Use UpdateTalentProfileRequest.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use UpdateTalentProfileResponse.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetProfile
 

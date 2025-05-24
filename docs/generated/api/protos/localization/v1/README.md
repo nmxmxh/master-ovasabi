@@ -62,6 +62,8 @@ Deprecated: Use BatchTranslateResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use CreateTranslationRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetKey
 
 ##### GetLanguage
@@ -300,6 +302,8 @@ Deprecated: Use ListPricingRulesResponse.ProtoReflect.Descriptor instead.
 
 Deprecated: Use ListTranslationsRequest.ProtoReflect.Descriptor instead.
 
+##### GetCampaignId
+
 ##### GetLanguage
 
 ##### GetPage
@@ -357,6 +361,36 @@ Deprecated: Use Locale.ProtoReflect.Descriptor instead.
 ##### GetMetadata
 
 ##### GetRegions
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### Localization
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use Localization.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetCreatedAt
+
+##### GetId
+
+##### GetKey
+
+##### GetLanguage
+
+##### GetMetadata
+
+##### GetValue
 
 ##### ProtoMessage
 
@@ -503,6 +537,8 @@ Deprecated: Use TranslateResponse.ProtoReflect.Descriptor instead.
 ##### Descriptor
 
 Deprecated: Use Translation.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
 
 ##### GetCreatedAt
 

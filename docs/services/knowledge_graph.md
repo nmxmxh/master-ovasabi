@@ -1,4 +1,10 @@
-# Knowledge Graph Integration
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
 
 This document describes how services integrate with the Amadeus Knowledge Graph system to maintain a
 comprehensive understanding of the system's architecture and capabilities.

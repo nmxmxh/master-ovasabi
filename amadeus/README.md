@@ -1,3 +1,11 @@
+# Documentation
+
+version: 2025-05-14
+
+version: 2025-05-14
+
+version: 2025-05-14
+
 # Amadeus Knowledge Graph System
 
 Amadeus is the knowledge persistence system for the OVASABI platform, providing a comprehensive and

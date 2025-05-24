@@ -5,8 +5,8 @@ package commerce.v1;
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1;commercepb";
 
 import "google/protobuf/timestamp.proto";
-import "common/v1/metadata.proto";
 import "google/protobuf/struct.proto";
+import "common/v1/metadata.proto";
 
 // Robust, extensible metadata for all services
 
@@ -37,6 +37,32 @@ service CommerceService {
 
   // Events (for analytics/audit)
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+
+  // Investment
+  rpc CreateInvestmentAccount(CreateInvestmentAccountRequest) returns (CreateInvestmentAccountResponse);
+  rpc GetInvestmentAccount(GetInvestmentAccountRequest) returns (GetInvestmentAccountResponse);
+  rpc PlaceInvestmentOrder(PlaceInvestmentOrderRequest) returns (PlaceInvestmentOrderResponse);
+  rpc GetPortfolio(GetPortfolioRequest) returns (GetPortfolioResponse);
+  rpc ListAssets(ListAssetsRequest) returns (ListAssetsResponse);
+  rpc ListPortfolios(ListPortfoliosRequest) returns (ListPortfoliosResponse);
+
+  // Banking
+  rpc CreateBankAccount(CreateBankAccountRequest) returns (CreateBankAccountResponse);
+  rpc InitiateBankTransfer(InitiateBankTransferRequest) returns (InitiateBankTransferResponse);
+  rpc GetBankStatement(GetBankStatementRequest) returns (GetBankStatementResponse);
+
+  // Marketplace
+  rpc CreateListing(CreateListingRequest) returns (CreateListingResponse);
+  rpc PlaceMarketplaceOrder(PlaceMarketplaceOrderRequest) returns (PlaceMarketplaceOrderResponse);
+  rpc MakeOffer(MakeOfferRequest) returns (MakeOfferResponse);
+  rpc ListListings(ListListingsRequest) returns (ListListingsResponse);
+
+  // Exchange
+  rpc PlaceExchangeOrder(PlaceExchangeOrderRequest) returns (PlaceExchangeOrderResponse);
+  rpc GetExchangeRate(GetExchangeRateRequest) returns (GetExchangeRateResponse);
+  rpc ListExchangePairs(ListExchangePairsRequest) returns (ListExchangePairsResponse);
+  rpc CreateExchangePair(CreateExchangePairRequest) returns (CreateExchangePairResponse);
+  rpc CreateExchangeRate(CreateExchangeRateRequest) returns (CreateExchangeRateResponse);
 }
 
 // --- Quotes ---
@@ -46,12 +72,14 @@ message CreateQuoteRequest {
   double amount = 3;
   string currency = 4;
   common.Metadata metadata = 5;
+  int64 campaign_id = 6;
 }
 message CreateQuoteResponse {
   Quote quote = 1;
 }
 message GetQuoteRequest {
   string quote_id = 1;
+  int64 campaign_id = 2;
 }
 message GetQuoteResponse {
   Quote quote = 1;
@@ -60,6 +88,7 @@ message ListQuotesRequest {
   string user_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+  int64 campaign_id = 4;
 }
 message ListQuotesResponse {
   repeated Quote quotes = 1;
@@ -75,6 +104,7 @@ message Quote {
   common.Metadata metadata = 7;
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
+  int64 campaign_id = 10;
 }
 enum QuoteStatus {
   QUOTE_STATUS_UNSPECIFIED = 0;
@@ -90,12 +120,14 @@ message CreateOrderRequest {
   repeated OrderItem items = 2;
   string currency = 3;
   common.Metadata metadata = 4;
+  int64 campaign_id = 5;
 }
 message CreateOrderResponse {
   Order order = 1;
 }
 message GetOrderRequest {
   string order_id = 1;
+  int64 campaign_id = 2;
 }
 message GetOrderResponse {
   Order order = 1;
@@ -104,6 +136,7 @@ message ListOrdersRequest {
   string user_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+  int64 campaign_id = 4;
 }
 message ListOrdersResponse {
   repeated Order orders = 1;
@@ -112,6 +145,7 @@ message ListOrdersResponse {
 message UpdateOrderStatusRequest {
   string order_id = 1;
   OrderStatus status = 2;
+  int64 campaign_id = 3;
 }
 message UpdateOrderStatusResponse {
   Order order = 1;
@@ -126,6 +160,7 @@ message Order {
   common.Metadata metadata = 7;
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
+  int64 campaign_id = 10;
 }
 message OrderItem {
   string product_id = 1;
@@ -151,6 +186,7 @@ message InitiatePaymentRequest {
   string currency = 4;
   string method = 5;
   common.Metadata metadata = 6;
+  int64 campaign_id = 7;
 }
 message InitiatePaymentResponse {
   Payment payment = 1;
@@ -159,6 +195,7 @@ message ConfirmPaymentRequest {
   string payment_id = 1;
   string user_id = 2;
   common.Metadata metadata = 3;
+  int64 campaign_id = 4;
 }
 message ConfirmPaymentResponse {
   Payment payment = 1;
@@ -168,6 +205,7 @@ message RefundPaymentRequest {
   string user_id = 2;
   double amount = 3;
   common.Metadata metadata = 4;
+  int64 campaign_id = 5;
 }
 message RefundPaymentResponse {
   Payment payment = 1;
@@ -183,6 +221,7 @@ message Payment {
   common.Metadata metadata = 8;
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
+  int64 campaign_id = 11;
 }
 enum PaymentStatus {
   PAYMENT_STATUS_UNSPECIFIED = 0;
@@ -195,6 +234,7 @@ enum PaymentStatus {
 // --- Transactions ---
 message GetTransactionRequest {
   string transaction_id = 1;
+  int64 campaign_id = 2;
 }
 message GetTransactionResponse {
   Transaction transaction = 1;
@@ -203,6 +243,7 @@ message ListTransactionsRequest {
   string user_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+  int64 campaign_id = 4;
 }
 message ListTransactionsResponse {
   repeated Transaction transactions = 1;
@@ -219,6 +260,7 @@ message Transaction {
   common.Metadata metadata = 8;
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
+  int64 campaign_id = 11;
 }
 enum TransactionType {
   TRANSACTION_TYPE_UNSPECIFIED = 0;
@@ -237,12 +279,14 @@ enum TransactionStatus {
 message GetBalanceRequest {
   string user_id = 1;
   string currency = 2;
+  int64 campaign_id = 3;
 }
 message GetBalanceResponse {
   Balance balance = 1;
 }
 message ListBalancesRequest {
   string user_id = 1;
+  int64 campaign_id = 2;
 }
 message ListBalancesResponse {
   repeated Balance balances = 1;
@@ -252,6 +296,9 @@ message Balance {
   string currency = 2;
   double amount = 3;
   google.protobuf.Timestamp updated_at = 4;
+  // Robust, extensible metadata for balances (see docs/amadeus/amadeus_context.md)
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6;
 }
 
 // --- Events (Analytics/Audit) ---
@@ -260,6 +307,7 @@ message ListEventsRequest {
   string entity_type = 2;
   int32 page = 3;
   int32 page_size = 4;
+  int64 campaign_id = 5;
 }
 message ListEventsResponse {
   repeated CommerceEvent events = 1;
@@ -272,4 +320,430 @@ message CommerceEvent {
   string event_type = 4;
   google.protobuf.Struct payload = 5;
   google.protobuf.Timestamp created_at = 6;
+  // Robust, extensible metadata for analytics/audit (see docs/amadeus/amadeus_context.md)
+  common.Metadata metadata = 7;
+  int64 campaign_id = 8;
+}
+
+// --- Shared Primitives ---
+message Party {
+  string party_id = 1;
+  string type = 2; // USER, BUSINESS, BANK, EXCHANGE, etc.
+  string name = 3;
+  common.Metadata metadata = 4;
+}
+
+message Account {
+  string account_id = 1;
+  string party_id = 2;
+  string type = 3; // BANK, INVESTMENT, WALLET, etc.
+  string currency = 4;
+  double balance = 5;
+  common.Metadata metadata = 6;
+}
+
+// --- Investment ---
+message InvestmentAccount {
+  string account_id = 1;
+  string owner_id = 2;
+  string type = 3; // BROKERAGE, RETIREMENT, etc.
+  string currency = 4;
+  double balance = 5;
+  common.Metadata metadata = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  int64 campaign_id = 9;
+}
+
+message InvestmentOrder {
+  string order_id = 1;
+  string account_id = 2;
+  string asset_id = 3;
+  double quantity = 4;
+  double price = 5;
+  string order_type = 6; // MARKET, LIMIT, etc.
+  InvestmentOrderStatus status = 7;
+  common.Metadata metadata = 8;
+  google.protobuf.Timestamp created_at = 9;
+  int64 campaign_id = 10;
+}
+
+enum InvestmentOrderStatus {
+  INVESTMENT_ORDER_STATUS_UNSPECIFIED = 0;
+  INVESTMENT_ORDER_STATUS_PENDING = 1;
+  INVESTMENT_ORDER_STATUS_FILLED = 2;
+  INVESTMENT_ORDER_STATUS_CANCELLED = 3;
+  INVESTMENT_ORDER_STATUS_FAILED = 4;
+}
+
+message Asset {
+  string asset_id = 1;
+  string symbol = 2;
+  string name = 3;
+  string type = 4; // STOCK, BOND, FUND, CRYPTO, etc.
+  common.Metadata metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message Portfolio {
+  string portfolio_id = 1;
+  string account_id = 2;
+  repeated AssetPosition positions = 3;
+  common.Metadata metadata = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message AssetPosition {
+  string asset_id = 1;
+  double quantity = 2;
+  double average_price = 3;
+  common.Metadata metadata = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// --- Banking ---
+message BankAccount {
+  string account_id = 1;
+  string user_id = 2;
+  string iban = 3;
+  string bic = 4;
+  string currency = 5;
+  double balance = 6;
+  common.Metadata metadata = 7;
+}
+
+message BankTransfer {
+  string transfer_id = 1;
+  string from_account_id = 2;
+  string to_account_id = 3;
+  double amount = 4;
+  string currency = 5;
+  BankTransferStatus status = 6;
+  common.Metadata metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+enum BankTransferStatus {
+  BANK_TRANSFER_STATUS_UNSPECIFIED = 0;
+  BANK_TRANSFER_STATUS_PENDING = 1;
+  BANK_TRANSFER_STATUS_COMPLETED = 2;
+  BANK_TRANSFER_STATUS_FAILED = 3;
+  BANK_TRANSFER_STATUS_CANCELLED = 4;
+}
+
+message BankStatement {
+  string account_id = 1;
+  repeated Transaction transactions = 2;
+  common.Metadata metadata = 3;
+}
+
+// --- Marketplace ---
+message MarketplaceListing {
+  string listing_id = 1;
+  string seller_id = 2;
+  string product_id = 3;
+  double price = 4;
+  string currency = 5;
+  ListingStatus status = 6;
+  common.Metadata metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+enum ListingStatus {
+  LISTING_STATUS_UNSPECIFIED = 0;
+  LISTING_STATUS_ACTIVE = 1;
+  LISTING_STATUS_SOLD = 2;
+  LISTING_STATUS_CANCELLED = 3;
+}
+
+message MarketplaceOrder {
+  string order_id = 1;
+  string listing_id = 2;
+  string buyer_id = 3;
+  double price = 4;
+  string currency = 5;
+  MarketplaceOrderStatus status = 6;
+  common.Metadata metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+enum MarketplaceOrderStatus {
+  MARKETPLACE_ORDER_STATUS_UNSPECIFIED = 0;
+  MARKETPLACE_ORDER_STATUS_PENDING = 1;
+  MARKETPLACE_ORDER_STATUS_COMPLETED = 2;
+  MARKETPLACE_ORDER_STATUS_CANCELLED = 3;
+}
+
+message MarketplaceOffer {
+  string offer_id = 1;
+  string listing_id = 2;
+  string buyer_id = 3;
+  double offer_price = 4;
+  string currency = 5;
+  OfferStatus status = 6;
+  common.Metadata metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+enum OfferStatus {
+  OFFER_STATUS_UNSPECIFIED = 0;
+  OFFER_STATUS_PENDING = 1;
+  OFFER_STATUS_ACCEPTED = 2;
+  OFFER_STATUS_REJECTED = 3;
+  OFFER_STATUS_CANCELLED = 4;
+}
+
+// --- Exchange ---
+message ExchangeOrder {
+  string order_id = 1;
+  string account_id = 2;
+  string pair = 3; // e.g., BTC/USD
+  double amount = 4;
+  double price = 5;
+  string order_type = 6; // MARKET, LIMIT
+  ExchangeOrderStatus status = 7;
+  common.Metadata metadata = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+enum ExchangeOrderStatus {
+  EXCHANGE_ORDER_STATUS_UNSPECIFIED = 0;
+  EXCHANGE_ORDER_STATUS_PENDING = 1;
+  EXCHANGE_ORDER_STATUS_FILLED = 2;
+  EXCHANGE_ORDER_STATUS_CANCELLED = 3;
+  EXCHANGE_ORDER_STATUS_FAILED = 4;
+}
+
+message ExchangePair {
+  string pair_id = 1;
+  string base_asset = 2;
+  string quote_asset = 3;
+  common.Metadata metadata = 4;
+}
+
+message ExchangeRate {
+  string pair_id = 1;
+  double rate = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  common.Metadata metadata = 4;
+}
+
+// Add request/response messages for new RPCs as needed (scaffold only, fill in details as you implement)
+
+// Investment
+message CreateInvestmentAccountRequest {
+  string owner_id = 1;
+  string type = 2;
+  string currency = 3;
+  double balance = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6;
+}
+
+message CreateInvestmentAccountResponse {
+  InvestmentAccount account = 1;
+}
+
+message GetInvestmentAccountRequest {
+  string account_id = 1;
+  int64 campaign_id = 2;
+}
+
+message GetInvestmentAccountResponse {
+  InvestmentAccount account = 1;
+}
+
+message PlaceInvestmentOrderRequest {
+  string account_id = 1;
+  string asset_id = 2;
+  double quantity = 3;
+  double price = 4;
+  string order_type = 5;
+  common.Metadata metadata = 6;
+  int64 campaign_id = 7;
+}
+
+message PlaceInvestmentOrderResponse {
+  InvestmentOrder order = 1;
+}
+
+message GetPortfolioRequest {
+  string portfolio_id = 1;
+  int64 campaign_id = 2;
+}
+
+message GetPortfolioResponse {
+  Portfolio portfolio = 1;
+}
+
+message ListPortfoliosRequest {
+  string account_id = 1;
+  int64 campaign_id = 2;
+}
+
+message ListPortfoliosResponse {
+  repeated Portfolio portfolios = 1;
+}
+
+message ListAssetsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 campaign_id = 4;
+}
+
+message ListAssetsResponse {
+  repeated Asset assets = 1;
+  int32 total = 2;
+}
+
+// Banking
+message CreateBankAccountRequest {
+  string user_id = 1;
+  string iban = 2;
+  string bic = 3;
+  string currency = 4;
+  double balance = 5;
+  common.Metadata metadata = 6;
+  int64 campaign_id = 7;
+}
+
+message CreateBankAccountResponse {
+  BankAccount account = 1;
+}
+
+message InitiateBankTransferRequest {
+  string from_account_id = 1;
+  string to_account_id = 2;
+  double amount = 3;
+  string currency = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6;
+}
+
+message InitiateBankTransferResponse {
+  BankTransfer transfer = 1;
+}
+
+message GetBankStatementRequest {
+  string account_id = 1;
+  int64 campaign_id = 2;
+}
+
+message GetBankStatementResponse {
+  BankStatement statement = 1;
+}
+
+// Marketplace
+message CreateListingRequest {
+  string seller_id = 1;
+  string product_id = 2;
+  double price = 3;
+  string currency = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6;
+}
+
+message CreateListingResponse {
+  MarketplaceListing listing = 1;
+}
+
+message PlaceMarketplaceOrderRequest {
+  string listing_id = 1;
+  string buyer_id = 2;
+  double price = 3;
+  string currency = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6;
+}
+
+message PlaceMarketplaceOrderResponse {
+  MarketplaceOrder order = 1;
+}
+
+message MakeOfferRequest {
+  string listing_id = 1;
+  string buyer_id = 2;
+  double offer_price = 3;
+  string currency = 4;
+  common.Metadata metadata = 5;
+  int64 campaign_id = 6;
+}
+
+message MakeOfferResponse {
+  MarketplaceOffer offer = 1;
+}
+
+message ListListingsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 campaign_id = 4;
+}
+
+message ListListingsResponse {
+  repeated MarketplaceListing listings = 1;
+  int32 total = 2;
+}
+
+// Exchange
+message PlaceExchangeOrderRequest {
+  string account_id = 1;
+  string pair = 2;
+  double amount = 3;
+  double price = 4;
+  string order_type = 5;
+  common.Metadata metadata = 6;
+  int64 campaign_id = 7;
+}
+
+message PlaceExchangeOrderResponse {
+  ExchangeOrder order = 1;
+}
+
+message GetExchangeRateRequest {
+  string pair_id = 1;
+  int64 campaign_id = 2;
+}
+
+message GetExchangeRateResponse {
+  ExchangeRate rate = 1;
+}
+
+message ListExchangePairsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 campaign_id = 4;
+}
+
+message ListExchangePairsResponse {
+  repeated ExchangePair pairs = 1;
+  int32 total = 2;
+}
+
+message CreateExchangePairRequest {
+  string pair_id = 1;
+  string base_asset = 2;
+  string quote_asset = 3;
+  common.Metadata metadata = 4;
+}
+
+message CreateExchangePairResponse {
+  ExchangePair pair = 1;
+}
+
+message CreateExchangeRateRequest {
+  string pair_id = 1;
+  double rate = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  common.Metadata metadata = 4;
+  int64 campaign_id = 5;
+}
+
+message CreateExchangeRateResponse {
+  ExchangeRate rate = 1;
 } 
