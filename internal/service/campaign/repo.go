@@ -12,6 +12,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -60,9 +61,9 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 		INSERT INTO service_campaign_main (
 			master_id, master_uuid, slug, title, description,
 			ranking_formula, metadata, start_date, end_date,
-			created_at, updated_at
+			created_at, updated_at, owner_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 		) RETURNING id, created_at, updated_at`
 
 	now := time.Now()
@@ -78,6 +79,7 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 		campaign.EndDate,
 		now,
 		now,
+		campaign.OwnerID,
 	)
 	var id int64
 	var createdAt, updatedAt time.Time
@@ -102,7 +104,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		SELECT 
 			id, master_id, master_uuid, slug, title, description,
 			ranking_formula, metadata, start_date, end_date,
-			created_at, updated_at
+			created_at, updated_at, owner_id
 		FROM service_campaign_main
 		WHERE slug = $1`
 
@@ -120,6 +122,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		&campaign.EndDate,
 		&campaign.CreatedAt,
 		&campaign.UpdatedAt,
+		&campaign.OwnerID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -130,7 +133,17 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		return nil, err
 	}
 
-	campaign.Metadata = &commonpb.Metadata{}
+	campaign.Metadata = &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "campaign_id": campaign.ID},
+			func() *structpb.Struct {
+				if campaign != nil && campaign.Metadata != nil {
+					return campaign.Metadata.ServiceSpecific
+				}
+				return nil
+			}()),
+		Tags:     []string{},
+		Features: []string{},
+	}
 	if metadataStr != "" {
 		err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 		if err != nil {
@@ -160,8 +173,9 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 			metadata = $4,
 			start_date = $5,
 			end_date = $6,
-			updated_at = $7
-		WHERE id = $8`
+			updated_at = $7,
+			owner_id = $8
+		WHERE id = $9`
 
 	result, err := r.GetDB().ExecContext(ctx, query,
 		campaign.Title,
@@ -171,6 +185,7 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 		campaign.StartDate,
 		campaign.EndDate,
 		time.Now(),
+		campaign.OwnerID,
 		campaign.ID,
 	)
 	if err != nil {
@@ -217,7 +232,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		SELECT 
 			id, master_id, master_uuid, slug, title, description,
 			ranking_formula, metadata, start_date, end_date,
-			created_at, updated_at
+			created_at, updated_at, owner_id
 		FROM service_campaign_main
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2`
@@ -249,11 +264,22 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 			&campaign.EndDate,
 			&campaign.CreatedAt,
 			&campaign.UpdatedAt,
+			&campaign.OwnerID,
 		)
 		if err != nil {
 			return nil, err
 		}
-		campaign.Metadata = &commonpb.Metadata{}
+		campaign.Metadata = &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "campaign_id": campaign.ID},
+				func() *structpb.Struct {
+					if campaign != nil && campaign.Metadata != nil {
+						return campaign.Metadata.ServiceSpecific
+					}
+					return nil
+				}()),
+			Tags:     []string{},
+			Features: []string{},
+		}
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
@@ -310,7 +336,17 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 		if err != nil {
 			return nil, err
 		}
-		campaign.Metadata = &commonpb.Metadata{}
+		campaign.Metadata = &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "campaign_id": campaign.ID},
+				func() *structpb.Struct {
+					if campaign != nil && campaign.Metadata != nil {
+						return campaign.Metadata.ServiceSpecific
+					}
+					return nil
+				}()),
+			Tags:     []string{},
+			Features: []string{},
+		}
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
@@ -337,6 +373,7 @@ type Campaign struct {
 	Title          string `db:"title"`
 	Description    string `db:"description"`
 	RankingFormula string `db:"ranking_formula"`
+	OwnerID        string `db:"owner_id" json:"owner_id"`
 	Metadata       *commonpb.Metadata
 	StartDate      time.Time `db:"start_date"`
 	EndDate        time.Time `db:"end_date"`

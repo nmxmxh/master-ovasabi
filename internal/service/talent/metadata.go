@@ -5,8 +5,8 @@ import (
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // ServiceMetadata for talent, with diversity, inclusion, and industry-standard fields.
@@ -51,10 +51,14 @@ type AuditMetadata struct {
 // ExtractAndEnrichTalentMetadata extracts, validates, and enriches talent metadata.
 func ExtractAndEnrichTalentMetadata(meta *commonpb.Metadata, userID string, isCreate bool) (*commonpb.Metadata, error) {
 	if meta == nil {
-		meta = &commonpb.Metadata{}
+		meta = &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata is nil"}),
+			Tags:            []string{},
+			Features:        []string{},
+		}
 	}
 	var talentMeta Metadata
-	ss := meta.GetServiceSpecific()
+	ss := meta.ServiceSpecific
 	if ss != nil {
 		if m, ok := ss.AsMap()["talent"]; ok {
 			b, err := json.Marshal(m)
@@ -140,10 +144,7 @@ func BuildTalentMetadata(meta *Metadata, tags []string) (*commonpb.Metadata, err
 	if err := json.Unmarshal(m, &metaMap); err != nil {
 		return nil, err
 	}
-	ss, err := structpb.NewStruct(map[string]interface{}{"talent": metaMap})
-	if err != nil {
-		return nil, err
-	}
+	ss := metadata.NewStructFromMap(map[string]interface{}{"talent": metaMap}, nil)
 	return &commonpb.Metadata{
 		Tags:            tags,
 		ServiceSpecific: ss,

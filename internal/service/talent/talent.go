@@ -9,6 +9,7 @@ import (
 	nexusevents "github.com/nmxmxh/master-ovasabi/internal/service/nexus"
 	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
 	events "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
@@ -49,25 +50,30 @@ var _ talentpb.TalentServiceServer = (*Service)(nil)
 
 func (s *Service) CreateTalentProfile(ctx context.Context, req *talentpb.CreateTalentProfileRequest) (*talentpb.CreateTalentProfileResponse, error) {
 	if req == nil || req.Profile == nil {
-		return nil, status.Error(codes.InvalidArgument, "profile is required")
+		return nil, status.Error(codes.InvalidArgument, "missing profile data")
 	}
-	userID := req.Profile.UserId
-	meta, err := ExtractAndEnrichTalentMetadata(req.Profile.Metadata, userID, true)
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	req.Profile.UserId = authUserID
+	meta, err := ExtractAndEnrichTalentMetadata(req.Profile.Metadata, authUserID, true)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":   err.Error(),
-				"user_id": userID,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for talent.profile_create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "talent_id": req.Profile.Id},
+					func() *structpb.Struct {
+						if req.Profile != nil && req.Profile.Metadata != nil {
+							return req.Profile.Metadata.ServiceSpecific
+						}
+						return nil
+					}()),
+				Tags:     []string{},
+				Features: []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, nexusevents.EventTalentProfileCreateFailed, "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit talent.profile_create_failed event", zap.Error(errEmit))
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "talent", nexusevents.EventTalentProfileCreateFailed, "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit talent.profile_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -76,19 +82,20 @@ func (s *Service) CreateTalentProfile(ctx context.Context, req *talentpb.CreateT
 	created, err := s.repo.CreateTalentProfile(ctx, req.Profile, req.CampaignId)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":   err.Error(),
-				"user_id": userID,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for talent.profile_create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "talent_id": req.Profile.Id},
+					func() *structpb.Struct {
+						if req.Profile != nil && req.Profile.Metadata != nil {
+							return req.Profile.Metadata.ServiceSpecific
+						}
+						return nil
+					}()),
+				Tags:     []string{},
+				Features: []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, nexusevents.EventTalentProfileCreateFailed, "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit talent.profile_create_failed event", zap.Error(errEmit))
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "talent", nexusevents.EventTalentProfileCreateFailed, "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit talent.profile_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create talent profile: %v", err)
@@ -112,26 +119,39 @@ func (s *Service) CreateTalentProfile(ctx context.Context, req *talentpb.CreateT
 }
 
 func (s *Service) UpdateTalentProfile(ctx context.Context, req *talentpb.UpdateTalentProfileRequest) (*talentpb.UpdateTalentProfileResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "talent")
+	profile, err := s.repo.GetTalentProfile(ctx, req.Profile.Id, req.CampaignId)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "talent profile not found")
+	}
+	if !isAdmin && profile.UserId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot update profile you do not own")
+	}
 	if req == nil || req.Profile == nil {
 		return nil, status.Error(codes.InvalidArgument, "profile is required")
 	}
-	userID := req.Profile.UserId
-	meta, err := ExtractAndEnrichTalentMetadata(req.Profile.Metadata, userID, false)
+	meta, err := ExtractAndEnrichTalentMetadata(req.Profile.Metadata, authUserID, false)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":   err.Error(),
-				"user_id": userID,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for talent.profile_update_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "talent_id": req.Profile.Id},
+					func() *structpb.Struct {
+						if req.Profile != nil && req.Profile.Metadata != nil {
+							return req.Profile.Metadata.ServiceSpecific
+						}
+						return nil
+					}()),
+				Tags:     []string{},
+				Features: []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, nexusevents.EventTalentProfileUpdateFailed, req.Profile.Id, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit talent.profile_update_failed event", zap.Error(errEmit))
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "talent", nexusevents.EventTalentProfileUpdateFailed, req.Profile.Id, errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit talent.profile_update_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -140,19 +160,20 @@ func (s *Service) UpdateTalentProfile(ctx context.Context, req *talentpb.UpdateT
 	updated, err := s.repo.UpdateTalentProfile(ctx, req.Profile, req.CampaignId)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":   err.Error(),
-				"user_id": userID,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for talent.profile_update_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "talent_id": req.Profile.Id},
+					func() *structpb.Struct {
+						if req.Profile != nil && req.Profile.Metadata != nil {
+							return req.Profile.Metadata.ServiceSpecific
+						}
+						return nil
+					}()),
+				Tags:     []string{},
+				Features: []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, nexusevents.EventTalentProfileUpdateFailed, req.Profile.Id, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit talent.profile_update_failed event", zap.Error(errEmit))
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "talent", nexusevents.EventTalentProfileUpdateFailed, req.Profile.Id, errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit talent.profile_update_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to update talent profile: %v", err)
@@ -176,33 +197,47 @@ func (s *Service) UpdateTalentProfile(ctx context.Context, req *talentpb.UpdateT
 }
 
 func (s *Service) DeleteTalentProfile(ctx context.Context, req *talentpb.DeleteTalentProfileRequest) (*talentpb.DeleteTalentProfileResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "talent")
+	profile, err := s.repo.GetTalentProfile(ctx, req.ProfileId, req.CampaignId)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "talent profile not found")
+	}
+	if !isAdmin && profile.UserId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot delete profile you do not own")
+	}
 	if req == nil || req.ProfileId == "" {
 		return nil, status.Error(codes.InvalidArgument, "profile_id is required")
 	}
-	err := s.repo.DeleteTalentProfile(ctx, req.ProfileId, req.CampaignId)
+	err = s.repo.DeleteTalentProfile(ctx, req.ProfileId, req.CampaignId)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":      err.Error(),
-				"profile_id": req.ProfileId,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for talent.profile_delete_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "talent_id": req.ProfileId},
+					func() *structpb.Struct {
+						if profile != nil && profile.Metadata != nil {
+							return profile.Metadata.ServiceSpecific
+						}
+						return nil
+					}()),
+				Tags:     []string{},
+				Features: []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, nexusevents.EventTalentProfileDeleteFailed, req.ProfileId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit talent.profile_delete_failed event", zap.Error(errEmit))
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "talent", nexusevents.EventTalentProfileDeleteFailed, req.ProfileId, errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit talent.profile_delete_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to delete talent profile: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, nexusevents.EventTalentProfileDeleted, req.ProfileId, nil)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit talent.profile_deleted event", zap.Error(errEmit))
+		_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "talent", nexusevents.EventTalentProfileDeleted, req.ProfileId, nil)
+		if !errEmit {
+			s.log.Warn("Failed to emit talent.profile_deleted event")
 		}
 	}
 	return &talentpb.DeleteTalentProfileResponse{Success: true, CampaignId: req.CampaignId}, nil
@@ -287,28 +322,28 @@ func (s *Service) BookTalent(ctx context.Context, req *talentpb.BookTalentReques
 	booking, err := s.repo.BookTalent(ctx, req.TalentId, req.UserId, req.StartTime, req.EndTime, req.Notes, req.CampaignId)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":     err.Error(),
-				"talent_id": req.TalentId,
-				"user_id":   req.UserId,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for talent.booking_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "talent_id": req.TalentId},
+					func() *structpb.Struct {
+						if booking != nil && booking.Metadata != nil {
+							return booking.Metadata.ServiceSpecific
+						}
+						return nil
+					}()),
+				Tags:     []string{},
+				Features: []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, nexusevents.EventTalentBookingFailed, req.TalentId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit talent.booking_failed event", zap.Error(errEmit))
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "talent", nexusevents.EventTalentBookingFailed, req.TalentId, errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit talent.booking_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to book talent: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, nexusevents.EventTalentBooked, req.TalentId, booking.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit talent.booked event", zap.Error(errEmit))
+		_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "talent", nexusevents.EventTalentBooked, req.TalentId, booking.Metadata)
+		if !errEmit {
+			s.log.Warn("Failed to emit talent.booked event")
 		}
 	}
 	return &talentpb.BookTalentResponse{Booking: booking, CampaignId: req.CampaignId}, nil

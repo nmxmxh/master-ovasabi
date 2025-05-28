@@ -75,12 +75,12 @@ func (r *Repository) CreateJob(ctx context.Context, job *schedulerpb.Job) (*sche
 	}
 	_, err = r.db.ExecContext(ctx, `
 		INSERT INTO service_scheduler_job (
-			id, master_id, name, schedule, payload, status, metadata, last_run_id, trigger_type, job_type, owner, next_run_time, labels, created_at, updated_at, campaign_id
+			id, master_id, master_uuid, name, schedule, payload, status, metadata, last_run_id, trigger_type, job_type, owner, next_run_time, labels, created_at, updated_at, campaign_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, NULL, $8, $9, $10, $11, $12, NOW(), NOW(), $13
+			$1, $2, $3, $4, $5, $6, $7, $8, NULL, $9, $10, $11, $12, $13, NOW(), NOW(), $14
 		)
 	`,
-		id, masterID, job.GetName(), job.GetSchedule(), job.GetPayload(), status, metaBytes,
+		id, masterID, job.MasterUuid, job.GetName(), job.GetSchedule(), job.GetPayload(), status, metaBytes,
 		triggerType, jobType, job.GetOwner(), job.GetNextRunTime(), marshalLabels(job.Labels), job.GetCampaignId(),
 	)
 	if err != nil {
@@ -148,12 +148,12 @@ func (r *Repository) GetJob(ctx context.Context, jobID string, campaignID int64)
 	var row *sql.Row
 	if campaignID == 0 {
 		row = r.db.QueryRowContext(ctx, `
-			SELECT id, master_id, name, schedule, payload, status, metadata, last_run_id, trigger_type, job_type, owner, next_run_time, labels, created_at, updated_at, campaign_id
+			SELECT id, master_id, master_uuid, name, schedule, payload, status, metadata, last_run_id, trigger_type, job_type, owner, next_run_time, labels, created_at, updated_at, campaign_id
 			FROM service_scheduler_job WHERE id = $1
 		`, id)
 	} else {
 		row = r.db.QueryRowContext(ctx, `
-			SELECT id, master_id, name, schedule, payload, status, metadata, last_run_id, trigger_type, job_type, owner, next_run_time, labels, created_at, updated_at, campaign_id
+			SELECT id, master_id, master_uuid, name, schedule, payload, status, metadata, last_run_id, trigger_type, job_type, owner, next_run_time, labels, created_at, updated_at, campaign_id
 			FROM service_scheduler_job WHERE id = $1 AND campaign_id = $2
 		`, id, campaignID)
 	}
@@ -167,7 +167,7 @@ func (r *Repository) GetJob(ctx context.Context, jobID string, campaignID int64)
 		createdAt, updatedAt           time.Time
 		dbCampaignID                   int64
 	)
-	err = row.Scan(&jid, &masterID, &name, &schedule, &payload, &status, &metaBytes, &lastRunID, &triggerType, &jobType, &owner, &nextRunTime, &labelsBytes, &createdAt, &updatedAt, &dbCampaignID)
+	err = row.Scan(&jid, &masterID, &masterID, &name, &schedule, &payload, &status, &metaBytes, &lastRunID, &triggerType, &jobType, &owner, &nextRunTime, &labelsBytes, &createdAt, &updatedAt, &dbCampaignID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get job: %w", err)
 	}

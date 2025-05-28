@@ -6,15 +6,15 @@ import (
 
 	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
 	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
-	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	events "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 )
 
 type Service struct {
@@ -45,10 +45,6 @@ func NewService(
 func (s *Service) CreateContent(ctx context.Context, req *contentpb.CreateContentRequest) (*contentpb.ContentResponse, error) {
 	content := req.Content
 	content.CampaignId = req.CampaignId
-	// Extract fields to translate
-	title := content.Title
-	body := content.Body
-
 	// Supported locales (could be dynamic/configurable)
 	supportedLocales := []string{"en", "fr", "es", "ar"}
 	translations := map[string]map[string]string{} // locale -> field -> value
@@ -56,21 +52,17 @@ func (s *Service) CreateContent(ctx context.Context, req *contentpb.CreateConten
 	// Instead of direct localizationClient call, emit translation_requested events
 	if s.eventEnabled && s.eventEmitter != nil {
 		for _, locale := range supportedLocales {
-			meta := &commonpb.Metadata{}
-			metaStruct, err := structpb.NewStruct(map[string]interface{}{
-				"title":      title,
-				"body":       body,
-				"locale":     locale,
-				"content_id": "", // Not yet created
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.translation_requested event", zap.Error(err))
-				continue
+			meta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+					"title":      content.Title,
+					"body":       content.Body,
+					"locale":     locale,
+					"content_id": content.Id, // may be empty if not yet created
+				}),
 			}
-			meta.ServiceSpecific = metaStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.translation_requested", "", meta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.translation_requested event", zap.Error(errEmit))
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "translation_requested", "", meta)
+			if !ok {
+				s.log.Warn("Failed to emit content.translation_requested event")
 			}
 		}
 	}
@@ -91,40 +83,32 @@ func (s *Service) CreateContent(ctx context.Context, req *contentpb.CreateConten
 	)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error": err.Error(),
-				"title": content.Title,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.create_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.create_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "create_failed", "", errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to build content metadata: %v", err)
 	}
 	content.Metadata = meta
 
-	if err := metadatautil.ValidateMetadata(content.Metadata); err != nil {
+	if err := metadata.ValidateMetadata(content.Metadata); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error": err.Error(),
-				"title": content.Title,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.create_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.create_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "create_failed", "", errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -133,19 +117,15 @@ func (s *Service) CreateContent(ctx context.Context, req *contentpb.CreateConten
 	if err != nil {
 		s.log.Error("CreateContent failed", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error": err.Error(),
-				"title": content.Title,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.create_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.create_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "create_failed", "", errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create content: %v", err)
@@ -178,21 +158,30 @@ func (s *Service) GetContent(ctx context.Context, req *contentpb.GetContentReque
 }
 
 func (s *Service) UpdateContent(ctx context.Context, req *contentpb.UpdateContentRequest) (*contentpb.ContentResponse, error) {
-	if err := metadatautil.ValidateMetadata(req.Content.Metadata); err != nil {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "content")
+	content, err := s.repo.GetContent(ctx, req.Content.Id)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "content not found")
+	}
+	if !isAdmin && content.AuthorId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot update content you do not own")
+	}
+	if err := metadata.ValidateMetadata(req.Content.Metadata); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":      err.Error(),
-				"content_id": req.Content.Id,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.update_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.update_failed", req.Content.Id, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.update_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "update_failed", req.Content.Id, errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.update_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -201,19 +190,15 @@ func (s *Service) UpdateContent(ctx context.Context, req *contentpb.UpdateConten
 	if err != nil {
 		s.log.Error("UpdateContent failed", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":      err.Error(),
-				"content_id": req.Content.Id,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.update_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.update_failed", req.Content.Id, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.update_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "update_failed", req.Content.Id, errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.update_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to update content: %v", err)
@@ -237,31 +222,40 @@ func (s *Service) UpdateContent(ctx context.Context, req *contentpb.UpdateConten
 }
 
 func (s *Service) DeleteContent(ctx context.Context, req *contentpb.DeleteContentRequest) (*contentpb.DeleteContentResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "content")
+	content, err := s.repo.GetContent(ctx, req.Id)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "content not found")
+	}
+	if !isAdmin && content.AuthorId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot delete content you do not own")
+	}
 	success, err := s.repo.DeleteContent(ctx, req.Id)
 	if err != nil {
 		s.log.Error("DeleteContent failed", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":      err.Error(),
-				"content_id": req.Id,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.delete_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.delete_failed", req.Id, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.delete_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "delete_failed", req.Id, errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.delete_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to delete content: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "content.deleted", req.Id, nil)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit content.deleted event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "deleted", req.Id, nil)
+		if !ok {
+			s.log.Warn("Failed to emit content.deleted event")
 		}
 	}
 	return &contentpb.DeleteContentResponse{Success: success}, nil
@@ -313,21 +307,17 @@ func (s *Service) ListReactions(ctx context.Context, req *contentpb.ListReaction
 }
 
 func (s *Service) AddComment(ctx context.Context, req *contentpb.AddCommentRequest) (*contentpb.CommentResponse, error) {
-	if err := metadatautil.ValidateMetadata(req.Metadata); err != nil {
+	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":      err.Error(),
-				"content_id": req.ContentId,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.comment_add_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.comment_add_failed", req.ContentId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.comment_add_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "comment_add_failed", req.ContentId, errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.comment_add_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -336,27 +326,23 @@ func (s *Service) AddComment(ctx context.Context, req *contentpb.AddCommentReque
 	if err != nil {
 		s.log.Error("AddComment failed", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":      err.Error(),
-				"content_id": req.ContentId,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.comment_add_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.comment_add_failed", req.ContentId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.comment_add_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "comment_add_failed", req.ContentId, errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.comment_add_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to add comment: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "content.comment_added", req.ContentId, req.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit content.comment_added event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "comment_added", req.ContentId, req.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit content.comment_added event")
 		}
 	}
 	return &contentpb.CommentResponse{Comment: comment}, nil
@@ -375,31 +361,40 @@ func (s *Service) ListComments(ctx context.Context, req *contentpb.ListCommentsR
 }
 
 func (s *Service) DeleteComment(ctx context.Context, req *contentpb.DeleteCommentRequest) (*contentpb.DeleteCommentResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "content")
+	comment, err := s.repo.GetComment(ctx, req.CommentId)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "comment not found")
+	}
+	if !isAdmin && comment.AuthorId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot delete comment you do not own")
+	}
 	success, err := s.repo.DeleteComment(ctx, req.CommentId)
 	if err != nil {
 		s.log.Error("DeleteComment failed", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":      err.Error(),
-				"comment_id": req.CommentId,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.comment_delete_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.comment_delete_failed", req.CommentId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.comment_delete_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "comment_delete_failed", req.CommentId, errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.comment_delete_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to delete comment: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "content.comment_deleted", req.CommentId, nil)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit content.comment_deleted event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "comment_deleted", req.CommentId, nil)
+		if !ok {
+			s.log.Warn("Failed to emit content.comment_deleted event")
 		}
 	}
 	return &contentpb.DeleteCommentResponse{Success: success}, nil
@@ -431,39 +426,34 @@ func (s *Service) ModerateContent(ctx context.Context, req *contentpb.ModerateCo
 	if err != nil {
 		s.log.Error("ModerateContent failed", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":      err.Error(),
-				"content_id": req.ContentId,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for content.moderate_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errStruct := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "content.moderate_failed", req.ContentId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit content.moderate_failed event", zap.Error(errEmit))
+			errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "moderate_failed", req.ContentId, errStruct)
+			if !ok {
+				s.log.Warn("Failed to emit content.moderate_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to moderate content: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errStruct, err := structpb.NewStruct(map[string]interface{}{
-			"action":       req.Action,
-			"moderator_id": req.ModeratorId,
-			"reason":       req.Reason,
-			"status":       statusStr,
-		})
-		if err != nil {
-			s.log.Error("Failed to create structpb.Struct for content.moderated event", zap.Error(err))
-			return nil, status.Error(codes.Internal, "internal error")
+		errStruct := &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+				"action":       req.Action,
+				"moderator_id": req.ModeratorId,
+				"reason":       req.Reason,
+				"status":       statusStr,
+			}),
+			Tags:     []string{},
+			Features: []string{},
 		}
-		errMeta := &commonpb.Metadata{}
-		errMeta.ServiceSpecific = errStruct
-		errEmit := s.eventEmitter.EmitEvent(ctx, "content.moderated", req.ContentId, errMeta)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit content.moderated event", zap.Error(errEmit))
+		errStruct.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable"}, errStruct.ServiceSpecific)
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "content", "moderated", req.ContentId, errStruct)
+		if !ok {
+			s.log.Warn("Failed to emit content.moderated event")
 		}
 	}
 	return &contentpb.ModerateContentResponse{Success: success, Status: statusStr}, nil

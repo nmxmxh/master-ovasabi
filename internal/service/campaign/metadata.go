@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -280,7 +281,7 @@ func (m *Metadata) ToStruct() (*structpb.Struct, error) {
 	if m.Custom != nil {
 		fields["custom"] = m.Custom
 	}
-	return structpb.NewStruct(fields)
+	return metadata.NewStructFromMap(fields), nil
 }
 
 // FromStruct parses a structpb.Struct into Metadata.

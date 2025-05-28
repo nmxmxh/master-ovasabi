@@ -21,6 +21,7 @@ message Campaign {
   google.protobuf.Timestamp updated_at = 11;
   string master_uuid = 12; // Global UUID reference to master table
   int64 master_id = 13; // Internal integer ID reference to master table
+  string owner_id = 14; // User ID of the campaign owner
 }
 
 message CreateCampaignRequest {
@@ -31,6 +32,7 @@ message CreateCampaignRequest {
   google.protobuf.Timestamp start_date = 5;
   google.protobuf.Timestamp end_date = 6;
   common.Metadata metadata = 7;
+  string owner_id = 8; // User ID of the campaign owner
 }
 
 message CreateCampaignResponse {

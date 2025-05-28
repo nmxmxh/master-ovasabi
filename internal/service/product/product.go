@@ -43,15 +43,19 @@ var _ productpb.ProductServiceServer = (*Service)(nil)
 
 func (s *Service) CreateProduct(ctx context.Context, req *productpb.CreateProductRequest) (*productpb.CreateProductResponse, error) {
 	if req == nil || req.Product == nil {
-		return nil, status.Error(codes.InvalidArgument, "Product is required")
+		return nil, status.Error(codes.InvalidArgument, "missing product data")
 	}
-	userID := req.Product.OwnerId
-	meta, err := ExtractAndEnrichProductMetadata(req.Product.Metadata, userID, true)
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	req.Product.OwnerId = authUserID
+	meta, err := ExtractAndEnrichProductMetadata(req.Product.Metadata, authUserID, true)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
 			errStruct, err := structpb.NewStruct(map[string]interface{}{
 				"error":    err.Error(),
-				"owner_id": userID,
+				"owner_id": authUserID,
 			})
 			if err != nil {
 				s.log.Error("Failed to create structpb.Struct for product event", zap.Error(err))
@@ -75,7 +79,7 @@ func (s *Service) CreateProduct(ctx context.Context, req *productpb.CreateProduc
 		if s.eventEnabled && s.eventEmitter != nil {
 			errStruct, err := structpb.NewStruct(map[string]interface{}{
 				"error":    err.Error(),
-				"owner_id": userID,
+				"owner_id": authUserID,
 			})
 			if err != nil {
 				s.log.Error("Failed to create structpb.Struct for product event", zap.Error(err))
@@ -109,16 +113,28 @@ func (s *Service) CreateProduct(ctx context.Context, req *productpb.CreateProduc
 }
 
 func (s *Service) UpdateProduct(ctx context.Context, req *productpb.UpdateProductRequest) (*productpb.UpdateProductResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "product")
+	product, err := s.repo.GetProduct(ctx, req.Product.Id)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "product not found")
+	}
+	if !isAdmin && product.OwnerId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot update product you do not own")
+	}
 	if req == nil || req.Product == nil {
 		return nil, status.Error(codes.InvalidArgument, "Product is required")
 	}
-	userID := req.Product.OwnerId
-	meta, err := ExtractAndEnrichProductMetadata(req.Product.Metadata, userID, false)
+	meta, err := ExtractAndEnrichProductMetadata(req.Product.Metadata, authUserID, false)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
 			errStruct, err := structpb.NewStruct(map[string]interface{}{
 				"error":    err.Error(),
-				"owner_id": userID,
+				"owner_id": authUserID,
 			})
 			if err != nil {
 				s.log.Error("Failed to create structpb.Struct for product event", zap.Error(err))
@@ -142,7 +158,7 @@ func (s *Service) UpdateProduct(ctx context.Context, req *productpb.UpdateProduc
 		if s.eventEnabled && s.eventEmitter != nil {
 			errStruct, err := structpb.NewStruct(map[string]interface{}{
 				"error":    err.Error(),
-				"owner_id": userID,
+				"owner_id": authUserID,
 			})
 			if err != nil {
 				s.log.Error("Failed to create structpb.Struct for product event", zap.Error(err))
@@ -176,10 +192,23 @@ func (s *Service) UpdateProduct(ctx context.Context, req *productpb.UpdateProduc
 }
 
 func (s *Service) DeleteProduct(ctx context.Context, req *productpb.DeleteProductRequest) (*productpb.DeleteProductResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "product")
+	product, err := s.repo.GetProduct(ctx, req.ProductId)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "product not found")
+	}
+	if !isAdmin && product.OwnerId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot delete product you do not own")
+	}
 	if req == nil || req.ProductId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Product ID is required")
 	}
-	err := s.repo.DeleteProduct(ctx, req.ProductId)
+	err = s.repo.DeleteProduct(ctx, req.ProductId)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
 			errStruct, err := structpb.NewStruct(map[string]interface{}{

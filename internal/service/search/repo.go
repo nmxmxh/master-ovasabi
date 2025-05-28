@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	repo "github.com/nmxmxh/master-ovasabi/internal/repository"
@@ -22,6 +23,18 @@ type Result struct {
 	Snippet    string             // snippet
 	Metadata   *commonpb.Metadata // metadata
 	Score      float64            // score
+}
+
+type Index struct {
+	ID         string             `db:"id"`
+	MasterID   int64              `db:"master_id"`
+	MasterUUID string             `db:"master_uuid"`
+	EntityType string             `db:"entity_type"`
+	EntityID   string             `db:"entity_id"`
+	SearchData string             `db:"search_data"`
+	Metadata   *commonpb.Metadata `db:"metadata"`
+	CreatedAt  time.Time          `db:"created_at"`
+	UpdatedAt  time.Time          `db:"updated_at"`
 }
 
 type Repository struct {

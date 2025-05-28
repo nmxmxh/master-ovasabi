@@ -13,10 +13,8 @@
 package analytics
 
 import (
-	"fmt"
-
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	"google.golang.org/protobuf/types/known/structpb"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 )
 
 // BuildAnalyticsMetadata builds robust, GDPR-compliant analytics event metadata.
@@ -52,12 +50,7 @@ func BuildAnalyticsMetadata(
 		analyticsMap["versioning"] = map[string]interface{}{"system_version": "1.0.0"}
 	}
 	ss := map[string]interface{}{"analytics": analyticsMap}
-	ssStruct, err := structpb.NewStruct(ss)
-	if err != nil {
-		// If logger available, log here: log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "BuildAnalyticsMetadata"))
-		// handle error: return, fallback, or propagate
-		return nil, fmt.Errorf("failed to build service_specific struct: %w", err)
-	}
+	ssStruct := metadata.NewStructFromMap(ss)
 	return &commonpb.Metadata{
 		ServiceSpecific: ssStruct,
 	}, nil

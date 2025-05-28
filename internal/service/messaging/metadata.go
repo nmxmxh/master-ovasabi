@@ -28,6 +28,7 @@ import (
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -146,7 +147,7 @@ func (mm *Metadata) ToStruct() (*structpb.Struct, error) {
 		m["delivery"] = d
 	}
 	// Add other fields (reactions, attachments, audit, compliance, versioning, custom)
-	return structpb.NewStruct(m)
+	return metadata.NewStructFromMap(m), nil
 }
 
 // UpdateDeliveryStatus updates the delivery/read/ack status for a user.

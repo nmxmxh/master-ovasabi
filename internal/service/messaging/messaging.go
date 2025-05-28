@@ -14,12 +14,12 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
 	messageEvents "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -142,29 +142,23 @@ func (s *Service) SendMessage(ctx context.Context, req *messagingpb.SendMessageR
 	}
 	msg, err := s.repo.SendMessage(ctx, req)
 	if err != nil {
-		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
-				"error":     err.Error(),
-				"sender_id": req.SenderId,
-				"content":   req.Content,
-			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for messaging.send_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "messaging.send_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit messaging.send_failed event", zap.Error(errEmit))
+			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "sender_id": req.SenderId})
+			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
+			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.send_failed", req.SenderId, errMeta, zap.Error(err))
+			if !ok {
+				s.log.Error("Failed to emit messaging.send_failed event", zap.Error(err))
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to send message: %v", err)
 	}
-	// Emit messaging.sent event after successful send
 	if s.eventEnabled && s.eventEmitter != nil {
-		msg.Metadata, _ = messageEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "messaging.sent", msg.ID, msg.Metadata)
+		successStruct := metadata.NewStructFromMap(map[string]interface{}{"message_id": msg.ID})
+		successMeta := &commonpb.Metadata{ServiceSpecific: successStruct}
+		_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.sent", msg.ID, successMeta, zap.String("message_id", msg.ID))
+		if !ok {
+			s.log.Error("Failed to emit messaging.sent event", zap.String("message_id", msg.ID))
+		}
 	}
 	return &messagingpb.SendMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
 }
@@ -177,27 +171,23 @@ func (s *Service) SendGroupMessage(ctx context.Context, req *messagingpb.SendGro
 	if err != nil {
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
+			errStruct := metadata.NewStructFromMap(map[string]interface{}{
 				"error":     err.Error(),
 				"sender_id": req.SenderId,
 				"content":   req.Content,
 			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for messaging.group_send_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
 			errMeta := &commonpb.Metadata{}
 			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "messaging.group_send_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit messaging.group_send_failed event", zap.Error(errEmit))
+			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.group_send_failed", "", errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit messaging.group_send_failed event", zap.Error(err))
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to send group message: %v", err)
 	}
 	// Emit messaging.group_sent event after successful send
 	if s.eventEnabled && s.eventEmitter != nil {
-		msg.Metadata, _ = messageEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "messaging.group_sent", msg.ID, msg.Metadata)
+		msg.Metadata, _ = messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.group_sent", msg.ID, msg.Metadata)
 	}
 	return &messagingpb.SendGroupMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
 }
@@ -207,26 +197,22 @@ func (s *Service) EditMessage(ctx context.Context, req *messagingpb.EditMessageR
 	if err != nil {
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
+			errStruct := metadata.NewStructFromMap(map[string]interface{}{
 				"error":      err.Error(),
 				"message_id": req.MessageId,
 			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for messaging.edit_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
 			errMeta := &commonpb.Metadata{}
 			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "messaging.edit_failed", req.MessageId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit messaging.edit_failed event", zap.Error(errEmit))
+			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.edit_failed", req.MessageId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit messaging.edit_failed event", zap.Error(err))
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to edit message: %v", err)
 	}
 	// Emit messaging.edited event after successful edit
 	if s.eventEnabled && s.eventEmitter != nil {
-		msg.Metadata, _ = messageEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "messaging.edited", msg.ID, msg.Metadata)
+		msg.Metadata, _ = messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.edited", msg.ID, msg.Metadata)
 	}
 	return &messagingpb.EditMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
 }
@@ -236,28 +222,24 @@ func (s *Service) DeleteMessage(ctx context.Context, req *messagingpb.DeleteMess
 	if err != nil {
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
+			errStruct := metadata.NewStructFromMap(map[string]interface{}{
 				"error":      err.Error(),
 				"message_id": req.MessageId,
 			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for messaging.delete_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
 			errMeta := &commonpb.Metadata{}
 			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "messaging.delete_failed", req.MessageId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit messaging.delete_failed event", zap.Error(errEmit))
+			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.delete_failed", req.MessageId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit messaging.delete_failed event", zap.Error(err))
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to delete message: %v", err)
 	}
 	// Emit messaging.deleted event after successful deletion
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "messaging.deleted", req.MessageId, nil)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit messaging.deleted event", zap.Error(errEmit))
+		_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.deleted", req.MessageId, nil)
+		if !ok {
+			s.log.Warn("Failed to emit messaging.deleted event", zap.Error(err))
 		}
 	}
 	return &messagingpb.DeleteMessageResponse{Success: success}, nil
@@ -268,26 +250,22 @@ func (s *Service) ReactToMessage(ctx context.Context, req *messagingpb.ReactToMe
 	if err != nil {
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{
+			errStruct := metadata.NewStructFromMap(map[string]interface{}{
 				"error":      err.Error(),
 				"message_id": req.MessageId,
 			})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for messaging.react_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
 			errMeta := &commonpb.Metadata{}
 			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "messaging.react_failed", req.MessageId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit messaging.react_failed event", zap.Error(errEmit))
+			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.react_failed", req.MessageId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit messaging.react_failed event", zap.Error(err))
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to react to message: %v", err)
 	}
 	// Emit messaging.reacted event after successful reaction
 	if s.eventEnabled && s.eventEmitter != nil {
-		msg.Metadata, _ = messageEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "messaging.reacted", msg.ID, msg.Metadata)
+		msg.Metadata, _ = messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.reacted", msg.ID, msg.Metadata)
 	}
 	return &messagingpb.ReactToMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
 }

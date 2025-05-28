@@ -15,12 +15,13 @@ import (
 	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
 	events "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -76,12 +77,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	// Input validation
 	if req.Slug == "" {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": "slug is required"})
-			if err != nil {
-				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "slug is required"}, nil),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 			if errEmit != nil {
 				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -91,12 +91,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	}
 	if req.Title == "" {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": "title is required"})
-			if err != nil {
-				log.Error("Failed to create structpb.Struct for campaign.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "title is required"}, nil),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 			if errEmit != nil {
 				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -114,12 +113,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 			if err != nil {
 				log.Error("Invalid campaign metadata", zap.Error(err))
 				if s.eventEnabled && s.eventEmitter != nil {
-					errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-					if err != nil {
-						log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
-						return nil, status.Error(codes.Internal, "internal error")
+					errMeta := &commonpb.Metadata{
+						ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error()}, nil),
+						Tags:            []string{},
+						Features:        []string{},
 					}
-					errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 					errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 					if errEmit != nil {
 						log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -130,12 +128,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 			if err := campaignMeta.Validate(); err != nil {
 				log.Error("Missing required campaign metadata", zap.Error(err))
 				if s.eventEnabled && s.eventEmitter != nil {
-					errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-					if err != nil {
-						log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
-						return nil, status.Error(codes.Internal, "internal error")
+					errMeta := &commonpb.Metadata{
+						ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error()}, nil),
+						Tags:            []string{},
+						Features:        []string{},
 					}
-					errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 					errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 					if errEmit != nil {
 						log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -150,12 +147,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if err != nil {
 		log.Error("Failed to begin transaction", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error()}, nil),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 			if errEmit != nil {
 				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -187,12 +183,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		if errors.Is(err, ErrCampaignExists) {
 			log.Warn("Campaign already exists", zap.Error(err))
 			if s.eventEnabled && s.eventEmitter != nil {
-				errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-				if err != nil {
-					log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
-					return nil, status.Error(codes.Internal, "internal error")
+				errMeta := &commonpb.Metadata{
+					ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error()}, nil),
+					Tags:            []string{},
+					Features:        []string{},
 				}
-				errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 				errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 				if errEmit != nil {
 					log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -202,12 +197,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		}
 		log.Error("Failed to create campaign", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error()}, nil),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 			if errEmit != nil {
 				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -219,12 +213,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if err := tx.Commit(); err != nil {
 		log.Error("Failed to commit transaction", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error()}, nil),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 			if errEmit != nil {
 				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -236,12 +229,11 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if err != nil {
 		log.Error("Campaign ID overflow", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				log.Error("Failed to create error struct for campaign.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error()}, nil),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
 			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.create_failed", "", errMeta)
 			if errEmit != nil {
 				log.Warn("Failed to emit campaign.create_failed event", zap.Error(errEmit))
@@ -288,16 +280,10 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		zap.Int32("id", id32),
 		zap.String("slug", created.Slug))
 	if s.eventEnabled && s.eventEmitter != nil {
-		meta := map[string]interface{}{"id": id32, "slug": created.Slug}
-		errStruct, err := structpb.NewStruct(meta)
-		if err != nil {
-			log.Warn("Failed to create structpb.Struct for campaign.created event", zap.Error(err))
-		} else {
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-			errEmit := s.eventEmitter.EmitEvent(ctx, "campaign.created", created.Slug, errMeta)
-			if errEmit != nil {
-				log.Warn("Failed to emit campaign.created event", zap.Error(errEmit))
-			}
+		successMeta := &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"campaign_id": id32}, nil)}
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "campaign", "created", fmt.Sprint(id32), successMeta, zap.Int32("campaign_id", id32))
+		if !ok {
+			s.log.Warn("Failed to emit workflow step event")
 		}
 	}
 	created.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "campaign.created", created.Slug, created.Metadata)
@@ -375,22 +361,29 @@ func (s *Service) GetCampaign(ctx context.Context, req *campaignpb.GetCampaignRe
 }
 
 func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCampaignRequest) (*campaignpb.UpdateCampaignResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "campaign")
+	existing, err := s.repo.GetBySlug(ctx, req.Campaign.Slug)
+	if err != nil {
+		if errors.Is(err, ErrCampaignNotFound) {
+			s.log.Warn("Campaign not found", zap.Error(err))
+			return nil, status.Error(codes.NotFound, "campaign not found")
+		}
+		s.log.Error("Failed to get existing campaign", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to get existing campaign: %v", err)
+	}
+	if !isAdmin && existing.OwnerID != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot update campaign you do not own")
+	}
 	log := s.log.With(
 		zap.String("operation", "update_campaign"),
 		zap.String("slug", req.Campaign.Slug))
 
 	log.Info("Updating campaign")
-
-	// Get existing campaign first
-	existing, err := s.repo.GetBySlug(ctx, req.Campaign.Slug)
-	if err != nil {
-		if errors.Is(err, ErrCampaignNotFound) {
-			log.Warn("Campaign not found", zap.Error(err))
-			return nil, status.Error(codes.NotFound, "campaign not found")
-		}
-		log.Error("Failed to get existing campaign", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to get existing campaign: %v", err)
-	}
 
 	// Check if campaign is being deactivated or window is ending
 	wasActive := false
@@ -475,6 +468,24 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 }
 
 func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCampaignRequest) (*campaignpb.DeleteCampaignResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "campaign")
+	campaign, err := s.repo.GetBySlug(ctx, req.Slug)
+	if err != nil {
+		if errors.Is(err, ErrCampaignNotFound) {
+			s.log.Warn("Campaign not found", zap.Error(err))
+			return nil, status.Error(codes.NotFound, "campaign not found")
+		}
+		s.log.Error("Failed to get campaign", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to get campaign: %v", err)
+	}
+	if !isAdmin && campaign.OwnerID != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot delete campaign you do not own")
+	}
 	log := s.log.With(
 		zap.String("operation", "delete_campaign"),
 		zap.Int32("id", req.Id))
@@ -482,12 +493,6 @@ func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCamp
 	log.Info("Deleting campaign")
 
 	// Get campaign first to get the slug for cache invalidation and to stop jobs/broadcasts
-	campaign, err := s.repo.GetBySlug(ctx, req.Slug)
-	if err != nil && !errors.Is(err, ErrCampaignNotFound) {
-		log.Error("Failed to get campaign for cache invalidation", zap.Error(err))
-		// Continue with deletion even if we can't get the campaign
-	}
-
 	if campaign != nil {
 		s.stopJobs(ctx, campaign.Slug, campaign)
 		s.stopBroadcast(ctx, campaign.Slug, campaign)

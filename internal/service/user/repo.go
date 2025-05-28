@@ -1836,3 +1836,36 @@ func (r *Repository) MuteGroupContent(_ context.Context, _, _, _ string, _ int32
 	// Example: Insert or update a moderation table with mute status and expiration
 	return nil // Return error if operation fails
 }
+
+func (r *Repository) GetUserGroupByID(ctx context.Context, groupID string) (*userv1.UserGroup, error) {
+	var (
+		id, name, description string
+		memberIDs             []string
+		rolesRaw              []byte
+		metaRaw               []byte
+		createdAt, updatedAt  time.Time
+	)
+	err := r.GetDB().QueryRowContext(ctx, `SELECT id, name, description, member_ids, roles, metadata, created_at, updated_at FROM service_user_group WHERE id = $1`, groupID).Scan(&id, &name, &description, pq.Array(&memberIDs), &rolesRaw, &metaRaw, &createdAt, &updatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	group := &userv1.UserGroup{
+		Id:          id,
+		Name:        name,
+		Description: description,
+		MemberIds:   memberIDs,
+		Metadata:    &commonpb.Metadata{},
+		CreatedAt:   timestamppb.New(createdAt),
+		UpdatedAt:   timestamppb.New(updatedAt),
+	}
+	if err := json.Unmarshal(rolesRaw, &group.Roles); err != nil {
+		return nil, err
+	}
+	if err := protojson.Unmarshal(metaRaw, group.Metadata); err != nil {
+		return nil, err
+	}
+	return group, nil
+}

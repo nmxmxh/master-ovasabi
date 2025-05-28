@@ -8,6 +8,12 @@ import (
 // DefaultTimeout is the default timeout for operations.
 const DefaultTimeout = 30 * time.Second
 
+// ContextUserIDKey is the key for the authenticated user ID in the context.
+const ContextUserIDKey = "user_id"
+
+// ContextRolesKey is the key for the authenticated user roles in the context.
+const ContextRolesKey = "roles"
+
 // ContextWithTimeout creates a context with the default timeout.
 func ContextWithTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, DefaultTimeout)
@@ -69,4 +75,37 @@ func GetValue[T any](ctx context.Context, key interface{}) (T, bool) {
 	}
 
 	return typed, true
+}
+
+// GetAuthenticatedUserID retrieves the authenticated user ID from the context.
+func GetAuthenticatedUserID(ctx context.Context) (string, bool) {
+	userID, ok := ctx.Value(ContextUserIDKey).(string)
+	return userID, ok
+}
+
+// GetAuthenticatedUserRoles retrieves the authenticated user roles from the context.
+func GetAuthenticatedUserRoles(ctx context.Context) ([]string, bool) {
+	roles, ok := ctx.Value(ContextRolesKey).([]string)
+	return roles, ok
+}
+
+// IsAdmin checks if the given roles include the "admin" role.
+func IsAdmin(roles []string) bool {
+	for _, r := range roles {
+		if r == "admin" {
+			return true
+		}
+	}
+	return false
+}
+
+// IsServiceAdmin checks if the given roles include the global admin or a service-specific admin role.
+func IsServiceAdmin(roles []string, service string) bool {
+	adminRole := service + "_admin"
+	for _, r := range roles {
+		if r == "admin" || r == adminRole {
+			return true
+		}
+	}
+	return false
 }

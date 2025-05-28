@@ -3,7 +3,6 @@ package security
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 	"sync"
 	"time"
 
@@ -167,12 +166,17 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 			Status:   "active",
 			Metadata: mustMarshal(meta),
 		}
-		masterID, masterUUID, err := s.repo.CreateMaster(ctx, master)
+		_, masterUUID, err := s.repo.CreateMaster(ctx, master)
 		if err != nil {
 			s.log.Error("failed to create master", zap.Error(err))
 		}
+		var masterBigintID int64
+		row := s.repo.db.QueryRowContext(ctx, `SELECT master_id FROM service_security_master WHERE uuid = $1`, masterUUID)
+		if err := row.Scan(&masterBigintID); err != nil {
+			s.log.Error("failed to fetch master_id for new security master", zap.Error(err))
+		}
 		identity = &Identity{
-			MasterID:     masterID,
+			MasterID:     masterBigintID,
 			MasterUUID:   masterUUID,
 			IdentityType: "user",
 			Identifier:   principal,
@@ -435,10 +439,11 @@ func (s *Service) AuditEvent(ctx context.Context, req *securitypb.AuditEventRequ
 	principal := req.GetPrincipalId()
 
 	// Look up the real system/root master record
-	var systemMasterID int64
+	var systemMasterID string
 	var systemMasterUUID string
-	masterRow := s.repo.db.QueryRowContext(ctx, `SELECT id, uuid FROM service_security_master WHERE type = 'system' LIMIT 1`)
-	err = masterRow.Scan(&systemMasterID, &systemMasterUUID)
+	var systemMasterBigintID int64
+	masterRow := s.repo.db.QueryRowContext(ctx, `SELECT id, uuid, master_id FROM service_security_master WHERE type = 'system' LIMIT 1`)
+	err = masterRow.Scan(&systemMasterID, &systemMasterUUID, &systemMasterBigintID)
 	if err != nil {
 		s.log.Error("failed to find system/root master record", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "system/root master record not found: %v", err)
@@ -446,12 +451,13 @@ func (s *Service) AuditEvent(ctx context.Context, req *securitypb.AuditEventRequ
 
 	// 1. Store event in repository
 	event := &Event{
-		MasterID:   systemMasterID,
-		MasterUUID: systemMasterUUID,
-		EventType:  req.GetEventType(),
-		Principal:  principal,
-		Resource:   req.GetResource(),
-		Action:     req.GetAction(),
+		MasterID:  systemMasterBigintID,
+		EventType: req.GetEventType(),
+		Principal: principal,
+		Details: mustMarshal(map[string]interface{}{
+			"resource": req.GetResource(),
+			"action":   req.GetAction(),
+		}),
 		OccurredAt: time.Now(),
 		Metadata:   mustMarshal(meta),
 	}
@@ -520,11 +526,12 @@ func (s *Service) QueryEvents(ctx context.Context, req *securitypb.QueryEventsRe
 	protoEvents := make([]*securitypb.SecurityEvent, 0, len(securityEvents))
 	for _, e := range securityEvents {
 		protoEvents = append(protoEvents, &securitypb.SecurityEvent{
-			Id:          strconv.FormatInt(e.ID, 10),
+			Id:          e.ID,
 			PrincipalId: e.Principal,
 			EventType:   e.EventType,
-			Resource:    e.Resource,
-			Action:      e.Action,
+			// Resource and Action fields are no longer directly available; can be extracted from e.Details if needed
+			// Resource:    ...
+			// Action:     ...
 			// Timestamp, Details, etc. as needed
 		})
 	}

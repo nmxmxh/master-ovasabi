@@ -38,6 +38,7 @@ type Campaign struct {
 	UpdatedAt      *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	MasterUuid     string                 `protobuf:"bytes,12,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
 	MasterId       int64                  `protobuf:"varint,13,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID reference to master table
+	OwnerId        string                 `protobuf:"bytes,14,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`          // User ID of the campaign owner
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -163,6 +164,13 @@ func (x *Campaign) GetMasterId() int64 {
 	return 0
 }
 
+func (x *Campaign) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
+}
+
 type CreateCampaignRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Slug           string                 `protobuf:"bytes,1,opt,name=slug,proto3" json:"slug,omitempty"`
@@ -172,6 +180,7 @@ type CreateCampaignRequest struct {
 	StartDate      *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	EndDate        *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`
 	Metadata       *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	OwnerId        string                 `protobuf:"bytes,8,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"` // User ID of the campaign owner
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -253,6 +262,13 @@ func (x *CreateCampaignRequest) GetMetadata() *v1.Metadata {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *CreateCampaignRequest) GetOwnerId() string {
+	if x != nil {
+		return x.OwnerId
+	}
+	return ""
 }
 
 type CreateCampaignResponse struct {
@@ -671,7 +687,7 @@ var File_campaign_v1_campaign_proto protoreflect.FileDescriptor
 
 const file_campaign_v1_campaign_proto_rawDesc = "" +
 	"\n" +
-	"\x1acampaign/v1/campaign.proto\x12\vcampaign.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xfb\x03\n" +
+	"\x1acampaign/v1/campaign.proto\x12\vcampaign.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\x96\x04\n" +
 	"\bCampaign\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -690,7 +706,8 @@ const file_campaign_v1_campaign_proto_rawDesc = "" +
 	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
 	"\vmaster_uuid\x18\f \x01(\tR\n" +
 	"masterUuid\x12\x1b\n" +
-	"\tmaster_id\x18\r \x01(\x03R\bmasterId\"\xac\x02\n" +
+	"\tmaster_id\x18\r \x01(\x03R\bmasterId\x12\x19\n" +
+	"\bowner_id\x18\x0e \x01(\tR\aownerId\"\xc7\x02\n" +
 	"\x15CreateCampaignRequest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -699,7 +716,8 @@ const file_campaign_v1_campaign_proto_rawDesc = "" +
 	"\n" +
 	"start_date\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x125\n" +
 	"\bend_date\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aendDate\x12,\n" +
-	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\"K\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x12\x19\n" +
+	"\bowner_id\x18\b \x01(\tR\aownerId\"K\n" +
 	"\x16CreateCampaignResponse\x121\n" +
 	"\bcampaign\x18\x01 \x01(\v2\x15.campaign.v1.CampaignR\bcampaign\"(\n" +
 	"\x12GetCampaignRequest\x12\x12\n" +

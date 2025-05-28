@@ -9,7 +9,8 @@ import (
 
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
+	events "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
@@ -113,16 +114,15 @@ func (s *Service) CreateQuote(ctx context.Context, req *commercepb.CreateQuoteRe
 	if err != nil {
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.quote_create_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.quote_create_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.quote_create_failed", req.UserId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.quote_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -142,45 +142,25 @@ func (s *Service) CreateQuote(ctx context.Context, req *commercepb.CreateQuoteRe
 	if err := s.repo.CreateQuote(ctx, quote); err != nil {
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.quote_create_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.quote_create_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.quote_create_failed", req.UserId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.quote_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create quote: %v", err)
 	}
 	// Emit success event
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.quote_created", quote.QuoteID, quote.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.quote_created event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.quote_created", quote.QuoteID, quote.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.quote_created event")
 		}
-	}
-	// Pattern helpers
-	if s.Cache != nil && quote.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "quote", quote.QuoteID, quote.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache metadata", zap.Error(err))
-		}
-	}
-	err = pattern.RegisterSchedule(ctx, s.log, "quote", quote.QuoteID, quote.Metadata)
-	if err != nil {
-		s.log.Error("failed to register schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "quote", quote.QuoteID, quote.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "quote", quote.Metadata)
-	if err != nil {
-		s.log.Error("failed to register with nexus", zap.Error(err))
 	}
 	// Map to proto
 	resp := &commercepb.CreateQuoteResponse{
@@ -282,45 +262,26 @@ func (s *Service) CreateOrder(ctx context.Context, req *commercepb.CreateOrderRe
 	err := s.repo.CreateOrder(ctx, order, nil)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.order_create_failed", orderID, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.order_create_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.order_create_failed", orderID, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.order_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create order: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.order_created", orderID, order.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.order_created event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.order_created", orderID, order.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.order_created event")
 		}
 	}
-	// Pattern helpers
-	if s.Cache != nil && order.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "order", order.OrderID, order.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache metadata", zap.Error(err))
-		}
-	}
-	err = pattern.RegisterSchedule(ctx, s.log, "order", order.OrderID, order.Metadata)
-	if err != nil {
-		s.log.Error("failed to register schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "order", order.OrderID, order.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "order", order.Metadata)
-	if err != nil {
-		s.log.Error("failed to register with nexus", zap.Error(err))
-	}
+	// Map to proto
 	resp := &commercepb.CreateOrderResponse{
 		Order: &commercepb.Order{
 			OrderId:   order.OrderID,
@@ -400,16 +361,15 @@ func (s *Service) UpdateOrderStatus(ctx context.Context, req *commercepb.UpdateO
 	err := s.repo.UpdateOrderStatus(ctx, req.OrderId, req.Status.String())
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "order_id": req.OrderId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.order_update_failed", req.OrderId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.order_update_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "order_id": req.OrderId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.order_update_failed", req.OrderId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.order_update_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to update order status: %v", err)
@@ -419,30 +379,12 @@ func (s *Service) UpdateOrderStatus(ctx context.Context, req *commercepb.UpdateO
 		return nil, status.Errorf(codes.Internal, "failed to fetch updated order: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.order_updated", order.OrderID, order.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.order_updated event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.order_updated", order.OrderID, order.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.order_updated event")
 		}
 	}
-	// Pattern helpers
-	if s.Cache != nil && order.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "order", order.OrderID, order.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache metadata", zap.Error(err))
-		}
-	}
-	err = pattern.RegisterSchedule(ctx, s.log, "order", order.OrderID, order.Metadata)
-	if err != nil {
-		s.log.Error("failed to register schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "order", order.OrderID, order.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "order", order.Metadata)
-	if err != nil {
-		s.log.Error("failed to register with nexus", zap.Error(err))
-	}
+	// Map to proto
 	resp := &commercepb.UpdateOrderStatusResponse{
 		Order: &commercepb.Order{
 			OrderId:   order.OrderID,
@@ -468,16 +410,15 @@ func (s *Service) InitiatePayment(ctx context.Context, req *commercepb.InitiateP
 	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.UserId, true)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "order_id": req.OrderId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_initiate_failed", req.OrderId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.payment_initiate_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "order_id": req.OrderId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_initiate_failed", req.OrderId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.payment_initiate_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -496,45 +437,26 @@ func (s *Service) InitiatePayment(ctx context.Context, req *commercepb.InitiateP
 	}
 	if err := s.repo.CreatePayment(ctx, payment); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "order_id": req.OrderId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_initiate_failed", req.OrderId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.payment_initiate_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "order_id": req.OrderId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_initiate_failed", req.OrderId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.payment_initiate_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create payment: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_initiated", payment.PaymentID, payment.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.payment_initiated event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_initiated", payment.PaymentID, payment.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.payment_initiated event")
 		}
 	}
-	// Pattern helpers
-	if s.Cache != nil && payment.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "payment", payment.PaymentID, payment.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache payment metadata", zap.Error(err))
-		}
-	}
-	err = pattern.RegisterSchedule(ctx, s.log, "payment", payment.PaymentID, payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to register payment schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "payment", payment.PaymentID, payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich payment knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "payment", payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to register payment with nexus", zap.Error(err))
-	}
+	// Map to proto
 	resp := &commercepb.InitiatePaymentResponse{
 		Payment: &commercepb.Payment{
 			PaymentId: payment.PaymentID,
@@ -562,16 +484,15 @@ func (s *Service) ConfirmPayment(ctx context.Context, req *commercepb.ConfirmPay
 	if req.Metadata != nil {
 		if _, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.UserId, false); err != nil {
 			if s.eventEnabled && s.eventEmitter != nil {
-				errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-				if err != nil {
-					s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-					return nil, status.Error(codes.Internal, "internal error")
+				errMeta := &commonpb.Metadata{
+					ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "payment_id": req.PaymentId}),
+					Tags:            []string{},
+					Features:        []string{},
 				}
-				errMeta := &commonpb.Metadata{}
-				errMeta.ServiceSpecific = errStruct
-				errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_confirm_failed", req.PaymentId, errMeta)
-				if errEmit != nil {
-					s.log.Warn("Failed to emit commerce.payment_confirm_failed event", zap.Error(errEmit))
+				errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "payment_id": req.PaymentId}, errMeta.ServiceSpecific)
+				_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_confirm_failed", req.PaymentId, errMeta)
+				if !ok {
+					s.log.Warn("Failed to emit commerce.payment_confirm_failed event")
 				}
 			}
 			return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -580,16 +501,15 @@ func (s *Service) ConfirmPayment(ctx context.Context, req *commercepb.ConfirmPay
 	err := s.repo.UpdatePaymentStatus(ctx, req.PaymentId, "SUCCEEDED")
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "payment_id": req.PaymentId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_confirm_failed", req.PaymentId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.payment_confirm_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "payment_id": req.PaymentId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_confirm_failed", req.PaymentId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.payment_confirm_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to update payment status: %v", err)
@@ -599,30 +519,12 @@ func (s *Service) ConfirmPayment(ctx context.Context, req *commercepb.ConfirmPay
 		return nil, status.Errorf(codes.Internal, "failed to fetch payment: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_confirmed", payment.PaymentID, payment.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.payment_confirmed event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_confirmed", payment.PaymentID, payment.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.payment_confirmed event")
 		}
 	}
-	// Pattern helpers
-	if s.Cache != nil && payment.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "payment", payment.PaymentID, payment.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache payment metadata", zap.Error(err))
-		}
-	}
-	err = pattern.RegisterSchedule(ctx, s.log, "payment", payment.PaymentID, payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to register payment schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "payment", payment.PaymentID, payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich payment knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "payment", payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to register payment with nexus", zap.Error(err))
-	}
+	// Map to proto
 	resp := &commercepb.ConfirmPaymentResponse{
 		Payment: &commercepb.Payment{
 			PaymentId: payment.PaymentID,
@@ -650,16 +552,15 @@ func (s *Service) RefundPayment(ctx context.Context, req *commercepb.RefundPayme
 	if req.Metadata != nil {
 		if _, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.UserId, false); err != nil {
 			if s.eventEnabled && s.eventEmitter != nil {
-				errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-				if err != nil {
-					s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-					return nil, status.Error(codes.Internal, "internal error")
+				errMeta := &commonpb.Metadata{
+					ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "payment_id": req.PaymentId}),
+					Tags:            []string{},
+					Features:        []string{},
 				}
-				errMeta := &commonpb.Metadata{}
-				errMeta.ServiceSpecific = errStruct
-				errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_refund_failed", req.PaymentId, errMeta)
-				if errEmit != nil {
-					s.log.Warn("Failed to emit commerce.payment_refund_failed event", zap.Error(errEmit))
+				errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "payment_id": req.PaymentId}, errMeta.ServiceSpecific)
+				_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_refund_failed", req.PaymentId, errMeta)
+				if !ok {
+					s.log.Warn("Failed to emit commerce.payment_refund_failed event")
 				}
 			}
 			return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -668,16 +569,15 @@ func (s *Service) RefundPayment(ctx context.Context, req *commercepb.RefundPayme
 	err := s.repo.UpdatePaymentStatus(ctx, req.PaymentId, "REFUNDED")
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "payment_id": req.PaymentId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_refund_failed", req.PaymentId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.payment_refund_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "payment_id": req.PaymentId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_refund_failed", req.PaymentId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.payment_refund_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to update payment status: %v", err)
@@ -687,30 +587,12 @@ func (s *Service) RefundPayment(ctx context.Context, req *commercepb.RefundPayme
 		return nil, status.Errorf(codes.Internal, "failed to fetch payment: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.payment_refunded", payment.PaymentID, payment.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.payment_refunded event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.payment_refunded", payment.PaymentID, payment.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.payment_refunded event")
 		}
 	}
-	// Pattern helpers
-	if s.Cache != nil && payment.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "payment", payment.PaymentID, payment.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache payment metadata", zap.Error(err))
-		}
-	}
-	err = pattern.RegisterSchedule(ctx, s.log, "payment", payment.PaymentID, payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to register payment schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "payment", payment.PaymentID, payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich payment knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "payment", payment.Metadata)
-	if err != nil {
-		s.log.Error("failed to register payment with nexus", zap.Error(err))
-	}
+	// Map to proto
 	resp := &commercepb.RefundPaymentResponse{
 		Payment: &commercepb.Payment{
 			PaymentId: payment.PaymentID,
@@ -866,15 +748,15 @@ func (s *Service) ListEvents(ctx context.Context, req *commercepb.ListEventsRequ
 	if pageSize < 1 {
 		pageSize = 20
 	}
-	events, total, err := s.repo.ListEvents(ctx, req.EntityId, req.EntityType, page, pageSize)
+	eventList, total, err := s.repo.ListEvents(ctx, req.EntityId, req.EntityType, page, pageSize)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list events: %v", err)
 	}
 	resp := &commercepb.ListEventsResponse{
-		Events: make([]*commercepb.CommerceEvent, len(events)),
+		Events: make([]*commercepb.CommerceEvent, len(eventList)),
 		Total:  utils.ToInt32(total),
 	}
-	for i, e := range events {
+	for i, e := range eventList {
 		resp.Events[i] = &commercepb.CommerceEvent{
 			EventId:    fmt.Sprintf("%d", e.EventID),
 			EntityId:   fmt.Sprintf("%d", e.EntityID),
@@ -899,16 +781,15 @@ func (s *Service) CreateInvestmentAccount(ctx context.Context, req *commercepb.C
 	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.OwnerId, true)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "owner_id": req.OwnerId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.investment_account_create_failed", req.OwnerId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.investment_account_create_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "owner_id": req.OwnerId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.investment_account_create_failed", req.OwnerId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.investment_account_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -926,44 +807,24 @@ func (s *Service) CreateInvestmentAccount(ctx context.Context, req *commercepb.C
 	}
 	if err := s.repo.CreateInvestmentAccount(ctx, account); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "owner_id": req.OwnerId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.investment_account_create_failed", req.OwnerId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.investment_account_create_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "owner_id": req.OwnerId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.investment_account_create_failed", req.OwnerId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.investment_account_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create investment account: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.investment_account_created", account.AccountID, account.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.investment_account_created event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.investment_account_created", account.AccountID, account.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.investment_account_created event")
 		}
-	}
-	// Pattern helpers
-	if s.Cache != nil && account.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "investment_account", account.AccountID, account.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache investment account metadata", zap.Error(err))
-		}
-	}
-	err = pattern.RegisterSchedule(ctx, s.log, "investment_account", account.AccountID, account.Metadata)
-	if err != nil {
-		s.log.Error("failed to register investment account schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "investment_account", account.AccountID, account.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich investment account knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "investment_account", account.Metadata)
-	if err != nil {
-		s.log.Error("failed to register investment account with nexus", zap.Error(err))
 	}
 	resp := &commercepb.CreateInvestmentAccountResponse{
 		Account: &commercepb.InvestmentAccount{
@@ -988,16 +849,15 @@ func (s *Service) PlaceInvestmentOrder(ctx context.Context, req *commercepb.Plac
 	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.AccountId, true)
 	if err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "account_id": req.AccountId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.investment_order_create_failed", req.AccountId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.investment_order_create_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "account_id": req.AccountId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.investment_order_create_failed", req.AccountId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.investment_order_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -1017,44 +877,24 @@ func (s *Service) PlaceInvestmentOrder(ctx context.Context, req *commercepb.Plac
 	}
 	if err := s.repo.CreateInvestmentOrder(ctx, order); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "account_id": req.AccountId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.investment_order_create_failed", req.AccountId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.investment_order_create_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "account_id": req.AccountId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.investment_order_create_failed", req.AccountId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.investment_order_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create investment order: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.investment_order_placed", order.OrderID, order.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.investment_order_placed event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.investment_order_placed", order.OrderID, order.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.investment_order_placed event")
 		}
-	}
-	// Pattern helpers
-	if s.Cache != nil && order.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "investment_order", order.OrderID, order.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache investment order metadata", zap.Error(err))
-		}
-	}
-	err = pattern.RegisterSchedule(ctx, s.log, "investment_order", order.OrderID, order.Metadata)
-	if err != nil {
-		s.log.Error("failed to register investment order schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "investment_order", order.OrderID, order.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich investment order knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "investment_order", order.Metadata)
-	if err != nil {
-		s.log.Error("failed to register investment order with nexus", zap.Error(err))
 	}
 	resp := &commercepb.PlaceInvestmentOrderResponse{
 		Order: &commercepb.InvestmentOrder{
@@ -1164,18 +1004,15 @@ func (s *Service) CreateExchangePair(ctx context.Context, req *commercepb.Create
 	}
 	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.PairId, true)
 	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.exchange_pair_create_failed", req.PairId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.exchange_pair_create_failed event", zap.Error(errEmit))
-			}
+		errMeta := &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "pair_id": req.PairId}),
+			Tags:            []string{},
+			Features:        []string{},
+		}
+		errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "pair_id": req.PairId}, errMeta.ServiceSpecific)
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.exchange_pair_create_failed", req.PairId, errMeta)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.exchange_pair_create_failed event")
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
@@ -1187,25 +1024,22 @@ func (s *Service) CreateExchangePair(ctx context.Context, req *commercepb.Create
 		Metadata:   meta,
 	}
 	if err := s.repo.CreateExchangePair(ctx, pair); err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.exchange_pair_create_failed", req.PairId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.exchange_pair_create_failed event", zap.Error(errEmit))
-			}
+		errMeta := &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "pair_id": req.PairId}),
+			Tags:            []string{},
+			Features:        []string{},
+		}
+		errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "pair_id": req.PairId}, errMeta.ServiceSpecific)
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.exchange_pair_create_failed", req.PairId, errMeta)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.exchange_pair_create_failed event")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create exchange pair: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.marketplace_listing_created", pair.PairID, pair.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.marketplace_listing_created event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.marketplace_listing_created", pair.PairID, pair.Metadata, zap.String("pair_id", pair.PairID))
+		if !ok {
+			s.log.Warn("Failed to emit commerce.marketplace_listing_created event")
 		}
 	}
 	resp := &commercepb.CreateExchangePairResponse{
@@ -1226,51 +1060,29 @@ func (s *Service) CreateExchangeRate(ctx context.Context, req *commercepb.Create
 	if req.PairId == "" || req.Rate == 0 {
 		return nil, status.Error(codes.InvalidArgument, "pair_id and rate are required")
 	}
-	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.PairId, true)
-	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.exchange_rate_create_failed", req.PairId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.exchange_rate_create_failed event", zap.Error(errEmit))
-			}
-		}
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
-	}
 	rate := &ExchangeRate{
-		RateID:    0,
-		MasterID:  0,
-		PairID:    req.PairId,
-		Rate:      req.Rate,
-		Timestamp: req.Timestamp.AsTime(),
-		Metadata:  meta,
+		PairID: req.PairId,
+		Rate:   req.Rate,
 	}
 	if err := s.repo.CreateExchangeRate(ctx, rate); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for commerce event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "pair_id": req.PairId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.exchange_rate_create_failed", req.PairId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit commerce.exchange_rate_create_failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "pair_id": req.PairId}, errMeta.ServiceSpecific)
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.exchange_rate_create_failed", req.PairId, errMeta)
+			if !ok {
+				s.log.Warn("Failed to emit commerce.exchange_rate_create_failed event")
 			}
 		}
 		return nil, status.Errorf(codes.Internal, "failed to create exchange rate: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errEmit := s.eventEmitter.EmitEvent(ctx, "commerce.exchange_rate_updated", rate.PairID, rate.Metadata)
-		if errEmit != nil {
-			s.log.Warn("Failed to emit commerce.exchange_rate_updated event", zap.Error(errEmit))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "commerce", "commerce.exchange_rate_updated", rate.PairID, rate.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit commerce.exchange_rate_updated event")
 		}
 	}
 	resp := &commercepb.CreateExchangeRateResponse{

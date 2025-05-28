@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
 	repo "github.com/nmxmxh/master-ovasabi/internal/repository"
 )
@@ -22,6 +23,17 @@ type ModerationResult struct {
 	CampaignID int64       `db:"campaign_id"`
 	CreatedAt  time.Time   `db:"created_at"`
 	UpdatedAt  time.Time   `db:"updated_at"`
+}
+
+type Moderation struct {
+	ID         string             `db:"id"`
+	MasterID   int64              `db:"master_id"`
+	MasterUUID string             `db:"master_uuid"`
+	ContentID  string             `db:"content_id"`
+	Status     int16              `db:"status"`
+	Metadata   *commonpb.Metadata `db:"metadata"`
+	CreatedAt  time.Time          `db:"created_at"`
+	UpdatedAt  time.Time          `db:"updated_at"`
 }
 
 type PostgresRepository struct {

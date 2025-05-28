@@ -244,6 +244,21 @@ const (
 	EventProductVariantListed    = "product.variant_listed"
 )
 
+// --- Resilience & Orchestration events ---.
+const (
+	// Circuit Breaker.
+	EventNexusCircuitBreakerTripped = "nexus.circuit_breaker.tripped"
+	EventNexusCircuitBreakerReset   = "nexus.circuit_breaker.reset"
+	// Workflow Engine.
+	EventNexusWorkflowStepCompleted = "nexus.workflow.step.completed"
+	EventNexusWorkflowStepFailed    = "nexus.workflow.step.failed"
+	// Service Mesh.
+	EventNexusMeshTrafficRouted = "nexus.mesh.traffic.routed"
+	EventNexusMeshMTLSFailure   = "nexus.mesh.mtls.failure"
+	// Chaos Testing.
+	EventNexusChaosInjectFailure = "nexus.chaos.inject.failure"
+)
+
 // --- Nexus events ---.
 const (
 	EventNexusPatternRegistered = "nexus.pattern_registered"

@@ -1,0 +1,1 @@
+ALTER TABLE service_campaign_main ADD COLUMN IF NOT EXISTS owner_id VARCHAR(255); 

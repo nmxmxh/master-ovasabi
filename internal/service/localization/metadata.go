@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -116,7 +117,7 @@ func ServiceMetadataFromStruct(s *structpb.Struct) (*ServiceMetadata, error) {
 // ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
 func ServiceMetadataToStruct(meta *ServiceMetadata) (*structpb.Struct, error) {
 	if meta == nil {
-		return structpb.NewStruct(map[string]interface{}{})
+		return metadata.NewStructFromMap(map[string]interface{}{}), nil
 	}
 	b, err := json.Marshal(meta)
 	if err != nil {
@@ -127,7 +128,7 @@ func ServiceMetadataToStruct(meta *ServiceMetadata) (*structpb.Struct, error) {
 	if err != nil {
 		return nil, err
 	}
-	return structpb.NewStruct(m)
+	return metadata.NewStructFromMap(m), nil
 }
 
 // ExtractAndEnrichLocalizationMetadata extracts, validates, and enriches localization metadata.

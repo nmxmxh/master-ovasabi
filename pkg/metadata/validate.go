@@ -160,9 +160,6 @@ func BuildReferralMetadata(fraudSignals, rewards, audit, campaign, device map[st
 		referralMap["versioning"] = map[string]interface{}{"system_version": "1.0.0"}
 	}
 	ss := map[string]interface{}{"referral": referralMap}
-	ssStruct, err := structpb.NewStruct(ss)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build service_specific struct: %w", err)
-	}
+	ssStruct := NewStructFromMap(ss)
 	return &commonpb.Metadata{ServiceSpecific: ssStruct}, nil
 }

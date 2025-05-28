@@ -88,7 +88,7 @@ func (r *Repository) GetUserEvents(ctx context.Context, userID string, campaignI
 		e.Timestamp = int64(ts)
 		e.CampaignId = campaignID
 		if metaRaw.Valid && metaRaw.String != "" {
-			meta := &commonpb.Metadata{}
+			meta := &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil)}
 			if err := protojson.Unmarshal([]byte(metaRaw.String), meta); err != nil {
 				continue
 			}
@@ -132,7 +132,7 @@ func (r *Repository) GetProductEvents(ctx context.Context, productID string, cam
 		e.Timestamp = int64(ts)
 		e.CampaignId = campaignID
 		if metaRaw.Valid && metaRaw.String != "" {
-			meta := &commonpb.Metadata{}
+			meta := &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil)}
 			if err := protojson.Unmarshal([]byte(metaRaw.String), meta); err != nil {
 				continue
 			}

@@ -12,8 +12,10 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
@@ -116,6 +118,14 @@ func NewRepository(db *sql.DB, masterRepo repository.MasterRepository) *Reposito
 	}
 }
 
+// safeServiceSpecific returns meta.ServiceSpecific if non-nil, else an empty structpb.Struct.
+func safeServiceSpecific(meta *commonpb.Metadata) *structpb.Struct {
+	if meta != nil && meta.ServiceSpecific != nil {
+		return meta.ServiceSpecific
+	}
+	return &structpb.Struct{Fields: map[string]*structpb.Value{}}
+}
+
 // CreateMessage inserts a new message record.
 func (r *Repository) CreateMessage(ctx context.Context, msg *Message) (*Message, error) {
 	masterName := r.GenerateMasterName(repository.EntityType("message"), msg.Content, msg.Type, fmt.Sprintf("sender-%s", msg.SenderID))
@@ -164,12 +174,17 @@ func (r *Repository) GetMessage(ctx context.Context, id string) (*Message, error
 		}
 		return nil, err
 	}
-	msg.Metadata = &commonpb.Metadata{}
 	if metadataStr != "" {
+		msg.Metadata = &commonpb.Metadata{}
 		err := protojson.Unmarshal([]byte(metadataStr), msg.Metadata)
 		if err != nil {
 			logInstance.Warn("failed to unmarshal message metadata", zap.Error(err))
-			return nil, err
+		}
+	} else {
+		msg.Metadata = &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, safeServiceSpecific(msg.Metadata)),
+			Tags:            []string{},
+			Features:        []string{},
 		}
 	}
 	return msg, nil
@@ -232,12 +247,18 @@ func (r *Repository) ListMessages(ctx context.Context, threadID, conversationID 
 		if err != nil {
 			return nil, err
 		}
-		msg.Metadata = &commonpb.Metadata{}
 		if metadataStr != "" {
+			msg.Metadata = &commonpb.Metadata{}
 			err := protojson.Unmarshal([]byte(metadataStr), msg.Metadata)
 			if err != nil {
 				logInstance.Warn("failed to unmarshal message metadata", zap.Error(err))
 				return nil, err
+			}
+		} else {
+			msg.Metadata = &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, safeServiceSpecific(msg.Metadata)),
+				Tags:            []string{},
+				Features:        []string{},
 			}
 		}
 		messages = append(messages, msg)
@@ -327,6 +348,7 @@ func (r *Repository) ListChatGroups(ctx context.Context, limit, offset int) ([]*
 				return nil, err
 			}
 		}
+		group.Roles = map[string]string{}
 		if rolesStr != "" {
 			if err := json.Unmarshal([]byte(rolesStr), &group.Roles); err != nil {
 				if logInstance != nil {
@@ -527,6 +549,9 @@ func (r *Repository) EditMessage(ctx context.Context, req *messagingpb.EditMessa
 	if msg.Metadata == nil {
 		msg.Metadata = &commonpb.Metadata{}
 	}
+	if msg.Metadata.ServiceSpecific == nil {
+		msg.Metadata.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+	}
 	// Optionally update audit/versioning in metadata
 	var metadataJSON []byte
 	metadataJSON, err = protojson.Marshal(msg.Metadata)
@@ -550,6 +575,9 @@ func (r *Repository) DeleteMessageByRequest(ctx context.Context, req *messagingp
 	msg.Deleted = true
 	if msg.Metadata == nil {
 		msg.Metadata = &commonpb.Metadata{}
+	}
+	if msg.Metadata.ServiceSpecific == nil {
+		msg.Metadata.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
 	}
 	// Optionally update audit/compliance in metadata
 	metadataJSON, err := protojson.Marshal(msg.Metadata)
@@ -641,12 +669,18 @@ func (r *Repository) ListMessagesByFilter(ctx context.Context, req *messagingpb.
 		if err != nil {
 			return nil, 0, err
 		}
-		msg.Metadata = &commonpb.Metadata{}
 		if metadataStr != "" {
+			msg.Metadata = &commonpb.Metadata{}
 			err := protojson.Unmarshal([]byte(metadataStr), msg.Metadata)
 			if err != nil {
 				logInstance.Warn("failed to unmarshal message metadata", zap.Error(err))
 				return nil, 0, err
+			}
+		} else {
+			msg.Metadata = &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, safeServiceSpecific(msg.Metadata)),
+				Tags:            []string{},
+				Features:        []string{},
 			}
 		}
 		messages = append(messages, msg)

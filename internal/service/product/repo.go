@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +34,7 @@ type ListProductsFilter struct {
 	Page            int
 	PageSize        int
 	MasterID        string
+	MasterUUID      string
 	CampaignID      int64
 	MetadataFilters map[string]interface{}
 }
@@ -47,7 +47,39 @@ type SearchProductsFilter struct {
 	Page       int
 	PageSize   int
 	MasterID   string
+	MasterUUID string
 	CampaignID int64
+}
+
+// Model uses Go naming conventions for DB operations.
+type Model struct {
+	ID          string
+	MasterID    int64
+	MasterUUID  string
+	Name        string
+	Description string
+	Type        int32
+	Status      int32
+	Tags        string
+	Metadata    []byte
+	CampaignID  int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type Product struct {
+	ID          string                  `db:"id"`
+	MasterID    int64                   `db:"master_id"`
+	MasterUUID  string                  `db:"master_uuid"`
+	Name        string                  `db:"name"`
+	Description string                  `db:"description"`
+	Type        productpb.ProductType   `db:"type"`
+	Status      productpb.ProductStatus `db:"status"`
+	Tags        []string                `db:"tags"`
+	Metadata    *commonpb.Metadata      `db:"metadata"`
+	CampaignID  int64                   `db:"campaign_id"`
+	CreatedAt   time.Time               `db:"created_at"`
+	UpdatedAt   time.Time               `db:"updated_at"`
 }
 
 type Repository struct {
@@ -74,11 +106,22 @@ func (r *Repository) CreateProduct(ctx context.Context, p *productpb.Product) (*
 	}
 	tags := strings.Join(p.Tags, ",")
 	var id string
+	model := Model{
+		MasterID:    p.MasterId,
+		MasterUUID:  p.MasterUuid,
+		Name:        p.Name,
+		Description: p.Description,
+		Type:        int32(p.Type),
+		Status:      int32(p.Status),
+		Tags:        tags,
+		Metadata:    meta,
+		CampaignID:  p.CampaignId,
+	}
 	err = r.GetDB().QueryRowContext(ctx, `
-		INSERT INTO service_product_main (master_id, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+		INSERT INTO service_product_main (master_id, master_uuid, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW())
 		RETURNING id
-	`, p.MasterId, p.Name, p.Description, p.Type, p.Status, tags, meta, p.CampaignId).Scan(&id)
+	`, model.MasterID, model.MasterUUID, model.Name, model.Description, model.Type, model.Status, model.Tags, model.Metadata, model.CampaignID).Scan(&id)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +129,7 @@ func (r *Repository) CreateProduct(ctx context.Context, p *productpb.Product) (*
 }
 
 func (r *Repository) GetProduct(ctx context.Context, id string) (*productpb.Product, error) {
-	row := r.GetDB().QueryRowContext(ctx, `SELECT id, master_id, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at FROM service_product_main WHERE id = $1`, id)
+	row := r.GetDB().QueryRowContext(ctx, `SELECT id, master_id, master_uuid, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at FROM service_product_main WHERE id = $1`, id)
 	return scanProduct(row)
 }
 
@@ -143,6 +186,10 @@ func (r *Repository) ListProducts(ctx context.Context, filter ListProductsFilter
 		where = append(where, "master_id = ?")
 		args = append(args, filter.MasterID)
 	}
+	if filter.MasterUUID != "" {
+		where = append(where, "master_uuid = ?")
+		args = append(args, filter.MasterUUID)
+	}
 	if filter.CampaignID != 0 {
 		where = append(where, "campaign_id = ?")
 		args = append(args, filter.CampaignID)
@@ -162,7 +209,7 @@ func (r *Repository) ListProducts(ctx context.Context, filter ListProductsFilter
 	}
 	offset := filter.Page * filter.PageSize
 	args = append(args, filter.PageSize, offset)
-	baseQuery := "SELECT id, master_id, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at FROM service_product_main"
+	baseQuery := "SELECT id, master_id, master_uuid, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at FROM service_product_main"
 	if len(where) > 0 {
 		baseQuery += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -199,13 +246,18 @@ func (r *Repository) SearchProducts(ctx context.Context, filter SearchProductsFi
 		args = append(args, filter.MasterID)
 		argIdx++
 	}
+	if filter.MasterUUID != "" {
+		where = append(where, fmt.Sprintf("master_uuid = $%d", argIdx))
+		args = append(args, filter.MasterUUID)
+		argIdx++
+	}
 	if filter.CampaignID != 0 {
 		where = append(where, fmt.Sprintf("campaign_id = $%d", argIdx))
 		args = append(args, filter.CampaignID)
 		argIdx++
 	}
 	args = append(args, filter.PageSize, (filter.Page * filter.PageSize))
-	baseQuery := "SELECT id, master_id, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at FROM service_product_main"
+	baseQuery := "SELECT id, master_id, master_uuid, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at FROM service_product_main"
 	if len(where) > 0 {
 		baseQuery += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -243,37 +295,31 @@ func scanProduct(row interface {
 	Scan(dest ...interface{}) error
 },
 ) (*productpb.Product, error) {
-	var id, masterID, name, description, tags, meta string
-	var ptype, status int32
-	var campaignID int64
-	var createdAt, updatedAt time.Time
-	if err := row.Scan(&id, &masterID, &name, &description, &ptype, &status, &tags, &meta, &campaignID, &createdAt, &updatedAt); err != nil {
+	var model Model
+	if err := row.Scan(&model.ID, &model.MasterID, &model.MasterUUID, &model.Name, &model.Description, &model.Type, &model.Status, &model.Tags, &model.Metadata, &model.CampaignID, &model.CreatedAt, &model.UpdatedAt); err != nil {
 		return nil, err
 	}
 	metadata := &commonpb.Metadata{}
-	if err := protojson.Unmarshal([]byte(meta), metadata); err != nil {
+	if err := protojson.Unmarshal(model.Metadata, metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
 	var tagList []string
-	if tags != "" {
-		tagList = strings.Split(tags, ",")
-	}
-	masterIDInt, err := strconv.ParseInt(masterID, 10, 64)
-	if err != nil {
-		masterIDInt = 0 // or handle error as needed
+	if model.Tags != "" {
+		tagList = strings.Split(model.Tags, ",")
 	}
 	return &productpb.Product{
-		Id:          id,
-		MasterId:    masterIDInt,
-		Name:        name,
-		Description: description,
-		Type:        productpb.ProductType(ptype),
-		Status:      productpb.ProductStatus(status),
+		Id:          model.ID,
+		MasterId:    model.MasterID,
+		MasterUuid:  model.MasterUUID,
+		Name:        model.Name,
+		Description: model.Description,
+		Type:        productpb.ProductType(model.Type),
+		Status:      productpb.ProductStatus(model.Status),
 		Tags:        tagList,
 		Metadata:    metadata,
-		CampaignId:  campaignID,
-		CreatedAt:   createdAt.Unix(),
-		UpdatedAt:   updatedAt.Unix(),
+		CampaignId:  model.CampaignID,
+		CreatedAt:   model.CreatedAt.Unix(),
+		UpdatedAt:   model.UpdatedAt.Unix(),
 	}, nil
 }
 

@@ -398,3 +398,15 @@ func (r *Repository) DeleteLocale(ctx context.Context, code string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM service_locale WHERE code = $1`, code)
 	return err
 }
+
+type Localization struct {
+	ID         string             `db:"id"`
+	MasterID   int64              `db:"master_id"`
+	MasterUUID string             `db:"master_uuid"`
+	Locale     string             `db:"locale"`
+	ContentID  string             `db:"content_id"`
+	Status     int16              `db:"status"`
+	Metadata   *commonpb.Metadata `db:"metadata"`
+	CreatedAt  time.Time          `db:"created_at"`
+	UpdatedAt  time.Time          `db:"updated_at"`
+}

@@ -11,9 +11,10 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
 	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
-	notificationEvents "github.com/nmxmxh/master-ovasabi/pkg/events"
-	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -87,18 +88,23 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationpb.Lis
 }
 
 func (s *Service) SendNotification(ctx context.Context, req *notificationpb.SendNotificationRequest) (*notificationpb.SendNotificationResponse, error) {
-	if err := metadatautil.ValidateMetadata(req.Metadata); err != nil {
+	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create error struct for notification.failed event", zap.Error(err))
-				return nil, grpcstatus.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "notification.failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit notification.failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId},
+				func() *structpb.Struct {
+					if errMeta != nil {
+						return errMeta.ServiceSpecific
+					}
+					return nil
+				}())
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "failed", "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit notification.failed event")
 			}
 		}
 		return nil, grpcstatus.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -116,16 +122,21 @@ func (s *Service) SendNotification(ctx context.Context, req *notificationpb.Send
 	if err != nil {
 		s.log.Error("Failed to send notification", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create error struct for notification.failed event", zap.Error(err))
-				return nil, grpcstatus.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "notification.failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit notification.failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId},
+				func() *structpb.Struct {
+					if errMeta != nil {
+						return errMeta.ServiceSpecific
+					}
+					return nil
+				}())
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "failed", "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit notification.failed event")
 			}
 		}
 		return nil, grpcstatus.Errorf(codes.Internal, "failed to send notification: %v", err)
@@ -145,7 +156,7 @@ func (s *Service) SendNotification(ctx context.Context, req *notificationpb.Send
 		s.log.Error("failed to register with nexus", zap.Error(err))
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		created.Metadata, _ = notificationEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "notification.sent", fmt.Sprint(created.ID), created.Metadata)
+		created.Metadata, _ = events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "sent", fmt.Sprint(created.ID), created.Metadata)
 	}
 	return &notificationpb.SendNotificationResponse{
 		Notification: mapNotificationToProto(created),
@@ -154,18 +165,27 @@ func (s *Service) SendNotification(ctx context.Context, req *notificationpb.Send
 }
 
 func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRequest) (*notificationpb.SendEmailResponse, error) {
-	if err := metadatautil.ValidateMetadata(req.Metadata); err != nil {
+	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
+		var userID string
+		if id, ok := utils.GetAuthenticatedUserID(ctx); ok {
+			userID = id
+		}
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create error struct for notification.failed event", zap.Error(err))
-				return nil, grpcstatus.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": userID}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "notification.failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit notification.failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": userID},
+				func() *structpb.Struct {
+					if errMeta != nil {
+						return errMeta.ServiceSpecific
+					}
+					return nil
+				}())
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "failed", "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit notification.failed event")
 			}
 		}
 		return nil, grpcstatus.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -182,23 +202,32 @@ func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRe
 	created, err := s.repo.Create(ctx, notification)
 	if err != nil {
 		s.log.Error("Failed to save email notification", zap.Error(err))
+		var userID string
+		if id, ok := utils.GetAuthenticatedUserID(ctx); ok {
+			userID = id
+		}
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create error struct for notification.failed event", zap.Error(err))
-				return nil, grpcstatus.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": userID}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "notification.failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit notification.failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": userID},
+				func() *structpb.Struct {
+					if errMeta != nil {
+						return errMeta.ServiceSpecific
+					}
+					return nil
+				}())
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "failed", "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit notification.failed event")
 			}
 		}
 		return nil, grpcstatus.Errorf(codes.Internal, "failed to save email notification: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		created.Metadata, _ = notificationEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "notification.sent", fmt.Sprint(created.ID), created.Metadata)
+		created.Metadata, _ = events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "sent", fmt.Sprint(created.ID), created.Metadata)
 	}
 	return &notificationpb.SendEmailResponse{
 		MessageId: fmt.Sprint(created.ID),
@@ -208,18 +237,27 @@ func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRe
 }
 
 func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSRequest) (*notificationpb.SendSMSResponse, error) {
-	if err := metadatautil.ValidateMetadata(req.Metadata); err != nil {
+	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
+		var userID string
+		if id, ok := utils.GetAuthenticatedUserID(ctx); ok {
+			userID = id
+		}
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create error struct for notification.failed event", zap.Error(err))
-				return nil, grpcstatus.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": userID}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "notification.failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit notification.failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": userID},
+				func() *structpb.Struct {
+					if errMeta != nil {
+						return errMeta.ServiceSpecific
+					}
+					return nil
+				}())
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "failed", "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit notification.failed event")
 			}
 		}
 		return nil, grpcstatus.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -236,23 +274,32 @@ func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSReques
 	created, err := s.repo.Create(ctx, notification)
 	if err != nil {
 		s.log.Error("Failed to save SMS notification", zap.Error(err))
+		var userID string
+		if id, ok := utils.GetAuthenticatedUserID(ctx); ok {
+			userID = id
+		}
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create error struct for notification.failed event", zap.Error(err))
-				return nil, grpcstatus.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": userID}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "notification.failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit notification.failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": userID},
+				func() *structpb.Struct {
+					if errMeta != nil {
+						return errMeta.ServiceSpecific
+					}
+					return nil
+				}())
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "failed", "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit notification.failed event")
 			}
 		}
 		return nil, grpcstatus.Errorf(codes.Internal, "failed to save SMS notification: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		created.Metadata, _ = notificationEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "notification.sent", fmt.Sprint(created.ID), created.Metadata)
+		created.Metadata, _ = events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "sent", fmt.Sprint(created.ID), created.Metadata)
 	}
 	return &notificationpb.SendSMSResponse{
 		MessageId: fmt.Sprint(created.ID),
@@ -262,18 +309,23 @@ func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSReques
 }
 
 func (s *Service) SendPushNotification(ctx context.Context, req *notificationpb.SendPushNotificationRequest) (*notificationpb.SendPushNotificationResponse, error) {
-	if err := metadatautil.ValidateMetadata(req.Metadata); err != nil {
+	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create error struct for notification.failed event", zap.Error(err))
-				return nil, grpcstatus.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "notification.failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit notification.failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId},
+				func() *structpb.Struct {
+					if errMeta != nil {
+						return errMeta.ServiceSpecific
+					}
+					return nil
+				}())
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "failed", "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit notification.failed event")
 			}
 		}
 		return nil, grpcstatus.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
@@ -291,22 +343,27 @@ func (s *Service) SendPushNotification(ctx context.Context, req *notificationpb.
 	if err != nil {
 		s.log.Error("Failed to save push notification", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create error struct for notification.failed event", zap.Error(err))
-				return nil, grpcstatus.Error(codes.Internal, "internal error")
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId}),
+				Tags:            []string{},
+				Features:        []string{},
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "notification.failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit notification.failed event", zap.Error(errEmit))
+			errMeta.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId},
+				func() *structpb.Struct {
+					if errMeta != nil {
+						return errMeta.ServiceSpecific
+					}
+					return nil
+				}())
+			_, errEmit := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "failed", "", errMeta)
+			if !errEmit {
+				s.log.Warn("Failed to emit notification.failed event")
 			}
 		}
 		return nil, grpcstatus.Errorf(codes.Internal, "failed to save push notification: %v", err)
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		created.Metadata, _ = notificationEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "notification.sent", fmt.Sprint(created.ID), created.Metadata)
+		created.Metadata, _ = events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "notification", "sent", fmt.Sprint(created.ID), created.Metadata)
 	}
 	return &notificationpb.SendPushNotificationResponse{
 		NotificationId: fmt.Sprint(created.ID),
@@ -316,7 +373,7 @@ func (s *Service) SendPushNotification(ctx context.Context, req *notificationpb.
 }
 
 func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.BroadcastEventRequest) (*notificationpb.BroadcastEventResponse, error) {
-	if err := metadatautil.ValidateMetadata(req.Payload); err != nil {
+	if err := metadata.ValidateMetadata(req.Payload); err != nil {
 		return nil, grpcstatus.Errorf(codes.InvalidArgument, "invalid payload: %v", err)
 	}
 	broadcast := &Notification{
@@ -357,13 +414,13 @@ func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.Broadc
 
 func (s *Service) ListNotificationEvents(ctx context.Context, req *notificationpb.ListNotificationEventsRequest) (*notificationpb.ListNotificationEventsResponse, error) {
 	notificationID := parseInt64(req.NotificationId)
-	events, err := s.repo.ListNotificationEvents(ctx, notificationID, int(req.PageSize), int(req.Page))
+	eventList, err := s.repo.ListNotificationEvents(ctx, notificationID, int(req.PageSize), int(req.Page))
 	if err != nil {
 		s.log.Error("Failed to list notification events", zap.Error(err))
 		return nil, grpcstatus.Errorf(codes.Internal, "failed to list events: %v", err)
 	}
-	protoEvents := make([]*notificationpb.NotificationEvent, 0, len(events))
-	for _, e := range events {
+	protoEvents := make([]*notificationpb.NotificationEvent, 0, len(eventList))
+	for _, e := range eventList {
 		protoEvents = append(protoEvents, &notificationpb.NotificationEvent{
 			EventId:        fmt.Sprint(e.ID),
 			NotificationId: fmt.Sprint(e.NotificationID),

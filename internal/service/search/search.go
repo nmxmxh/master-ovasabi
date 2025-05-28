@@ -3,14 +3,20 @@ package search
 import (
 	context "context"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
 	events "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// Add missing type definitions if not imported
+// type Repository interface { ... } // If not already defined elsewhere
+// type EventEmitter interface { ... } // If not already defined elsewhere
 
 type Service struct {
 	searchpb.UnimplementedSearchServiceServer
@@ -38,21 +44,25 @@ func (s *Service) Search(ctx context.Context, req *searchpb.SearchRequest) (*sea
 	query := req.GetQuery()
 	page := int(req.GetPageNumber())
 	pageSize := int(req.GetPageSize())
-	metadata := req.GetMetadata()
+	meta := req.GetMetadata()
 	types := req.GetTypes()
 	if len(types) == 0 {
 		types = []string{"content"} // default to content if not specified
 	}
 
-	results, total, err := s.repo.SearchAllEntities(ctx, types, query, metadata, req.GetCampaignId(), page, pageSize)
+	results, total, err := s.repo.SearchAllEntities(ctx, types, query, meta, req.GetCampaignId(), page, pageSize)
 	if err != nil {
 		s.log.Error("Search failed", zap.Error(err))
-		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			// Optionally, enrich metadata with error details
-			// Canonical metadata pattern: use commonpb.Metadata for error context
-			// Here, we emit the event with the request metadata
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "search.failed", "", metadata)
+			errMeta := &commonpb.Metadata{
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "query": req.Query}),
+				Tags:            []string{},
+				Features:        []string{},
+			}
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "search", "search.failed", "", errMeta, zap.Error(err))
+			if !ok {
+				s.log.Warn("Failed to emit search.failed event")
+			}
 		}
 		return nil, status.Errorf(codes.Internal, "search failed: %v", err)
 	}
@@ -71,9 +81,16 @@ func (s *Service) Search(ctx context.Context, req *searchpb.SearchRequest) (*sea
 		PageNumber: utils.ToInt32(page),
 		PageSize:   utils.ToInt32(pageSize),
 	}
-	// Emit search.performed event after successful search
 	if s.eventEnabled && s.eventEmitter != nil {
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "search.performed", "", metadata)
+		successMeta := &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"query": req.Query}),
+			Tags:            []string{},
+			Features:        []string{},
+		}
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "search", "search.completed", "", successMeta, zap.String("query", req.Query))
+		if !ok {
+			s.log.Warn("Failed to emit search.completed event")
+		}
 	}
 	return resp, nil
 }

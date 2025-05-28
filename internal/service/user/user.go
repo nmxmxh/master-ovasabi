@@ -72,6 +72,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"time"
 
 	goth "github.com/markbates/goth"
@@ -141,6 +142,23 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 	s.log.Info("Creating user",
 		zap.String("email", req.Email),
 		zap.String("username", req.Username))
+
+	// Username validation (Twitter-like, dots allowed, no emojis, Unicode letters/numbers/._)
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsAdmin(roles)
+	var (
+		userRegex  = regexp.MustCompile(`^[\p{L}\p{N}._]{5,20}$`)
+		adminRegex = regexp.MustCompile(`^[\p{L}\p{N}._]{1,20}$`)
+	)
+	if isAdmin {
+		if !adminRegex.MatchString(req.Username) {
+			return nil, status.Error(codes.InvalidArgument, "invalid username: must be 1-20 Unicode letters, numbers, underscores, or dots; no emojis or symbols; cannot start/end with dot/underscore; no consecutive dots/underscores")
+		}
+	} else {
+		if !userRegex.MatchString(req.Username) {
+			return nil, status.Error(codes.InvalidArgument, "invalid username: must be 5-20 Unicode letters, numbers, underscores, or dots; no emojis or symbols; cannot start/end with dot/underscore; no consecutive dots/underscores")
+		}
+	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -293,6 +311,15 @@ func (s *Service) GetUserByEmail(ctx context.Context, req *userpb.GetUserByEmail
 
 // UpdateUser updates a user record.
 func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.UpdateUserResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsAdmin(roles)
+	if !isAdmin && req.UserId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot update another user's profile")
+	}
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
@@ -382,7 +409,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 	if err != nil {
 		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
 	}
-	_, ok := userEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, nexusevents.EventUserUpdated, repoUser.ID, repoUser.Metadata)
+	_, ok = userEvents.EmitEventWithLogging(ctx, s.eventEmitter, s.log, nexusevents.EventUserUpdated, repoUser.ID, repoUser.Metadata)
 	if !ok {
 		s.log.Warn("Failed to emit user.updated event (UpdateUser)")
 	}
@@ -395,6 +422,15 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 
 // DeleteUser removes a user and its master record.
 func (s *Service) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequest) (*userpb.DeleteUserResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsAdmin(roles)
+	if !isAdmin && req.UserId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot delete another user's profile")
+	}
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -511,6 +547,15 @@ func (s *Service) UpdatePassword(_ context.Context, _ *userpb.UpdatePasswordRequ
 
 // UpdateProfile updates a user's profile.
 func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRequest) (*userpb.UpdateProfileResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsAdmin(roles)
+	if !isAdmin && req.UserId != authUserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot update another user's profile")
+	}
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "user not found")
@@ -1510,6 +1555,20 @@ func (s *Service) CreateUserGroup(ctx context.Context, req *userpb.CreateUserGro
 }
 
 func (s *Service) UpdateUserGroup(ctx context.Context, req *userpb.UpdateUserGroupRequest) (*userpb.UpdateUserGroupResponse, error) {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "user")
+	group, err := s.repo.GetUserGroupByID(ctx, req.UserGroupId)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "user group not found")
+	}
+	isGroupAdmin := group.Roles[authUserID] == "admin"
+	if !isAdmin && !isGroupAdmin {
+		return nil, status.Error(codes.PermissionDenied, "cannot update group you do not own or admin")
+	}
 	updated, err := s.repo.UpdateUserGroup(ctx, req.UserGroupId, req.UserGroup, req.FieldsToUpdate)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update user group: %v", err)
@@ -1518,7 +1577,21 @@ func (s *Service) UpdateUserGroup(ctx context.Context, req *userpb.UpdateUserGro
 }
 
 func (s *Service) DeleteUserGroup(ctx context.Context, req *userpb.DeleteUserGroupRequest) (*userpb.DeleteUserGroupResponse, error) {
-	err := s.repo.DeleteUserGroup(ctx, req.UserGroupId)
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing authentication")
+	}
+	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
+	isAdmin := utils.IsServiceAdmin(roles, "user")
+	group, err := s.repo.GetUserGroupByID(ctx, req.UserGroupId)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "user group not found")
+	}
+	isGroupAdmin := group.Roles[authUserID] == "admin"
+	if !isAdmin && !isGroupAdmin {
+		return nil, status.Error(codes.PermissionDenied, "cannot delete group you do not own or admin")
+	}
+	err = s.repo.DeleteUserGroup(ctx, req.UserGroupId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete user group: %v", err)
 	}

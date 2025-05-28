@@ -12,6 +12,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/nexus"
+	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 )
 
@@ -272,6 +273,37 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 	if err := s.EventRepo.SaveEvent(ctx, event); err != nil {
 		s.Log.Error("Failed to persist event", zap.Error(err))
 		return nil, err
+	}
+	// Canonical metadata enrichment helpers
+	var protoMeta *commonpb.Metadata
+	if event.Metadata != nil {
+		metaBytes, err := json.Marshal(event.Metadata)
+		if err != nil {
+			s.Log.Error("Failed to marshal event metadata for proto conversion", zap.Error(err), zap.String("event_id", event.ID.String()))
+		} else {
+			var pbMeta commonpb.Metadata
+			if err := json.Unmarshal(metaBytes, &pbMeta); err != nil {
+				s.Log.Error("Failed to unmarshal event metadata to proto", zap.Error(err), zap.String("event_id", event.ID.String()))
+			} else {
+				protoMeta = &pbMeta
+			}
+		}
+	}
+	if protoMeta != nil {
+		if s.Cache != nil {
+			if err := pattern.CacheMetadata(ctx, s.Log, s.Cache, "nexus_event", event.ID.String(), protoMeta, 10*time.Minute); err != nil {
+				s.Log.Error("failed to cache nexus event metadata", zap.Error(err))
+			}
+		}
+		if err := pattern.RegisterSchedule(ctx, s.Log, "nexus_event", event.ID.String(), protoMeta); err != nil {
+			s.Log.Error("failed to register nexus event schedule", zap.Error(err))
+		}
+		if err := pattern.EnrichKnowledgeGraph(ctx, s.Log, "nexus_event", event.ID.String(), protoMeta); err != nil {
+			s.Log.Error("failed to enrich nexus event knowledge graph", zap.Error(err))
+		}
+		if err := pattern.RegisterWithNexus(ctx, s.Log, "nexus_event", protoMeta); err != nil {
+			s.Log.Error("failed to register nexus event with nexus", zap.Error(err))
+		}
 	}
 	// Propagate to subscribers
 	resp := &nexusv1.EventResponse{

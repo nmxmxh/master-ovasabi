@@ -22,14 +22,12 @@ import (
 
 	analytics "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
-	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	events "github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type Event struct {
@@ -92,12 +90,11 @@ func (s *Service) CaptureEvent(ctx context.Context, req *analytics.CaptureEventR
 	if err != nil {
 		s.log.Error("Failed to build analytics metadata", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.event_capture_failed"))
+			// Emit failed event with error metadata
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.event_capture_failed", "", meta, zap.Error(err))
+			if !ok {
+				s.log.Warn("Failed to emit workflow step event", zap.Error(err))
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.event_capture_failed", "", errMeta)
 		}
 		return nil, err
 	}
@@ -112,12 +109,11 @@ func (s *Service) CaptureEvent(ctx context.Context, req *analytics.CaptureEventR
 	s.mu.Unlock()
 	s.log.Info("Captured analytics event", zap.String("event_id", eventID), zap.String("event_type", req.EventType))
 	if s.eventEnabled && s.eventEmitter != nil {
-		errStruct, err := structpb.NewStruct(map[string]interface{}{"event_id": eventID, "event_type": req.EventType})
-		if err != nil {
-			s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.event_tracked"))
+		// Emit tracked event (success)
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.event_tracked", eventID, event.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit workflow step event")
 		}
-		errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.event_tracked", eventID, errMeta)
 	}
 	return &analytics.CaptureEventResponse{EventId: eventID}, nil
 }
@@ -155,17 +151,14 @@ func (s *Service) EnrichEventMetadata(ctx context.Context, req *analytics.Enrich
 	if !ok {
 		s.log.Error("Event not found for enrichment", zap.String("event_id", req.EventId))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": "event not found", "event_id": req.EventId})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.event_enrich_failed"))
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.event_enrich_failed", "", nil)
+			if !ok {
+				s.log.Warn("Failed to emit workflow step event")
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.event_enrich_failed", req.EventId, errMeta)
 		}
 		return nil, ErrEventNotFound
 	}
 	// Merge new fields into existing metadata (simple merge for demo)
-	// TODO: Use a robust merge for production
 	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil && req.NewFields != nil {
 		for k, v := range req.NewFields.Fields {
 			event.Metadata.ServiceSpecific.Fields[k] = v
@@ -173,12 +166,10 @@ func (s *Service) EnrichEventMetadata(ctx context.Context, req *analytics.Enrich
 	}
 	s.log.Info("Enriched analytics event metadata", zap.String("event_id", req.EventId))
 	if s.eventEnabled && s.eventEmitter != nil {
-		errStruct, err := structpb.NewStruct(map[string]interface{}{"event_id": req.EventId})
-		if err != nil {
-			s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.event_enriched"))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.event_enriched", req.EventId, event.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit workflow step event")
 		}
-		errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.event_enriched", req.EventId, errMeta)
 	}
 	return &analytics.EnrichEventMetadataResponse{Success: true}, nil
 }
@@ -192,52 +183,28 @@ func (s *Service) TrackEvent(ctx context.Context, req *analytics.TrackEventReque
 	event := req.GetEvent()
 	if event == nil || event.MasterId == 0 {
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": "event and master_id are required"})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.event_track_failed"))
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.event_track_failed", "", nil)
+			if !ok {
+				s.log.Warn("Failed to emit workflow step event")
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.event_track_failed", "", errMeta)
 		}
 		return nil, status.Error(codes.InvalidArgument, "event and master_id are required")
 	}
 	if err := s.repo.TrackEvent(ctx, event); err != nil {
 		s.log.Error("failed to track event", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error(), "event_id": event.Id})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.event_track_failed"))
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.event_track_failed", "", nil)
+			if !ok {
+				s.log.Warn("Failed to emit workflow step event")
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.event_track_failed", event.Id, errMeta)
 		}
 		return nil, status.Error(codes.Internal, "failed to track event")
 	}
-	if s.Cache != nil && event.Metadata != nil {
-		err := pattern.CacheMetadata(ctx, s.log, s.Cache, "analytics_event", event.Id, event.Metadata, 10*time.Minute)
-		if err != nil {
-			s.log.Error("failed to cache metadata", zap.Error(err))
-		}
-	}
-	err := pattern.RegisterSchedule(ctx, s.log, "analytics_event", event.Id, event.Metadata)
-	if err != nil {
-		s.log.Error("failed to register schedule", zap.Error(err))
-	}
-	err = pattern.EnrichKnowledgeGraph(ctx, s.log, "analytics_event", event.Id, event.Metadata)
-	if err != nil {
-		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
-	}
-	err = pattern.RegisterWithNexus(ctx, s.log, "analytics_event", event.Metadata)
-	if err != nil {
-		s.log.Error("failed to register with nexus", zap.Error(err))
-	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errStruct, err := structpb.NewStruct(map[string]interface{}{"event_id": event.Id, "event_type": event.Metadata})
-		if err != nil {
-			s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.event_tracked"))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.event_tracked", event.Id, event.Metadata)
+		if !ok {
+			s.log.Warn("Failed to emit workflow step event")
 		}
-		errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.event_tracked", event.Id, errMeta)
 	}
 	return &analytics.TrackEventResponse{Success: true}, nil
 }
@@ -246,12 +213,10 @@ func (s *Service) BatchTrackEvents(ctx context.Context, req *analytics.BatchTrac
 	for _, event := range req.GetEvents() {
 		if event.MasterId == 0 {
 			if s.eventEnabled && s.eventEmitter != nil {
-				errStruct, err := structpb.NewStruct(map[string]interface{}{"error": "all events must have master_id"})
-				if err != nil {
-					s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.batch_track_failed"))
+				_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.batch_track_failed", "", nil)
+				if !ok {
+					s.log.Warn("Failed to emit workflow step event")
 				}
-				errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-				events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.batch_track_failed", "", errMeta)
 			}
 			return nil, status.Error(codes.InvalidArgument, "all events must have master_id")
 		}
@@ -260,22 +225,18 @@ func (s *Service) BatchTrackEvents(ctx context.Context, req *analytics.BatchTrac
 	if err != nil {
 		s.log.Error("failed to batch track events", zap.Error(err))
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.batch_track_failed"))
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.batch_track_failed", "", nil)
+			if !ok {
+				s.log.Warn("Failed to emit workflow step event")
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.batch_track_failed", "", errMeta)
 		}
 		return nil, status.Error(codes.Internal, "failed to batch track events")
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errStruct, err := structpb.NewStruct(map[string]interface{}{"success_count": success, "failure_count": fail})
-		if err != nil {
-			s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.batch_tracked"))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.batch_tracked", "", nil)
+		if !ok {
+			s.log.Warn("Failed to emit workflow step event")
 		}
-		errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.batch_tracked", "", errMeta)
 	}
 	if success > int(^int32(0)) || success < 0 {
 		return nil, fmt.Errorf("success count overflows int32")
@@ -398,12 +359,10 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 			CreatedAt:   time.Now().Unix(),
 		}
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"report_id": req.ReportId})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.report_generated"))
+			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.report_generated", req.ReportId, nil)
+			if !ok {
+				s.log.Warn("Failed to emit workflow step event")
 			}
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.report_generated", req.ReportId, errMeta)
 		}
 		return &analytics.GetReportResponse{Report: report}, nil
 	}
@@ -417,12 +376,10 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 		CreatedAt:   time.Now().Unix(),
 	}
 	if s.eventEnabled && s.eventEmitter != nil {
-		errStruct, err := structpb.NewStruct(map[string]interface{}{"report_id": req.ReportId})
-		if err != nil {
-			s.log.Error("Failed to create structpb.Struct", zap.Error(err), zap.String("context", "analytics.report_generated"))
+		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "analytics_event", "analytics.report_generated", req.ReportId, nil)
+		if !ok {
+			s.log.Warn("Failed to emit workflow step event")
 		}
-		errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "analytics.report_generated", req.ReportId, errMeta)
 	}
 	return &analytics.GetReportResponse{Report: report}, nil
 }

@@ -108,6 +108,24 @@ func RegisterWithNexus(_ context.Context, _ *zap.Logger, _ string, _ interface{}
 	return nil
 }
 
+// Add a canonical enrichment helper to be called from events.EmitCallbackEvent.
+func EnrichAllMetadataHooks(ctx context.Context, logger *zap.Logger, cache *redis.Cache, entityType, id string, meta *commonpb.Metadata) {
+	if cache != nil && meta != nil {
+		if err := CacheMetadata(ctx, logger, cache, entityType, id, meta, 10*time.Minute); err != nil {
+			logger.Error("failed to cache metadata", zap.Error(err))
+		}
+	}
+	if err := RegisterSchedule(ctx, logger, entityType, id, meta); err != nil {
+		logger.Error("failed to register schedule", zap.Error(err))
+	}
+	if err := EnrichKnowledgeGraph(ctx, logger, entityType, id, meta); err != nil {
+		logger.Error("failed to enrich knowledge graph", zap.Error(err))
+	}
+	if err := RegisterWithNexus(ctx, logger, entityType, meta); err != nil {
+		logger.Error("failed to register with Nexus", zap.Error(err))
+	}
+}
+
 // Example Usage: Content Service ---------------------------------------
 //
 // In your content service, after creating or updating content:

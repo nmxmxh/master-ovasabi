@@ -10,8 +10,10 @@ import (
 	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type StorageType string
@@ -24,20 +26,21 @@ const (
 var ErrMediaNotFound = errors.New("media not found")
 
 type Model struct {
-	ID        uuid.UUID   `db:"id"`
-	MasterID  string      `db:"master_id"`
-	UserID    uuid.UUID   `db:"user_id"`
-	Type      StorageType `db:"type"`
-	Name      string      `db:"name"`
-	MimeType  string      `db:"mime_type"`
-	Size      int64       `db:"size"`
-	URL       string      `db:"url"`
-	IsSystem  bool        `db:"is_system"`
-	Checksum  string      `db:"checksum"`
-	Metadata  *commonpb.Metadata
-	CreatedAt time.Time  `db:"created_at"`
-	UpdatedAt time.Time  `db:"updated_at"`
-	DeletedAt *time.Time `db:"deleted_at"`
+	ID         uuid.UUID   `db:"id"`
+	MasterID   string      `db:"master_id"`
+	MasterUUID string      `db:"master_uuid"`
+	UserID     uuid.UUID   `db:"user_id"`
+	Type       StorageType `db:"type"`
+	Name       string      `db:"name"`
+	MimeType   string      `db:"mime_type"`
+	Size       int64       `db:"size"`
+	URL        string      `db:"url"`
+	IsSystem   bool        `db:"is_system"`
+	Checksum   string      `db:"checksum"`
+	Metadata   *commonpb.Metadata
+	CreatedAt  time.Time  `db:"created_at"`
+	UpdatedAt  time.Time  `db:"updated_at"`
+	DeletedAt  *time.Time `db:"deleted_at"`
 	// NFT/Authenticity fields
 	AuthenticityHash string `db:"authenticity_hash"`
 	R2Key            string `db:"r2_key"`
@@ -128,7 +131,17 @@ func (r *Repo) GetMedia(ctx context.Context, id uuid.UUID) (*Model, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get media: %w", err)
 	}
-	media.Metadata = &commonpb.Metadata{}
+	media.Metadata = &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "media_id": media.ID},
+			func() *structpb.Struct {
+				if media != nil && media.Metadata != nil {
+					return media.Metadata.ServiceSpecific
+				}
+				return nil
+			}()),
+		Tags:     []string{},
+		Features: []string{},
+	}
 	if metadataStr != "" {
 		err := protojson.Unmarshal([]byte(metadataStr), media.Metadata)
 		if err != nil {
@@ -175,7 +188,17 @@ func (r *Repo) ListUserMedia(ctx context.Context, userID uuid.UUID, masterID str
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan media: %w", err)
 		}
-		media.Metadata = &commonpb.Metadata{}
+		media.Metadata = &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "media_id": media.ID},
+				func() *structpb.Struct {
+					if media != nil && media.Metadata != nil {
+						return media.Metadata.ServiceSpecific
+					}
+					return nil
+				}()),
+			Tags:     []string{},
+			Features: []string{},
+		}
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), media.Metadata)
 			if err != nil {
@@ -228,7 +251,17 @@ func (r *Repo) ListSystemMedia(ctx context.Context, masterID string, limit, offs
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan system media: %w", err)
 		}
-		media.Metadata = &commonpb.Metadata{}
+		media.Metadata = &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "media_id": media.ID},
+				func() *structpb.Struct {
+					if media != nil && media.Metadata != nil {
+						return media.Metadata.ServiceSpecific
+					}
+					return nil
+				}()),
+			Tags:     []string{},
+			Features: []string{},
+		}
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), media.Metadata)
 			if err != nil {

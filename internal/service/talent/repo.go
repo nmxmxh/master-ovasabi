@@ -50,7 +50,7 @@ func (r *Repository) CreateTalentProfile(ctx context.Context, p *talentpb.Talent
 		INSERT INTO service_talent_profile (master_id, master_uuid, user_id, display_name, bio, skills, tags, location, avatar_url, metadata, campaign_id, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW())
 		RETURNING id
-	`, p.MasterId, p.MasterUuid, p.UserId, p.DisplayName, p.Bio, skills, tags, p.Location, p.AvatarUrl, metaJSON, campaignID).Scan(&id)
+	`, p.MasterId, p.MasterUuid, p.UserId, p.DisplayName, p.Bio, skills, tags, p.Location, p.AvatarUrl, metaJSON, campaignID, p.CreatedAt, p.UpdatedAt).Scan(&id)
 	if err != nil {
 		return nil, err
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 type Master struct {
-	ID        int64           `json:"id"`
+	ID        string          `json:"id"`
 	UUID      string          `json:"uuid"`
 	Type      string          `json:"type"`
 	Status    string          `json:"status"`
@@ -59,22 +59,19 @@ type Incident struct {
 }
 
 type Event struct {
-	ID         int64           `json:"id"`
+	ID         string          `json:"id"`
 	MasterID   int64           `json:"master_id"`
-	MasterUUID string          `json:"master_uuid"`
 	EventType  string          `json:"event_type"`
 	Principal  string          `json:"principal"`
-	Resource   string          `json:"resource"`
-	Action     string          `json:"action"`
+	Details    json.RawMessage `json:"details"`
 	OccurredAt time.Time       `json:"occurred_at"`
-	Context    json.RawMessage `json:"context"`
 	Metadata   json.RawMessage `json:"metadata"`
 }
 
 type RepositoryItf interface {
 	// Master
-	CreateMaster(ctx context.Context, master *Master) (int64, string, error)
-	GetMaster(ctx context.Context, id int64) (*Master, error)
+	CreateMaster(ctx context.Context, master *Master) (id string, uuid string, err error)
+	GetMaster(ctx context.Context, id string) (*Master, error)
 	UpdateMaster(ctx context.Context, master *Master) error
 
 	// Identity
@@ -94,7 +91,7 @@ type RepositoryItf interface {
 	UpdateIncidentResolution(ctx context.Context, id int64, resolutionTime *time.Time) error
 
 	// Event
-	RecordEvent(ctx context.Context, event *Event) (int64, error)
+	RecordEvent(ctx context.Context, event *Event) (string, error)
 	GetEvents(ctx context.Context, filter map[string]interface{}) ([]*Event, error)
 
 	// Analytics
@@ -115,10 +112,10 @@ func NewRepository(db *sql.DB, masterRepo repo.MasterRepository) *Repository {
 }
 
 // Master.
-func (r *Repository) CreateMaster(ctx context.Context, master *Master) (id int64, uuid string, err error) {
+func (r *Repository) CreateMaster(ctx context.Context, master *Master) (id, uuid string, err error) {
 	data, err := json.Marshal(master.Metadata)
 	if err != nil {
-		return 0, "", fmt.Errorf("marshal metadata: %w", err)
+		return "", "", fmt.Errorf("marshal metadata: %w", err)
 	}
 	err = r.db.QueryRowContext(ctx, `
 		INSERT INTO service_security_master (type, status, metadata, created_at, updated_at)
@@ -128,7 +125,7 @@ func (r *Repository) CreateMaster(ctx context.Context, master *Master) (id int64
 	return id, uuid, err
 }
 
-func (r *Repository) GetMaster(ctx context.Context, id int64) (*Master, error) {
+func (r *Repository) GetMaster(ctx context.Context, id string) (*Master, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, uuid, type, status, created_at, updated_at, deleted_at, metadata
 		FROM service_security_master WHERE id = $1
@@ -347,25 +344,24 @@ func (r *Repository) UpdateIncidentResolution(ctx context.Context, id int64, res
 }
 
 // Event.
-func (r *Repository) RecordEvent(ctx context.Context, event *Event) (int64, error) {
-	// Defensive: ensure context and metadata are always valid JSON
-	if len(event.Context) == 0 || string(event.Context) == "" {
-		event.Context = []byte("{}")
+func (r *Repository) RecordEvent(ctx context.Context, event *Event) (string, error) {
+	if len(event.Details) == 0 || string(event.Details) == "" {
+		event.Details = []byte("{}")
 	}
 	if len(event.Metadata) == 0 || string(event.Metadata) == "" {
 		event.Metadata = []byte("{}")
 	}
-	var id int64
+	var id string
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO service_security_event (master_id, master_uuid, event_type, principal, resource, action, occurred_at, context, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO service_security_event (master_id, event_type, principal, details, occurred_at, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
-	`, event.MasterID, event.MasterUUID, event.EventType, event.Principal, event.Resource, event.Action, event.OccurredAt, event.Context, event.Metadata).Scan(&id)
+	`, event.MasterID, event.EventType, event.Principal, event.Details, event.OccurredAt, event.Metadata).Scan(&id)
 	return id, err
 }
 
 func (r *Repository) GetEvents(ctx context.Context, filter map[string]interface{}) ([]*Event, error) {
-	q := `SELECT id, master_id, master_uuid, event_type, principal, resource, action, occurred_at, context, metadata FROM service_security_event WHERE 1=1`
+	q := `SELECT id, master_id, event_type, principal, details, occurred_at, metadata FROM service_security_event WHERE 1=1`
 	args := []interface{}{}
 	if v, ok := filter["event_type"]; ok {
 		q += " AND event_type = $1"
@@ -379,12 +375,12 @@ func (r *Repository) GetEvents(ctx context.Context, filter map[string]interface{
 	var events []*Event
 	for rows.Next() {
 		var e Event
-		var ctxRaw, metaRaw []byte
-		err := rows.Scan(&e.ID, &e.MasterID, &e.MasterUUID, &e.EventType, &e.Principal, &e.Resource, &e.Action, &e.OccurredAt, &ctxRaw, &metaRaw)
+		var detailsRaw, metaRaw []byte
+		err := rows.Scan(&e.ID, &e.MasterID, &e.EventType, &e.Principal, &detailsRaw, &e.OccurredAt, &metaRaw)
 		if err != nil {
 			return nil, err
 		}
-		e.Context = ctxRaw
+		e.Details = detailsRaw
 		e.Metadata = metaRaw
 		events = append(events, &e)
 	}

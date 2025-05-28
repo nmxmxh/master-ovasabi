@@ -27,6 +27,7 @@ package media
 import (
 	"encoding/json"
 
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -121,7 +122,7 @@ func MetadataFromStruct(s *structpb.Struct) (*Metadata, error) {
 // MediaMetadataToStruct converts MediaMetadata to structpb.Struct.
 func MetadataToStruct(meta *Metadata) (*structpb.Struct, error) {
 	if meta == nil {
-		return structpb.NewStruct(map[string]interface{}{})
+		return metadata.NewStructFromMap(map[string]interface{}{}), nil
 	}
 	b, err := json.Marshal(meta)
 	if err != nil {
@@ -132,5 +133,5 @@ func MetadataToStruct(meta *Metadata) (*structpb.Struct, error) {
 	if err != nil {
 		return nil, err
 	}
-	return structpb.NewStruct(m)
+	return metadata.NewStructFromMap(m), nil
 }
