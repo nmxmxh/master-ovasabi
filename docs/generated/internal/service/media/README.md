@@ -128,14 +128,6 @@ StreamMediaChunk handles streaming chunks for heavy media uploads.
 
 StreamMediaContent streams the content of a media file.
 
-##### SubscribeToSystemMedia
-
-SubscribeToSystemMedia: basic in-memory pub/sub demo.
-
-##### SubscribeToUserMedia
-
-SubscribeToUserMedia: basic in-memory pub/sub demo.
-
 ##### UploadChunks
 
 UploadChunks uploads media chunks concurrently with retry and timeout logic. It uses maxRetries,

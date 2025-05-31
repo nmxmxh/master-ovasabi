@@ -31,6 +31,8 @@ Deprecated: Use EventRequest.ProtoReflect.Descriptor instead.
 
 ##### GetMetadata
 
+##### GetPayload
+
 ##### ProtoMessage
 
 ##### ProtoReflect
@@ -50,6 +52,8 @@ Deprecated: Use EventResponse.ProtoReflect.Descriptor instead.
 ##### GetMessage
 
 ##### GetMetadata
+
+##### GetPayload
 
 ##### GetSuccess
 

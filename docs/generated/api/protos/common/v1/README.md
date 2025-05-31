@@ -4,6 +4,8 @@
 
 ### File_common_v1_metadata_proto
 
+### File_common_v1_payload_proto
+
 ## Types
 
 ### Metadata
@@ -34,6 +36,28 @@ Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
 ##### GetServiceSpecific
 
 ##### GetTags
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### Payload
+
+Canonical Payload message for all event-driven and cross-service communication.
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use Payload.ProtoReflect.Descriptor instead.
+
+##### GetData
+
+##### GetVersioning
 
 ##### ProtoMessage
 

@@ -20,6 +20,11 @@ CacheConfig defines the configuration for a service cache.
 
 EmitEvent emits an event to the Nexus event bus.
 
+##### EmitEventWithLogging
+
+EmitEventWithLogging emits an event to Nexus and logs the outcome, orchestrating errors with
+graceful.
+
 ##### SubscribeEvents
 
 SubscribeEvents subscribes to events from the Nexus event bus.

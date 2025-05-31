@@ -2,6 +2,8 @@
 
 ## Types
 
+### MediaState
+
 ### NexusOpsHandler
 
 NexusOpsHandler handles /api/nexus/ops requests.
@@ -9,6 +11,11 @@ NexusOpsHandler handles /api/nexus/ops requests.
 #### Methods
 
 ##### ServeHTTP
+
+### User
+
+Minimal User and MediaState stubs for handler use (replace with import from campaign package if
+available).
 
 ## Functions
 
@@ -23,6 +30,21 @@ AnalyticsOpsHandler is a composable endpoint for all analytics operations.
 ### CampaignHandler
 
 CampaignHandler returns an http.HandlerFunc for campaign operations (composable endpoint).
+
+### CampaignLeaderboardHandler
+
+### CampaignStateHandler
+
+REST campaign state hydration endpoints All endpoints enforce authentication/authorization and use
+the shared state builder for consistency. Pass hydrated models to BuildCampaignUserState. Support
+partial update via 'fields' query param.
+
+GET /api/campaigns/{id}/state?user_id=...&fields=campaign,user,media GET
+/api/campaigns/{id}/user/{userID}/state?fields=... GET /api/campaigns/{id}/leaderboard
+
+All responses are consistent with WebSocket state payloads.
+
+### CampaignUserStateHandler
 
 ### CommerceOpsHandler
 
@@ -47,6 +69,10 @@ action" @Failure 400 {object} ErrorResponse @Router /api/content_ops [post].
 ### LocalizationOpsHandler
 
 LocalizationOpsHandler: Composable, robust handler for localization operations.
+
+### MediaModelToProto
+
+MediaModelToProto maps a media.Model to mediapb.Media.
 
 ### MediaOpsHandler
 

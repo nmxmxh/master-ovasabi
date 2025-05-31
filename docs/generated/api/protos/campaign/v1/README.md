@@ -37,6 +37,8 @@ Deprecated: Use Campaign.ProtoReflect.Descriptor instead.
 
 ##### GetMetadata
 
+##### GetOwnerId
+
 ##### GetRankingFormula
 
 ##### GetSlug
@@ -82,6 +84,8 @@ Deprecated: Use CreateCampaignRequest.ProtoReflect.Descriptor instead.
 ##### GetEndDate
 
 ##### GetMetadata
+
+##### GetOwnerId
 
 ##### GetRankingFormula
 

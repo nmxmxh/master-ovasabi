@@ -2,6 +2,14 @@
 
 ## Constants
 
+### ContextRolesKey
+
+ContextRolesKey is the key for the authenticated user roles in the context.
+
+### ContextUserIDKey
+
+ContextUserIDKey is the key for the authenticated user ID in the context.
+
 ### DefaultTimeout
 
 DefaultTimeout is the default timeout for operations.
@@ -11,6 +19,10 @@ DefaultTimeout is the default timeout for operations.
 ### BufferPool
 
 ## Functions
+
+### BatchProcess
+
+BatchProcess runs a function on each item in batches with parallelism.
 
 ### ContextWithCustomTimeout
 
@@ -36,6 +48,14 @@ GenerateTestName generates a test user name.
 
 GenerateTestPassword generates a test password.
 
+### GetAuthenticatedUserID
+
+GetAuthenticatedUserID retrieves the authenticated user ID from the context.
+
+### GetAuthenticatedUserRoles
+
+GetAuthenticatedUserRoles retrieves the authenticated user roles from the context.
+
 ### GetBuffer
 
 GetBuffer retrieves a buffer from the pool.
@@ -44,9 +64,21 @@ GetBuffer retrieves a buffer from the pool.
 
 GetByteSlice retrieves a byte slice from the pool.
 
+### GetContextFields
+
+GetContextFields extracts common fields from context for logging and error context.
+
 ### GetValue
 
 GetValue retrieves a value from the context with type safety.
+
+### IsAdmin
+
+IsAdmin checks if the given roles include the "admin" role.
+
+### IsServiceAdmin
+
+IsServiceAdmin checks if the given roles include the global admin or a service-specific admin role.
 
 ### MergeContexts
 
@@ -71,6 +103,10 @@ PutBuffer returns a buffer to the pool.
 ### PutByteSlice
 
 PutByteSlice returns a byte slice to the pool.
+
+### StreamItems
+
+StreamItems streams items from a channel to a callback, with cancellation support.
 
 ### ToBigInt
 

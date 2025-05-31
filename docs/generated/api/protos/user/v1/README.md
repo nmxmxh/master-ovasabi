@@ -1551,6 +1551,44 @@ Deprecated: Use MuteUserResponse.ProtoReflect.Descriptor instead.
 
 ##### String
 
+### RefreshSessionRequest
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RefreshSessionRequest.ProtoReflect.Descriptor instead.
+
+##### GetRefreshToken
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### RefreshSessionResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RefreshSessionResponse.ProtoReflect.Descriptor instead.
+
+##### GetAccessToken
+
+##### GetRefreshToken
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### RegisterInterestRequest
 
 #### Methods
@@ -2097,6 +2135,8 @@ methods are called.
 ##### MuteGroupIndividuals
 
 ##### MuteUser
+
+##### RefreshSession
 
 ##### RegisterInterest
 

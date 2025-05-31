@@ -285,3 +285,13 @@ Stats returns statistics for all Redis instances.
 ### StoredPattern
 
 StoredPattern represents a pattern stored in Redis.
+
+## Functions
+
+### EmitToDLQ
+
+EmitToDLQ emits a failed event to the dead-letter queue (DLQ) Redis stream.
+
+### GetOrSetWithProtection
+
+GetOrSetWithProtection provides cache stampede protection using a sync.Map and singleflight pattern.

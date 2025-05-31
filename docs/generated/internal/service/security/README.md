@@ -18,10 +18,6 @@
 
 ### Event
 
-### EventEmitter
-
-EventEmitter defines the interface for emitting events in the security service.
-
 ### EventHandlerFunc
 
 ### EventMetadata

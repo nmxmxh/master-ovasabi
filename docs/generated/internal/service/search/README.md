@@ -16,6 +16,8 @@ EventEmitter defines the interface for emitting events (canonical platform inter
 
 ### EventSubscription
 
+### Index
+
 ### Repository
 
 #### Methods

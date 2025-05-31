@@ -20,6 +20,8 @@ EventEmitter defines the interface for emitting events in the content moderation
 
 ContentModerationMetadata for robust, extensible moderation metadata.
 
+### Moderation
+
 ### ModerationResult
 
 ### PostgresRepository

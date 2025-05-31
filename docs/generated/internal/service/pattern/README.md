@@ -51,17 +51,23 @@ UpdateStateMachine updates the UI state machine section in service-specific meta
 
 ## Functions
 
-### CacheMetadata
+### DenormalizeMetadata
 
-Redis Integration --------------------------------------------------- Cache or retrieve metadata for
-an entity.
+DenormalizeMetadata hydrates metadata for API/gRPC/UI responses. Optionally expands references, adds
+computed fields, etc.
 
 ### EnrichKnowledgeGraph
 
-Knowledge Graph Enrichment ------------------------------------------- Enrich the knowledge graph
-with metadata.
+EnrichKnowledgeGraph connects to the KGService and publishes an update using DI.
 
-### GetCachedMetadata
+### MergeMetadataFields
+
+MergeMetadataFields merges fields from src into dst for partial updates.
+
+### NormalizeMetadata
+
+NormalizeMetadata ensures required fields, applies defaults, and strips hydration-only fields. If
+partialUpdate is true, only updates provided fields (for PATCH/partial update semantics).
 
 ### RecordOrchestrationEvent
 
@@ -70,13 +76,7 @@ metadata.service_specific[svc].trace.
 
 ### RegisterSchedule
 
-Scheduler Integration ------------------------------------------------ Extract scheduling info and
-register a job.
-
-### RegisterWithNexus
-
-Nexus Orchestration -------------------------------------------------- Register service pattern and
-metadata schema with Nexus.
+RegisterSchedule connects to the SchedulerService and registers a job using DI.
 
 ### UpdateOrchestrationState
 

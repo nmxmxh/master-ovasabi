@@ -32,7 +32,13 @@
 
 ### MediaMetadata
 
+### Model
+
+Model uses Go naming conventions for DB operations.
+
 ### PricingMetadata
+
+### Product
 
 ### Repository
 

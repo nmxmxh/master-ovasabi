@@ -157,6 +157,8 @@ GetByUsername retrieves a user by username.
 
 ##### GetSession
 
+##### GetUserGroupByID
+
 ##### InitiateMFA
 
 ##### InitiateSSO
@@ -389,6 +391,10 @@ MarkBiometricUsed emits an event instead of direct biometric usage.
 ##### MuteGroupIndividuals
 
 ##### MuteUser
+
+##### RefreshSession
+
+RefreshSession implements refresh token rotation with rate limiting and JWT logic.
 
 ##### RegisterInterest
 

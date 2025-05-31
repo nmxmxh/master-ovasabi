@@ -30,6 +30,8 @@ EventEmitter defines the interface for emitting events in the localization servi
 
 ### Locale
 
+### Localization
+
 ### PricingRule
 
 ### Repository

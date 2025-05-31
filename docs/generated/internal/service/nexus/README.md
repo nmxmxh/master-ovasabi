@@ -77,6 +77,10 @@ api/protos/nexus/v1/nexus_service.proto for full context.
 
 --- Product events ---.
 
+### EventNexusCircuitBreakerTripped
+
+--- Resilience & Orchestration events ---.
+
 ### EventNexusPatternRegistered
 
 --- Nexus events ---.

@@ -50,9 +50,9 @@ Analytics Controls UGC, templates, and moderation settings.
 CustomInfo allows extensibility for future or domain-specific needs. Used by: All services (future
 extensibility).
 
-### EventEmitter
+### DomainOrchestrator
 
-EventEmitter defines the interface for emitting events.
+DomainOrchestrator is a goroutine managing orchestration for a single campaign.
 
 ### EventHandlerFunc
 
@@ -91,6 +91,24 @@ Validate checks required fields and logical consistency for campaign metadata.
 
 OnboardingInfo describes onboarding flows and questions. Used by: User, Notification, Analytics,
 Localization Enables dynamic onboarding, interest types, and questionnaires.
+
+### OrchestratorEvent
+
+OrchestratorEvent represents an event for campaign orchestration.
+
+### OrchestratorManager
+
+OrchestratorManager manages orchestrator goroutines per campaign (domain).
+
+#### Methods
+
+##### Start
+
+Start launches the orchestrator nervous system.
+
+##### Stop
+
+Stop gracefully shuts down the orchestrator manager and all orchestrators.
 
 ### RankingColumn
 
@@ -188,6 +206,10 @@ SetWSClients sets the WebSocket client map for orchestrator integration.
 
 ##### UpdateCampaign
 
+### StateBuilderOption
+
+Option type for partial update logic.
+
 ### VersioningInfo
 
 VersioningInfo tracks version and environment for traceability. Used by: All services (audit,
@@ -195,17 +217,34 @@ migration, compliance).
 
 ## Functions
 
+### BuildCampaignUserState
+
+BuildCampaignUserState builds the minimal, gamified, partial-update-ready state for a campaign/user.
+If fields is nil or empty, includes all fields. If changed fields exceed threshold, sends full
+state. Used by both WebSocket and REST endpoints for state hydration and updates.
+
 ### FlattenMetadataToVars
 
 FlattenMetadataToVars extracts primitive fields from campaign metadata into the variables map.
+
+### GetSubscriptionInfo
+
+GetSubscriptionInfo extracts subscription info from campaign metadata.
+
+### GetUserRoleInCampaign
+
+GetUserRoleInCampaign returns the user's role ("admin", "user", or "") in the campaign based on
+metadata.
+
+### IsSystemCampaign
+
+IsSystemCampaign returns true if the campaign is system/ovasabi-created.
 
 ### Register
 
 Register registers the Campaign service with the DI container and event bus support.
 
 ### SafeInt32
-
-SafeInt32 converts an int64 to int32 with overflow checking.
 
 ### StartEventSubscribers
 
