@@ -3,21 +3,40 @@ package server
 import (
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
-	"go.uber.org/zap"
+	gozap "go.uber.org/zap"
 
 	"github.com/nmxmxh/master-ovasabi/internal/server/handlers"
+	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/metaversion"
 )
 
 // StartHTTPServer sets up and starts the HTTP server in a goroutine.
-func StartHTTPServer(log *zap.Logger, container *di.Container) {
+// evaluator and logger should be provided from main server setup.
+func StartHTTPServer(log *gozap.Logger, container *di.Container) {
 	mux := http.NewServeMux()
 	ws.RegisterWebSocketHandlers(mux, log, container, nil)
 
 	mux.HandleFunc("/api/media/upload", handlers.MediaOpsHandler(log, container))
+	mux.HandleFunc("/api/campaigns/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/state") && r.Method == http.MethodGet {
+			if strings.Contains(r.URL.Path, "/user/") {
+				handlers.CampaignUserStateHandler(log, container)(w, r)
+				return
+			}
+			handlers.CampaignStateHandler(log, container)(w, r)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/leaderboard") && r.Method == http.MethodGet {
+			handlers.CampaignLeaderboardHandler(log, container)(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
 	mux.HandleFunc("/api/campaign", handlers.CampaignHandler(log, container))
 	mux.HandleFunc("/api/notification", handlers.NotificationHandler(log, container))
 	mux.HandleFunc("/api/referral", handlers.ReferralOpsHandler(log, container))
@@ -38,15 +57,22 @@ func StartHTTPServer(log *zap.Logger, container *di.Container) {
 	if httpPort == "" {
 		httpPort = ":8090"
 	}
+
+	// --- INJECT METAVERSION MIDDLEWARE HERE ---
+	// In production, pass evaluator from main server setup.
+	// For now, use a default evaluator with no flags for demonstration.
+	evaluator := metaversion.NewOpenFeatureEvaluator([]string{"new_ui", "beta_api"})
+	wrappedMux := httputil.MetaversionMiddleware(evaluator, log)(mux)
+
 	server := &http.Server{
 		Addr:              httpPort,
-		Handler:           mux,
+		Handler:           wrappedMux,
 		ReadHeaderTimeout: 10 * time.Second, // Mitigate Slowloris
 	}
 	go func() {
-		log.Info("Starting HTTP server for REST/WebSocket", zap.String("address", httpPort))
+		log.Info("Starting HTTP server for REST/WebSocket", gozap.String("address", httpPort))
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("HTTP server failed", zap.Error(err))
+			log.Error("HTTP server failed", gozap.Error(err))
 		}
 	}()
 }

@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -26,8 +27,38 @@ func EmitEventWithLogging(
 	metadata *commonpb.Metadata,
 	extraFields ...zap.Field, // for additional context if needed
 ) (*commonpb.Metadata, bool) {
+	return EmitEventWithDLQ(ctx, emitter, log, nil, eventType, entityID, metadata, extraFields...)
+}
+
+// EmitEventWithDLQ emits an event, logs any emission failure, updates metadata, and emits to DLQ if a cache is provided.
+func EmitEventWithDLQ(
+	ctx context.Context,
+	emitter EventEmitter,
+	log *zap.Logger,
+	cache *redis.Cache,
+	eventType, entityID string,
+	metadata *commonpb.Metadata,
+	extraFields ...zap.Field,
+) (*commonpb.Metadata, bool) {
 	if metadata == nil {
 		metadata = &commonpb.Metadata{}
+	}
+	// Set idempotency_key in ServiceSpecific if not already set
+	ss := metadata.ServiceSpecific
+	var ssMap map[string]interface{}
+	if ss != nil {
+		ssMap = ss.AsMap()
+	} else {
+		ssMap = make(map[string]interface{})
+	}
+	if _, ok := ssMap["idempotency_key"]; !ok {
+		ssMap["idempotency_key"] = uuid.New().String()
+	}
+	ssStruct, err := structpb.NewStruct(ssMap)
+	if err != nil {
+		log.Warn("Failed to create structpb.Struct from ssMap", zap.Error(err))
+	} else {
+		metadata.ServiceSpecific = ssStruct
 	}
 
 	eventDetails := map[string]interface{}{
@@ -36,30 +67,33 @@ func EmitEventWithLogging(
 		"timestamp":  time.Now().UTC().Format(time.RFC3339),
 	}
 
-	err := emitter.EmitEvent(ctx, eventType, entityID, metadata)
-	if err != nil {
+	var emitErr error
+	operation := func() error {
+		return emitter.EmitEvent(ctx, eventType, entityID, metadata)
+	}
+	emitErr = backoff.RetryNotify(operation, backoff.NewExponentialBackOff(), func(err error, d time.Duration) {
+		log.Warn("Retrying event emission", zap.Error(err), zap.Duration("backoff", d))
+	})
+
+	if emitErr != nil {
 		log.Warn("Failed to emit event",
 			zap.String("event_type", eventType),
 			zap.String("entity_id", entityID),
 			zap.Any("metadata", metadata),
-			zap.Error(err),
+			zap.Error(emitErr),
 		)
 		if len(extraFields) > 0 {
 			log.Warn("Additional context for failed event emission", extraFields...)
 		}
 		eventDetails["status"] = "failed"
-		eventDetails["error"] = err.Error()
+		eventDetails["error"] = emitErr.Error()
+		if cache != nil {
+			if dlqErr := redis.EmitToDLQ(ctx, cache.GetClient(), log, eventType, metadata, emitErr); dlqErr != nil {
+				log.Warn("Failed to emit to DLQ", zap.Error(dlqErr))
+			}
+		}
 	} else {
 		eventDetails["status"] = "emitted"
-	}
-
-	// Update ServiceSpecific (structpb.Struct) with event emission details
-	ss := metadata.ServiceSpecific
-	var ssMap map[string]interface{}
-	if ss != nil {
-		ssMap = ss.AsMap()
-	} else {
-		ssMap = make(map[string]interface{})
 	}
 
 	// Append to event_emission array
@@ -85,7 +119,7 @@ func EmitEventWithLogging(
 		log.Warn("Failed to update ServiceSpecific structpb", zap.Error(err2))
 	}
 
-	return metadata, err == nil
+	return metadata, emitErr == nil
 }
 
 // EmitCircuitBreakerTripped emits a circuit breaker tripped event.
@@ -193,13 +227,11 @@ func EmitCallbackEvent(
 	emitter EventEmitter,
 	log *zap.Logger,
 	cache *redis.Cache,
-	entityType string,
 	callbackEventType string,
 	entityID string,
 	metadata *commonpb.Metadata,
 	extraFields ...zap.Field,
 ) (*commonpb.Metadata, bool) {
-	meta, ok := EmitEventWithLogging(ctx, emitter, log, callbackEventType, entityID, metadata, extraFields...)
-	pattern.EnrichAllMetadataHooks(ctx, log, cache, entityType, entityID, meta)
+	meta, ok := EmitEventWithDLQ(ctx, emitter, log, cache, callbackEventType, entityID, metadata, extraFields...)
 	return meta, ok
 }

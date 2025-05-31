@@ -8,6 +8,7 @@ option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/nexus";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
+import "common/v1/payload.proto";
 
 // NexusService: High-level composer, orchestrator, and pattern identifier
 service NexusService {
@@ -138,12 +139,14 @@ message EventRequest {
   string entity_id = 2;
   common.Metadata metadata = 3;
   int64 campaign_id = 4; // campaign/tenant context
+  common.Payload payload = 5; // Canonical business data (see common/v1/payload.proto)
 }
 
 message EventResponse {
   bool success = 1;
   string message = 2;
   common.Metadata metadata = 3;
+  common.Payload payload = 4; // Canonical business data (see common/v1/payload.proto)
 }
 
 message SubscribeRequest {

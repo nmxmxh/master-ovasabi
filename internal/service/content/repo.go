@@ -28,7 +28,7 @@ func NewRepository(db *sql.DB, masterRepo repo.MasterRepository) *Repository {
 
 // Content CRUD.
 func (r *Repository) CreateContent(ctx context.Context, c *contentpb.Content) (*contentpb.Content, error) {
-	meta, err := protojson.Marshal(c.Metadata)
+	meta, err := metadatautil.MarshalCanonical(c.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
@@ -56,7 +56,7 @@ func (r *Repository) GetContent(ctx context.Context, id string) (*contentpb.Cont
 }
 
 func (r *Repository) UpdateContent(ctx context.Context, c *contentpb.Content) (*contentpb.Content, error) {
-	meta, err := protojson.Marshal(c.Metadata)
+	meta, err := metadatautil.MarshalCanonical(c.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
@@ -327,7 +327,7 @@ func scanContentWithCounters(row interface {
 
 // AddComment adds a comment to content.
 func (r *Repository) AddComment(ctx context.Context, contentID, authorID, body string, metadata *commonpb.Metadata) (*contentpb.Comment, error) {
-	meta, err := protojson.Marshal(metadata)
+	meta, err := metadatautil.MarshalCanonical(metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}

@@ -71,6 +71,7 @@ import (
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 )
@@ -389,9 +390,15 @@ func RegisterWebSocketHandlers(mux *http.ServeMux, log *zap.Logger, container *d
 		return
 	}
 	redisClient := redisCache.GetClient()
-	redisPubSub := redisClient.Subscribe(context.Background(), "media:events:system")
+
+	// Subscribe to system, campaign, and user channels
+	redisPubSubSystem := redisClient.Subscribe(context.Background(), "media:events:system")
+	redisPubSubCampaign := redisClient.PSubscribe(context.Background(), "media:events:campaign:*")
+	redisPubSubUser := redisClient.PSubscribe(context.Background(), "media:events:user:*")
+
+	// System-wide events
 	go func() {
-		ch := redisPubSub.Channel()
+		ch := redisPubSubSystem.Channel()
 		for msg := range ch {
 			var mediaEvent struct {
 				Type string          `json:"type"`
@@ -415,11 +422,109 @@ func RegisterWebSocketHandlers(mux *http.ServeMux, log *zap.Logger, container *d
 		}
 	}()
 
+	// Campaign-specific events
+	go func() {
+		ch := redisPubSubCampaign.Channel()
+		for msg := range ch {
+			// msg.Channel is like 'media:events:campaign:{campaign_id}'
+			parts := strings.Split(msg.Channel, ":")
+			if len(parts) < 4 {
+				continue
+			}
+			campaignID := parts[3]
+			var mediaEvent struct {
+				Type string          `json:"type"`
+				Data json.RawMessage `json:"data"`
+			}
+			if err := json.Unmarshal([]byte(msg.Payload), &mediaEvent); err == nil {
+				bus.mu.RLock()
+				if ch, ok := bus.System[campaignID]; ok {
+					var m map[string]interface{}
+					if err := json.Unmarshal(mediaEvent.Data, &m); err == nil {
+						select {
+						case ch <- WebSocketEvent{Type: mediaEvent.Type, Payload: m}:
+							atomic.AddInt64(&totalBroadcastedEvents, 1)
+						default:
+						}
+					}
+				}
+				bus.mu.RUnlock()
+			}
+		}
+	}()
+
+	// User-specific events
+	go func() {
+		ch := redisPubSubUser.Channel()
+		for msg := range ch {
+			// msg.Channel is like 'media:events:user:{user_id}'
+			parts := strings.Split(msg.Channel, ":")
+			if len(parts) < 4 {
+				continue
+			}
+			userID := parts[3]
+			var mediaEvent struct {
+				Type string          `json:"type"`
+				Data json.RawMessage `json:"data"`
+			}
+			if err := json.Unmarshal([]byte(msg.Payload), &mediaEvent); err == nil {
+				// Route to the correct user client(s) in wsClientMap
+				wsClientMap.mu.RLock()
+				for _, userMap := range wsClientMap.clients {
+					if client, ok := userMap[userID]; ok {
+						var m map[string]interface{}
+						if err := json.Unmarshal(mediaEvent.Data, &m); err == nil {
+							select {
+							case client.send <- WebSocketEvent{Type: mediaEvent.Type, Payload: m}:
+								atomic.AddInt64(&totalBroadcastedEvents, 1)
+							default:
+							}
+						}
+					}
+				}
+				wsClientMap.mu.RUnlock()
+			}
+		}
+	}()
+
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(_ *http.Request) bool { return true },
 	}
 
 	mux.HandleFunc("/ws/", func(w http.ResponseWriter, r *http.Request) {
+		// Extract JWT from Sec-WebSocket-Protocol or Authorization header
+		var tokenStr string
+		if proto := r.Header.Get("Sec-WebSocket-Protocol"); proto != "" {
+			// Support comma-separated list, e.g., "jwt,<token>"
+			parts := strings.Split(proto, ",")
+			for _, part := range parts {
+				part = strings.TrimSpace(part)
+				if strings.HasPrefix(part, "jwt ") {
+					tokenStr = strings.TrimPrefix(part, "jwt ")
+					break
+				}
+				if len(part) > 20 && !strings.Contains(part, " ") {
+					// Heuristic: treat as token
+					tokenStr = part
+					break
+				}
+			}
+		}
+		if tokenStr == "" {
+			tokenStr = r.Header.Get("Authorization")
+			tokenStr = strings.TrimPrefix(tokenStr, "Bearer ")
+		}
+		var authCtx *auth.Context
+		if tokenStr != "" {
+			var err error
+			authCtx, err = auth.ParseAndExtractAuthContext(tokenStr, provider.JWTSecret)
+			if err != nil {
+				authCtx = &auth.Context{Roles: []string{"guest"}}
+			}
+		} else {
+			authCtx = &auth.Context{Roles: []string{"guest"}}
+		}
+		r = r.WithContext(auth.NewContext(r.Context(), authCtx))
 		// Expect path: /ws/{campaign_id}/{user_id}
 		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ws/"), "/")
 		if len(parts) < 2 {

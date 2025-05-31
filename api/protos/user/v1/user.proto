@@ -83,6 +83,8 @@ service UserService {
   rpc UnmuteGroup(UnmuteGroupRequest) returns (UnmuteGroupResponse);
   rpc UnmuteGroupIndividuals(UnmuteGroupIndividualsRequest) returns (UnmuteGroupIndividualsResponse);
   rpc UnblockGroupIndividuals(UnblockGroupIndividualsRequest) returns (UnblockGroupIndividualsResponse);
+
+  rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse);
 }
 
 // --- Core Entities ---
@@ -470,4 +472,13 @@ message CreateReferralRequest {
 message CreateReferralResponse {
   string referral_code = 1;
   bool success = 2;
+}
+
+message RefreshSessionRequest {
+  string refresh_token = 1;
+}
+
+message RefreshSessionResponse {
+  string refresh_token = 1;
+  string access_token = 2;
 } 

@@ -70,6 +70,7 @@ const (
 	UserService_UnmuteGroup_FullMethodName             = "/user.v1.UserService/UnmuteGroup"
 	UserService_UnmuteGroupIndividuals_FullMethodName  = "/user.v1.UserService/UnmuteGroupIndividuals"
 	UserService_UnblockGroupIndividuals_FullMethodName = "/user.v1.UserService/UnblockGroupIndividuals"
+	UserService_RefreshSession_FullMethodName          = "/user.v1.UserService/RefreshSession"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -141,6 +142,7 @@ type UserServiceClient interface {
 	UnmuteGroup(ctx context.Context, in *UnmuteGroupRequest, opts ...grpc.CallOption) (*UnmuteGroupResponse, error)
 	UnmuteGroupIndividuals(ctx context.Context, in *UnmuteGroupIndividualsRequest, opts ...grpc.CallOption) (*UnmuteGroupIndividualsResponse, error)
 	UnblockGroupIndividuals(ctx context.Context, in *UnblockGroupIndividualsRequest, opts ...grpc.CallOption) (*UnblockGroupIndividualsResponse, error)
+	RefreshSession(ctx context.Context, in *RefreshSessionRequest, opts ...grpc.CallOption) (*RefreshSessionResponse, error)
 }
 
 type userServiceClient struct {
@@ -661,6 +663,16 @@ func (c *userServiceClient) UnblockGroupIndividuals(ctx context.Context, in *Unb
 	return out, nil
 }
 
+func (c *userServiceClient) RefreshSession(ctx context.Context, in *RefreshSessionRequest, opts ...grpc.CallOption) (*RefreshSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefreshSessionResponse)
+	err := c.cc.Invoke(ctx, UserService_RefreshSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -730,6 +742,7 @@ type UserServiceServer interface {
 	UnmuteGroup(context.Context, *UnmuteGroupRequest) (*UnmuteGroupResponse, error)
 	UnmuteGroupIndividuals(context.Context, *UnmuteGroupIndividualsRequest) (*UnmuteGroupIndividualsResponse, error)
 	UnblockGroupIndividuals(context.Context, *UnblockGroupIndividualsRequest) (*UnblockGroupIndividualsResponse, error)
+	RefreshSession(context.Context, *RefreshSessionRequest) (*RefreshSessionResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -892,6 +905,9 @@ func (UnimplementedUserServiceServer) UnmuteGroupIndividuals(context.Context, *U
 }
 func (UnimplementedUserServiceServer) UnblockGroupIndividuals(context.Context, *UnblockGroupIndividualsRequest) (*UnblockGroupIndividualsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnblockGroupIndividuals not implemented")
+}
+func (UnimplementedUserServiceServer) RefreshSession(context.Context, *RefreshSessionRequest) (*RefreshSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RefreshSession not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -1832,6 +1848,24 @@ func _UserService_UnblockGroupIndividuals_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_RefreshSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RefreshSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RefreshSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RefreshSession(ctx, req.(*RefreshSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2042,6 +2076,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnblockGroupIndividuals",
 			Handler:    _UserService_UnblockGroupIndividuals_Handler,
+		},
+		{
+			MethodName: "RefreshSession",
+			Handler:    _UserService_RefreshSession_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

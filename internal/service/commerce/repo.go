@@ -342,7 +342,7 @@ func (r *repository) CreateQuote(ctx context.Context, q *Quote) error {
 
 	// Defensive: ensure metadata is always valid JSON
 	q.Metadata = &commonpb.Metadata{
-		ServiceSpecific: metadata.NewStructFromMap(nil),
+		ServiceSpecific: metadata.NewStructFromMap(nil, nil),
 		Tags:            []string{},
 		Features:        []string{},
 	}
@@ -453,7 +453,7 @@ func (r *repository) CreateOrder(ctx context.Context, o *Order, items []OrderIte
 
 	// Defensive: ensure metadata is always valid JSON
 	if o.Metadata == nil {
-		o.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		o.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 
 	// 2. Marshal metadata
@@ -653,7 +653,7 @@ func (r *repository) CreatePayment(ctx context.Context, p *Payment) error {
 
 	// Defensive: ensure metadata is always valid JSON
 	if p.Metadata == nil {
-		p.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		p.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 
 	// 2. Marshal metadata
@@ -761,7 +761,7 @@ func (r *repository) CreateTransaction(ctx context.Context, t *Transaction) erro
 
 	// Defensive: ensure metadata is always valid JSON
 	if t.Metadata == nil {
-		t.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		t.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 
 	// 2. Marshal metadata
@@ -915,7 +915,7 @@ func (r *repository) UpdateBalance(ctx context.Context, userID, currency string,
 func (r *repository) LogEvent(ctx context.Context, e *Event) error {
 	// Defensive: ensure metadata is always valid JSON
 	if e.Metadata == nil {
-		e.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		e.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 
 	metaJSON, err := json.Marshal(e.Payload)
@@ -973,7 +973,7 @@ func (r *repository) ListEvents(ctx context.Context, entityID, entityType string
 func (r *repository) CreateInvestmentAccount(ctx context.Context, a *InvestmentAccount) error {
 	// Defensive: ensure metadata is always valid JSON
 	if a.Metadata == nil {
-		a.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		a.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -1015,7 +1015,7 @@ func (r *repository) CreateInvestmentAccount(ctx context.Context, a *InvestmentA
 func (r *repository) CreateInvestmentOrder(ctx context.Context, o *InvestmentOrder) error {
 	// Defensive: ensure metadata is always valid JSON
 	if o.Metadata == nil {
-		o.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		o.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -1057,7 +1057,7 @@ func (r *repository) CreateInvestmentOrder(ctx context.Context, o *InvestmentOrd
 func (r *repository) CreatePortfolio(ctx context.Context, p *Portfolio) error {
 	// Defensive: ensure metadata is always valid JSON
 	if p.Metadata == nil {
-		p.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		p.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -1099,7 +1099,7 @@ func (r *repository) CreatePortfolio(ctx context.Context, p *Portfolio) error {
 func (r *repository) CreateAssetPosition(ctx context.Context, pos *AssetPosition) error {
 	// Defensive: ensure metadata is always valid JSON
 	if pos.Metadata == nil {
-		pos.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		pos.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 	metaJSON, err := json.Marshal(pos.Metadata)
 	if err != nil {
@@ -1113,7 +1113,7 @@ func (r *repository) CreateAssetPosition(ctx context.Context, pos *AssetPosition
 func (r *repository) CreateBankAccount(ctx context.Context, a *BankAccount) error {
 	// Defensive: ensure metadata is always valid JSON
 	if a.Metadata == nil {
-		a.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		a.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -1155,7 +1155,7 @@ func (r *repository) CreateBankAccount(ctx context.Context, a *BankAccount) erro
 func (r *repository) CreateBankTransfer(ctx context.Context, t *BankTransfer) error {
 	// Defensive: ensure metadata is always valid JSON
 	if t.Metadata == nil {
-		t.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		t.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -1197,7 +1197,7 @@ func (r *repository) CreateBankTransfer(ctx context.Context, t *BankTransfer) er
 func (r *repository) CreateBankStatement(ctx context.Context, s *BankStatement) error {
 	// Defensive: ensure metadata is always valid JSON
 	if s.Metadata == nil {
-		s.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		s.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -1240,7 +1240,7 @@ func (r *repository) CreateBankStatement(ctx context.Context, s *BankStatement) 
 func (r *repository) CreateMarketplaceListing(ctx context.Context, l *MarketplaceListing) error {
 	// Defensive: ensure metadata is always valid JSON
 	if l.Metadata == nil {
-		l.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil)}
+		l.Metadata = &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(nil, nil)}
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {

@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -48,14 +50,56 @@ func MediaOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		switch action {
-		case "start_upload":
-			userID, ok := req["user_id"].(string)
-			if !ok || userID == "" {
-				log.Error("Missing or invalid user_id in start_upload", zap.Any("value", req["user_id"]))
+		authCtx := auth.FromContext(r.Context())
+		userID, ok := req["user_id"].(string)
+		if !ok {
+			log.Error("Missing or invalid user_id in media request", zap.Any("value", req["user_id"]))
+			http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
+			return
+		}
+		roles := authCtx.Roles
+		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
+		isAdmin := false
+		for _, r := range roles {
+			if r == "admin" {
+				isAdmin = true
+			}
+		}
+		// --- Permission checks and audit metadata for upload actions ---
+		uploadActions := map[string]bool{"start_upload": true, "upload_chunk": true, "complete_upload": true}
+		if uploadActions[action] {
+			requestUserID, ok := req["user_id"].(string)
+			if !ok {
+				log.Error("Missing or invalid user_id in media request", zap.Any("value", req["user_id"]))
 				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
 				return
 			}
+			if isGuest || (requestUserID != "" && requestUserID != userID && !isAdmin) {
+				http.Error(w, "forbidden: must be authenticated and own the upload (or admin)", http.StatusForbidden)
+				return
+			}
+			// --- Audit/metadata propagation ---
+			if m, ok := req["metadata"]; ok && m != nil {
+				if metaMap, ok := m.(map[string]interface{}); ok {
+					metaMap["audit"] = map[string]interface{}{
+						"performed_by": userID,
+						"roles":        roles,
+						"timestamp":    time.Now().UTC().Format(time.RFC3339),
+					}
+					req["metadata"] = metaMap
+				}
+			} else {
+				req["metadata"] = map[string]interface{}{
+					"audit": map[string]interface{}{
+						"performed_by": userID,
+						"roles":        roles,
+						"timestamp":    time.Now().UTC().Format(time.RFC3339),
+					},
+				}
+			}
+		}
+		switch action {
+		case "start_upload":
 			name, ok := req["name"].(string)
 			if !ok || name == "" {
 				log.Error("Missing or invalid name in start_upload", zap.Any("value", req["name"]))
@@ -180,12 +224,6 @@ func MediaOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			if !ok || uploadID == "" {
 				log.Error("Missing or invalid upload_id in complete_upload", zap.Any("value", req["upload_id"]))
 				http.Error(w, "missing or invalid upload_id", http.StatusBadRequest)
-				return
-			}
-			userID, ok := req["user_id"].(string)
-			if !ok || userID == "" {
-				log.Error("Missing or invalid user_id in complete_upload", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
 				return
 			}
 			protoReq := &mediapb.CompleteMediaUploadRequest{

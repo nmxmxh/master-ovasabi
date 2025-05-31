@@ -30,7 +30,6 @@ import (
 	"context"
 	"database/sql"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
@@ -38,19 +37,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// EventEmitter defines the interface for emitting events in the security service.
-type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
-}
-
 // Register registers the security service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repositorypkg.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+func Register(ctx context.Context, container *di.Container, db *sql.DB, masterRepo repositorypkg.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
 	repository := NewRepository(db, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "security")
 	if err != nil {
 		log.Warn("failed to get security cache", zap.Error(err))
 	}
-	service := NewService(ctx, log, cache, repository, eventEmitter, eventEnabled)
+	service := NewService(ctx, log, cache, repository, eventEnabled)
 	if err := container.Register((*securitypb.SecurityServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return service, nil
 	}); err != nil {

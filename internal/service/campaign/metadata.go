@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -281,7 +282,7 @@ func (m *Metadata) ToStruct() (*structpb.Struct, error) {
 	if m.Custom != nil {
 		fields["custom"] = m.Custom
 	}
-	return metadata.NewStructFromMap(fields), nil
+	return metadata.NewStructFromMap(fields, nil), nil
 }
 
 // FromStruct parses a structpb.Struct into Metadata.
@@ -585,4 +586,70 @@ func toComplianceInfo(v *structpb.Value) *ComplianceInfo {
 		return ci
 	}
 	return nil
+}
+
+// GetUserRoleInCampaign returns the user's role ("admin", "user", or "") in the campaign based on metadata.
+func GetUserRoleInCampaign(meta *commonpb.Metadata, userID, ownerID string) string {
+	if ownerID != "" && userID == ownerID {
+		return "admin"
+	}
+	if meta != nil && meta.ServiceSpecific != nil {
+		ss := meta.ServiceSpecific.AsMap()
+		if cmeta, ok := ss["campaign"].(map[string]interface{}); ok {
+			if members, ok := cmeta["members"].([]interface{}); ok {
+				for _, m := range members {
+					if mm, ok := m.(map[string]interface{}); ok {
+						if mm["user_id"] == userID {
+							if role, ok := mm["role"].(string); ok {
+								return role
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// IsSystemCampaign returns true if the campaign is system/ovasabi-created.
+func IsSystemCampaign(meta *commonpb.Metadata) bool {
+	if meta != nil && meta.ServiceSpecific != nil {
+		ss := meta.ServiceSpecific.AsMap()
+		if cmeta, ok := ss["campaign"].(map[string]interface{}); ok {
+			if v, ok := cmeta["system_created"].(bool); ok && v {
+				return true
+			}
+			if v, ok := cmeta["ovasabi_created"].(bool); ok && v {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// GetSubscriptionInfo extracts subscription info from campaign metadata.
+func GetSubscriptionInfo(meta *commonpb.Metadata) (typ string, price float64, currency, info string) {
+	if meta != nil && meta.ServiceSpecific != nil {
+		ss := meta.ServiceSpecific.AsMap()
+		if cmeta, ok := ss["campaign"].(map[string]interface{}); ok {
+			if commerce, ok := cmeta["commerce"].(map[string]interface{}); ok {
+				if sub, ok := commerce["subscription"].(map[string]interface{}); ok {
+					if t, ok := sub["type"].(string); ok {
+						typ = t
+					}
+					if p, ok := sub["price"].(float64); ok {
+						price = p
+					}
+					if c, ok := sub["currency"].(string); ok {
+						currency = c
+					}
+					if i, ok := sub["info"].(string); ok {
+						info = i
+					}
+				}
+			}
+		}
+	}
+	return typ, price, currency, info
 }

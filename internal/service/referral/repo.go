@@ -64,7 +64,12 @@ func (r *Repository) Create(referral *Referral) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id`
 
-	metadataJSON, err := protojson.Marshal(referral.Metadata)
+	marshaler := protojson.MarshalOptions{
+		UseProtoNames:   true,
+		EmitUnpopulated: false,
+		AllowPartial:    true,
+	}
+	metadataJSON, err := marshaler.Marshal(referral.Metadata)
 	if err != nil {
 		return err
 	}

@@ -50,7 +50,7 @@ func BuildAnalyticsMetadata(
 		analyticsMap["versioning"] = map[string]interface{}{"system_version": "1.0.0"}
 	}
 	ss := map[string]interface{}{"analytics": analyticsMap}
-	ssStruct := metadata.NewStructFromMap(ss)
+	ssStruct := metadata.NewStructFromMap(ss, nil)
 	return &commonpb.Metadata{
 		ServiceSpecific: ssStruct,
 	}, nil

@@ -2,14 +2,18 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
+	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
+	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 )
@@ -32,6 +36,18 @@ func SearchOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc
 		var searchSvc searchpb.SearchServiceServer
 		if err := container.Resolve(&searchSvc); err != nil {
 			log.Error("Failed to resolve SearchService", zap.Error(err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		// Extract user context
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		roles := authCtx.Roles
+		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
+		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		var securitySvc securitypb.SecurityServiceClient
+		if err := container.Resolve(&securitySvc); err != nil {
+			log.Error("Failed to resolve SecurityService", zap.Error(err))
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -122,6 +138,159 @@ func SearchOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc
 		default:
 			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
 			return
+		}
+		// --- Permission enforcement by type ---
+		// Determine required permission based on types and metadata
+		needAuth := false
+		needAdmin := false
+		needAnalytics := false
+		for _, t := range req.Types {
+			switch t {
+			case "campaign":
+				// If campaign is private, require campaign member/admin; else allow guest
+				if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+					if camp, ok := req.Metadata.ServiceSpecific.Fields["campaign"]; ok && camp.GetStructValue() != nil {
+						if v, ok := camp.GetStructValue().Fields["visibility"]; ok && v.GetStringValue() == "private" {
+							needAuth = true
+						}
+					}
+				}
+			case "user":
+				// If user data is private, require user or admin
+				if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+					if userMeta, ok := req.Metadata.ServiceSpecific.Fields["user"]; ok && userMeta.GetStructValue() != nil {
+						if v, ok := userMeta.GetStructValue().Fields["visibility"]; ok && v.GetStringValue() == "private" {
+							needAuth = true
+						}
+					}
+				}
+			case "system":
+				needAdmin = true
+			case "analytics":
+				needAnalytics = true
+			default:
+				// Service-specific: check for required role in metadata
+				if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+					if svc, ok := req.Metadata.ServiceSpecific.Fields[t]; ok && svc.GetStructValue() != nil {
+						if v, ok := svc.GetStructValue().Fields["required_role"]; ok && v.GetStringValue() != "" {
+							role := v.GetStringValue()
+							found := false
+							for _, r := range roles {
+								if r == role {
+									found = true
+									break
+								}
+							}
+							if !found {
+								http.Error(w, "forbidden: required role for service-specific search", http.StatusForbidden)
+								return
+							}
+						}
+					}
+				}
+			}
+		}
+		if needAdmin && !isAdmin(roles) {
+			http.Error(w, "admin role required for system search", http.StatusForbidden)
+			return
+		}
+		if needAnalytics {
+			found := false
+			for _, r := range roles {
+				if r == "analytics" || r == "admin" {
+					found = true
+					break
+				}
+			}
+			if !found {
+				http.Error(w, "analytics or admin role required for analytics search", http.StatusForbidden)
+				return
+			}
+		}
+		if needAuth && isGuest {
+			http.Error(w, "authentication required for private search", http.StatusUnauthorized)
+			return
+		}
+		// For sensitive queries, check permission via shield
+		if needAuth || needAdmin || needAnalytics {
+			err := shield.CheckPermission(ctx, securitySvc, "search", "search", shield.WithMetadata(meta))
+			if err != nil {
+				switch {
+				case errors.Is(err, shield.ErrUnauthenticated):
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				case errors.Is(err, shield.ErrPermissionDenied):
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
+				default:
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+		// --- Gamified Talent Permission Enforcement ---
+		for _, t := range req.Types {
+			if t != "talent" {
+				continue
+			}
+			// Extract gamified fields from metadata
+			var talentMeta map[string]interface{}
+			if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+				if talentField, ok := req.Metadata.ServiceSpecific.Fields["talent"]; ok && talentField.GetStructValue() != nil {
+					talentMeta = talentField.GetStructValue().AsMap()
+				}
+			}
+			// Example: enforce party/guild/campaign/level/badge logic
+			if party, ok := talentMeta["party"].(map[string]interface{}); ok {
+				if role, ok := party["role"].(string); ok && role != "leader" && role != "officer" {
+					http.Error(w, "forbidden: insufficient party role", http.StatusForbidden)
+					return
+				}
+			}
+			if guild, ok := talentMeta["guild"].(map[string]interface{}); ok {
+				if rank, ok := guild["rank"].(string); ok && rank != "officer" && rank != "leader" {
+					http.Error(w, "forbidden: insufficient guild rank", http.StatusForbidden)
+					return
+				}
+			}
+			if lvl, ok := talentMeta["level"].(float64); ok {
+				if lvl < 5 { // Example: require level 5+
+					http.Error(w, "forbidden: level too low for this action", http.StatusForbidden)
+					return
+				}
+			}
+			if badges, ok := talentMeta["badges"].([]interface{}); ok {
+				requiredBadge := "Campaign Champion"
+				hasBadge := false
+				for _, b := range badges {
+					if badge, ok := b.(map[string]interface{}); ok {
+						if badge["name"] == requiredBadge {
+							hasBadge = true
+							break
+						}
+					}
+				}
+				if !hasBadge {
+					http.Error(w, "forbidden: missing required badge", http.StatusForbidden)
+					return
+				}
+			}
+			// For sensitive talent actions, check permission via shield
+			err := shield.CheckPermission(ctx, securitySvc, "search_talent", "talent", shield.WithMetadata(meta))
+			if err != nil {
+				switch {
+				case errors.Is(err, shield.ErrUnauthenticated):
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				case errors.Is(err, shield.ErrPermissionDenied):
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
+				default:
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+					return
+				}
+			}
+			// Add comments for extensibility: new roles, badges, progression rules can be added here
 		}
 		resp, err := searchSvc.Search(ctx, req)
 		if err != nil {

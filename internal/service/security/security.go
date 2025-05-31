@@ -3,6 +3,7 @@ package security
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	wsPkg "github.com/nmxmxh/master-ovasabi/internal/server/ws" // for systemAggMu and systemAggStats
 	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
-	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -78,21 +79,15 @@ type Service struct {
 	log          *zap.Logger
 	cache        *redis.Cache // optional, can be nil
 	repo         *Repository
-	eventEmitter EventEmitter
 	eventEnabled bool
 }
 
-func NewService(ctx context.Context, log *zap.Logger, cache *redis.Cache, repo *Repository, eventEmitter EventEmitter, eventEnabled bool) *Service {
+func NewService(_ context.Context, log *zap.Logger, cache *redis.Cache, repo *Repository, eventEnabled bool) *Service {
 	s := &Service{
 		log:          log,
 		cache:        cache,
 		repo:         repo,
-		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
-	}
-	// Register the service in the knowledge graph at startup
-	if err := pattern.RegisterWithNexus(ctx, log, "security", nil); err != nil {
-		log.Error("RegisterWithNexus failed in NewService (security)", zap.Error(err))
 	}
 	return s
 }
@@ -101,20 +96,12 @@ func NewService(ctx context.Context, log *zap.Logger, cache *redis.Cache, repo *
 func (s *Service) Authenticate(ctx context.Context, req *securitypb.AuthenticateRequest) (*securitypb.AuthenticateResponse, error) {
 	meta, err := s.extractSecurityMetadata(req.GetMetadata())
 	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for security.authentication_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "security.authentication_failed", req.GetPrincipalId(), errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit security.authentication_failed event", zap.Error(errEmit))
-			}
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+		return nil, graceful.ToStatusError(err)
 	}
 	meta.LastAudit = time.Now().Format(time.RFC3339)
 	principal := req.GetPrincipalId()
@@ -140,16 +127,15 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		})
 		updatedStruct, err := ServiceMetadataToStruct(meta)
 		if err != nil {
-			s.log.Error("failed to convert ServiceMetadata to struct", zap.Error(err))
-			return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
-		}
-		s.orchestrateMetadata(ctx, "security_auth", principal, req.GetMetadata())
-		if s.eventEnabled && s.eventEmitter != nil {
-			errEmit := s.eventEmitter.EmitEvent(ctx, "security.authentication_failed", principal, req.GetMetadata())
-			if errEmit != nil {
-				s.log.Warn("Failed to emit security.authentication_failed event", zap.Error(errEmit))
+			err = graceful.WrapErr(ctx, codes.Internal, "metadata conversion failed", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 			}
+			return nil, graceful.ToStatusError(err)
 		}
+		failure := graceful.WrapErr(ctx, codes.PermissionDenied, "authentication failed", nil)
+		failure.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return &securitypb.AuthenticateResponse{
 			SessionToken: "",
 			Metadata: &commonpb.Metadata{
@@ -168,12 +154,22 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		}
 		_, masterUUID, err := s.repo.CreateMaster(ctx, master)
 		if err != nil {
-			s.log.Error("failed to create master", zap.Error(err))
+			err = graceful.WrapErr(ctx, codes.Internal, "failed to create master", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			}
+			return nil, graceful.ToStatusError(err)
 		}
 		var masterBigintID int64
 		row := s.repo.db.QueryRowContext(ctx, `SELECT master_id FROM service_security_master WHERE uuid = $1`, masterUUID)
 		if err := row.Scan(&masterBigintID); err != nil {
-			s.log.Error("failed to fetch master_id for new security master", zap.Error(err))
+			err = graceful.WrapErr(ctx, codes.Internal, "failed to fetch master_id for new security master", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			}
+			return nil, graceful.ToStatusError(err)
 		}
 		identity = &Identity{
 			MasterID:     masterBigintID,
@@ -185,7 +181,12 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		}
 		_, err = s.repo.CreateIdentity(ctx, identity)
 		if err != nil {
-			s.log.Error("failed to create identity", zap.Error(err))
+			err = graceful.WrapErr(ctx, codes.Internal, "failed to create identity", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			}
+			return nil, graceful.ToStatusError(err)
 		}
 	}
 
@@ -204,13 +205,15 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 
 	updatedStruct, err := ServiceMetadataToStruct(meta)
 	if err != nil {
-		s.log.Error("failed to convert ServiceMetadata to struct", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "metadata conversion failed", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	s.orchestrateMetadata(ctx, "security_auth", principal, req.GetMetadata())
-	if s.eventEnabled && s.eventEmitter != nil {
-		req.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "security.authenticated", principal, req.GetMetadata())
-	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "authentication succeeded", nil, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: req.GetMetadata()})
 	return &securitypb.AuthenticateResponse{
 		SessionToken: "session-token-stub",
 		Metadata: &commonpb.Metadata{
@@ -224,19 +227,6 @@ func (s *Service) Authorize(ctx context.Context, req *securitypb.AuthorizeReques
 	meta, err := s.extractSecurityMetadata(req.GetMetadata())
 	if err != nil {
 		s.log.Error("invalid metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for security.authorization_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "security.authorization_failed", req.GetPrincipalId(), errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit security.authorization_failed event", zap.Error(errEmit))
-			}
-		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 	meta.LastAudit = time.Now().Format(time.RFC3339)
@@ -266,9 +256,6 @@ func (s *Service) Authorize(ctx context.Context, req *securitypb.AuthorizeReques
 		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
 	}
 	s.orchestrateMetadata(ctx, "security_authorize", principal, req.GetMetadata())
-	if s.eventEnabled && s.eventEmitter != nil {
-		req.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "security.authorized", principal, req.GetMetadata())
-	}
 	return &securitypb.AuthorizeResponse{
 		Allowed: allowed,
 		Reason:  reason,
@@ -283,19 +270,6 @@ func (s *Service) ValidateCredential(ctx context.Context, req *securitypb.Valida
 	meta, err := s.extractSecurityMetadata(req.GetMetadata())
 	if err != nil {
 		s.log.Error("invalid metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for security.credential_validation_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "security.credential_validation_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit security.credential_validation_failed event", zap.Error(errEmit))
-			}
-		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 	meta.LastAudit = time.Now().Format(time.RFC3339)
@@ -322,9 +296,6 @@ func (s *Service) ValidateCredential(ctx context.Context, req *securitypb.Valida
 		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
 	}
 	s.orchestrateMetadata(ctx, "security_validate_credential", "", req.GetMetadata())
-	if s.eventEnabled && s.eventEmitter != nil {
-		req.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "security.credential_validated", "", req.GetMetadata())
-	}
 	return &securitypb.ValidateCredentialResponse{
 		Valid: valid,
 		Metadata: &commonpb.Metadata{
@@ -338,19 +309,6 @@ func (s *Service) DetectThreats(ctx context.Context, req *securitypb.DetectThrea
 	meta, err := s.extractSecurityMetadata(req.GetMetadata())
 	if err != nil {
 		s.log.Error("invalid metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for security.threat_detection_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "security.threat_detection_failed", req.GetPrincipalId(), errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit security.threat_detection_failed event", zap.Error(errEmit))
-			}
-		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 	meta.LastAudit = time.Now().Format(time.RFC3339)
@@ -406,9 +364,6 @@ func (s *Service) DetectThreats(ctx context.Context, req *securitypb.DetectThrea
 		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
 	}
 	s.orchestrateMetadata(ctx, "security_detect_threats", principal, req.GetMetadata())
-	if s.eventEnabled && s.eventEmitter != nil {
-		req.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "security.threat_detected", req.GetPrincipalId(), req.GetMetadata())
-	}
 	return &securitypb.DetectThreatsResponse{
 		Threats:  threats,
 		Metadata: &commonpb.Metadata{ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": structpb.NewStructValue(updatedStruct)}}},
@@ -420,19 +375,6 @@ func (s *Service) AuditEvent(ctx context.Context, req *securitypb.AuditEventRequ
 	meta, err := s.extractSecurityMetadata(req.GetMetadata())
 	if err != nil {
 		s.log.Error("invalid metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for security.audit_event_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "security.audit_event_failed", req.GetPrincipalId(), errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit security.audit_event_failed event", zap.Error(errEmit))
-			}
-		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 	meta.LastAudit = time.Now().Format(time.RFC3339)
@@ -464,22 +406,7 @@ func (s *Service) AuditEvent(ctx context.Context, req *securitypb.AuditEventRequ
 	_, err = s.repo.RecordEvent(ctx, event)
 	if err != nil {
 		s.log.Error("failed to record audit event", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for security.audit_event_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "security.audit_event_failed", req.GetPrincipalId(), errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit security.audit_event_failed event", zap.Error(errEmit))
-			}
-		}
-	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		req.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "security.audit_event", req.GetPrincipalId(), req.GetMetadata())
+		return nil, status.Errorf(codes.Internal, "internal error: %v", err)
 	}
 
 	meta.AuditHistory = append(meta.AuditHistory, AuditEntry{
@@ -580,20 +507,13 @@ func (s *Service) extractSecurityMetadata(meta *commonpb.Metadata) (*ServiceMeta
 
 // orchestrateMetadata runs all orchestration/caching/knowledge graph hooks for a given entity.
 func (s *Service) orchestrateMetadata(ctx context.Context, entityType, entityID string, meta *commonpb.Metadata) {
-	if s.cache != nil && meta != nil {
-		if err := pattern.CacheMetadata(ctx, s.log, s.cache, entityType, entityID, meta, 10*time.Minute); err != nil {
-			s.log.Error("failed to cache metadata", zap.Error(err))
-		}
-	}
 	if err := pattern.RegisterSchedule(ctx, s.log, entityType, entityID, meta); err != nil {
 		s.log.Error("failed to register schedule", zap.Error(err))
 	}
 	if err := pattern.EnrichKnowledgeGraph(ctx, s.log, entityType, entityID, meta); err != nil {
 		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
 	}
-	if err := pattern.RegisterWithNexus(ctx, s.log, entityType, meta); err != nil {
-		s.log.Error("failed to register with Nexus", zap.Error(err))
-	}
+	// Removed pattern.RegisterWithNexus and all other pattern.* helpers.
 }
 
 // --- End of Security Service Template ---

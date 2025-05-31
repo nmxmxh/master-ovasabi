@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -60,9 +62,22 @@ func ProductOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		roles := authCtx.Roles
+		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
 		ctx := r.Context()
 		switch action {
 		case "create_product":
+			if isGuest {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			// Only allow owner or admin to create
+			if !isAdmin(roles) && req["owner_id"] != userID {
+				http.Error(w, "forbidden: only owner or admin can create", http.StatusForbidden)
+				return
+			}
 			product := &productpb.Product{}
 			if v, ok := req["name"].(string); ok {
 				product.Name = v
@@ -91,6 +106,14 @@ func ProductOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 			}
 			product.OwnerId = ownerID
 			if m, ok := req["metadata"].(map[string]interface{}); ok {
+				if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+					if prod, ok := ss["product"].(map[string]interface{}); ok {
+						prod["audit"] = map[string]interface{}{"created_by": userID, "created_at": time.Now().Format(time.RFC3339)}
+						ss["product"] = prod
+						m["service_specific"] = ss
+						req["metadata"] = m
+					}
+				}
 				metaStruct, err := structpb.NewStruct(m)
 				if err != nil {
 					log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
@@ -131,6 +154,16 @@ func ProductOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				return
 			}
 		case "update_product":
+			if isGuest {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			// Only allow owner or admin to update
+			ownerID, ok := req["owner_id"].(string)
+			if !ok || (!isAdmin(roles) && ownerID != userID) {
+				http.Error(w, "forbidden: only owner or admin can update", http.StatusForbidden)
+				return
+			}
 			productID, ok := req["product_id"].(string)
 			if !ok {
 				log.Error("Missing or invalid product_id in update_product", zap.Any("value", req["product_id"]))
@@ -157,21 +190,16 @@ func ProductOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 					}
 				}
 			}
-			ownerID, ok := req["owner_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid owner_id in update_product", zap.Any("value", req["owner_id"]))
-				http.Error(w, "missing or invalid owner_id", http.StatusBadRequest)
-				return
-			}
-			product.OwnerId = ownerID
+			// Enrich metadata with audit info
 			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-					http.Error(w, "invalid metadata", http.StatusBadRequest)
-					return
+				if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+					if prod, ok := ss["product"].(map[string]interface{}); ok {
+						prod["audit"] = map[string]interface{}{"last_modified_by": userID, "last_modified_at": time.Now().Format(time.RFC3339)}
+						ss["product"] = prod
+						m["service_specific"] = ss
+						req["metadata"] = m
+					}
 				}
-				product.Metadata = &commonpb.Metadata{ServiceSpecific: metaStruct}
 			}
 			protoReq := &productpb.UpdateProductRequest{Product: product}
 			resp, err := productSvc.UpdateProduct(ctx, protoReq)
@@ -186,6 +214,16 @@ func ProductOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				return
 			}
 		case "delete_product":
+			if isGuest {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			// Only allow owner or admin to delete
+			ownerID, ok := req["owner_id"].(string)
+			if !ok || (!isAdmin(roles) && ownerID != userID) {
+				http.Error(w, "forbidden: only owner or admin can delete", http.StatusForbidden)
+				return
+			}
 			productID, ok := req["product_id"].(string)
 			if !ok {
 				log.Error("Missing or invalid product_id in delete_product", zap.Any("value", req["product_id"]))

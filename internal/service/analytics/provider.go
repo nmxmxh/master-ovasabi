@@ -14,7 +14,7 @@ import (
 
 // EventEmitter defines the interface for emitting events.
 type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
+	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
 }
 
 // Register registers the analytics service with the DI container and event bus support.

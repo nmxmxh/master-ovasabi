@@ -41,7 +41,7 @@ import (
 
 // EventEmitter defines the interface for emitting events (canonical platform interface).
 type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
+	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
 }
 
 // Register registers the media service with the DI container and event bus support.
@@ -51,7 +51,6 @@ func Register(ctx context.Context, container *di.Container, eventEmitter EventEm
 	if err != nil {
 		log.With(zap.String("service", "media")).Warn("Failed to get media cache", zap.Error(err), zap.String("cache", "media"), zap.String("context", ctxValue(ctx)))
 	}
-	//nolint:contextcheck // NewService does not accept context.Context
 	service := NewService(log, repo, cache, eventEmitter, eventEnabled)
 	if err := container.Register((*mediapb.MediaServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return service, nil

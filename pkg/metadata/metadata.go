@@ -66,7 +66,7 @@ func ServiceMetadataFromStruct(s *structpb.Struct) (*ServiceMetadata, error) {
 // ServiceMetadataToStruct converts a *ServiceMetadata to structpb.Struct.
 func ServiceMetadataToStruct(meta *ServiceMetadata) (*structpb.Struct, error) {
 	if meta == nil {
-		return NewStructFromMap(nil), nil
+		return NewStructFromMap(nil, nil), nil
 	}
 	b, err := json.Marshal(meta)
 	if err != nil {
@@ -76,5 +76,5 @@ func ServiceMetadataToStruct(meta *ServiceMetadata) (*structpb.Struct, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
 	}
-	return NewStructFromMap(m), nil
+	return NewStructFromMap(m, nil), nil
 }

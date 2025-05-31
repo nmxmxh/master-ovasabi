@@ -1,139 +1,173 @@
 // Metadata Standard Reference
 // --------------------------
-// All service-specific metadata must include the `versioning` field as described in:
-//   - docs/services/versioning.md
-//   - docs/amadeus/amadeus_context.md
-// For all available metadata actions, patterns, and service-specific extensions, see:
-//   - docs/services/metadata.md (general metadata documentation)
-//   - docs/services/versioning.md (versioning/environment standard)
+// This file now contains only pure metadata helpers (merge, migrate, validate, etc.).
+// All orchestration logic (caching, knowledge graph, scheduler, event, nexus) must be handled via hooks in the graceful orchestration config.
 //
-// This file implements shared helpers and patterns for metadata handling. See above for required fields and integration points.
-//
-// Metadata Integration Pattern (Redis, Scheduler, Knowledge Graph, Nexus)
-// -------------------------------------------------------------------
-//
-// This file provides reusable helpers and documentation for integrating
-// Redis caching, Scheduler orchestration, Knowledge Graph enrichment,
-// and Nexus orchestration with the canonical *commonpb.Metadata pattern.
-//
-// Usage:
-// - Import and use these helpers in your service layer.
-// - Register integration points in your service's Provider/DI setup.
-// - Document any service-specific metadata fields in your proto and onboarding docs.
-//
-// Example: See the Content service for a reference implementation.
+// For orchestration, see pkg/graceful/success.go.
 
 package pattern
 
 import (
-	"context"
 	"fmt"
-	"time"
+	"strings"
 
-	kg "github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/redis"
-	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// Redis Integration ---------------------------------------------------
-// Cache or retrieve metadata for an entity.
-func CacheMetadata(ctx context.Context, logger *zap.Logger, cache *redis.Cache, entityType, id string, meta *commonpb.Metadata, ttl time.Duration) error {
+// --- Pure metadata helpers go here ---
+// (Implement or import merge, migrate, validate, etc. as needed)
+
+// NormalizeMetadata ensures required fields, applies defaults, and strips hydration-only fields.
+// If partialUpdate is true, only updates provided fields (for PATCH/partial update semantics).
+func NormalizeMetadata(meta *commonpb.Metadata, service string, partialUpdate bool) (*commonpb.Metadata, error) {
 	if meta == nil {
-		return nil
+		return &commonpb.Metadata{}, nil
 	}
-	key := fmt.Sprintf("service:%s:%s:metadata", entityType, id)
-	err := cache.Set(ctx, key, "", meta, ttl)
-	if err != nil {
-		logger.Warn("CacheMetadata failed", zap.Error(err), zap.String("entityType", entityType), zap.String("id", id))
-		return fmt.Errorf("CacheMetadata failed: %w", err)
+	ss := meta.ServiceSpecific
+	if ss == nil {
+		return meta, nil
 	}
-	return nil
-}
+	fields := ss.AsMap()
+	serviceFields, ok := fields[service]
+	if !ok {
+		return meta, nil
+	}
+	serviceMap, ok := serviceFields.(map[string]interface{})
+	if !ok {
+		return meta, nil
+	}
 
-func GetCachedMetadata(ctx context.Context, logger *zap.Logger, cache *redis.Cache, entityType, id string) (*commonpb.Metadata, error) {
-	key := fmt.Sprintf("service:%s:%s:metadata", entityType, id)
-	var meta commonpb.Metadata
-	err := cache.Get(ctx, key, "", &meta)
-	if err != nil {
-		logger.Warn("GetCachedMetadata failed", zap.Error(err), zap.String("entityType", entityType), zap.String("id", id))
-		return nil, fmt.Errorf("GetCachedMetadata failed: %w", err)
-	}
-	return &meta, nil
-}
-
-// Scheduler Integration ------------------------------------------------
-// Extract scheduling info and register a job.
-func RegisterSchedule(_ context.Context, _ *zap.Logger, _, _ string, meta *commonpb.Metadata) error {
-	if meta == nil || meta.Scheduling == nil {
-		return nil
-	}
-	// Example: extract start_time, end_time, cron, etc. from meta.Scheduling.Fields
-	// and register with your Scheduler service.
-	// This is a stub; implement actual scheduler registration as needed.
-	// If error occurs in real implementation:
-	// logger.Warn("RegisterSchedule failed", zap.Error(err))
-	// return fmt.Errorf("RegisterSchedule failed: %w", err)
-	return nil
-}
-
-// Knowledge Graph Enrichment -------------------------------------------
-// Enrich the knowledge graph with metadata.
-func EnrichKnowledgeGraph(_ context.Context, logger *zap.Logger, entityType, id string, meta *commonpb.Metadata) error {
-	if meta == nil {
-		return nil
-	}
-	kgInstance := kg.DefaultKnowledgeGraph()
-	serviceInfo := map[string]interface{}{
-		"id":       id,
-		"type":     entityType,
-		"metadata": meta,
-	}
-	err := kgInstance.AddService(entityType, id, serviceInfo)
-	if err != nil {
-		logger.Warn("EnrichKnowledgeGraph failed", zap.Error(err), zap.String("entityType", entityType), zap.String("id", id))
-		return fmt.Errorf("EnrichKnowledgeGraph failed: %w", err)
-	}
-	return nil
-}
-
-// Nexus Orchestration --------------------------------------------------
-// Register service pattern and metadata schema with Nexus.
-func RegisterWithNexus(_ context.Context, _ *zap.Logger, _ string, _ interface{}) error {
-	// Example: Register service and metadata schema with Nexus for orchestration.
-	// This is a stub; implement actual Nexus registration as needed.
-	// If error occurs in real implementation:
-	// logger.Warn("RegisterWithNexus failed", zap.Error(err))
-	// return fmt.Errorf("RegisterWithNexus failed: %w", err)
-	return nil
-}
-
-// Add a canonical enrichment helper to be called from events.EmitCallbackEvent.
-func EnrichAllMetadataHooks(ctx context.Context, logger *zap.Logger, cache *redis.Cache, entityType, id string, meta *commonpb.Metadata) {
-	if cache != nil && meta != nil {
-		if err := CacheMetadata(ctx, logger, cache, entityType, id, meta, 10*time.Minute); err != nil {
-			logger.Error("failed to cache metadata", zap.Error(err))
+	if !partialUpdate {
+		// Apply defaults for missing fields (stub)
+		if _, ok := serviceMap["versioning"]; !ok {
+			serviceMap["versioning"] = map[string]interface{}{"system_version": "1.0.0"}
+		}
+		// Validate required fields (stub)
+		if _, ok := serviceMap["versioning"]; !ok {
+			return nil, fmt.Errorf("missing required field: versioning")
+		}
+	} else {
+		// --- PRODUCTION-GRADE PARTIAL UPDATE LOGIC ---
+		// 1. Load existing metadata for the service (from DB or previous state)
+		//    For this function, assume caller provides the full metadata struct (meta),
+		//    and the fields map contains both existing and new fields.
+		// 2. Merge: For each field in the incoming (partial) update, update the existing map.
+		//    (Assume serviceMap contains only the fields to update.)
+		//    We'll merge serviceMap into the existing fields.
+		//    If a field is not present in serviceMap, preserve the existing value.
+		//    If a field is present, update it.
+		//    (If you have a blueprint/schema, you can enforce types here.)
+		//
+		// For now, we assume fields[service] is the existing map, and serviceMap is the partial update.
+		// We'll merge serviceMap into fields[service].
+		//
+		// Note: In a real implementation, you may want to deep copy or use a helper for deep merge.
+		//
+		// Example merge logic:
+		if existingFields, ok := fields[service].(map[string]interface{}); ok {
+			for k, v := range serviceMap {
+				existingFields[k] = v
+			}
+			// Optionally, apply defaults for required fields if missing
+			if _, ok := existingFields["versioning"]; !ok {
+				existingFields["versioning"] = map[string]interface{}{"system_version": "1.0.0"}
+			}
+			fields[service] = existingFields
 		}
 	}
-	if err := RegisterSchedule(ctx, logger, entityType, id, meta); err != nil {
-		logger.Error("failed to register schedule", zap.Error(err))
+	// Remove hydration-only fields (stub: e.g., computed fields)
+	for k := range serviceMap {
+		if strings.HasPrefix(k, "_hydrated_") {
+			delete(serviceMap, k)
+		}
 	}
-	if err := EnrichKnowledgeGraph(ctx, logger, entityType, id, meta); err != nil {
-		logger.Error("failed to enrich knowledge graph", zap.Error(err))
+	fields[service] = serviceMap
+	newSS, err := structpb.NewStruct(fields)
+	if err != nil {
+		return nil, err
 	}
-	if err := RegisterWithNexus(ctx, logger, entityType, meta); err != nil {
-		logger.Error("failed to register with Nexus", zap.Error(err))
-	}
+	meta.ServiceSpecific = newSS
+	return meta, nil
 }
 
-// Example Usage: Content Service ---------------------------------------
-//
-// In your content service, after creating or updating content:
-//
-//   err := pattern.CacheMetadata(ctx, cache, "content", content.Id, content.Metadata, 10*time.Minute)
-//   if err != nil { ... }
-//   _ = pattern.RegisterSchedule(ctx, "content", content.Id, content.Metadata)
-//   _ = pattern.EnrichKnowledgeGraph(ctx, "content", content.Id, content.Metadata)
-//   _ = pattern.RegisterWithNexus(ctx, "content", content.Metadata)
-//
-// See the Content service for a full reference implementation.
+// DenormalizeMetadata hydrates metadata for API/gRPC/UI responses.
+// Optionally expands references, adds computed fields, etc.
+func DenormalizeMetadata(meta *commonpb.Metadata, service string) (*commonpb.Metadata, error) {
+	if meta == nil {
+		return &commonpb.Metadata{}, nil
+	}
+	ss := meta.ServiceSpecific
+	if ss == nil {
+		return meta, nil
+	}
+	fields := ss.AsMap()
+	serviceFields, ok := fields[service]
+	if !ok {
+		return meta, nil
+	}
+	serviceMap, ok := serviceFields.(map[string]interface{})
+	if !ok {
+		return meta, nil
+	}
+	// Example: Add computed/hydrated fields (stub)
+	serviceMap["_hydrated_display_name"] = fmt.Sprintf("%s-%s", service, serviceMap["versioning"])
+	fields[service] = serviceMap
+	newSS, err := structpb.NewStruct(fields)
+	if err != nil {
+		return nil, err
+	}
+	meta.ServiceSpecific = newSS
+	return meta, nil
+}
+
+// MergeMetadataFields merges fields from src into dst for partial updates.
+func MergeMetadataFields(dst, src *commonpb.Metadata, service string) (*commonpb.Metadata, error) {
+	if dst == nil {
+		dst = &commonpb.Metadata{}
+	}
+	if src == nil {
+		return dst, nil
+	}
+	if dst.ServiceSpecific == nil {
+		dst.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+	}
+	if src.ServiceSpecific == nil {
+		return dst, nil
+	}
+	dstMap := dst.ServiceSpecific.AsMap()
+	srcMap := src.ServiceSpecific.AsMap()
+	dstSvcIface, ok := dstMap[service]
+	if !ok {
+		// handle missing service key
+		return dst, nil
+	}
+	dstSvc, ok := dstSvcIface.(map[string]interface{})
+	if !ok {
+		// handle type assertion failure
+		return dst, nil
+	}
+	srcSvcIface, ok := srcMap[service]
+	if !ok {
+		// handle missing service key
+		return dst, nil
+	}
+	srcSvc, ok := srcSvcIface.(map[string]interface{})
+	if !ok {
+		// handle type assertion failure
+		return dst, nil
+	}
+	if dstSvc == nil {
+		dstSvc = map[string]interface{}{}
+	}
+	for k, v := range srcSvc {
+		dstSvc[k] = v
+	}
+	dstMap[service] = dstSvc
+	newSS, err := structpb.NewStruct(dstMap)
+	if err != nil {
+		return nil, err
+	}
+	dst.ServiceSpecific = newSS
+	return dst, nil
+}

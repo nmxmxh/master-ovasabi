@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
+	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 )
@@ -45,6 +46,15 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
+		authCtx := auth.FromContext(r.Context())
+		roles := authCtx.Roles
+		isSystem := false
+		for _, r := range roles {
+			if r == "system" || r == "admin" {
+				isSystem = true
+				break
+			}
+		}
 		var campaignID int64
 		if v, ok := req["campaign_id"]; ok {
 			switch vv := v.(type) {
@@ -56,6 +66,10 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 		}
 		switch action {
 		case "create_job":
+			if !isSystem {
+				http.Error(w, "forbidden: system/admin role required", http.StatusForbidden)
+				return
+			}
 			var job schedulerpb.Job
 			if jobMap, ok := req["job"].(map[string]interface{}); ok {
 				jobBytes, err := json.Marshal(jobMap)
@@ -68,6 +82,29 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 					log.Error("Failed to unmarshal job JSON", zap.Error(err))
 					http.Error(w, "invalid job field", http.StatusBadRequest)
 					return
+				}
+			}
+			// Enrich metadata with calendar structure for UI rendering
+			if m, ok := req["metadata"].(map[string]interface{}); ok {
+				if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+					if sched, ok := ss["scheduler"].(map[string]interface{}); ok {
+						calendar := map[string]interface{}{
+							"event_type":   sched["event_type"],
+							"start_time":   sched["start_time"],
+							"end_time":     sched["end_time"],
+							"recurrence":   sched["recurrence"],
+							"timezone":     sched["timezone"],
+							"participants": sched["participants"],
+							"location":     sched["location"],
+							"notes":        sched["notes"],
+							"color":        sched["color"],    // for UI coloring
+							"conflict":     sched["conflict"], // for UI conflict indication
+						}
+						sched["calendar"] = calendar
+						ss["scheduler"] = sched
+						m["service_specific"] = ss
+						req["metadata"] = m
+					}
 				}
 			}
 			protoReq := &schedulerpb.CreateJobRequest{Job: &job, CampaignId: campaignID}
@@ -83,6 +120,10 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "update_job":
+			if !isSystem {
+				http.Error(w, "forbidden: system/admin role required", http.StatusForbidden)
+				return
+			}
 			var job schedulerpb.Job
 			if jobMap, ok := req["job"].(map[string]interface{}); ok {
 				jobBytes, err := json.Marshal(jobMap)
@@ -95,6 +136,29 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 					log.Error("Failed to unmarshal job JSON", zap.Error(err))
 					http.Error(w, "invalid job field", http.StatusBadRequest)
 					return
+				}
+			}
+			// Enrich metadata with calendar structure for UI rendering
+			if m, ok := req["metadata"].(map[string]interface{}); ok {
+				if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+					if sched, ok := ss["scheduler"].(map[string]interface{}); ok {
+						calendar := map[string]interface{}{
+							"event_type":   sched["event_type"],
+							"start_time":   sched["start_time"],
+							"end_time":     sched["end_time"],
+							"recurrence":   sched["recurrence"],
+							"timezone":     sched["timezone"],
+							"participants": sched["participants"],
+							"location":     sched["location"],
+							"notes":        sched["notes"],
+							"color":        sched["color"],    // for UI coloring
+							"conflict":     sched["conflict"], // for UI conflict indication
+						}
+						sched["calendar"] = calendar
+						ss["scheduler"] = sched
+						m["service_specific"] = ss
+						req["metadata"] = m
+					}
 				}
 			}
 			protoReq := &schedulerpb.UpdateJobRequest{Job: &job, CampaignId: campaignID}
@@ -110,6 +174,10 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "delete_job":
+			if !isSystem {
+				http.Error(w, "forbidden: system/admin role required", http.StatusForbidden)
+				return
+			}
 			jobID, ok := req["job_id"].(string)
 			if !ok || jobID == "" {
 				log.Error("Missing or invalid job_id in delete_job", zap.Any("value", req["job_id"]))

@@ -33,17 +33,34 @@ import (
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 // EventEmitter defines the interface for emitting events in the user service.
 type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
+	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
 }
 
 // Register registers the user service with the DI container and event bus support.
 func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repositorypkg.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+	// Register user service error map for graceful error handling
+	graceful.RegisterErrorMap(map[error]graceful.ErrorMapEntry{
+		ErrInvalidUsername:       {Code: codes.InvalidArgument, Message: "invalid username format"},
+		ErrUsernameReserved:      {Code: codes.InvalidArgument, Message: "username is reserved"},
+		ErrUsernameTaken:         {Code: codes.AlreadyExists, Message: "username is already taken"},
+		ErrUserNotFound:          {Code: codes.NotFound, Message: "user not found"},
+		ErrUserExists:            {Code: codes.AlreadyExists, Message: "user already exists"},
+		ErrUsernameBadWord:       {Code: codes.InvalidArgument, Message: "username contains inappropriate content"},
+		ErrUsernameInvalidFormat: {Code: codes.InvalidArgument, Message: "username contains invalid characters or format"},
+		ErrPasswordTooShort:      {Code: codes.InvalidArgument, Message: "password too short"},
+		ErrPasswordNoUpper:       {Code: codes.InvalidArgument, Message: "password must contain an uppercase letter"},
+		ErrPasswordNoLower:       {Code: codes.InvalidArgument, Message: "password must contain a lowercase letter"},
+		ErrPasswordNoDigit:       {Code: codes.InvalidArgument, Message: "password must contain a digit"},
+		ErrPasswordNoSpecial:     {Code: codes.InvalidArgument, Message: "password must contain a special character"},
+	})
 	repository := NewRepository(db, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "user")
 	if err != nil {

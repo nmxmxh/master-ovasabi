@@ -23,6 +23,7 @@ type Config struct {
 	RedisMaxRetries   int
 	AppPort           string
 	MetricsPort       string
+	JWTSecret         string
 }
 
 func Load() (*Config, error) {
@@ -39,6 +40,7 @@ func Load() (*Config, error) {
 		RedisPassword: os.Getenv("REDIS_PASSWORD"),
 		AppPort:       os.Getenv("APP_PORT"),
 		MetricsPort:   os.Getenv("METRICS_PORT"),
+		JWTSecret:     os.Getenv("JWT_SECRET"),
 	}
 	var err error
 	if v := os.Getenv("REDIS_DB"); v != "" {

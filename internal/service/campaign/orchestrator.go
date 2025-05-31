@@ -2,14 +2,477 @@ package campaign
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
-	events "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
+
+// OrchestratorEvent represents an event for campaign orchestration.
+type OrchestratorEvent struct {
+	CampaignID string
+	Type       string
+	Payload    interface{}
+	Metadata   *commonpb.Metadata // canonical metadata for extensibility
+}
+
+// OrchestratorManager manages orchestrator goroutines per campaign (domain).
+type OrchestratorManager struct {
+	log           *zap.Logger
+	cache         *redis.Cache
+	orchestrators sync.Map // map[string]*DomainOrchestrator
+	dispatcher    chan OrchestratorEvent
+	stopCh        chan struct{}
+	keyBuilder    *redis.KeyBuilder
+	wsClients     *ws.ClientMap // WebSocket client registry (set at startup)
+	container     *di.Container
+}
+
+// DomainOrchestrator is a goroutine managing orchestration for a single campaign.
+type DomainOrchestrator struct {
+	campaignID string
+	eventCh    chan OrchestratorEvent
+	stopCh     chan struct{}
+	log        *zap.Logger
+	cache      *redis.Cache
+	keyBuilder *redis.KeyBuilder
+	wsClients  *ws.ClientMap // WebSocket client registry for this campaign
+	// Add campaign-specific state here (users, scores, etc.)
+	container *di.Container
+}
+
+// NewOrchestratorManager creates a new orchestrator manager.
+func NewOrchestratorManager(log *zap.Logger, cache *redis.Cache, wsClients *ws.ClientMap, container *di.Container) *OrchestratorManager {
+	return &OrchestratorManager{
+		log:        log,
+		cache:      cache,
+		dispatcher: make(chan OrchestratorEvent, 1024),
+		stopCh:     make(chan struct{}),
+		keyBuilder: redis.NewKeyBuilder(redis.NamespaceCache, redis.ContextCampaign),
+		wsClients:  wsClients,
+		container:  container,
+	}
+}
+
+// Start launches the orchestrator nervous system.
+func (m *OrchestratorManager) Start(ctx context.Context) {
+	go m.redisSubscriber(ctx)
+	go m.dispatchLoop(ctx)
+}
+
+// redisSubscriber subscribes to campaign events and feeds them into the dispatcher.
+func (m *OrchestratorManager) redisSubscriber(ctx context.Context) {
+	pubsub := m.cache.GetClient().Subscribe(ctx, "campaign:events")
+	ch := pubsub.Channel()
+	for {
+		select {
+		case msg := <-ch:
+			// Parse event (assume JSON for production)
+			var evt OrchestratorEvent
+			if err := json.Unmarshal([]byte(msg.Payload), &evt); err == nil {
+				m.dispatcher <- evt
+			} else {
+				m.log.Warn("Failed to parse orchestrator event", zap.Error(err), zap.String("payload", msg.Payload))
+			}
+		case <-ctx.Done():
+			return
+		case <-m.stopCh:
+			return
+		}
+	}
+}
+
+// dispatchLoop routes events to the correct orchestrator goroutine.
+func (m *OrchestratorManager) dispatchLoop(ctx context.Context) {
+	for {
+		select {
+		case event := <-m.dispatcher:
+			value, loaded := m.orchestrators.LoadOrStore(event.CampaignID, m.newDomainOrchestrator(ctx, event.CampaignID))
+			if !loaded {
+				m.log.Info("Created new domain orchestrator", zap.String("campaign_id", event.CampaignID))
+			}
+			torch, ok := value.(*DomainOrchestrator)
+			if !ok {
+				m.log.Error("Failed type assertion to *DomainOrchestrator", zap.Any("value", value))
+				continue
+			}
+			select {
+			case torch.eventCh <- event:
+				// delivered
+			default:
+				m.log.Warn("Orchestrator event channel full", zap.String("campaign", event.CampaignID))
+			}
+		case <-ctx.Done():
+			return
+		case <-m.stopCh:
+			return
+		}
+	}
+}
+
+// newDomainOrchestrator creates and starts a new orchestrator goroutine for a campaign.
+func (m *OrchestratorManager) newDomainOrchestrator(ctx context.Context, campaignID string) *DomainOrchestrator {
+	torch := &DomainOrchestrator{
+		campaignID: campaignID,
+		eventCh:    make(chan OrchestratorEvent, 256),
+		stopCh:     make(chan struct{}),
+		log:        m.log.With(zap.String("campaign", campaignID)),
+		cache:      m.cache,
+		keyBuilder: m.keyBuilder,
+		wsClients:  m.wsClients,
+		container:  m.container,
+	}
+	go torch.run(ctx)
+	return torch
+}
+
+// Domain orchestrator event loop.
+func (o *DomainOrchestrator) run(ctx context.Context) {
+	var (
+		defaultFPS   = 1.0
+		maxBatchSize = 100 // Tune as needed
+		interval     = time.Second / time.Duration(defaultFPS)
+		fps          = defaultFPS
+		intervalCh   = make(chan float64, 1)  // For dynamic FPS updates
+		immediateCh  = make(chan struct{}, 8) // For event-driven triggers
+		loadMu       sync.Mutex
+		loadPercent  float64
+	)
+	// Helper to update interval
+	updateInterval := func(newFPS float64) {
+		if newFPS <= 0 {
+			newFPS = defaultFPS
+		}
+		fps = newFPS
+		interval = time.Second / time.Duration(fps)
+	}
+	// Add a real-time metadata watcher using Redis pub/sub
+	go o.watchMetadataChanges(ctx, intervalCh)
+	// Main broadcast loop
+	for {
+		ticker := time.NewTicker(interval)
+		select {
+		case <-ticker.C:
+			// Interval-based broadcast
+			o.broadcastBatch(ctx, maxBatchSize)
+			loadMu.Lock()
+			loadPercent = o.estimateLoad()
+			loadMu.Unlock()
+			if loadPercent > 0.95 {
+				o.throttleOrScale()
+			}
+		case <-immediateCh:
+			// Event-driven broadcast
+			o.broadcastBatch(ctx, maxBatchSize)
+		case newFPS := <-intervalCh:
+			ticker.Stop()
+			updateInterval(newFPS)
+		case <-o.stopCh:
+			ticker.Stop()
+			return
+		}
+	}
+}
+
+// broadcastBatch sends updates to users in batches, using async workers for large campaigns.
+func (o *DomainOrchestrator) broadcastBatch(ctx context.Context, batchSize int) {
+	users := o.getActiveUsers()
+	n := len(users)
+	if n == 0 {
+		return
+	}
+	batches := (n + batchSize - 1) / batchSize
+	var wg sync.WaitGroup
+	for i := 0; i < batches; i++ {
+		start := i * batchSize
+		end := start + batchSize
+		if end > n {
+			end = n
+		}
+		wg.Add(1)
+		go func(batch []string) {
+			defer wg.Done()
+			for _, userID := range batch {
+				client, ok := o.getClient(userID)
+				if !ok {
+					continue
+				}
+				select {
+				case client.Send() <- o.prepareBroadcastData(userID):
+					// sent
+				default:
+					// drop frame for slow client
+				}
+			}
+		}(users[start:end])
+	}
+	wg.Wait()
+	// After broadcasting, orchestrate with graceful
+	success := graceful.WrapSuccess(ctx, codes.OK, "campaign broadcast", nil, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         o.log,
+		EventType:   "campaign.broadcast",
+		EventID:     o.campaignID,
+		PatternType: "campaign",
+		PatternID:   o.campaignID,
+		PatternMeta: o.getLatestMetadata(ctx),
+		// Add EventEmitter, Cache, etc. if needed
+	})
+}
+
+// estimateLoad estimates orchestrator load using queue length and batch wait time.
+func (o *DomainOrchestrator) estimateLoad() float64 {
+	// Use eventCh length and batch wait time as a proxy for load
+	queueLen := len(o.eventCh)
+	maxQueue := cap(o.eventCh)
+	load := float64(queueLen) / float64(maxQueue)
+	// Optionally, add batch wait time or CPU metrics here
+	return load
+}
+
+// throttleOrScale throttles broadcast or triggers horizontal scaling if load is too high.
+func (o *DomainOrchestrator) throttleOrScale() {
+	load := o.estimateLoad()
+	if load > 0.95 {
+		o.log.Warn("Orchestrator load > 95%, consider horizontal scaling and distributed orchestration", zap.String("campaign", o.campaignID))
+		// Future: implement worker/shard handoff for distributed orchestration
+	} else if load > 0.85 {
+		o.log.Info("Orchestrator load > 85%, reducing FPS", zap.String("campaign", o.campaignID))
+		// Reduce FPS by 20% (min 1Hz)
+		// This is a placeholder; in production, use a channel or atomic to update interval
+	}
+}
+
+// getLatestMetadata fetches the latest campaign metadata from Redis cache.
+func (o *DomainOrchestrator) getLatestMetadata(ctx context.Context) *commonpb.Metadata {
+	metaKey := o.keyBuilder.Build("campaign", o.campaignID)
+	var meta commonpb.Metadata
+	if err := o.cache.Get(ctx, metaKey, "campaign", &meta); err == nil {
+		return &meta
+	}
+	return nil
+}
+
+// getActiveUsers returns a list of active user IDs for this campaign from ws.ClientMap.
+func (o *DomainOrchestrator) getActiveUsers() []string {
+	var users []string
+	if o.wsClients == nil {
+		return users
+	}
+	o.wsClients.Range(func(campaignID, userID string, _ *ws.Client) bool {
+		if campaignID == o.campaignID {
+			users = append(users, userID)
+		}
+		return true
+	})
+	return users
+}
+
+// getClient returns the WebSocket client for a user in this campaign.
+func (o *DomainOrchestrator) getClient(userID string) (*ws.Client, bool) {
+	if o.wsClients == nil {
+		return nil, false
+	}
+	return o.wsClients.Load(o.campaignID, userID)
+}
+
+// Option type for partial update logic.
+type (
+	StateBuilderOption func(*stateBuilderConfig)
+	stateBuilderConfig struct {
+		Fields           []string
+		Changed          map[string]bool // map of changed fields for partial update
+		PercentThreshold float64         // e.g., 0.6 for 60%
+	}
+)
+
+// WithFields specifies which fields to include in the state output.
+func WithFields(fields []string) StateBuilderOption {
+	return func(cfg *stateBuilderConfig) { cfg.Fields = fields }
+}
+
+// WithChangedFields specifies which fields have changed.
+func WithChangedFields(changed map[string]bool) StateBuilderOption {
+	return func(cfg *stateBuilderConfig) { cfg.Changed = changed }
+}
+
+// WithPercentThreshold sets the percent threshold for sending full state.
+func WithPercentThreshold(threshold float64) StateBuilderOption {
+	return func(cfg *stateBuilderConfig) { cfg.PercentThreshold = threshold }
+}
+
+// BuildCampaignUserState builds the minimal, gamified, partial-update-ready state for a campaign/user.
+// If fields is nil or empty, includes all fields. If changed fields exceed threshold, sends full state.
+// Used by both WebSocket and REST endpoints for state hydration and updates.
+func BuildCampaignUserState(campaign *Campaign, user *userpb.User, leaderboard []LeaderboardEntry, mediaState *mediapb.Media, opts ...StateBuilderOption) map[string]interface{} {
+	// Extract metadata-driven fields
+	var status string
+	var features []string
+	var rules string
+	var effectState map[string]interface{}
+	if campaign != nil && campaign.Metadata != nil && campaign.Metadata.ServiceSpecific != nil {
+		ss := campaign.Metadata.ServiceSpecific.AsMap()
+		if cmeta, ok := ss["campaign"].(map[string]interface{}); ok {
+			if s, ok := cmeta["status"].(string); ok {
+				status = s
+			}
+			if f, ok := cmeta["features"].([]interface{}); ok {
+				for _, feat := range f {
+					if fs, ok := feat.(string); ok {
+						features = append(features, fs)
+					}
+				}
+			}
+			if r, ok := cmeta["rules"].(string); ok {
+				rules = r
+			}
+			if es, ok := cmeta["effect_state"].(map[string]interface{}); ok {
+				effectState = es
+			}
+		}
+	}
+	if status == "" {
+		status = "active" // fallback default
+	}
+	if features == nil {
+		features = []string{}
+	}
+	if rules == "" {
+		rules = "" // fallback default
+	}
+	if effectState == nil {
+		effectState = map[string]interface{}{}
+	}
+	// Compose all fields
+	state := map[string]interface{}{
+		"campaign": map[string]interface{}{
+			"id":          campaign.Slug,
+			"title":       campaign.Title,
+			"status":      status,
+			"features":    features,
+			"trending":    leaderboard, // TODO: top 3 logic if needed
+			"leaderboard": leaderboard,
+			"focus": map[string]interface{}{
+				"description": campaign.Description,
+				"rules":       rules,
+			},
+		},
+		"user": map[string]interface{}{
+			"id":       user.Id,
+			"username": user.Username,
+			"email":    user.Email,
+			"roles":    user.Roles,
+			"status":   user.Status,
+			"profile":  user.Profile,
+			// TODO: Add gamification, badges, notifications, etc. from metadata or extensions
+		},
+		"media": mediaState,
+		"catalog": map[string]interface{}{
+			"components": []map[string]interface{}{{"id": "Leaderboard", "props": map[string]interface{}{"top": 3}}},
+			"search":     []map[string]interface{}{{"id": "Leaderboard", "title": "Leaderboard"}},
+		},
+		"effect_state": effectState,
+		"timestamp":    time.Now().UTC(),
+	}
+	// Partial update logic
+	cfg := &stateBuilderConfig{PercentThreshold: 0.6}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	allFields := []string{"campaign", "user", "media", "catalog", "effect_state", "timestamp"}
+	// If fields is nil or empty, include all
+	if len(cfg.Fields) == 0 && len(cfg.Changed) == 0 {
+		return state
+	}
+	// If changed fields exceed threshold, send full state
+	if len(cfg.Changed) > 0 && float64(len(cfg.Changed))/float64(len(allFields)) >= cfg.PercentThreshold {
+		return state
+	}
+	// Otherwise, send only requested/changed fields
+	partial := make(map[string]interface{})
+	if len(cfg.Fields) > 0 {
+		for _, f := range cfg.Fields {
+			if v, ok := state[f]; ok {
+				partial[f] = v
+			}
+		}
+		return partial
+	}
+	if len(cfg.Changed) > 0 {
+		for f := range cfg.Changed {
+			if v, ok := state[f]; ok {
+				partial[f] = v
+			}
+		}
+		return partial
+	}
+	return state
+}
+
+// Refactor DomainOrchestrator.prepareBroadcastData to use BuildCampaignUserState.
+func (o *DomainOrchestrator) prepareBroadcastData(_ string) ws.WebSocketEvent {
+	payload := BuildCampaignUserState(nil, nil, nil, nil)
+	return ws.WebSocketEvent{
+		Type:    "campaign_update",
+		Payload: payload,
+	}
+}
+
+// Add a real-time metadata watcher using Redis pub/sub.
+func (o *DomainOrchestrator) watchMetadataChanges(ctx context.Context, intervalCh chan<- float64) {
+	channel := "campaign:metadata:" + o.campaignID
+	pubsub := o.cache.GetClient().Subscribe(ctx, channel)
+	defer func() {
+		if err := pubsub.Close(); err != nil {
+			o.log.Warn("Failed to close pubsub in watchMetadataChanges", zap.Error(err))
+		}
+	}()
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ch:
+			// Metadata changed, fetch latest
+			meta := o.getLatestMetadata(ctx)
+			if meta != nil && meta.GetScheduling() != nil {
+				fields := meta.GetScheduling().GetFields()
+				if freqVal, ok := fields["frequency"]; ok {
+					f := freqVal.GetNumberValue()
+					if f > 0 {
+						intervalCh <- f
+					}
+				}
+			}
+		case <-o.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// Stop gracefully shuts down the orchestrator manager and all orchestrators.
+func (m *OrchestratorManager) Stop() {
+	close(m.stopCh)
+	m.orchestrators.Range(func(_, value interface{}) bool {
+		if orchestrator, ok := value.(*DomainOrchestrator); ok {
+			close(orchestrator.stopCh)
+		}
+		return true
+	})
+}
+
+// Extensibility: Add hooks for Nexus, metadata enrichment, real-time leaderboards, etc.
+// This pattern is ready for gaming, real-time campaigns, and cross-service orchestration.
 
 // OrchestrateActiveCampaignsAdvanced scans and orchestrates all active campaigns efficiently.
 // - Uses SQL filtering for active campaigns.
@@ -22,7 +485,7 @@ func (s *Service) OrchestrateActiveCampaignsAdvanced(ctx context.Context, maxWor
 	campaigns, err := s.repo.ListActiveWithinWindow(ctx, now)
 	if err != nil {
 		s.log.Error("Failed to list active campaigns for orchestration", zap.Error(err))
-		return err
+		return graceful.WrapErr(ctx, codes.Internal, "Failed to list active campaigns for orchestration", err)
 	}
 	if len(campaigns) == 0 {
 		s.log.Info("No active campaigns to orchestrate at this time")
@@ -98,20 +561,30 @@ func (s *Service) SetWSClients(clients *ws.ClientMap) {
 }
 
 // prepareBroadcastData prepares the data to send to a user in a campaign (global or user-specific).
-func (s *Service) prepareBroadcastData(c *Campaign, userID string) ws.WebSocketEvent {
-	// TODO: Customize this for your use case. Example:
+func (s *Service) prepareBroadcastData(c *Campaign, _ string) ws.WebSocketEvent {
+	payload := BuildCampaignUserState(c, nil, nil, nil)
 	return ws.WebSocketEvent{
-		Type: "campaign_update",
-		Payload: map[string]interface{}{
-			"campaign":  c.Slug,
-			"user":      userID,
-			"timestamp": time.Now().UTC(),
-			// Add more fields as needed (leaderboard, personalized stats, etc.)
-		},
+		Type:    "campaign_update",
+		Payload: payload,
 	}
 }
 
+// orchestrateBroadcastEvent is a helper to DRY up graceful orchestration for broadcast events.
+// It ensures all broadcast lifecycle events are handled consistently, with event emission, audit, and extensibility.
+func (s *Service) orchestrateBroadcastEvent(ctx context.Context, _, eventID string, meta *commonpb.Metadata, msg string) {
+	success := graceful.WrapSuccess(ctx, codes.OK, msg, nil, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         s.log,
+		Metadata:    meta,
+		PatternType: "campaign",
+		PatternID:   eventID,
+		PatternMeta: meta,
+	})
+}
+
 // startBroadcast starts or updates a broadcast for a campaign using metadata and streams to all users.
+// In the new context, this function ensures that all broadcast start and tick events are orchestrated via graceful,
+// enabling audit, event bus emission, and future extensibility.
 func (s *Service) startBroadcast(ctx context.Context, c *Campaign, meta *Metadata) {
 	s.broadcastMu.Lock()
 	defer s.broadcastMu.Unlock()
@@ -141,9 +614,7 @@ func (s *Service) startBroadcast(ctx context.Context, c *Campaign, meta *Metadat
 			select {
 			case <-bctx.Done():
 				s.log.Info("Broadcast stopped for campaign", zap.String("slug", c.Slug))
-				if s.eventEnabled && s.eventEmitter != nil {
-					events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "campaign.broadcast_stopped", c.Slug, c.Metadata)
-				}
+				s.orchestrateBroadcastEvent(ctx, "campaign.broadcast_stopped", c.Slug, c.Metadata, "campaign broadcast stopped")
 				return
 			case <-ticker.C:
 				if s.clients == nil {
@@ -162,18 +633,16 @@ func (s *Service) startBroadcast(ctx context.Context, c *Campaign, meta *Metadat
 					}
 					return true
 				})
-				if s.eventEnabled && s.eventEmitter != nil {
-					events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "campaign.broadcast_tick", c.Slug, c.Metadata)
-				}
+				s.orchestrateBroadcastEvent(ctx, "campaign.broadcast_tick", c.Slug, c.Metadata, "campaign broadcast tick")
 			}
 		}
 	}()
-	if s.eventEnabled && s.eventEmitter != nil {
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "campaign.broadcast_started", c.Slug, c.Metadata)
-	}
+	s.orchestrateBroadcastEvent(ctx, "campaign.broadcast_started", c.Slug, c.Metadata, "campaign broadcast started")
 }
 
-// stopBroadcast stops a broadcast for a campaign and emits an event.
+// stopBroadcast stops a broadcast for a campaign and emits an event using graceful orchestration.
+// In the new context, this function ensures that all broadcast stop events are orchestrated via graceful,
+// enabling audit, event bus emission, and future extensibility.
 func (s *Service) stopBroadcast(ctx context.Context, slug string, c *Campaign) {
 	s.broadcastMu.Lock()
 	defer s.broadcastMu.Unlock()
@@ -181,9 +650,7 @@ func (s *Service) stopBroadcast(ctx context.Context, slug string, c *Campaign) {
 		cancel()
 		delete(s.activeBroadcasts, slug)
 		s.log.Info("Stopped broadcast for campaign", zap.String("slug", slug))
-		if s.eventEnabled && s.eventEmitter != nil && c != nil {
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "campaign.broadcast_stopped", slug, c.Metadata)
-		}
+		s.orchestrateBroadcastEvent(ctx, "campaign.broadcast_stopped", slug, c.Metadata, "campaign broadcast stopped")
 	}
 }
 
@@ -198,10 +665,16 @@ type campaignJob struct {
 
 func (j *campaignJob) Run() {
 	j.s.log.Info("Running job", zap.String("slug", j.c.Slug), zap.String("type", j.jobType))
-	if j.s.eventEnabled && j.s.eventEmitter != nil {
-		events.EmitEventWithLogging(j.ctx, j.s.eventEmitter, j.s.log, "campaign.job_executed", j.c.Slug, j.c.Metadata)
-	}
-	// TODO: Implement actual job logic here
+	// Use graceful to emit a job execution event for relevant services to consume
+	success := graceful.WrapSuccess(j.ctx, codes.OK, "campaign job executed", nil, nil)
+	success.StandardOrchestrate(j.ctx, graceful.SuccessOrchestrationConfig{
+		Log:         j.s.log,
+		EventType:   "campaign.job_executed",
+		EventID:     j.c.Slug,
+		PatternType: "campaign",
+		PatternID:   j.c.Slug,
+		PatternMeta: j.c.Metadata,
+	})
 }
 
 // scheduleJob schedules or triggers a job for a campaign using metadata.
@@ -233,13 +706,10 @@ func (s *Service) scheduleJob(ctx context.Context, c *Campaign, meta *Metadata, 
 	}
 	s.scheduledJobs[c.Slug] = append(s.scheduledJobs[c.Slug], id)
 	s.log.Info("Scheduled cron job", zap.String("slug", c.Slug), zap.String("cron", cronExpr))
-	if s.eventEnabled && s.eventEmitter != nil {
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "campaign.job_scheduled", c.Slug, c.Metadata)
-	}
 }
 
 // stopJobs stops all jobs for a campaign and emits an event.
-func (s *Service) stopJobs(ctx context.Context, slug string, c *Campaign) {
+func (s *Service) stopJobs(_ context.Context, slug string, _ *Campaign) {
 	s.InitScheduler()
 	if ids, ok := s.scheduledJobs[slug]; ok {
 		for _, id := range ids {
@@ -247,8 +717,5 @@ func (s *Service) stopJobs(ctx context.Context, slug string, c *Campaign) {
 		}
 		delete(s.scheduledJobs, slug)
 		s.log.Info("Stopped all jobs for campaign", zap.String("slug", slug))
-		if s.eventEnabled && s.eventEmitter != nil && c != nil {
-			events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "campaign.jobs_stopped", slug, c.Metadata)
-		}
 	}
 }

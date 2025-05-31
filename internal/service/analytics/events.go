@@ -19,19 +19,7 @@ type EventSubscription struct {
 
 type EventRegistry []EventSubscription
 
-var AnalyticsEventRegistry = EventRegistry{
-	// Example: subscribe to campaign.created or other events
-	// {
-	// 	EventTypes: []string{"campaign.created"},
-	// 	Handler:    handleCampaignCreated,
-	// },
-}
-
-// Example handler (uncomment and implement as needed)
-// func handleCampaignCreated(event *nexusv1.EventResponse, log *zap.Logger) {
-// 	log.Info("Received campaign.created event", zap.Any("event", event))
-// 	// TODO: Analytics logic here
-// }
+var AnalyticsEventRegistry = EventRegistry{}
 
 func StartEventSubscribers(ctx context.Context, provider *service.Provider, log *zap.Logger) {
 	for _, sub := range AnalyticsEventRegistry {

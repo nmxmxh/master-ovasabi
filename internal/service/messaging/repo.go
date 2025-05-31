@@ -25,8 +25,6 @@ var (
 	ErrChatGroupNotFound    = errors.New("chat group not found")
 )
 
-var logInstance *zap.Logger
-
 // Message represents a message in the messaging system.
 type Message struct {
 	ID             string             `db:"id"`
@@ -109,21 +107,15 @@ type MessageEvent struct {
 type Repository struct {
 	*repository.BaseRepository
 	masterRepo repository.MasterRepository
+	log        *zap.Logger
 }
 
-func NewRepository(db *sql.DB, masterRepo repository.MasterRepository) *Repository {
+func NewRepository(db *sql.DB, masterRepo repository.MasterRepository, log *zap.Logger) *Repository {
 	return &Repository{
 		BaseRepository: repository.NewBaseRepository(db),
 		masterRepo:     masterRepo,
+		log:            log,
 	}
-}
-
-// safeServiceSpecific returns meta.ServiceSpecific if non-nil, else an empty structpb.Struct.
-func safeServiceSpecific(meta *commonpb.Metadata) *structpb.Struct {
-	if meta != nil && meta.ServiceSpecific != nil {
-		return meta.ServiceSpecific
-	}
-	return &structpb.Struct{Fields: map[string]*structpb.Value{}}
 }
 
 // CreateMessage inserts a new message record.
@@ -136,7 +128,7 @@ func (r *Repository) CreateMessage(ctx context.Context, msg *Message) (*Message,
 	msg.MasterID = masterID
 	var metadataJSON []byte
 	if msg.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(msg.Metadata)
+		metadataJSON, err = metadata.MarshalCanonical(msg.Metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -151,8 +143,8 @@ func (r *Repository) CreateMessage(ctx context.Context, msg *Message) (*Message,
 	).Scan(&msg.ID, &msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, msg.MasterID); err != nil {
-			if logInstance != nil {
-				logInstance.Error("failed to delete master record", zap.Error(err))
+			if r.log != nil {
+				r.log.Error("failed to delete master record", zap.Error(err))
 			}
 		}
 		return nil, err
@@ -178,11 +170,11 @@ func (r *Repository) GetMessage(ctx context.Context, id string) (*Message, error
 		msg.Metadata = &commonpb.Metadata{}
 		err := protojson.Unmarshal([]byte(metadataStr), msg.Metadata)
 		if err != nil {
-			logInstance.Warn("failed to unmarshal message metadata", zap.Error(err))
+			r.log.Warn("failed to unmarshal message metadata", zap.Error(err))
 		}
 	} else {
 		msg.Metadata = &commonpb.Metadata{
-			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, safeServiceSpecific(msg.Metadata)),
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, r.log),
 			Tags:            []string{},
 			Features:        []string{},
 		}
@@ -195,7 +187,7 @@ func (r *Repository) UpdateMessage(ctx context.Context, msg *Message) error {
 	var metadataJSON []byte
 	var err error
 	if msg.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(msg.Metadata)
+		metadataJSON, err = metadata.MarshalCanonical(msg.Metadata)
 		if err != nil {
 			return err
 		}
@@ -224,8 +216,8 @@ func (r *Repository) DeleteMessage(ctx context.Context, id string) error {
 		return err
 	}
 	if err := r.masterRepo.Delete(ctx, msg.MasterID); err != nil {
-		if logInstance != nil {
-			logInstance.Error("failed to delete master record", zap.Error(err))
+		if r.log != nil {
+			r.log.Error("failed to delete master record", zap.Error(err))
 		}
 	}
 	return nil
@@ -251,12 +243,12 @@ func (r *Repository) ListMessages(ctx context.Context, threadID, conversationID 
 			msg.Metadata = &commonpb.Metadata{}
 			err := protojson.Unmarshal([]byte(metadataStr), msg.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal message metadata", zap.Error(err))
+				r.log.Warn("failed to unmarshal message metadata", zap.Error(err))
 				return nil, err
 			}
 		} else {
 			msg.Metadata = &commonpb.Metadata{
-				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, safeServiceSpecific(msg.Metadata)),
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, r.log),
 				Tags:            []string{},
 				Features:        []string{},
 			}
@@ -286,7 +278,7 @@ func (r *Repository) ListThreads(ctx context.Context, limit, offset int) ([]*Thr
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), thread.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal thread metadata", zap.Error(err))
+				r.log.Warn("failed to unmarshal thread metadata", zap.Error(err))
 				return nil, err
 			}
 		}
@@ -315,7 +307,7 @@ func (r *Repository) ListConversations(ctx context.Context, limit, offset int) (
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), conv.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal conversation metadata", zap.Error(err))
+				r.log.Warn("failed to unmarshal conversation metadata", zap.Error(err))
 				return nil, err
 			}
 		}
@@ -344,15 +336,15 @@ func (r *Repository) ListChatGroups(ctx context.Context, limit, offset int) ([]*
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), group.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal chat group metadata", zap.Error(err))
+				r.log.Warn("failed to unmarshal chat group metadata", zap.Error(err))
 				return nil, err
 			}
 		}
 		group.Roles = map[string]string{}
 		if rolesStr != "" {
 			if err := json.Unmarshal([]byte(rolesStr), &group.Roles); err != nil {
-				if logInstance != nil {
-					logInstance.Warn("failed to unmarshal roles", zap.Error(err))
+				if r.log != nil {
+					r.log.Warn("failed to unmarshal roles", zap.Error(err))
 				}
 			}
 		}
@@ -420,21 +412,21 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 	}
 	var metadataJSON []byte
 	if req.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(req.Metadata)
+		metadataJSON, err = metadata.MarshalCanonical(req.Metadata)
 		if err != nil {
 			return nil, err
 		}
 	}
 	attachments, err := json.Marshal(req.Attachments)
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal attachments", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal attachments", zap.Error(err))
 		}
 	}
 	reactions, err := json.Marshal([]interface{}{}) // empty at creation
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal reactions", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal reactions", zap.Error(err))
 		}
 	}
 	msg := &Message{}
@@ -448,8 +440,8 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 	).Scan(&msg.ID, &msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
-			if logInstance != nil {
-				logInstance.Error("failed to delete master record", zap.Error(err))
+			if r.log != nil {
+				r.log.Error("failed to delete master record", zap.Error(err))
 			}
 		}
 		return nil, err
@@ -482,21 +474,21 @@ func (r *Repository) SendGroupMessage(ctx context.Context, req *messagingpb.Send
 	}
 	var metadataJSON []byte
 	if req.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(req.Metadata)
+		metadataJSON, err = metadata.MarshalCanonical(req.Metadata)
 		if err != nil {
 			return nil, err
 		}
 	}
 	attachments, err := json.Marshal(req.Attachments)
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal attachments", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal attachments", zap.Error(err))
 		}
 	}
 	reactions, err := json.Marshal([]interface{}{})
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal reactions", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal reactions", zap.Error(err))
 		}
 	}
 	msg := &Message{}
@@ -510,8 +502,8 @@ func (r *Repository) SendGroupMessage(ctx context.Context, req *messagingpb.Send
 	).Scan(&msg.ID, &msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
-			if logInstance != nil {
-				logInstance.Error("failed to delete master record", zap.Error(err))
+			if r.log != nil {
+				r.log.Error("failed to delete master record", zap.Error(err))
 			}
 		}
 		return nil, err
@@ -540,8 +532,8 @@ func (r *Repository) EditMessage(ctx context.Context, req *messagingpb.EditMessa
 	if req.NewAttachments != nil {
 		msg.Attachments, err = json.Marshal(req.NewAttachments)
 		if err != nil {
-			if logInstance != nil {
-				logInstance.Warn("failed to marshal new attachments", zap.Error(err))
+			if r.log != nil {
+				r.log.Warn("failed to marshal new attachments", zap.Error(err))
 			}
 		}
 	}
@@ -553,8 +545,7 @@ func (r *Repository) EditMessage(ctx context.Context, req *messagingpb.EditMessa
 		msg.Metadata.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
 	}
 	// Optionally update audit/versioning in metadata
-	var metadataJSON []byte
-	metadataJSON, err = protojson.Marshal(msg.Metadata)
+	metadataJSON, err := metadata.MarshalCanonical(msg.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -580,7 +571,7 @@ func (r *Repository) DeleteMessageByRequest(ctx context.Context, req *messagingp
 		msg.Metadata.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
 	}
 	// Optionally update audit/compliance in metadata
-	metadataJSON, err := protojson.Marshal(msg.Metadata)
+	metadataJSON, err := metadata.MarshalCanonical(msg.Metadata)
 	if err != nil {
 		return false, err
 	}
@@ -601,8 +592,8 @@ func (r *Repository) ReactToMessage(ctx context.Context, req *messagingpb.ReactT
 	var reactions []*messagingpb.Reaction
 	if msg.Reactions != nil {
 		if err := json.Unmarshal(msg.Reactions, &reactions); err != nil {
-			if logInstance != nil {
-				logInstance.Warn("failed to unmarshal reactions", zap.Error(err))
+			if r.log != nil {
+				r.log.Warn("failed to unmarshal reactions", zap.Error(err))
 			}
 		}
 	}
@@ -630,12 +621,12 @@ func (r *Repository) ReactToMessage(ctx context.Context, req *messagingpb.ReactT
 	}
 	msg.Reactions, err = json.Marshal(reactions)
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal reactions", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal reactions", zap.Error(err))
 		}
 		return nil, err
 	}
-	metadataJSON, err := protojson.Marshal(msg.Metadata)
+	metadataJSON, err := metadata.MarshalCanonical(msg.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -673,12 +664,12 @@ func (r *Repository) ListMessagesByFilter(ctx context.Context, req *messagingpb.
 			msg.Metadata = &commonpb.Metadata{}
 			err := protojson.Unmarshal([]byte(metadataStr), msg.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal message metadata", zap.Error(err))
+				r.log.Warn("failed to unmarshal message metadata", zap.Error(err))
 				return nil, 0, err
 			}
 		} else {
 			msg.Metadata = &commonpb.Metadata{
-				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, safeServiceSpecific(msg.Metadata)),
+				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "message_id": msg.ID}, r.log),
 				Tags:            []string{},
 				Features:        []string{},
 			}
@@ -709,7 +700,7 @@ func (r *Repository) ListThreadsByUser(ctx context.Context, req *messagingpb.Lis
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), thread.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal thread metadata", zap.Error(err))
+				r.log.Warn("failed to unmarshal thread metadata", zap.Error(err))
 				return nil, 0, err
 			}
 		}
@@ -738,7 +729,7 @@ func (r *Repository) ListConversationsByUser(ctx context.Context, req *messaging
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), conv.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal conversation metadata", zap.Error(err))
+				r.log.Warn("failed to unmarshal conversation metadata", zap.Error(err))
 				return nil, 0, err
 			}
 		}
@@ -794,15 +785,15 @@ func (r *Repository) CreateChatGroupWithRequest(ctx context.Context, req *messag
 	}
 	var metadataJSON []byte
 	if req.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(req.Metadata)
+		metadataJSON, err = metadata.MarshalCanonical(req.Metadata)
 		if err != nil {
 			return nil, err
 		}
 	}
 	roles, err := json.Marshal(req.Roles)
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal roles", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal roles", zap.Error(err))
 		}
 	}
 	group := &ChatGroup{}
@@ -816,8 +807,8 @@ func (r *Repository) CreateChatGroupWithRequest(ctx context.Context, req *messag
 	).Scan(&group.ID, &group.CreatedAt, &group.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
-			if logInstance != nil {
-				logInstance.Error("failed to delete master record", zap.Error(err))
+			if r.log != nil {
+				r.log.Error("failed to delete master record", zap.Error(err))
 			}
 		}
 		return nil, err
@@ -845,16 +836,16 @@ func (r *Repository) AddChatGroupMember(ctx context.Context, req *messagingpb.Ad
 	group.Metadata = &commonpb.Metadata{}
 	if metadataStr != "" {
 		if err := protojson.Unmarshal([]byte(metadataStr), group.Metadata); err != nil {
-			if logInstance != nil {
-				logInstance.Warn("failed to unmarshal metadata", zap.Error(err))
+			if r.log != nil {
+				r.log.Warn("failed to unmarshal metadata", zap.Error(err))
 			}
 		}
 	}
 	group.Roles = map[string]string{}
 	if rolesStr != "" {
 		if err := json.Unmarshal([]byte(rolesStr), &group.Roles); err != nil {
-			if logInstance != nil {
-				logInstance.Warn("failed to unmarshal roles", zap.Error(err))
+			if r.log != nil {
+				r.log.Warn("failed to unmarshal roles", zap.Error(err))
 			}
 		}
 	}
@@ -873,16 +864,16 @@ func (r *Repository) AddChatGroupMember(ctx context.Context, req *messagingpb.Ad
 		group.Roles[req.UserId] = req.Role
 	}
 	// Optionally update metadata
-	metadataJSON, err := protojson.Marshal(group.Metadata)
+	metadataJSON, err := metadata.MarshalCanonical(group.Metadata)
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal metadata", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal metadata", zap.Error(err))
 		}
 	}
 	rolesJSON, err := json.Marshal(group.Roles)
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal roles", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal roles", zap.Error(err))
 		}
 	}
 	updateQuery := `UPDATE service_messaging_chat_group SET member_ids=$1, roles=$2, metadata=$3, updated_at=NOW() WHERE id=$4`
@@ -906,16 +897,16 @@ func (r *Repository) RemoveChatGroupMember(ctx context.Context, req *messagingpb
 	group.Metadata = &commonpb.Metadata{}
 	if metadataStr != "" {
 		if err := protojson.Unmarshal([]byte(metadataStr), group.Metadata); err != nil {
-			if logInstance != nil {
-				logInstance.Warn("failed to unmarshal metadata", zap.Error(err))
+			if r.log != nil {
+				r.log.Warn("failed to unmarshal metadata", zap.Error(err))
 			}
 		}
 	}
 	group.Roles = map[string]string{}
 	if rolesStr != "" {
 		if err := json.Unmarshal([]byte(rolesStr), &group.Roles); err != nil {
-			if logInstance != nil {
-				logInstance.Warn("failed to unmarshal roles", zap.Error(err))
+			if r.log != nil {
+				r.log.Warn("failed to unmarshal roles", zap.Error(err))
 			}
 		}
 	}
@@ -929,16 +920,16 @@ func (r *Repository) RemoveChatGroupMember(ctx context.Context, req *messagingpb
 	group.MemberIDs = newMembers
 	delete(group.Roles, req.UserId)
 	// Optionally update metadata
-	metadataJSON, err := protojson.Marshal(group.Metadata)
+	metadataJSON, err := metadata.MarshalCanonical(group.Metadata)
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal metadata", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal metadata", zap.Error(err))
 		}
 	}
 	rolesJSON, err := json.Marshal(group.Roles)
 	if err != nil {
-		if logInstance != nil {
-			logInstance.Warn("failed to marshal roles", zap.Error(err))
+		if r.log != nil {
+			r.log.Warn("failed to marshal roles", zap.Error(err))
 		}
 	}
 	updateQuery := `UPDATE service_messaging_chat_group SET member_ids=$1, roles=$2, metadata=$3, updated_at=NOW() WHERE id=$4`
@@ -964,16 +955,16 @@ func (r *Repository) GetChatGroupByID(ctx context.Context, id string) (*ChatGrou
 	group.Metadata = &commonpb.Metadata{}
 	if metadataStr != "" {
 		if err := protojson.Unmarshal([]byte(metadataStr), group.Metadata); err != nil {
-			if logInstance != nil {
-				logInstance.Warn("failed to unmarshal chat group metadata", zap.Error(err))
+			if r.log != nil {
+				r.log.Warn("failed to unmarshal chat group metadata", zap.Error(err))
 			}
 		}
 	}
 	group.Roles = map[string]string{}
 	if rolesStr != "" {
 		if err := json.Unmarshal([]byte(rolesStr), &group.Roles); err != nil {
-			if logInstance != nil {
-				logInstance.Warn("failed to unmarshal roles", zap.Error(err))
+			if r.log != nil {
+				r.log.Warn("failed to unmarshal roles", zap.Error(err))
 			}
 		}
 	}
@@ -982,7 +973,7 @@ func (r *Repository) GetChatGroupByID(ctx context.Context, id string) (*ChatGrou
 
 // UpdateMessagingPreferences upserts preferences for a user.
 func (r *Repository) UpdateMessagingPreferences(ctx context.Context, userID string, prefs *messagingpb.MessagingPreferences) error {
-	prefsJSON, err := protojson.Marshal(prefs)
+	prefsJSON, err := metadata.MarshalCanonical(prefs)
 	if err != nil {
 		return err
 	}

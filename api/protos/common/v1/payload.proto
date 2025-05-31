@@ -1,0 +1,28 @@
+// Canonical Payload Pattern for Event Bus and Cross-Service Communication
+// ----------------------------------------------------------------------
+// This proto defines the standard Payload message for all event bus, orchestration,
+// and cross-service communication in the OVASABI platform. It is inspired by the
+// robust Metadata pattern and is designed for extensibility, traceability, and
+// interoperability across all services.
+//
+// - Use `data` for arbitrary business data (hydrated state, results, etc.).
+// - Use `versioning` for traceability, compliance, and future-proofing.
+// - All event bus and orchestration messages should use this Payload as the standard.
+//
+// For more, see docs/services/metadata.md and docs/amadeus/amadeus_context.md.
+
+syntax = "proto3";
+package common;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
+
+import "google/protobuf/struct.proto";
+
+// Canonical Payload message for all event-driven and cross-service communication.
+message Payload {
+  // Arbitrary business data (hydrated state, results, etc.)
+  google.protobuf.Struct data = 1;
+
+  // Versioning and traceability (mirrors Metadata pattern)
+  google.protobuf.Struct versioning = 2;
+} 

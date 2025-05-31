@@ -1097,6 +1097,7 @@ type EventRequest struct {
 	EntityId      string                 `protobuf:"bytes,2,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	Payload       *v1.Payload            `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`                          // Canonical business data (see common/v1/payload.proto)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1159,11 +1160,19 @@ func (x *EventRequest) GetCampaignId() int64 {
 	return 0
 }
 
+func (x *EventRequest) GetPayload() *v1.Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
 type EventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Payload       *v1.Payload            `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"` // Canonical business data (see common/v1/payload.proto)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1215,6 +1224,13 @@ func (x *EventResponse) GetMessage() string {
 func (x *EventResponse) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
+	}
+	return nil
+}
+
+func (x *EventResponse) GetPayload() *v1.Payload {
+	if x != nil {
+		return x.Payload
 	}
 	return nil
 }
@@ -1328,7 +1344,7 @@ var File_nexus_v1_nexus_proto protoreflect.FileDescriptor
 
 const file_nexus_v1_nexus_proto_rawDesc = "" +
 	"\n" +
-	"\x14nexus/v1/nexus.proto\x12\bnexus.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\x94\x02\n" +
+	"\x14nexus/v1/nexus.proto\x12\bnexus.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\x1a\x17common/v1/payload.proto\"\x94\x02\n" +
 	"\x16RegisterPatternRequest\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x01 \x01(\tR\tpatternId\x12!\n" +
@@ -1424,18 +1440,20 @@ const file_nexus_v1_nexus_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12+\n" +
 	"\x04data\x18\x03 \x01(\v2\x17.google.protobuf.StructR\x04data\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\x99\x01\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xc4\x01\n" +
 	"\fEventRequest\x12\x1d\n" +
 	"\n" +
 	"event_type\x18\x01 \x01(\tR\teventType\x12\x1b\n" +
 	"\tentity_id\x18\x02 \x01(\tR\bentityId\x12,\n" +
 	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
 	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
-	"campaignId\"q\n" +
+	"campaignId\x12)\n" +
+	"\apayload\x18\x05 \x01(\v2\x0f.common.PayloadR\apayload\"\x9c\x01\n" +
 	"\rEventResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\"\x82\x01\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12)\n" +
+	"\apayload\x18\x04 \x01(\v2\x0f.common.PayloadR\apayload\"\x82\x01\n" +
 	"\x10SubscribeRequest\x12\x1f\n" +
 	"\vevent_types\x18\x01 \x03(\tR\n" +
 	"eventTypes\x12,\n" +
@@ -1495,6 +1513,7 @@ var file_nexus_v1_nexus_proto_goTypes = []any{
 	(*structpb.Struct)(nil),         // 21: google.protobuf.Struct
 	(*v1.Metadata)(nil),             // 22: common.Metadata
 	(*timestamppb.Timestamp)(nil),   // 23: google.protobuf.Timestamp
+	(*v1.Payload)(nil),              // 24: common.Payload
 }
 var file_nexus_v1_nexus_proto_depIdxs = []int32{
 	21, // 0: nexus.v1.RegisterPatternRequest.definition:type_name -> google.protobuf.Struct
@@ -1525,31 +1544,33 @@ var file_nexus_v1_nexus_proto_depIdxs = []int32{
 	21, // 25: nexus.v1.HandleOpsResponse.data:type_name -> google.protobuf.Struct
 	22, // 26: nexus.v1.HandleOpsResponse.metadata:type_name -> common.Metadata
 	22, // 27: nexus.v1.EventRequest.metadata:type_name -> common.Metadata
-	22, // 28: nexus.v1.EventResponse.metadata:type_name -> common.Metadata
-	22, // 29: nexus.v1.SubscribeRequest.metadata:type_name -> common.Metadata
-	0,  // 30: nexus.v1.NexusService.RegisterPattern:input_type -> nexus.v1.RegisterPatternRequest
-	2,  // 31: nexus.v1.NexusService.ListPatterns:input_type -> nexus.v1.ListPatternsRequest
-	5,  // 32: nexus.v1.NexusService.Orchestrate:input_type -> nexus.v1.OrchestrateRequest
-	7,  // 33: nexus.v1.NexusService.TracePattern:input_type -> nexus.v1.TracePatternRequest
-	10, // 34: nexus.v1.NexusService.MinePatterns:input_type -> nexus.v1.MinePatternsRequest
-	12, // 35: nexus.v1.NexusService.Feedback:input_type -> nexus.v1.FeedbackRequest
-	14, // 36: nexus.v1.NexusService.HandleOps:input_type -> nexus.v1.HandleOpsRequest
-	16, // 37: nexus.v1.NexusService.EmitEvent:input_type -> nexus.v1.EventRequest
-	18, // 38: nexus.v1.NexusService.SubscribeEvents:input_type -> nexus.v1.SubscribeRequest
-	1,  // 39: nexus.v1.NexusService.RegisterPattern:output_type -> nexus.v1.RegisterPatternResponse
-	3,  // 40: nexus.v1.NexusService.ListPatterns:output_type -> nexus.v1.ListPatternsResponse
-	6,  // 41: nexus.v1.NexusService.Orchestrate:output_type -> nexus.v1.OrchestrateResponse
-	8,  // 42: nexus.v1.NexusService.TracePattern:output_type -> nexus.v1.TracePatternResponse
-	11, // 43: nexus.v1.NexusService.MinePatterns:output_type -> nexus.v1.MinePatternsResponse
-	13, // 44: nexus.v1.NexusService.Feedback:output_type -> nexus.v1.FeedbackResponse
-	15, // 45: nexus.v1.NexusService.HandleOps:output_type -> nexus.v1.HandleOpsResponse
-	17, // 46: nexus.v1.NexusService.EmitEvent:output_type -> nexus.v1.EventResponse
-	17, // 47: nexus.v1.NexusService.SubscribeEvents:output_type -> nexus.v1.EventResponse
-	39, // [39:48] is the sub-list for method output_type
-	30, // [30:39] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	24, // 28: nexus.v1.EventRequest.payload:type_name -> common.Payload
+	22, // 29: nexus.v1.EventResponse.metadata:type_name -> common.Metadata
+	24, // 30: nexus.v1.EventResponse.payload:type_name -> common.Payload
+	22, // 31: nexus.v1.SubscribeRequest.metadata:type_name -> common.Metadata
+	0,  // 32: nexus.v1.NexusService.RegisterPattern:input_type -> nexus.v1.RegisterPatternRequest
+	2,  // 33: nexus.v1.NexusService.ListPatterns:input_type -> nexus.v1.ListPatternsRequest
+	5,  // 34: nexus.v1.NexusService.Orchestrate:input_type -> nexus.v1.OrchestrateRequest
+	7,  // 35: nexus.v1.NexusService.TracePattern:input_type -> nexus.v1.TracePatternRequest
+	10, // 36: nexus.v1.NexusService.MinePatterns:input_type -> nexus.v1.MinePatternsRequest
+	12, // 37: nexus.v1.NexusService.Feedback:input_type -> nexus.v1.FeedbackRequest
+	14, // 38: nexus.v1.NexusService.HandleOps:input_type -> nexus.v1.HandleOpsRequest
+	16, // 39: nexus.v1.NexusService.EmitEvent:input_type -> nexus.v1.EventRequest
+	18, // 40: nexus.v1.NexusService.SubscribeEvents:input_type -> nexus.v1.SubscribeRequest
+	1,  // 41: nexus.v1.NexusService.RegisterPattern:output_type -> nexus.v1.RegisterPatternResponse
+	3,  // 42: nexus.v1.NexusService.ListPatterns:output_type -> nexus.v1.ListPatternsResponse
+	6,  // 43: nexus.v1.NexusService.Orchestrate:output_type -> nexus.v1.OrchestrateResponse
+	8,  // 44: nexus.v1.NexusService.TracePattern:output_type -> nexus.v1.TracePatternResponse
+	11, // 45: nexus.v1.NexusService.MinePatterns:output_type -> nexus.v1.MinePatternsResponse
+	13, // 46: nexus.v1.NexusService.Feedback:output_type -> nexus.v1.FeedbackResponse
+	15, // 47: nexus.v1.NexusService.HandleOps:output_type -> nexus.v1.HandleOpsResponse
+	17, // 48: nexus.v1.NexusService.EmitEvent:output_type -> nexus.v1.EventResponse
+	17, // 49: nexus.v1.NexusService.SubscribeEvents:output_type -> nexus.v1.EventResponse
+	41, // [41:50] is the sub-list for method output_type
+	32, // [32:41] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_nexus_v1_nexus_proto_init() }

@@ -59,7 +59,12 @@ func ValidateMetadata(meta *commonpb.Metadata) error {
 			return fmt.Errorf("tag too long (max %d chars)", MaxStringFieldLen)
 		}
 	}
-	b, err := protojson.Marshal(meta)
+	marshaler := protojson.MarshalOptions{
+		UseProtoNames:   true,
+		EmitUnpopulated: false,
+		AllowPartial:    true,
+	}
+	b, err := marshaler.Marshal(meta)
 	if err != nil {
 		// TODO: log.Warn("protojson.Marshal failed in ValidateMetadata", zap.Error(err))
 		return fmt.Errorf("failed to marshal metadata in ValidateMetadata: %w", err)
@@ -160,6 +165,6 @@ func BuildReferralMetadata(fraudSignals, rewards, audit, campaign, device map[st
 		referralMap["versioning"] = map[string]interface{}{"system_version": "1.0.0"}
 	}
 	ss := map[string]interface{}{"referral": referralMap}
-	ssStruct := NewStructFromMap(ss)
+	ssStruct := NewStructFromMap(ss, nil)
 	return &commonpb.Metadata{ServiceSpecific: ssStruct}, nil
 }

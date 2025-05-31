@@ -52,7 +52,7 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 	var metadataJSON []byte
 	var err error
 	if campaign.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(campaign.Metadata)
+		metadataJSON, err = metadata.MarshalCanonical(campaign.Metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -133,16 +133,12 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		return nil, err
 	}
 
+	// Always set serviceSpecific to campaign_id only, as err is always nil here
+	serviceSpecific := map[string]interface{}{"campaign_id": campaign.ID}
 	campaign.Metadata = &commonpb.Metadata{
-		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "campaign_id": campaign.ID},
-			func() *structpb.Struct {
-				if campaign != nil && campaign.Metadata != nil {
-					return campaign.Metadata.ServiceSpecific
-				}
-				return nil
-			}()),
-		Tags:     []string{},
-		Features: []string{},
+		ServiceSpecific: metadata.NewStructFromMap(serviceSpecific, nil),
+		Tags:            []string{},
+		Features:        []string{},
 	}
 	if metadataStr != "" {
 		err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
@@ -160,7 +156,7 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 	var metadataJSON []byte
 	var err error
 	if campaign.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(campaign.Metadata)
+		metadataJSON, err = metadata.MarshalCanonical(campaign.Metadata)
 		if err != nil {
 			return err
 		}
@@ -269,16 +265,12 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		if err != nil {
 			return nil, err
 		}
+		// Always set serviceSpecific to campaign_id only, as err is always nil here
+		serviceSpecific := map[string]interface{}{"campaign_id": campaign.ID}
 		campaign.Metadata = &commonpb.Metadata{
-			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "campaign_id": campaign.ID},
-				func() *structpb.Struct {
-					if campaign != nil && campaign.Metadata != nil {
-						return campaign.Metadata.ServiceSpecific
-					}
-					return nil
-				}()),
-			Tags:     []string{},
-			Features: []string{},
+			ServiceSpecific: metadata.NewStructFromMap(serviceSpecific, nil),
+			Tags:            []string{},
+			Features:        []string{},
 		}
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
@@ -336,16 +328,12 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 		if err != nil {
 			return nil, err
 		}
+		// Always set serviceSpecific to campaign_id only, as err is always nil here
+		serviceSpecific := map[string]interface{}{"campaign_id": campaign.ID}
 		campaign.Metadata = &commonpb.Metadata{
-			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "campaign_id": campaign.ID},
-				func() *structpb.Struct {
-					if campaign != nil && campaign.Metadata != nil {
-						return campaign.Metadata.ServiceSpecific
-					}
-					return nil
-				}()),
-			Tags:     []string{},
-			Features: []string{},
+			ServiceSpecific: metadata.NewStructFromMap(serviceSpecific, nil),
+			Tags:            []string{},
+			Features:        []string{},
 		}
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)

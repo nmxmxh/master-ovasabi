@@ -3,15 +3,13 @@ package contentmoderation
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/events"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 type Repository interface {
@@ -45,37 +43,21 @@ var _ contentmoderationpb.ContentModerationServiceServer = (*Service)(nil)
 
 func (s *Service) SubmitContentForModeration(ctx context.Context, req *contentmoderationpb.SubmitContentForModerationRequest) (*contentmoderationpb.SubmitContentForModerationResponse, error) {
 	if req == nil || req.ContentId == "" || req.UserId == "" {
-		if s.eventEnabled && s.eventEmitter != nil {
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "submit_failed", "", nil, zap.Error(errors.New("content_id and user_id are required")))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, errors.New("content_id and user_id are required")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "content_id and user_id are required", nil)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	meta, err := ExtractAndEnrichContentModerationMetadata(req.GetMetadata(), req.UserId, true)
 	if err != nil {
-		s.log.Error("Failed to enrich moderation metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "submit_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to extract and enrich content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
-		s.log.Error("Failed to marshal metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "submit_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	var masterID, masterUUID string
 	if meta != nil && meta.ServiceSpecific != nil {
@@ -91,41 +73,39 @@ func (s *Service) SubmitContentForModeration(ctx context.Context, req *contentmo
 	}
 	result, err := s.repo.SubmitContentForModeration(ctx, req.ContentId, masterID, masterUUID, req.UserId, req.ContentType, req.Content, metaJSON, req.CampaignId)
 	if err != nil {
-		s.log.Error("Failed to submit content for moderation", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "submit_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to submit content for moderation", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		successStruct := metadata.NewStructFromMap(map[string]interface{}{"content_id": req.ContentId})
-		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "submitted", req.ContentId, &commonpb.Metadata{ServiceSpecific: successStruct}, zap.String("content_id", req.ContentId))
-		if !ok {
-			s.log.Warn("Failed to emit workflow step event")
-		}
-	}
-	return &contentmoderationpb.SubmitContentForModerationResponse{Result: result}, nil
+	resp := &contentmoderationpb.SubmitContentForModerationResponse{Result: result}
+	success := graceful.WrapSuccess(ctx, codes.OK, "content submitted for moderation", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:          s.log,
+		EventEmitter: s.eventEmitter,
+		EventEnabled: s.eventEnabled,
+		EventType:    "contentmoderation.submitted",
+		EventID:      req.ContentId,
+		PatternType:  "contentmoderation",
+		PatternID:    req.ContentId,
+		PatternMeta:  meta,
+	})
+	return resp, nil
 }
 
 func (s *Service) GetModerationResult(ctx context.Context, req *contentmoderationpb.GetModerationResultRequest) (*contentmoderationpb.GetModerationResultResponse, error) {
 	if req == nil || req.ContentId == "" {
-		return nil, errors.New("content_id is required")
+		return nil, graceful.WrapErr(ctx, codes.InvalidArgument, "content_id is required", nil)
 	}
 	result, err := s.repo.GetModerationResult(ctx, req.ContentId)
 	if err != nil {
-		s.log.Error("Failed to get moderation result", zap.Error(err))
-		return nil, err
+		return nil, graceful.WrapErr(ctx, codes.Internal, "failed to get moderation result", err)
 	}
 	return &contentmoderationpb.GetModerationResultResponse{Result: result}, nil
 }
 
 func (s *Service) ListFlaggedContent(ctx context.Context, req *contentmoderationpb.ListFlaggedContentRequest) (*contentmoderationpb.ListFlaggedContentResponse, error) {
 	if req == nil {
-		return nil, errors.New("request is required")
+		return nil, graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
 	}
 	page := int(req.Page)
 	if page < 1 {
@@ -141,8 +121,7 @@ func (s *Service) ListFlaggedContent(ctx context.Context, req *contentmoderation
 	}
 	results, total, err := s.repo.ListFlaggedContent(ctx, page, pageSize, status, req.CampaignId)
 	if err != nil {
-		s.log.Error("Failed to list flagged content", zap.Error(err))
-		return nil, err
+		return nil, graceful.WrapErr(ctx, codes.Internal, "failed to list flagged content", err)
 	}
 	totalPages := utils.ToInt32((total + pageSize - 1) / pageSize)
 	return &contentmoderationpb.ListFlaggedContentResponse{
@@ -155,37 +134,21 @@ func (s *Service) ListFlaggedContent(ctx context.Context, req *contentmoderation
 
 func (s *Service) ApproveContent(ctx context.Context, req *contentmoderationpb.ApproveContentRequest) (*contentmoderationpb.ApproveContentResponse, error) {
 	if req == nil || req.ContentId == "" {
-		if s.eventEnabled && s.eventEmitter != nil {
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "approve_failed", "", nil, zap.Error(errors.New("content_id is required")))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, errors.New("content_id is required")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "content_id is required", nil)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	meta, err := ExtractAndEnrichContentModerationMetadata(req.GetMetadata(), "moderator", false)
 	if err != nil {
-		s.log.Error("Failed to enrich moderation metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "approve_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to extract and enrich content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
-		s.log.Error("Failed to marshal metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "approve_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	var masterID, masterUUID string
 	if meta != nil && meta.ServiceSpecific != nil {
@@ -201,59 +164,42 @@ func (s *Service) ApproveContent(ctx context.Context, req *contentmoderationpb.A
 	}
 	result, err := s.repo.ApproveContent(ctx, req.ContentId, masterID, masterUUID, metaJSON, req.CampaignId)
 	if err != nil {
-		s.log.Error("Failed to approve content", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "approve_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to approve content", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		successStruct := metadata.NewStructFromMap(map[string]interface{}{"content_id": req.ContentId})
-		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "approved", req.ContentId, &commonpb.Metadata{ServiceSpecific: successStruct}, zap.String("content_id", req.ContentId))
-		if !ok {
-			s.log.Warn("Failed to emit workflow step event")
-		}
-	}
-	return &contentmoderationpb.ApproveContentResponse{Result: result}, nil
+	resp := &contentmoderationpb.ApproveContentResponse{Result: result}
+	success := graceful.WrapSuccess(ctx, codes.OK, "content approved", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:          s.log,
+		EventEmitter: s.eventEmitter,
+		EventEnabled: s.eventEnabled,
+		EventType:    "contentmoderation.approved",
+		EventID:      req.ContentId,
+		PatternType:  "contentmoderation",
+		PatternID:    req.ContentId,
+		PatternMeta:  meta,
+	})
+	return resp, nil
 }
 
 func (s *Service) RejectContent(ctx context.Context, req *contentmoderationpb.RejectContentRequest) (*contentmoderationpb.RejectContentResponse, error) {
 	if req == nil || req.ContentId == "" {
-		if s.eventEnabled && s.eventEmitter != nil {
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "reject_failed", "", nil, zap.Error(errors.New("content_id is required")))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, errors.New("content_id is required")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "content_id is required", nil)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	meta, err := ExtractAndEnrichContentModerationMetadata(req.GetMetadata(), "moderator", false)
 	if err != nil {
-		s.log.Error("Failed to enrich moderation metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "reject_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to extract and enrich content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
-		s.log.Error("Failed to marshal metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "reject_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
 	var masterID, masterUUID string
 	if meta != nil && meta.ServiceSpecific != nil {
@@ -269,39 +215,21 @@ func (s *Service) RejectContent(ctx context.Context, req *contentmoderationpb.Re
 	}
 	result, err := s.repo.RejectContent(ctx, req.ContentId, masterID, masterUUID, req.Reason, metaJSON, req.CampaignId)
 	if err != nil {
-		s.log.Error("Failed to reject content", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "reject_failed", req.ContentId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit workflow step event")
-			}
-		}
-		return nil, err
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to reject content", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
 	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		successStruct := metadata.NewStructFromMap(map[string]interface{}{"content_id": req.ContentId})
-		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "contentmoderation", "rejected", req.ContentId, &commonpb.Metadata{ServiceSpecific: successStruct}, zap.String("content_id", req.ContentId))
-		if !ok {
-			s.log.Warn("Failed to emit workflow step event")
-		}
-	}
-	return &contentmoderationpb.RejectContentResponse{Result: result}, nil
+	resp := &contentmoderationpb.RejectContentResponse{Result: result}
+	success := graceful.WrapSuccess(ctx, codes.OK, "content rejected", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:          s.log,
+		EventEmitter: s.eventEmitter,
+		EventEnabled: s.eventEnabled,
+		EventType:    "contentmoderation.rejected",
+		EventID:      req.ContentId,
+		PatternType:  "contentmoderation",
+		PatternID:    req.ContentId,
+		PatternMeta:  meta,
+	})
+	return resp, nil
 }
-
-// Remove or comment out the ModerateContent method if not implemented, as it causes undefined errors.
-// func (s *Service) ModerateContent(ctx context.Context, req *contentmoderationpb.ModerateContentRequest) (*contentmoderationpb.ModerateContentResponse, error) {
-// 	// ... existing logic ...
-// 	if err != nil {
-// 		if s.eventEnabled && s.eventEmitter != nil {
-// 			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "content_id": req.ContentId})
-// 			events.WithWorkflowStepEvent(ctx, s.eventEmitter, s.log, "contentmoderation.moderation_failed", &commonpb.Metadata{ServiceSpecific: errStruct}, func(ctx context.Context) error { return err }, zap.Error(err))
-// 		}
-// 		return nil, status.Errorf(codes.Internal, "failed to moderate content: %v", err)
-// 	}
-// 	if s.eventEnabled && s.eventEmitter != nil {
-// 		successStruct := metadata.NewStructFromMap(map[string]interface{}{"content_id": req.ContentId})
-// 		events.WithWorkflowStepEvent(ctx, s.eventEmitter, s.log, "contentmoderation.moderation_completed", &commonpb.Metadata{ServiceSpecific: successStruct}, func(ctx context.Context) error { return nil }, zap.String("content_id", req.ContentId))
-// 	}
-// 	return &contentmoderationpb.ModerateContentResponse{Success: true}, nil
-// }

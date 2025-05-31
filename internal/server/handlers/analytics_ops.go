@@ -2,10 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
+	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
+	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +34,21 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		// Extract authentication context
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
+		if isGuest {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		var securitySvc securitypb.SecurityServiceClient
+		if err := container.Resolve(&securitySvc); err != nil {
+			log.Error("Failed to resolve SecurityService", zap.Error(err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("invalid JSON in AnalyticsOpsHandler", zap.Error(err))
@@ -40,6 +59,22 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 		if !ok || action == "" {
 			log.Error("missing or invalid action in AnalyticsOpsHandler", zap.Any("value", req["action"]))
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
+			return
+		}
+		ctx := r.Context()
+		// Permission check for all analytics actions
+		err := shield.CheckPermission(ctx, securitySvc, action, "analytics", shield.WithMetadata(meta))
+		switch {
+		case err == nil:
+			// allowed, proceed
+		case errors.Is(err, shield.ErrUnauthenticated):
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		case errors.Is(err, shield.ErrPermissionDenied):
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 		switch action {

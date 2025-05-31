@@ -31,27 +31,21 @@ import (
 	"database/sql"
 
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
-// EventEmitter defines the interface for emitting events.
-type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
-}
-
 // Register registers the Campaign service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+func Register(ctx context.Context, container *di.Container, db *sql.DB, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
 	masterRepo := repository.NewRepository(db, log)
 	repo := NewRepository(db, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "campaign")
 	if err != nil {
 		log.With(zap.String("service", "campaign")).Warn("Failed to get campaign cache", zap.Error(err), zap.String("cache", "campaign"), zap.String("context", ctxValue(ctx)))
 	}
-	service := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	service := NewService(log, repo, cache, eventEnabled)
 	if err := container.Register((*campaignpb.CampaignServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return service, nil
 	}); err != nil {

@@ -100,7 +100,7 @@ func (r *Repository) CreateProduct(ctx context.Context, p *productpb.Product) (*
 	if err != nil {
 		return nil, err
 	}
-	meta, err := protojson.Marshal(p.Metadata)
+	meta, err := metadatautil.MarshalCanonical(p.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
@@ -138,7 +138,7 @@ func (r *Repository) UpdateProduct(ctx context.Context, p *productpb.Product) (*
 	if err != nil {
 		return nil, err
 	}
-	meta, err := protojson.Marshal(p.Metadata)
+	meta, err := metadatautil.MarshalCanonical(p.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}

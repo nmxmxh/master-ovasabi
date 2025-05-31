@@ -2,12 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
+	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -37,6 +41,26 @@ func AdminOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
 			return
 		}
+		// Extract authentication context
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
+		if isGuest {
+			httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
+			return
+		}
+		if !isAdmin(authCtx.Roles) {
+			log.Error("Admin role required for admin operations", zap.Strings("roles", authCtx.Roles))
+			httputil.WriteJSONError(w, log, http.StatusForbidden, "admin role required", nil)
+			return
+		}
+		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		var securitySvc securitypb.SecurityServiceClient
+		if err := container.Resolve(&securitySvc); err != nil {
+			log.Error("Failed to resolve SecurityService", zap.Error(err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
@@ -48,6 +72,21 @@ func AdminOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			return
 		}
 		ctx := r.Context()
+		// Permission check for all admin actions
+		err := shield.CheckPermission(ctx, securitySvc, action, "admin", shield.WithMetadata(meta))
+		switch {
+		case err == nil:
+			// allowed, proceed
+		case errors.Is(err, shield.ErrUnauthenticated):
+			httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", err)
+			return
+		case errors.Is(err, shield.ErrPermissionDenied):
+			httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden", err)
+			return
+		default:
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
+			return
+		}
 		switch action {
 		case "create_user":
 			email, ok := req["email"].(string)

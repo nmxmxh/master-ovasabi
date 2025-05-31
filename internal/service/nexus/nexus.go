@@ -3,6 +3,8 @@ package nexus
 import (
 	"context"
 	"encoding/json"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,8 +14,12 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/nexus"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Service implements the NexusServiceServer gRPC interface and business logic, fully repository-backed.
@@ -38,6 +44,13 @@ func NewService(ctx context.Context, repo *Repository, eventRepo nexus.EventRepo
 }
 
 func (s *Service) RegisterPattern(ctx context.Context, req *nexusv1.RegisterPatternRequest) (*nexusv1.RegisterPatternResponse, error) {
+	userID, roles, _, _ := extractAuthContext(ctx, req.Metadata)
+	if userID == "" {
+		return &nexusv1.RegisterPatternResponse{Success: false, Error: "unauthenticated: user_id required"}, nil
+	}
+	if !hasRole(roles, "admin") && !hasRole(roles, "system") {
+		return &nexusv1.RegisterPatternResponse{Success: false, Error: "forbidden: admin or system role required"}, nil
+	}
 	err := s.Repo.RegisterPattern(ctx, req, "system", req.CampaignId)
 	if err != nil {
 		s.Log.Warn("RegisterPattern failed", zap.Error(err))
@@ -56,6 +69,10 @@ func (s *Service) ListPatterns(ctx context.Context, req *nexusv1.ListPatternsReq
 }
 
 func (s *Service) Orchestrate(ctx context.Context, req *nexusv1.OrchestrateRequest) (*nexusv1.OrchestrateResponse, error) {
+	userID, _, _, _ := extractAuthContext(ctx, req.Metadata)
+	if userID == "" {
+		return nil, graceful.WrapErr(ctx, 16 /* codes.Unauthenticated */, "unauthenticated: user_id required", nil)
+	}
 	id, err := s.Repo.Orchestrate(ctx, req, "system", req.CampaignId)
 	if err != nil {
 		s.Log.Warn("Orchestrate failed", zap.Error(err))
@@ -83,6 +100,11 @@ func (s *Service) MinePatterns(ctx context.Context, req *nexusv1.MinePatternsReq
 }
 
 func (s *Service) Feedback(ctx context.Context, req *nexusv1.FeedbackRequest) (*nexusv1.FeedbackResponse, error) {
+	userID, _, guestNickname, deviceID := extractAuthContext(ctx, req.Metadata)
+	isGuest := userID == "" && guestNickname != "" && deviceID != ""
+	if !isGuest && userID == "" {
+		return &nexusv1.FeedbackResponse{Success: false, Error: "unauthenticated: user_id or guest_nickname/device_id required"}, nil
+	}
 	err := s.Repo.Feedback(ctx, req)
 	if err != nil {
 		s.Log.Warn("Feedback failed", zap.Error(err))
@@ -258,20 +280,130 @@ func alertOnDeadEvent(s *Service, event *nexus.CanonicalEvent) {
 
 // EmitEvent handles event emission to the Nexus event bus with structured logging and persistence.
 func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nexusv1.EventResponse, error) {
-	s.Log.Info("Nexus: EmitEvent called", zap.String("event_type", req.EventType), zap.String("entity_id", req.EntityId), zap.Any("metadata", req.Metadata))
+	userID, roles, guestNickname, deviceID := extractAuthContext(ctx, req.Metadata)
+	isGuest := userID == "" && guestNickname != "" && deviceID != ""
+	if !isGuest && userID == "" {
+		return nil, graceful.WrapErr(ctx, 16 /* codes.Unauthenticated */, "unauthenticated: user_id or guest_nickname/device_id required", nil)
+	}
+	if isGuest {
+		// Allow guests for public events only (e.g., public broadcasts), not for sensitive/mutating events
+		if req.EventType != "public.broadcast" && req.EventType != "public.comment" {
+			return nil, graceful.WrapErr(ctx, 7 /* codes.PermissionDenied */, "guests cannot emit this event type", nil)
+		}
+	}
+	// Additional role-based permission check: only admins can emit 'system.' events
+	if len(roles) > 0 && strings.HasPrefix(req.EventType, "system.") {
+		isAdmin := false
+		for _, r := range roles {
+			if r == "admin" {
+				isAdmin = true
+				break
+			}
+		}
+		if !isAdmin {
+			return nil, graceful.WrapErr(ctx, 7 /* codes.PermissionDenied */, "only admin can emit system events", nil)
+		}
+	}
+	s.Log.Info("Nexus: EmitEvent called", zap.String("event_type", req.EventType), zap.String("entity_id", req.EntityId), zap.Any("metadata", req.Metadata), zap.Any("payload", req.Payload))
+	// --- Enrich metadata with actor/auth context ---
+	metaMap := map[string]interface{}{}
+	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+		metaMap = req.Metadata.ServiceSpecific.AsMap()
+	}
+	actor := map[string]interface{}{}
+	// Try to extract from context (if available)
+	if v := ctx.Value("user_id"); v != nil {
+		actor["user_id"] = v
+	}
+	if v := ctx.Value("roles"); v != nil {
+		actor["roles"] = v
+	}
+	if v := ctx.Value("guest_nickname"); v != nil {
+		actor["guest_nickname"] = v
+	}
+	if v := ctx.Value("device_id"); v != nil {
+		actor["device_id"] = v
+	}
+	// Fallback: try to extract from metadata if present
+	if a, ok := metaMap["actor"].(map[string]interface{}); ok {
+		for k, v := range a {
+			actor[k] = v
+		}
+	}
+	metaMap["actor"] = actor
+	// Add audit info
+	audit := map[string]interface{}{
+		"performed_by": actor["user_id"],
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}
+	metaMap["audit"] = audit
+	// Rebuild ServiceSpecific struct
+	ss, err := json.Marshal(metaMap)
+	if err == nil {
+		var structVal map[string]interface{}
+		if err := json.Unmarshal(ss, &structVal); err == nil {
+			if req.Metadata == nil {
+				req.Metadata = &commonpb.Metadata{}
+			}
+			structpbVal, err := structpb.NewStruct(structVal)
+			if err == nil {
+				req.Metadata.ServiceSpecific = structpbVal
+			}
+		}
+	}
+	// Build CanonicalEvent with robust field extraction
+	var masterID int64
+	if req.EntityId != "" {
+		if id, err := strconv.ParseInt(req.EntityId, 10, 64); err == nil {
+			masterID = id
+		} else {
+			s.Log.Warn("EntityId is not a valid int64", zap.String("entity_id", req.EntityId), zap.Error(err))
+		}
+	}
+	// Infer entityType from metadata if possible
+	entityType := ""
+	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+		if t, ok := req.Metadata.ServiceSpecific.Fields["entity_type"]; ok {
+			entityType = t.GetStringValue()
+		}
+	}
+	// Use req.Metadata directly for now (TODO: convert to ServiceMetadata if needed)
+	// canonicalMeta := req.Metadata
 	// Build CanonicalEvent
+	var payloadMap map[string]interface{}
+	switch {
+	case req.Payload != nil && req.Payload.Data != nil:
+		payloadMap = req.Payload.Data.AsMap()
+	case req.Payload != nil:
+		s.Log.Warn("Payload present but Data is nil")
+		return nil, graceful.WrapErr(ctx, 3 /* codes.InvalidArgument */, "invalid payload: Data is nil", nil)
+	default:
+		payloadMap = nil // or make(map[string]interface{}) if you want an empty map
+	}
+	// Convert req.Metadata (*commonpb.Metadata) to *metadata.ServiceMetadata for CanonicalEvent
+	var serviceMeta *metadata.ServiceMetadata
+	if req.Metadata != nil {
+		var err error
+		serviceMeta, err = metadata.ServiceMetadataFromStruct(req.Metadata.ServiceSpecific)
+		if err != nil {
+			s.Log.Error("Failed to convert proto metadata to ServiceMetadata", zap.Error(err))
+			return nil, graceful.WrapErr(ctx, 3 /* codes.InvalidArgument */, "invalid metadata: cannot convert to ServiceMetadata", err)
+		}
+	}
 	event := &nexus.CanonicalEvent{
 		ID:         uuid.New(),
-		MasterID:   0,  // TODO: parse from req.EntityId if possible
-		EntityType: "", // TODO: set from req or context
+		MasterID:   masterID,                          // parsed from req.EntityId if possible
+		EntityType: repository.EntityType(entityType), // convert string to EntityType
 		EventType:  req.EventType,
-		Payload:    nil, // TODO: extract from req if needed
-		Metadata:   nil, // TODO: convert req.Metadata to ServiceMetadata
+		Payload:    payloadMap,  // already robustly extracted above
+		Metadata:   serviceMeta, // converted ServiceMetadata
 		Status:     "pending",
 		CreatedAt:  time.Now(),
 	}
+	// Persist event with graceful error handling
 	if err := s.EventRepo.SaveEvent(ctx, event); err != nil {
-		s.Log.Error("Failed to persist event", zap.Error(err))
+		errResp := graceful.WrapErr(ctx, 13 /* codes.Internal */, "Failed to persist event", err)
+		errResp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.Log})
 		return nil, err
 	}
 	// Canonical metadata enrichment helpers
@@ -289,27 +421,49 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 			}
 		}
 	}
-	if protoMeta != nil {
-		if s.Cache != nil {
-			if err := pattern.CacheMetadata(ctx, s.Log, s.Cache, "nexus_event", event.ID.String(), protoMeta, 10*time.Minute); err != nil {
-				s.Log.Error("failed to cache nexus event metadata", zap.Error(err))
+	// Success orchestration
+	successResp := graceful.WrapSuccess(ctx, 0 /* codes.OK */, "event emitted", event, nil)
+	successResp.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         s.Log,
+		Metadata:    protoMeta,
+		PatternType: "nexus_event",
+		PatternID:   event.ID.String(),
+		PatternMeta: protoMeta,
+		// 1. Cache metadata (already implemented)
+		MetadataHook: func(ctx context.Context) error {
+			if s.Cache != nil && protoMeta != nil {
+				return s.Cache.Set(ctx, "nexus_event:"+event.ID.String()+":metadata", "", protoMeta, 10*time.Minute)
 			}
-		}
-		if err := pattern.RegisterSchedule(ctx, s.Log, "nexus_event", event.ID.String(), protoMeta); err != nil {
-			s.Log.Error("failed to register nexus event schedule", zap.Error(err))
-		}
-		if err := pattern.EnrichKnowledgeGraph(ctx, s.Log, "nexus_event", event.ID.String(), protoMeta); err != nil {
-			s.Log.Error("failed to enrich nexus event knowledge graph", zap.Error(err))
-		}
-		if err := pattern.RegisterWithNexus(ctx, s.Log, "nexus_event", protoMeta); err != nil {
-			s.Log.Error("failed to register nexus event with nexus", zap.Error(err))
-		}
-	}
-	// Propagate to subscribers
+			return nil
+		},
+		// 2. Enrich knowledge graph
+		KnowledgeGraphHook: func(ctx context.Context) error {
+			if protoMeta != nil {
+				return pattern.EnrichKnowledgeGraph(ctx, s.Log, "nexus_event", event.ID.String(), protoMeta)
+			}
+			return nil
+		},
+		// 3. Register with scheduler
+		SchedulerHook: func(ctx context.Context) error {
+			if protoMeta != nil {
+				return pattern.RegisterSchedule(ctx, s.Log, "nexus_event", event.ID.String(), protoMeta)
+			}
+			return nil
+		},
+		// 4. Emit follow-up event (stub)
+		EventHook: func(_ context.Context) error {
+			// Example: emit an analytics or audit event after the main event
+			s.Log.Info("Emitting follow-up event (analytics/audit)", zap.String("event_id", event.ID.String()), zap.String("event_type", event.EventType))
+			// TODO: Implement actual follow-up event emission logic here if needed
+			return nil
+		},
+	})
+	// Propagate to subscribers, now including payload
 	resp := &nexusv1.EventResponse{
 		Success:  true,
 		Message:  req.EventType,
 		Metadata: req.Metadata,
+		Payload:  req.Payload, // Always include payload in response
 	}
 	s.subscribersMu.RLock()
 	chans := s.subscribers[req.EventType]
@@ -362,4 +516,62 @@ func (s *Service) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.
 		}
 	}
 	return nil
+}
+
+// extractAuthContext extracts user_id, roles, guest_nickname, device_id from context or metadata.
+func extractAuthContext(ctx context.Context, meta *commonpb.Metadata) (userID string, roles []string, guestNickname, deviceID string) {
+	// Try context first
+	if v := ctx.Value("user_id"); v != nil {
+		if s, ok := v.(string); ok {
+			userID = s
+		}
+	}
+	if v := ctx.Value("roles"); v != nil {
+		if arr, ok := v.([]string); ok {
+			roles = arr
+		}
+	}
+	if v := ctx.Value("guest_nickname"); v != nil {
+		if s, ok := v.(string); ok {
+			guestNickname = s
+		}
+	}
+	if v := ctx.Value("device_id"); v != nil {
+		if s, ok := v.(string); ok {
+			deviceID = s
+		}
+	}
+	// Fallback: try metadata
+	if meta != nil && meta.ServiceSpecific != nil {
+		m := meta.ServiceSpecific.AsMap()
+		if a, ok := m["actor"].(map[string]interface{}); ok {
+			if v, ok := a["user_id"].(string); ok && userID == "" {
+				userID = v
+			}
+			if arr, ok := a["roles"].([]interface{}); ok && len(roles) == 0 {
+				for _, r := range arr {
+					if s, ok := r.(string); ok {
+						roles = append(roles, s)
+					}
+				}
+			}
+			if v, ok := a["guest_nickname"].(string); ok && guestNickname == "" {
+				guestNickname = v
+			}
+			if v, ok := a["device_id"].(string); ok && deviceID == "" {
+				deviceID = v
+			}
+		}
+	}
+	return userID, roles, guestNickname, deviceID
+}
+
+// hasRole returns true if roles contains the given role.
+func hasRole(roles []string, role string) bool {
+	for _, r := range roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
 }

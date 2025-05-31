@@ -38,12 +38,12 @@ import (
 
 // EventEmitter defines the interface for emitting events (canonical platform interface).
 type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
+	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
 }
 
 // Register registers the messaging service with the DI container and event bus support.
 func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repository.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
-	repo := NewRepository(db, masterRepo)
+	repo := NewRepository(db, masterRepo, nil)
 	cache, err := redisProvider.GetCache(ctx, "messaging")
 	if err != nil {
 		log.Warn("failed to get messaging cache", zap.Error(err))

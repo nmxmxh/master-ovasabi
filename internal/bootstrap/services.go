@@ -30,6 +30,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service/scheduler"
 	"github.com/nmxmxh/master-ovasabi/internal/service/search"
 	"github.com/nmxmxh/master-ovasabi/internal/service/security"
+
 	"github.com/nmxmxh/master-ovasabi/internal/service/talent"
 	"github.com/nmxmxh/master-ovasabi/internal/service/user"
 	healthpkg "github.com/nmxmxh/master-ovasabi/pkg/health"
@@ -37,7 +38,7 @@ import (
 
 // EventEmitter interface (canonical platform interface).
 type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
+	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
 }
 
 // ServiceBootstrapper centralizes registration of all services.
@@ -162,7 +163,7 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 			Version:      "1.0.0",
 			Dependencies: []string{"user", "notification"},
 			Register: func() error {
-				return campaign.Register(ctx, b.Container, b.EventEmitter, b.DB, b.RedisProvider, b.Logger, b.EventEnabled)
+				return campaign.Register(ctx, b.Container, b.DB, b.RedisProvider, b.Logger, b.EventEnabled)
 			},
 			HealthCheck: nil,
 		},
@@ -294,7 +295,7 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 			Version:      "1.0.0",
 			Dependencies: []string{"all"},
 			Register: func() error {
-				return security.Register(ctx, b.Container, b.EventEmitter, b.DB, b.MasterRepo, b.RedisProvider, b.Logger, b.EventEnabled)
+				return security.Register(ctx, b.Container, b.DB, b.MasterRepo, b.RedisProvider, b.Logger, b.EventEnabled)
 			},
 			HealthCheck: nil,
 		},

@@ -10,16 +10,17 @@ package messaging
 
 import (
 	context "context"
+	"errors"
+	"strconv"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
-	messageEvents "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -142,25 +143,22 @@ func (s *Service) SendMessage(ctx context.Context, req *messagingpb.SendMessageR
 	}
 	msg, err := s.repo.SendMessage(ctx, req)
 	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "sender_id": req.SenderId})
-			errMeta := &commonpb.Metadata{ServiceSpecific: errStruct}
-			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.send_failed", req.SenderId, errMeta, zap.Error(err))
-			if !ok {
-				s.log.Error("Failed to emit messaging.send_failed event", zap.Error(err))
-			}
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to send message", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Errorf(codes.Internal, "failed to send message: %v", err)
+		return nil, graceful.ToStatusError(err)
 	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		successStruct := metadata.NewStructFromMap(map[string]interface{}{"message_id": msg.ID})
-		successMeta := &commonpb.Metadata{ServiceSpecific: successStruct}
-		_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.sent", msg.ID, successMeta, zap.String("message_id", msg.ID))
-		if !ok {
-			s.log.Error("Failed to emit messaging.sent event", zap.String("message_id", msg.ID))
-		}
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"message_id": msg.ID,
+		}, nil),
 	}
-	return &messagingpb.SendMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
+	resp := &messagingpb.SendMessageResponse{Message: mapRepoMessageToProto(msg)}
+	success := graceful.WrapSuccess(ctx, codes.OK, "message sent", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) SendGroupMessage(ctx context.Context, req *messagingpb.SendGroupMessageRequest) (*messagingpb.SendGroupMessageResponse, error) {
@@ -169,119 +167,119 @@ func (s *Service) SendGroupMessage(ctx context.Context, req *messagingpb.SendGro
 	}
 	msg, err := s.repo.SendGroupMessage(ctx, req)
 	if err != nil {
-		// Emit failure event
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{
-				"error":     err.Error(),
-				"sender_id": req.SenderId,
-				"content":   req.Content,
-			})
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.group_send_failed", "", errMeta)
-			if !ok {
-				s.log.Warn("Failed to emit messaging.group_send_failed event", zap.Error(err))
-			}
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to send group message", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Errorf(codes.Internal, "failed to send group message: %v", err)
+		return nil, graceful.ToStatusError(err)
 	}
-	// Emit messaging.group_sent event after successful send
-	if s.eventEnabled && s.eventEmitter != nil {
-		msg.Metadata, _ = messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.group_sent", msg.ID, msg.Metadata)
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"message_id": msg.ID,
+		}, nil),
 	}
-	return &messagingpb.SendGroupMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
+	resp := &messagingpb.SendGroupMessageResponse{Message: mapRepoMessageToProto(msg)}
+	success := graceful.WrapSuccess(ctx, codes.OK, "group message sent", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) EditMessage(ctx context.Context, req *messagingpb.EditMessageRequest) (*messagingpb.EditMessageResponse, error) {
 	msg, err := s.repo.EditMessage(ctx, req)
 	if err != nil {
-		// Emit failure event
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{
-				"error":      err.Error(),
-				"message_id": req.MessageId,
-			})
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.edit_failed", req.MessageId, errMeta)
-			if !ok {
-				s.log.Warn("Failed to emit messaging.edit_failed event", zap.Error(err))
-			}
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to edit message", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Errorf(codes.Internal, "failed to edit message: %v", err)
+		return nil, graceful.ToStatusError(err)
 	}
-	// Emit messaging.edited event after successful edit
-	if s.eventEnabled && s.eventEmitter != nil {
-		msg.Metadata, _ = messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.edited", msg.ID, msg.Metadata)
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"message_id": msg.ID,
+		}, nil),
 	}
-	return &messagingpb.EditMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
+	resp := &messagingpb.EditMessageResponse{Message: mapRepoMessageToProto(msg)}
+	success := graceful.WrapSuccess(ctx, codes.OK, "message edited", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) DeleteMessage(ctx context.Context, req *messagingpb.DeleteMessageRequest) (*messagingpb.DeleteMessageResponse, error) {
-	success, err := s.repo.DeleteMessageByRequest(ctx, req)
+	successVal, err := s.repo.DeleteMessageByRequest(ctx, req)
 	if err != nil {
-		// Emit failure event
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{
-				"error":      err.Error(),
-				"message_id": req.MessageId,
-			})
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.delete_failed", req.MessageId, errMeta)
-			if !ok {
-				s.log.Warn("Failed to emit messaging.delete_failed event", zap.Error(err))
-			}
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to delete message", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Errorf(codes.Internal, "failed to delete message: %v", err)
+		return nil, graceful.ToStatusError(err)
 	}
-	// Emit messaging.deleted event after successful deletion
-	if s.eventEnabled && s.eventEmitter != nil {
-		_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.deleted", req.MessageId, nil)
-		if !ok {
-			s.log.Warn("Failed to emit messaging.deleted event", zap.Error(err))
-		}
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"message_id": req.MessageId,
+		}, nil),
 	}
-	return &messagingpb.DeleteMessageResponse{Success: success}, nil
+	resp := &messagingpb.DeleteMessageResponse{Success: successVal}
+	success := graceful.WrapSuccess(ctx, codes.OK, "message deleted", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) ReactToMessage(ctx context.Context, req *messagingpb.ReactToMessageRequest) (*messagingpb.ReactToMessageResponse, error) {
 	msg, err := s.repo.ReactToMessage(ctx, req)
 	if err != nil {
-		// Emit failure event
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{
-				"error":      err.Error(),
-				"message_id": req.MessageId,
-			})
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			_, ok := messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.react_failed", req.MessageId, errMeta)
-			if !ok {
-				s.log.Warn("Failed to emit messaging.react_failed event", zap.Error(err))
-			}
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to react to message", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Errorf(codes.Internal, "failed to react to message: %v", err)
+		return nil, graceful.ToStatusError(err)
 	}
-	// Emit messaging.reacted event after successful reaction
-	if s.eventEnabled && s.eventEmitter != nil {
-		msg.Metadata, _ = messageEvents.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.cache, "message", "messaging.reacted", msg.ID, msg.Metadata)
+	// Minimal metadata for reaction
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"reaction": req.Emoji,
+			"user_id":  req.UserId,
+		}, nil),
 	}
-	return &messagingpb.ReactToMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
+	resp := &messagingpb.ReactToMessageResponse{Message: mapRepoMessageToProto(msg)}
+	success := graceful.WrapSuccess(ctx, codes.OK, "reaction added", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) GetMessage(ctx context.Context, req *messagingpb.GetMessageRequest) (*messagingpb.GetMessageResponse, error) {
 	msg, err := s.repo.GetMessageByID(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "message not found: %v", err)
+		err = graceful.WrapErr(ctx, codes.NotFound, "message not found", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	return &messagingpb.GetMessageResponse{Message: mapRepoMessageToProto(msg)}, nil
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"message_id": msg.ID,
+		}, nil),
+	}
+	resp := &messagingpb.GetMessageResponse{Message: mapRepoMessageToProto(msg)}
+	success := graceful.WrapSuccess(ctx, codes.OK, "message fetched", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) ListMessages(ctx context.Context, req *messagingpb.ListMessagesRequest) (*messagingpb.ListMessagesResponse, error) {
 	msgs, total, err := s.repo.ListMessagesByFilter(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list messages: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to list messages", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	protoMsgs := make([]*messagingpb.Message, 0, len(msgs))
 	for _, m := range msgs {
@@ -289,7 +287,6 @@ func (s *Service) ListMessages(ctx context.Context, req *messagingpb.ListMessage
 		// Enrich metadata using canonical helpers
 		if pm.Metadata != nil {
 			meta := ExtractMessagingMetadata(pm.Metadata)
-			// Example enrichment: ensure versioning is set
 			if meta.Versioning == nil {
 				meta.Versioning = &VersioningMetadata{SystemVersion: "1.0.0"}
 			}
@@ -313,23 +310,37 @@ func (s *Service) ListMessages(ctx context.Context, req *messagingpb.ListMessage
 	if pageSize > 0 {
 		totalPages = (total + pageSize - 1) / pageSize
 	}
-	return &messagingpb.ListMessagesResponse{
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"page":      req.Page,
+			"page_size": pageSize,
+			"total":     total,
+		}, nil),
+	}
+	resp := &messagingpb.ListMessagesResponse{
 		Messages:   protoMsgs,
 		TotalCount: utils.ToInt32(total),
 		Page:       req.Page,
 		TotalPages: utils.ToInt32(totalPages),
-	}, nil
+	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "messages listed", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) ListThreads(ctx context.Context, req *messagingpb.ListThreadsRequest) (*messagingpb.ListThreadsResponse, error) {
 	threads, total, err := s.repo.ListThreadsByUser(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list threads: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to list threads", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	protoThreads := make([]*messagingpb.Thread, 0, len(threads))
 	for _, t := range threads {
 		pt := mapRepoThreadToProto(t)
-		// Enrich metadata
 		if pt.Metadata != nil {
 			meta := ExtractMessagingMetadata(pt.Metadata)
 			if meta.Versioning == nil {
@@ -355,23 +366,37 @@ func (s *Service) ListThreads(ctx context.Context, req *messagingpb.ListThreadsR
 	if pageSize > 0 {
 		totalPages = (total + pageSize - 1) / pageSize
 	}
-	return &messagingpb.ListThreadsResponse{
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"page":      req.Page,
+			"page_size": pageSize,
+			"total":     total,
+		}, nil),
+	}
+	resp := &messagingpb.ListThreadsResponse{
 		Threads:    protoThreads,
 		TotalCount: utils.ToInt32(total),
 		Page:       req.Page,
 		TotalPages: utils.ToInt32(totalPages),
-	}, nil
+	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "threads listed", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) ListConversations(ctx context.Context, req *messagingpb.ListConversationsRequest) (*messagingpb.ListConversationsResponse, error) {
 	convs, total, err := s.repo.ListConversationsByUser(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list conversations: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to list conversations", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	protoConvs := make([]*messagingpb.Conversation, 0, len(convs))
 	for _, c := range convs {
 		pc := mapRepoConversationToProto(c)
-		// Enrich metadata
 		if pc.Metadata != nil {
 			meta := ExtractMessagingMetadata(pc.Metadata)
 			if meta.Versioning == nil {
@@ -397,85 +422,396 @@ func (s *Service) ListConversations(ctx context.Context, req *messagingpb.ListCo
 	if pageSize > 0 {
 		totalPages = (total + pageSize - 1) / pageSize
 	}
-	return &messagingpb.ListConversationsResponse{
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"page":      req.Page,
+			"page_size": pageSize,
+			"total":     total,
+		}, nil),
+	}
+	resp := &messagingpb.ListConversationsResponse{
 		Conversations: protoConvs,
 		TotalCount:    utils.ToInt32(total),
 		Page:          req.Page,
 		TotalPages:    utils.ToInt32(totalPages),
-	}, nil
+	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "conversations listed", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
-func (s *Service) StreamMessages(_ *messagingpb.StreamMessagesRequest, _ messagingpb.MessagingService_StreamMessagesServer) error {
-	// TODO: Implement stream messages logic
-	return nil
+func (s *Service) StreamMessages(req *messagingpb.StreamMessagesRequest, srv messagingpb.MessagingService_StreamMessagesServer) error {
+	ctx := srv.Context()
+	redisClient := s.cache.GetClient()
+	if redisClient == nil {
+		err := graceful.WrapErr(ctx, codes.Unavailable, "Redis client unavailable", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(err)
+	}
+
+	// Determine channels to subscribe to
+	channels := []string{}
+	if req.UserId != "" {
+		channels = append(channels, "messaging:events:user:"+req.UserId)
+	}
+	for _, convID := range req.ConversationIds {
+		if convID != "" {
+			channels = append(channels, "messaging:events:conversation:"+convID)
+		}
+	}
+	for _, groupID := range req.ChatGroupIds {
+		if groupID != "" {
+			channels = append(channels, "messaging:events:chat_group:"+groupID)
+		}
+	}
+	if len(channels) == 0 {
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "No channels to subscribe to (user_id, conversation_ids, or chat_group_ids required)", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(err)
+	}
+
+	// Optionally: send recent message history (last 20 messages per channel)
+	// (For brevity, only for the first conversation or group)
+	if len(req.ConversationIds) > 0 && req.ConversationIds[0] != "" {
+		msgs, _, err := s.repo.ListMessagesByFilter(ctx, &messagingpb.ListMessagesRequest{
+			ConversationId: req.ConversationIds[0],
+			Page:           1,
+			PageSize:       20,
+		})
+		if err == nil {
+			for i := len(msgs) - 1; i >= 0; i-- { // send oldest first
+				msg := msgs[i]
+				event := &messagingpb.MessageEvent{
+					EventId:        "history-" + msg.ID,
+					MessageId:      msg.ID,
+					ThreadId:       msg.ThreadID,
+					ConversationId: msg.ConversationID,
+					ChatGroupId:    msg.ChatGroupID,
+					EventType:      "history",
+					Payload:        nil, // Optionally marshal msg.Content/metadata
+					CreatedAt:      timestamppb.New(msg.CreatedAt),
+					CampaignId:     msg.CampaignID,
+				}
+				if err := srv.Send(event); err != nil {
+					err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during history send", err)
+					var ce *graceful.ContextError
+					if errors.As(err, &ce) {
+						ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+					}
+					return graceful.ToStatusError(err)
+				}
+			}
+		}
+	}
+
+	pubsub := redisClient.Subscribe(ctx, channels...)
+	defer pubsub.Close()
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			meta := &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"stream": "StreamMessages closed by client"}, nil)}
+			success := graceful.WrapSuccess(ctx, codes.OK, "StreamMessages closed", nil, nil)
+			success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+			return nil
+		case msg, ok := <-ch:
+			if !ok {
+				err := graceful.WrapErr(ctx, codes.Unavailable, "Redis pubsub channel closed", nil)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return graceful.ToStatusError(err)
+			}
+			var event messagingpb.MessageEvent
+			if err := metadata.UnmarshalCanonical([]byte(msg.Payload), &event); err != nil {
+				s.log.Warn("Failed to unmarshal MessageEvent", zap.Error(err))
+				continue
+			}
+			if err := srv.Send(&event); err != nil {
+				err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during event send", err)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return graceful.ToStatusError(err)
+			}
+		}
+	}
 }
 
-func (s *Service) StreamTyping(_ *messagingpb.StreamTypingRequest, _ messagingpb.MessagingService_StreamTypingServer) error {
-	// TODO: Implement stream typing logic
-	return nil
+func (s *Service) StreamTyping(req *messagingpb.StreamTypingRequest, srv messagingpb.MessagingService_StreamTypingServer) error {
+	ctx := srv.Context()
+	redisClient := s.cache.GetClient()
+	if redisClient == nil {
+		err := graceful.WrapErr(ctx, codes.Unavailable, "Redis client unavailable", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(err)
+	}
+	// Determine channel
+	var channel string
+	switch {
+	case req.ConversationId != "":
+		channel = "messaging:events:typing:conversation:" + req.ConversationId
+	case req.ChatGroupId != "":
+		channel = "messaging:events:typing:chat_group:" + req.ChatGroupId
+	default:
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "conversation_id or chat_group_id required", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(err)
+	}
+	pubsub := redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			meta := &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"stream": "StreamTyping closed by client"}, nil)}
+			success := graceful.WrapSuccess(ctx, codes.OK, "StreamTyping closed", nil, nil)
+			success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+			return nil
+		case msg, ok := <-ch:
+			if !ok {
+				err := graceful.WrapErr(ctx, codes.Unavailable, "Redis pubsub channel closed", nil)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return graceful.ToStatusError(err)
+			}
+			var event messagingpb.TypingEvent
+			if err := metadata.UnmarshalCanonical([]byte(msg.Payload), &event); err != nil {
+				s.log.Warn("Failed to unmarshal TypingEvent", zap.Error(err))
+				continue
+			}
+			if err := srv.Send(&event); err != nil {
+				err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during event send", err)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return graceful.ToStatusError(err)
+			}
+		}
+	}
 }
 
-func (s *Service) StreamPresence(_ *messagingpb.StreamPresenceRequest, _ messagingpb.MessagingService_StreamPresenceServer) error {
-	// TODO: Implement stream presence logic
-	return nil
+func (s *Service) StreamPresence(req *messagingpb.StreamPresenceRequest, srv messagingpb.MessagingService_StreamPresenceServer) error {
+	ctx := srv.Context()
+	redisClient := s.cache.GetClient()
+	if redisClient == nil {
+		err := graceful.WrapErr(ctx, codes.Unavailable, "Redis client unavailable", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(err)
+	}
+	// Determine channel
+	var channel string
+	switch {
+	case req.UserId != "":
+		channel = "messaging:events:presence:user:" + req.UserId
+	case req.CampaignId != 0:
+		channel = "messaging:events:presence:campaign:" + strconv.FormatInt(req.CampaignId, 10)
+	default:
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "user_id or campaign_id required", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(err)
+	}
+	pubsub := redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			meta := &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"stream": "StreamPresence closed by client"}, nil)}
+			success := graceful.WrapSuccess(ctx, codes.OK, "StreamPresence closed", nil, nil)
+			success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+			return nil
+		case msg, ok := <-ch:
+			if !ok {
+				err := graceful.WrapErr(ctx, codes.Unavailable, "Redis pubsub channel closed", nil)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return graceful.ToStatusError(err)
+			}
+			var event messagingpb.PresenceEvent
+			if err := metadata.UnmarshalCanonical([]byte(msg.Payload), &event); err != nil {
+				s.log.Warn("Failed to unmarshal PresenceEvent", zap.Error(err))
+				continue
+			}
+			if err := srv.Send(&event); err != nil {
+				err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during event send", err)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return graceful.ToStatusError(err)
+			}
+		}
+	}
 }
 
 func (s *Service) MarkAsRead(ctx context.Context, req *messagingpb.MarkAsReadRequest) (*messagingpb.MarkAsReadResponse, error) {
-	success, err := s.repo.MarkAsRead(ctx, req)
+	successVal, err := s.repo.MarkAsRead(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to mark as read: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to mark as read", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	return &messagingpb.MarkAsReadResponse{Success: success}, nil
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"message_id": req.MessageId,
+			"user_id":    req.UserId,
+		}, nil),
+	}
+	resp := &messagingpb.MarkAsReadResponse{Success: successVal}
+	success := graceful.WrapSuccess(ctx, codes.OK, "message marked as read", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) MarkAsDelivered(ctx context.Context, req *messagingpb.MarkAsDeliveredRequest) (*messagingpb.MarkAsDeliveredResponse, error) {
-	success, err := s.repo.MarkAsDelivered(ctx, req)
+	successVal, err := s.repo.MarkAsDelivered(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to mark as delivered: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to mark as delivered", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	return &messagingpb.MarkAsDeliveredResponse{Success: success}, nil
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"message_id": req.MessageId,
+			"user_id":    req.UserId,
+		}, nil),
+	}
+	resp := &messagingpb.MarkAsDeliveredResponse{Success: successVal}
+	success := graceful.WrapSuccess(ctx, codes.OK, "message marked as delivered", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) AcknowledgeMessage(ctx context.Context, req *messagingpb.AcknowledgeMessageRequest) (*messagingpb.AcknowledgeMessageResponse, error) {
-	success, err := s.repo.AcknowledgeMessage(ctx, req)
+	successVal, err := s.repo.AcknowledgeMessage(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to acknowledge message: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to acknowledge message", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	return &messagingpb.AcknowledgeMessageResponse{Success: success}, nil
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"message_id": req.MessageId,
+			"user_id":    req.UserId,
+		}, nil),
+	}
+	resp := &messagingpb.AcknowledgeMessageResponse{Success: successVal}
+	success := graceful.WrapSuccess(ctx, codes.OK, "message acknowledged", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) CreateChatGroup(ctx context.Context, req *messagingpb.CreateChatGroupRequest) (*messagingpb.CreateChatGroupResponse, error) {
 	group, err := s.repo.CreateChatGroupWithRequest(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create chat group: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to create chat group", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	return &messagingpb.CreateChatGroupResponse{ChatGroup: mapRepoChatGroupToProto(group)}, nil
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"group_id": group.ID,
+		}, nil),
+	}
+	resp := &messagingpb.CreateChatGroupResponse{ChatGroup: mapRepoChatGroupToProto(group)}
+	success := graceful.WrapSuccess(ctx, codes.OK, "chat group created", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) AddChatGroupMember(ctx context.Context, req *messagingpb.AddChatGroupMemberRequest) (*messagingpb.AddChatGroupMemberResponse, error) {
 	group, err := s.repo.AddChatGroupMember(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to add chat group member: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to add chat group member", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	return &messagingpb.AddChatGroupMemberResponse{ChatGroup: mapRepoChatGroupToProto(group)}, nil
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"group_id": group.ID,
+			"user_id":  req.UserId,
+		}, nil),
+	}
+	resp := &messagingpb.AddChatGroupMemberResponse{ChatGroup: mapRepoChatGroupToProto(group)}
+	success := graceful.WrapSuccess(ctx, codes.OK, "chat group member added", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) RemoveChatGroupMember(ctx context.Context, req *messagingpb.RemoveChatGroupMemberRequest) (*messagingpb.RemoveChatGroupMemberResponse, error) {
 	group, err := s.repo.RemoveChatGroupMember(ctx, req)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to remove chat group member: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to remove chat group member", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	return &messagingpb.RemoveChatGroupMemberResponse{ChatGroup: mapRepoChatGroupToProto(group)}, nil
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"group_id": group.ID,
+			"user_id":  req.UserId,
+		}, nil),
+	}
+	resp := &messagingpb.RemoveChatGroupMemberResponse{ChatGroup: mapRepoChatGroupToProto(group)}
+	success := graceful.WrapSuccess(ctx, codes.OK, "chat group member removed", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) ListChatGroupMembers(ctx context.Context, req *messagingpb.ListChatGroupMembersRequest) (*messagingpb.ListChatGroupMembersResponse, error) {
-	// Fetch the chat group by ID
 	group, err := s.repo.GetChatGroupByID(ctx, req.ChatGroupId)
 	if err != nil {
+		err = graceful.WrapErr(ctx, codes.NotFound, "chat group not found", err)
 		s.log.Warn("failed to fetch chat group", zap.Error(err))
-		return nil, status.Errorf(codes.NotFound, "chat group not found: %v", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	// Paginate member IDs
 	members := group.MemberIDs
 	total := len(members)
 	pageSize := int(req.PageSize)
@@ -499,37 +835,76 @@ func (s *Service) ListChatGroupMembers(ctx context.Context, req *messagingpb.Lis
 	if pageSize > 0 {
 		totalPages = (total + pageSize - 1) / pageSize
 	}
-	return &messagingpb.ListChatGroupMembersResponse{
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"group_id":  req.ChatGroupId,
+			"page":      page,
+			"page_size": pageSize,
+			"total":     total,
+		}, nil),
+	}
+	resp := &messagingpb.ListChatGroupMembersResponse{
 		MemberIds:  pagedMembers,
 		TotalCount: utils.ToInt32(total),
 		Page:       utils.ToInt32(page),
 		TotalPages: utils.ToInt32(totalPages),
-	}, nil
+	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "chat group members listed", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) UpdateMessagingPreferences(ctx context.Context, req *messagingpb.UpdateMessagingPreferencesRequest) (*messagingpb.UpdateMessagingPreferencesResponse, error) {
 	if req.UserId == "" || req.Preferences == nil {
-		return nil, status.Error(codes.InvalidArgument, "user_id and preferences required")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "user_id and preferences required", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	err := s.repo.UpdateMessagingPreferences(ctx, req.UserId, req.Preferences)
 	if err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to update preferences", err)
 		s.log.Warn("failed to update messaging preferences", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to update preferences: %v", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	prefs, updatedAt, err := s.repo.GetMessagingPreferences(ctx, req.UserId)
 	if err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to fetch updated preferences", err)
 		s.log.Warn("failed to fetch updated preferences", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to fetch updated preferences: %v", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	return &messagingpb.UpdateMessagingPreferencesResponse{
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"user_id": req.UserId,
+		}, nil),
+	}
+	resp := &messagingpb.UpdateMessagingPreferencesResponse{
 		Preferences: prefs,
 		UpdatedAt:   updatedAt,
-	}, nil
+	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "messaging preferences updated", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }
 
 func (s *Service) ListMessageEvents(ctx context.Context, req *messagingpb.ListMessageEventsRequest) (*messagingpb.ListMessageEventsResponse, error) {
 	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id required")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "user_id required", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	pageSize := int(req.PageSize)
 	if pageSize <= 0 {
@@ -542,8 +917,13 @@ func (s *Service) ListMessageEvents(ctx context.Context, req *messagingpb.ListMe
 	offset := (page - 1) * pageSize
 	events, total, err := s.repo.ListMessageEventsByUser(ctx, req.UserId, pageSize, offset)
 	if err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to list message events", err)
 		s.log.Warn("failed to list message events", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to list message events: %v", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	protoEvents := make([]*messagingpb.MessageEvent, 0, len(events))
 	for _, e := range events {
@@ -553,10 +933,21 @@ func (s *Service) ListMessageEvents(ctx context.Context, req *messagingpb.ListMe
 	if pageSize > 0 {
 		totalPages = (total + pageSize - 1) / pageSize
 	}
-	return &messagingpb.ListMessageEventsResponse{
+	meta := &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+			"user_id":   req.UserId,
+			"page":      page,
+			"page_size": pageSize,
+			"total":     total,
+		}, nil),
+	}
+	resp := &messagingpb.ListMessageEventsResponse{
 		Events:     protoEvents,
 		TotalCount: utils.ToInt32(total),
 		Page:       utils.ToInt32(page),
 		TotalPages: utils.ToInt32(totalPages),
-	}, nil
+	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "message events listed", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	return resp, nil
 }

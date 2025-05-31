@@ -52,11 +52,17 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 		}
 		switch action {
 		case "send_notification":
-			userID, ok := req["user_id"].(string)
-			if !ok || userID == "" {
-				log.Error("Missing or invalid user_id in send_notification", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
+			userID := extractAuthContext(r)
+			isGuest := userID == ""
+			if !isGuest && userID == "" {
+				http.Error(w, "unauthenticated: user_id required", http.StatusUnauthorized)
 				return
+			}
+			if isGuest {
+				if req["user_id"] != "guest" && req["user_id"] != "" {
+					http.Error(w, "guests cannot send direct user notifications", http.StatusForbidden)
+					return
+				}
 			}
 			title, ok := req["title"].(string)
 			if !ok || title == "" {
@@ -112,6 +118,11 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "send_email":
+			userID := extractAuthContext(r)
+			if userID == "" {
+				http.Error(w, "unauthenticated: user_id required for email", http.StatusUnauthorized)
+				return
+			}
 			to, ok := req["to"].(string)
 			if !ok || to == "" {
 				log.Error("Missing or invalid to in send_email", zap.Any("value", req["to"]))
@@ -165,6 +176,11 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "send_sms":
+			userID := extractAuthContext(r)
+			if userID == "" {
+				http.Error(w, "unauthenticated: user_id required for SMS", http.StatusUnauthorized)
+				return
+			}
 			to, ok := req["to"].(string)
 			if !ok || to == "" {
 				log.Error("Missing or invalid to in send_sms", zap.Any("value", req["to"]))
@@ -211,11 +227,17 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "send_push":
-			userID, ok := req["user_id"].(string)
-			if !ok || userID == "" {
-				log.Error("Missing or invalid user_id in send_push", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
+			userID := extractAuthContext(r)
+			isGuest := userID == ""
+			if !isGuest && userID == "" {
+				http.Error(w, "unauthenticated: user_id required", http.StatusUnauthorized)
 				return
+			}
+			if isGuest {
+				if req["user_id"] != "guest" && req["user_id"] != "" {
+					http.Error(w, "guests cannot send direct user notifications", http.StatusForbidden)
+					return
+				}
 			}
 			title, ok := req["title"].(string)
 			if !ok || title == "" {
@@ -264,8 +286,8 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "list_notifications":
-			userID, ok := req["user_id"].(string)
-			if !ok || userID == "" {
+			userID := extractAuthContext(r)
+			if userID == "" {
 				log.Error("Missing or invalid user_id in list_notifications", zap.Any("value", req["user_id"]))
 				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
 				return
@@ -310,12 +332,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				http.Error(w, "missing or invalid notification_id", http.StatusBadRequest)
 				return
 			}
-			userID, ok := req["user_id"].(string)
-			if !ok || userID == "" {
-				log.Error("Missing or invalid user_id in acknowledge_notification", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
-				return
-			}
+			userID := extractAuthContext(r)
 			protoReq := &notificationpb.AcknowledgeNotificationRequest{
 				NotificationId: notificationID,
 				UserId:         userID,
@@ -332,6 +349,18 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "broadcast_event":
+			userID := extractAuthContext(r)
+			isGuest := userID == ""
+			if !isGuest && userID == "" {
+				http.Error(w, "unauthenticated: user_id required", http.StatusUnauthorized)
+				return
+			}
+			if isGuest {
+				if req["user_id"] != "guest" && req["user_id"] != "" {
+					http.Error(w, "guests cannot send direct user notifications", http.StatusForbidden)
+					return
+				}
+			}
 			subject, ok := req["subject"].(string)
 			if !ok || subject == "" {
 				log.Error("Missing or invalid subject in broadcast_event", zap.Any("value", req["subject"]))
@@ -418,8 +447,8 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "subscribe_to_events":
-			userID, ok := req["user_id"].(string)
-			if !ok || userID == "" {
+			userID := extractAuthContext(r)
+			if userID == "" {
 				log.Error("Missing or invalid user_id in subscribe_to_events", zap.Any("value", req["user_id"]))
 				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
 				return
@@ -537,3 +566,21 @@ func (s *singleChunkStream) SetTrailer(metadata.MD)       {}
 func (s *singleChunkStream) Context() context.Context     { return context.Background() }
 func (s *singleChunkStream) SendMsg(_ interface{}) error  { return nil }
 func (s *singleChunkStream) RecvMsg(_ interface{}) error  { return nil }
+
+// extractAuthContext extracts user_id, device_id from context or metadata.
+func extractAuthContext(r *http.Request) (userID string) {
+	ctx := r.Context()
+	if v := ctx.Value("user_id"); v != nil {
+		if s, ok := v.(string); ok {
+			userID = s
+		}
+	}
+	if v := ctx.Value("device_id"); v != nil {
+		if s, ok := v.(string); ok {
+			userID = s
+		}
+	}
+	// Fallback: try metadata in request body if available
+	// (Assume req["metadata"] is parsed above)
+	return userID
+}

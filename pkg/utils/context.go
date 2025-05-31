@@ -109,3 +109,24 @@ func IsServiceAdmin(roles []string, service string) bool {
 	}
 	return false
 }
+
+// GetContextFields extracts common fields from context for logging and error context.
+func GetContextFields(ctx context.Context) map[string]interface{} {
+	fields := make(map[string]interface{})
+	if ctx == nil {
+		return fields
+	}
+	if userID, ok := ctx.Value(ContextUserIDKey).(string); ok && userID != "" {
+		fields["user_id"] = userID
+	}
+	if roles, ok := ctx.Value(ContextRolesKey).([]string); ok && len(roles) > 0 {
+		fields["roles"] = roles
+	}
+	if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+		fields["request_id"] = reqID
+	}
+	if traceID, ok := ctx.Value("trace_id").(string); ok && traceID != "" {
+		fields["trace_id"] = traceID
+	}
+	return fields
+}

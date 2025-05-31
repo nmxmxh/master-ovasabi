@@ -13,7 +13,6 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type StorageType string
@@ -86,7 +85,12 @@ func (r *Repo) CreateMedia(ctx context.Context, media *Model) error {
 	var metadataJSON []byte
 	var err error
 	if media.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(media.Metadata)
+		marshaler := protojson.MarshalOptions{
+			UseProtoNames:   true,
+			EmitUnpopulated: false,
+			AllowPartial:    true,
+		}
+		metadataJSON, err = marshaler.Marshal(media.Metadata)
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}
@@ -132,15 +136,9 @@ func (r *Repo) GetMedia(ctx context.Context, id uuid.UUID) (*Model, error) {
 		return nil, fmt.Errorf("failed to get media: %w", err)
 	}
 	media.Metadata = &commonpb.Metadata{
-		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "media_id": media.ID},
-			func() *structpb.Struct {
-				if media != nil && media.Metadata != nil {
-					return media.Metadata.ServiceSpecific
-				}
-				return nil
-			}()),
-		Tags:     []string{},
-		Features: []string{},
+		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "media_id": media.ID}, r.log),
+		Tags:            []string{},
+		Features:        []string{},
 	}
 	if metadataStr != "" {
 		err := protojson.Unmarshal([]byte(metadataStr), media.Metadata)
@@ -189,15 +187,9 @@ func (r *Repo) ListUserMedia(ctx context.Context, userID uuid.UUID, masterID str
 			return nil, fmt.Errorf("failed to scan media: %w", err)
 		}
 		media.Metadata = &commonpb.Metadata{
-			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "media_id": media.ID},
-				func() *structpb.Struct {
-					if media != nil && media.Metadata != nil {
-						return media.Metadata.ServiceSpecific
-					}
-					return nil
-				}()),
-			Tags:     []string{},
-			Features: []string{},
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "media_id": media.ID}, r.log),
+			Tags:            []string{},
+			Features:        []string{},
 		}
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), media.Metadata)
@@ -252,15 +244,9 @@ func (r *Repo) ListSystemMedia(ctx context.Context, masterID string, limit, offs
 			return nil, fmt.Errorf("failed to scan system media: %w", err)
 		}
 		media.Metadata = &commonpb.Metadata{
-			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "media_id": media.ID},
-				func() *structpb.Struct {
-					if media != nil && media.Metadata != nil {
-						return media.Metadata.ServiceSpecific
-					}
-					return nil
-				}()),
-			Tags:     []string{},
-			Features: []string{},
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": "metadata unavailable", "media_id": media.ID}, r.log),
+			Tags:            []string{},
+			Features:        []string{},
 		}
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), media.Metadata)
@@ -282,7 +268,12 @@ func (r *Repo) UpdateMedia(ctx context.Context, media *Model) error {
 	var metadataJSON []byte
 	var err error
 	if media.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(media.Metadata)
+		marshaler := protojson.MarshalOptions{
+			UseProtoNames:   true,
+			EmitUnpopulated: false,
+			AllowPartial:    true,
+		}
+		metadataJSON, err = marshaler.Marshal(media.Metadata)
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}

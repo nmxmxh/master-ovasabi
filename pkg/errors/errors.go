@@ -1,6 +1,11 @@
 package errors
 
-import "errors"
+import (
+	"context"
+	"errors"
+
+	"go.uber.org/zap"
+)
 
 var (
 	// ErrUserNotFound is returned when a user cannot be found.
@@ -46,4 +51,17 @@ func Wrap(err error, msg string) error {
 		return nil
 	}
 	return errors.New(msg + ": " + err.Error())
+}
+
+// LogWithError logs the error with context and returns a wrapped error. Use this for standardized error logging across services.
+func LogWithError(ctx context.Context, log *zap.Logger, msg string, err error, fields ...zap.Field) error {
+	if log != nil {
+		if ctx != nil {
+			if reqID, ok := ctx.Value("request_id").(string); ok && reqID != "" {
+				fields = append(fields, zap.String("request_id", reqID))
+			}
+		}
+		log.Error(msg, append(fields, zap.Error(err))...)
+	}
+	return Wrap(err, msg)
 }

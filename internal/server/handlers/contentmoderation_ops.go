@@ -3,8 +3,12 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
+	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
+	campaignmeta "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
+	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 )
@@ -45,6 +49,90 @@ func ContentModerationOpsHandler(log *zap.Logger, container *di.Container) http.
 			log.Error("Missing or invalid action in content moderation request", zap.Any("value", req["action"]))
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
+		}
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		roles := authCtx.Roles
+		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
+		isPlatformAdmin := false
+		isModerator := false
+		for _, r := range roles {
+			if r == "admin" {
+				isPlatformAdmin = true
+			}
+			if r == "moderator" {
+				isModerator = true
+			}
+		}
+		// Helper: check campaign admin role if campaign_id or campaign_slug is present
+		isCampaignAdmin := false
+		var campaignID int64
+		var campaignSlug string
+		if v, ok := req["campaign_id"]; ok {
+			switch vv := v.(type) {
+			case float64:
+				campaignID = int64(vv)
+			case int64:
+				campaignID = vv
+			case string:
+				campaignSlug = vv
+			}
+		}
+		if campaignSlug != "" || campaignID != 0 {
+			var campaignSvc campaignpb.CampaignServiceServer
+			if err := container.Resolve(&campaignSvc); err == nil {
+				var getReq *campaignpb.GetCampaignRequest
+				if campaignSlug != "" {
+					getReq = &campaignpb.GetCampaignRequest{Slug: campaignSlug}
+				} else {
+					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
+				}
+				campResp, err := campaignSvc.GetCampaign(r.Context(), getReq)
+				if err == nil && campResp != nil && campResp.Campaign != nil {
+					role := campaignmeta.GetUserRoleInCampaign(campResp.Campaign.Metadata, userID, campResp.Campaign.OwnerId)
+					if role == "admin" {
+						isCampaignAdmin = true
+					}
+				}
+			}
+		}
+		// --- Permission checks by action ---
+		switch action {
+		case "approve_content", "reject_content", "list_flagged_content":
+			if isGuest || (!isPlatformAdmin && !isModerator && !isCampaignAdmin) {
+				http.Error(w, "forbidden: admin or moderator required", http.StatusForbidden)
+				return
+			}
+		case "submit_content_for_moderation", "get_moderation_result":
+			// Allow content author or campaign admin
+			authorID, ok := req["author_id"].(string)
+			if !ok {
+				// handle type assertion failure
+				return
+			}
+			if userID != authorID && !isPlatformAdmin && !isCampaignAdmin {
+				http.Error(w, "forbidden: only author or admin can perform this action", http.StatusForbidden)
+				return
+			}
+		}
+		// --- Audit/metadata propagation ---
+		if m, ok := req["metadata"]; ok && m != nil {
+			if metaMap, ok := m.(map[string]interface{}); ok {
+				metaMap["audit"] = map[string]interface{}{
+					"performed_by": userID,
+					"roles":        roles,
+					"timestamp":    time.Now().UTC().Format(time.RFC3339),
+				}
+				req["metadata"] = metaMap
+			}
+		} else {
+			req["metadata"] = map[string]interface{}{
+				"audit": map[string]interface{}{
+					"performed_by": userID,
+					"roles":        roles,
+					"timestamp":    time.Now().UTC().Format(time.RFC3339),
+				},
+			}
 		}
 		ctx := r.Context()
 		switch action {

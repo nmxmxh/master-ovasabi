@@ -122,7 +122,7 @@ func MetadataFromStruct(s *structpb.Struct) (*Metadata, error) {
 // MediaMetadataToStruct converts MediaMetadata to structpb.Struct.
 func MetadataToStruct(meta *Metadata) (*structpb.Struct, error) {
 	if meta == nil {
-		return metadata.NewStructFromMap(map[string]interface{}{}), nil
+		return metadata.NewStructFromMap(map[string]interface{}{}, nil), nil
 	}
 	b, err := json.Marshal(meta)
 	if err != nil {
@@ -133,5 +133,5 @@ func MetadataToStruct(meta *Metadata) (*structpb.Struct, error) {
 	if err != nil {
 		return nil, err
 	}
-	return metadata.NewStructFromMap(m), nil
+	return metadata.NewStructFromMap(m, nil), nil
 }

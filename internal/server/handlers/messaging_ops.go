@@ -3,9 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
+	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -48,8 +50,97 @@ func MessagingOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		roles := authCtx.Roles
+		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
+		isAdmin := false
+		for _, r := range roles {
+			if r == "admin" {
+				isAdmin = true
+			}
+		}
 		switch action {
 		case "send_message":
+			campaignID := int64(0)
+			if v, ok := req["campaign_id"].(float64); ok {
+				campaignID = int64(v)
+			}
+			senderID, ok := req["sender_id"].(string)
+			if !ok {
+				// handle type assertion failure
+				return
+			}
+			guestNickname, ok := req["guest_nickname"].(string)
+			if !ok {
+				// handle type assertion failure
+				return
+			}
+			deviceID, ok := req["device_id"].(string)
+			if !ok {
+				// handle type assertion failure
+				return
+			}
+			// --- Guest comment logic for campaign-based messaging ---
+			if campaignID != 0 && senderID == "" {
+				if guestNickname == "" || deviceID == "" {
+					http.Error(w, "guest_nickname and device_id required for guest comment", http.StatusBadRequest)
+					return
+				}
+				// Mark as guest comment in metadata
+				if m, ok := req["metadata"]; ok && m != nil {
+					if metaMap, ok := m.(map[string]interface{}); ok {
+						metaMap["guest_comment"] = true
+						metaMap["guest_nickname"] = guestNickname
+						metaMap["device_id"] = deviceID
+						metaMap["audit"] = map[string]interface{}{
+							"performed_by":   "guest",
+							"guest_nickname": guestNickname,
+							"device_id":      deviceID,
+							"timestamp":      time.Now().UTC().Format(time.RFC3339),
+						}
+						req["metadata"] = metaMap
+					}
+				} else {
+					req["metadata"] = map[string]interface{}{
+						"guest_comment":  true,
+						"guest_nickname": guestNickname,
+						"device_id":      deviceID,
+						"audit": map[string]interface{}{
+							"performed_by":   "guest",
+							"guest_nickname": guestNickname,
+							"device_id":      deviceID,
+							"timestamp":      time.Now().UTC().Format(time.RFC3339),
+						},
+					}
+				}
+				// Allow guest comment to proceed
+			} else {
+				// --- Authenticated user or admin required for non-guest or non-campaign messages ---
+				if isGuest || (senderID != "" && senderID != userID && !isAdmin) {
+					http.Error(w, "forbidden: must be authenticated and own the message (or admin)", http.StatusForbidden)
+					return
+				}
+				// Add audit metadata
+				if m, ok := req["metadata"]; ok && m != nil {
+					if metaMap, ok := m.(map[string]interface{}); ok {
+						metaMap["audit"] = map[string]interface{}{
+							"performed_by": userID,
+							"roles":        roles,
+							"timestamp":    time.Now().UTC().Format(time.RFC3339),
+						}
+						req["metadata"] = metaMap
+					}
+				} else {
+					req["metadata"] = map[string]interface{}{
+						"audit": map[string]interface{}{
+							"performed_by": userID,
+							"roles":        roles,
+							"timestamp":    time.Now().UTC().Format(time.RFC3339),
+						},
+					}
+				}
+			}
 			threadID, ok := req["thread_id"].(string)
 			if !ok && req["thread_id"] != nil {
 				log.Error("Invalid thread_id in send_message", zap.Any("value", req["thread_id"]))
@@ -66,12 +157,6 @@ func MessagingOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 			if !ok && req["chat_group_id"] != nil {
 				log.Error("Invalid chat_group_id in send_message", zap.Any("value", req["chat_group_id"]))
 				http.Error(w, "invalid chat_group_id", http.StatusBadRequest)
-				return
-			}
-			senderID, ok := req["sender_id"].(string)
-			if !ok || senderID == "" {
-				log.Error("Missing or invalid sender_id in send_message", zap.Any("value", req["sender_id"]))
-				http.Error(w, "missing or invalid sender_id", http.StatusBadRequest)
 				return
 			}
 			content, ok := req["content"].(string)
@@ -103,10 +188,6 @@ func MessagingOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				if metaStruct, err := structpb.NewStruct(m); err == nil {
 					meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
 				}
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
 			}
 			protoReq := &messagingpb.SendMessageRequest{
 				ThreadId:       threadID,

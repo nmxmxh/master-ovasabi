@@ -16,6 +16,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
+	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 )
 
 type RepositoryItf interface {
@@ -453,7 +454,7 @@ func marshalMetadata(meta *commonpb.Metadata) ([]byte, error) {
 	if meta == nil {
 		return []byte("{}"), nil
 	}
-	return protojson.Marshal(meta)
+	return metadatautil.MarshalCanonical(meta)
 }
 
 // unmarshalMetadata unmarshals JSONB to *commonpb.Metadata.
@@ -470,12 +471,10 @@ func unmarshalMetadata(b []byte) (*commonpb.Metadata, error) {
 
 // marshalLabels marshals a map[string]string to JSONB.
 func marshalLabels(labels map[string]string) []byte {
-	if labels == nil {
-		return []byte("{}")
-	}
-	b, err := protojson.Marshal(&structpb.Struct{Fields: toStructFields(labels)})
+	b, err := metadatautil.MarshalCanonical(&structpb.Struct{Fields: toStructFields(labels)})
 	if err != nil {
-		return []byte("{}")
+		// handle marshal error (e.g., log or return)
+		return nil
 	}
 	return b
 }

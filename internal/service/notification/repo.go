@@ -96,9 +96,14 @@ func (r *Repository) Create(ctx context.Context, notification *Notification) (*N
 	}
 
 	notification.MasterID = masterID
+	marshaler := protojson.MarshalOptions{
+		UseProtoNames:   true,
+		EmitUnpopulated: false,
+		AllowPartial:    true,
+	}
 	var metadataJSON []byte
 	if notification.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(notification.Metadata)
+		metadataJSON, err = marshaler.Marshal(notification.Metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -171,9 +176,14 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*Notification, erro
 // Update updates a notification record.
 func (r *Repository) Update(ctx context.Context, notification *Notification) error {
 	var err error
+	marshaler := protojson.MarshalOptions{
+		UseProtoNames:   true,
+		EmitUnpopulated: false,
+		AllowPartial:    true,
+	}
 	var metadataJSON []byte
 	if notification.Metadata != nil {
-		metadataJSON, err = protojson.Marshal(notification.Metadata)
+		metadataJSON, err = marshaler.Marshal(notification.Metadata)
 		if err != nil {
 			return err
 		}

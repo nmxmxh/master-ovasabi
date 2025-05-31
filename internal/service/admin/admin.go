@@ -7,21 +7,19 @@ import (
 	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	events "github.com/nmxmxh/master-ovasabi/pkg/events"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // EventEmitter defines the interface for emitting events.
 type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
+	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
 }
 
 type Service struct {
@@ -59,37 +57,11 @@ func (s *Service) CreateUser(ctx context.Context, req *adminpb.CreateUserRequest
 				Username: req.User.Name,
 			})
 			if err != nil {
-				// Emit failure event
-				if s.eventEnabled && s.eventEmitter != nil {
-					errStruct := metadata.NewStructFromMap(map[string]interface{}{
-						"error": err.Error(),
-						"email": email,
-					})
-					errMeta := &commonpb.Metadata{}
-					errMeta.ServiceSpecific = errStruct
-					errEmit := s.eventEmitter.EmitEvent(ctx, "admin.user_create_failed", "", errMeta)
-					if errEmit != nil {
-						s.log.Warn("Failed to emit admin.user_create_failed event", zap.Error(errEmit))
-					}
-				}
-				return nil, status.Errorf(codes.Internal, "failed to create main user: %v", err)
+				return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to create main user", codes.Internal))
 			}
 			mainUser = createResp.User
 		} else {
-			// Emit failure event
-			if s.eventEnabled && s.eventEmitter != nil {
-				errStruct := metadata.NewStructFromMap(map[string]interface{}{
-					"error": err.Error(),
-					"email": email,
-				})
-				errMeta := &commonpb.Metadata{}
-				errMeta.ServiceSpecific = errStruct
-				errEmit := s.eventEmitter.EmitEvent(ctx, "admin.user_create_failed", "", errMeta)
-				if errEmit != nil {
-					s.log.Warn("Failed to emit admin.user_create_failed event", zap.Error(errEmit))
-				}
-			}
-			return nil, status.Errorf(codes.Internal, "failed to lookup main user: %v", err)
+			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to lookup main user", codes.Internal))
 		}
 	} else {
 		mainUser = userResp.User
@@ -112,20 +84,7 @@ func (s *Service) CreateUser(ctx context.Context, req *adminpb.CreateUserRequest
 		Metadata: req.User.Metadata,
 	})
 	if err != nil {
-		// Emit failure event
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{
-				"error": err.Error(),
-				"email": email,
-			})
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "admin.user_create_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit admin.user_create_failed event", zap.Error(errEmit))
-			}
-		}
-		return nil, status.Errorf(codes.Internal, "failed to create admin user: %v", err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to create admin user", codes.Internal))
 	}
 
 	// Set initial bad_actor score in metadata
@@ -147,32 +106,9 @@ func (s *Service) CreateUser(ctx context.Context, req *adminpb.CreateUserRequest
 	userStruct, err := structpb.NewStruct(userMap)
 	if err != nil {
 		s.log.Warn("Failed to build user metadata struct", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to build user metadata struct: %v", err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to build user metadata struct", codes.Internal))
 	}
 	adminUser.Metadata.ServiceSpecific.Fields["user"] = structpb.NewStructValue(userStruct)
-
-	// Emit admin.user_created event after successful creation using EmitCallbackEvent
-	if s.eventEnabled && s.eventEmitter != nil {
-		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "admin_user", "admin.user_created", adminUser.Id, adminUser.Metadata, zap.String("user_id", adminUser.Id))
-		if !ok {
-			s.log.Warn("Failed to emit callback event")
-		}
-		// Canonical metadata enrichment helpers
-		if s.Cache != nil && adminUser.Metadata != nil {
-			if err := pattern.CacheMetadata(ctx, s.log, s.Cache, "admin_user", adminUser.Id, adminUser.Metadata, 10*time.Minute); err != nil {
-				s.log.Error("failed to cache admin user metadata", zap.Error(err))
-			}
-		}
-		if err := pattern.RegisterSchedule(ctx, s.log, "admin_user", adminUser.Id, adminUser.Metadata); err != nil {
-			s.log.Error("failed to register admin user schedule", zap.Error(err))
-		}
-		if err := pattern.EnrichKnowledgeGraph(ctx, s.log, "admin_user", adminUser.Id, adminUser.Metadata); err != nil {
-			s.log.Error("failed to enrich admin user knowledge graph", zap.Error(err))
-		}
-		if err := pattern.RegisterWithNexus(ctx, s.log, "admin_user", adminUser.Metadata); err != nil {
-			s.log.Error("failed to register admin user with nexus", zap.Error(err))
-		}
-	}
 
 	return &adminpb.CreateUserResponse{
 		User: adminUser,
@@ -191,35 +127,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *adminpb.UpdateUserRequest
 	})
 	user, err := s.repo.UpdateUser(ctx, req.User)
 	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.User.Id})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "admin_user", "admin.user_update_failed", req.User.Id, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit callback event")
-			}
-		}
-		return nil, status.Errorf(codes.Internal, "failed to update admin user: %v", err)
-	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "admin_user", "admin.user_updated", user.Id, user.Metadata, zap.String("user_id", user.Id))
-		if !ok {
-			s.log.Warn("Failed to emit callback event")
-		}
-		// Canonical metadata enrichment helpers
-		if s.Cache != nil && user.Metadata != nil {
-			if err := pattern.CacheMetadata(ctx, s.log, s.Cache, "admin_user", user.Id, user.Metadata, 10*time.Minute); err != nil {
-				s.log.Error("failed to cache admin user metadata", zap.Error(err))
-			}
-		}
-		if err := pattern.RegisterSchedule(ctx, s.log, "admin_user", user.Id, user.Metadata); err != nil {
-			s.log.Error("failed to register admin user schedule", zap.Error(err))
-		}
-		if err := pattern.EnrichKnowledgeGraph(ctx, s.log, "admin_user", user.Id, user.Metadata); err != nil {
-			s.log.Error("failed to enrich admin user knowledge graph", zap.Error(err))
-		}
-		if err := pattern.RegisterWithNexus(ctx, s.log, "admin_user", user.Metadata); err != nil {
-			s.log.Error("failed to register admin user with nexus", zap.Error(err))
-		}
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update admin user", codes.Internal))
 	}
 	return &adminpb.UpdateUserResponse{User: user}, nil
 }
@@ -227,30 +135,15 @@ func (s *Service) UpdateUser(ctx context.Context, req *adminpb.UpdateUserRequest
 func (s *Service) DeleteUser(ctx context.Context, req *adminpb.DeleteUserRequest) (*adminpb.DeleteUserResponse, error) {
 	err := s.repo.DeleteUser(ctx, req.UserId)
 	if err != nil {
-		// Emit failure event
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{
-				"error":   err.Error(),
-				"user_id": req.UserId,
-			})
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "admin.user_update_failed", req.UserId, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit admin.user_update_failed event", zap.Error(errEmit))
-			}
-		}
-		return nil, status.Errorf(codes.Internal, "failed to delete admin user: %v", err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to delete admin user", codes.Internal))
 	}
-	// Emit admin.user_deleted event after successful deletion
-	_, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "admin.user_deleted", req.UserId, nil)
 	return &adminpb.DeleteUserResponse{Success: true}, nil
 }
 
 func (s *Service) ListUsers(ctx context.Context, req *adminpb.ListUsersRequest) (*adminpb.ListUsersResponse, error) {
 	users, total, err := s.repo.ListUsers(ctx, int(req.Page), int(req.PageSize))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list admin users: %v", err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to list admin users", codes.Internal))
 	}
 	return &adminpb.ListUsersResponse{
 		Users:      users,
@@ -263,7 +156,7 @@ func (s *Service) ListUsers(ctx context.Context, req *adminpb.ListUsersRequest) 
 func (s *Service) GetUser(ctx context.Context, req *adminpb.GetUserRequest) (*adminpb.GetUserResponse, error) {
 	user, err := s.repo.GetUser(ctx, req.UserId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get admin user: %v", err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to get admin user", codes.Internal))
 	}
 	return &adminpb.GetUserResponse{User: user}, nil
 }
@@ -281,25 +174,7 @@ func (s *Service) CreateRole(ctx context.Context, req *adminpb.CreateRoleRequest
 	})
 	role, err := s.repo.CreateRole(ctx, req.Role)
 	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{
-				"error":   err.Error(),
-				"role_id": req.Role.Id,
-			})
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "admin.role_create_failed", req.Role.Id, errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit admin.role_create_failed event", zap.Error(errEmit))
-			}
-		}
-		return nil, status.Errorf(codes.Internal, "failed to create admin role: %v", err)
-	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		errEvt := s.eventEmitter.EmitEvent(ctx, "admin.role_created", role.Id, role.Metadata)
-		if errEvt != nil {
-			s.log.Warn("Failed to emit admin.role_created event", zap.Error(errEvt))
-		}
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to create admin role", codes.Internal))
 	}
 	return &adminpb.CreateRoleResponse{Role: role}, nil
 }
@@ -316,25 +191,7 @@ func (s *Service) UpdateRole(ctx context.Context, req *adminpb.UpdateRoleRequest
 	})
 	role, err := s.repo.UpdateRole(ctx, req.Role)
 	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{
-				"error":   err.Error(),
-				"role_id": req.Role.Id,
-			})
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEvt := s.eventEmitter.EmitEvent(ctx, "admin.role_update_failed", req.Role.Id, errMeta)
-			if errEvt != nil {
-				s.log.Warn("Failed to emit admin.role_update_failed event", zap.Error(errEvt))
-			}
-		}
-		return nil, status.Errorf(codes.Internal, "failed to update admin role: %v", err)
-	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		errEvt := s.eventEmitter.EmitEvent(ctx, "admin.role_updated", role.Id, role.Metadata)
-		if errEvt != nil {
-			s.log.Warn("Failed to emit admin.role_updated event", zap.Error(errEvt))
-		}
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update admin role", codes.Internal))
 	}
 	return &adminpb.UpdateRoleResponse{Role: role}, nil
 }
@@ -342,23 +199,7 @@ func (s *Service) UpdateRole(ctx context.Context, req *adminpb.UpdateRoleRequest
 func (s *Service) DeleteRole(ctx context.Context, req *adminpb.DeleteRoleRequest) (*adminpb.DeleteRoleResponse, error) {
 	err := s.repo.DeleteRole(ctx, req.RoleId)
 	if err != nil {
-		errStruct := metadata.NewStructFromMap(map[string]interface{}{
-			"error":   err.Error(),
-			"role_id": req.RoleId,
-		})
-		errMeta := &commonpb.Metadata{}
-		errMeta.ServiceSpecific = errStruct
-		errEvt := s.eventEmitter.EmitEvent(ctx, "admin.role_delete_failed", req.RoleId, errMeta)
-		if errEvt != nil {
-			s.log.Warn("Failed to emit admin.role_delete_failed event", zap.Error(errEvt))
-		}
-		return nil, status.Errorf(codes.Internal, "failed to delete admin role: %v", err)
-	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		errEvt := s.eventEmitter.EmitEvent(ctx, "admin.role_deleted", req.RoleId, nil)
-		if errEvt != nil {
-			s.log.Warn("Failed to emit admin.role_deleted event", zap.Error(errEvt))
-		}
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to delete admin role", codes.Internal))
 	}
 	return &adminpb.DeleteRoleResponse{Success: true}, nil
 }
@@ -366,7 +207,7 @@ func (s *Service) DeleteRole(ctx context.Context, req *adminpb.DeleteRoleRequest
 func (s *Service) ListRoles(ctx context.Context, req *adminpb.ListRolesRequest) (*adminpb.ListRolesResponse, error) {
 	roles, total, err := s.repo.ListRoles(ctx, int(req.Page), int(req.PageSize))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list admin roles: %v", err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to list admin roles", codes.Internal))
 	}
 	return &adminpb.ListRolesResponse{
 		Roles:      roles,
@@ -380,22 +221,7 @@ func (s *Service) ListRoles(ctx context.Context, req *adminpb.ListRolesRequest) 
 func (s *Service) AssignRole(ctx context.Context, req *adminpb.AssignRoleRequest) (*adminpb.AssignRoleResponse, error) {
 	err := s.repo.AssignRole(ctx, req.UserId, req.RoleId)
 	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId, "role_id": req.RoleId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "admin_user", "admin.role_assign_failed", req.UserId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.String("user_id", req.UserId), zap.String("role_id", req.RoleId))
-			if !ok {
-				s.log.Warn("Failed to emit callback event")
-			}
-		}
-		return nil, status.Errorf(codes.Internal, "failed to assign role: %v", err)
-	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		successStruct := metadata.NewStructFromMap(map[string]interface{}{"user_id": req.UserId, "role_id": req.RoleId})
-		successMeta := &commonpb.Metadata{ServiceSpecific: successStruct}
-		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "admin_user", "admin.role_assigned", req.UserId, successMeta, zap.String("user_id", req.UserId), zap.String("role_id", req.RoleId))
-		if !ok {
-			s.log.Warn("Failed to emit callback event")
-		}
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to assign role", codes.Internal))
 	}
 	return &adminpb.AssignRoleResponse{Success: true}, nil
 }
@@ -403,22 +229,7 @@ func (s *Service) AssignRole(ctx context.Context, req *adminpb.AssignRoleRequest
 func (s *Service) RevokeRole(ctx context.Context, req *adminpb.RevokeRoleRequest) (*adminpb.RevokeRoleResponse, error) {
 	err := s.repo.RevokeRole(ctx, req.UserId, req.RoleId)
 	if err != nil {
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct := metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "user_id": req.UserId, "role_id": req.RoleId})
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "admin_user", "admin.role_revoke_failed", req.UserId, &commonpb.Metadata{ServiceSpecific: errStruct}, zap.String("user_id", req.UserId), zap.String("role_id", req.RoleId))
-			if !ok {
-				s.log.Warn("Failed to emit callback event")
-			}
-		}
-		return nil, status.Errorf(codes.Internal, "failed to revoke role: %v", err)
-	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		successStruct := metadata.NewStructFromMap(map[string]interface{}{"user_id": req.UserId, "role_id": req.RoleId})
-		successMeta := &commonpb.Metadata{ServiceSpecific: successStruct}
-		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "admin_user", "admin.role_revoked", req.UserId, successMeta, zap.String("user_id", req.UserId), zap.String("role_id", req.RoleId))
-		if !ok {
-			s.log.Warn("Failed to emit callback event")
-		}
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to revoke role", codes.Internal))
 	}
 	return &adminpb.RevokeRoleResponse{Success: true}, nil
 }
@@ -427,7 +238,7 @@ func (s *Service) RevokeRole(ctx context.Context, req *adminpb.RevokeRoleRequest
 func (s *Service) GetAuditLogs(ctx context.Context, req *adminpb.GetAuditLogsRequest) (*adminpb.GetAuditLogsResponse, error) {
 	logs, total, err := s.repo.GetAuditLogs(ctx, int(req.Page), int(req.PageSize), req.UserId, req.Action)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get audit logs: %v", err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to get audit logs", codes.Internal))
 	}
 	return &adminpb.GetAuditLogsResponse{
 		Logs:       logs,
@@ -441,7 +252,7 @@ func (s *Service) GetAuditLogs(ctx context.Context, req *adminpb.GetAuditLogsReq
 func (s *Service) GetSettings(ctx context.Context, _ *adminpb.GetSettingsRequest) (*adminpb.GetSettingsResponse, error) {
 	settings, err := s.repo.GetSettings(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get settings: %v", err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to get settings", codes.Internal))
 	}
 	return &adminpb.GetSettingsResponse{Settings: settings}, nil
 }
@@ -458,22 +269,7 @@ func (s *Service) UpdateSettings(ctx context.Context, req *adminpb.UpdateSetting
 	})
 	settings, err := s.repo.UpdateSettings(ctx, req.Settings)
 	if err != nil {
-		errStruct := metadata.NewStructFromMap(map[string]interface{}{
-			"error": err.Error(),
-		})
-		errMeta := &commonpb.Metadata{}
-		errMeta.ServiceSpecific = errStruct
-		errEvt := s.eventEmitter.EmitEvent(ctx, "admin.settings_update_failed", "", errMeta)
-		if errEvt != nil {
-			s.log.Warn("Failed to emit admin.settings_update_failed event", zap.Error(errEvt))
-		}
-		return nil, status.Errorf(codes.Internal, "failed to update settings: %v", err)
-	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		errEvt := s.eventEmitter.EmitEvent(ctx, "admin.settings_updated", "", settings.Metadata)
-		if errEvt != nil {
-			s.log.Warn("Failed to emit admin.settings_updated event", zap.Error(errEvt))
-		}
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update settings", codes.Internal))
 	}
 	return &adminpb.UpdateSettingsResponse{Settings: settings}, nil
 }

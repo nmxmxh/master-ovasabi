@@ -10,20 +10,18 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
-	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
-	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // EventEmitter defines the interface for emitting events in the referral service.
 type EventEmitter interface {
-	EmitEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error
+	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
 }
 
 // Service struct implements the ReferralService interface.
@@ -52,42 +50,33 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 
 // CreateReferral creates a new referral code following the Master-Client-Service-Event pattern.
 func (s *Service) CreateReferral(ctx context.Context, req *referralpb.CreateReferralRequest) (*referralpb.CreateReferralResponse, error) {
-	// Always build and enrich metadata before validation and storage
 	fraudSignals := map[string]interface{}{"device_hash": req.DeviceHash}
 	audit := map[string]interface{}{"created_by": req.ReferrerMasterId, "created_at": time.Now().Format(time.RFC3339)}
-	// You can add more enrichment here (e.g., rewards, campaign, device info)
 	meta, err := metadata.BuildReferralMetadata(fraudSignals, nil, audit, nil, nil)
 	if err == nil {
 		req.Metadata = meta
 	}
-	// 1. Validate metadata using the shared helper
 	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		s.log.Error("invalid referral metadata", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for referral.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "referral.create_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit referral.create_failed event", zap.Error(errEmit))
-			}
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid referral metadata", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Error(codes.InvalidArgument, "invalid metadata: "+err.Error())
+		return nil, graceful.ToStatusError(err)
 	}
-	// 2. Generate referral code (simple example, should be more robust in prod)
 	referralCode := generateReferralCode()
-	// 3. Store referral in DB
 	referrerMasterID, err := strconv.ParseInt(req.ReferrerMasterId, 10, 64)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid ReferrerMasterId")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid ReferrerMasterId", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	record := &Referral{
 		ReferrerMasterID: referrerMasterID,
-		ReferredMasterID: 0, // Not provided at creation
+		ReferredMasterID: 0,
 		CampaignID:       sqlNullInt64(req.CampaignId),
 		DeviceHash:       sqlNullString(req.DeviceHash),
 		ReferralCode:     referralCode,
@@ -97,40 +86,16 @@ func (s *Service) CreateReferral(ctx context.Context, req *referralpb.CreateRefe
 		Metadata:         req.Metadata,
 	}
 	if err := s.repo.Create(record); err != nil {
-		s.log.Error("failed to create referral", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error()})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for referral.create_failed event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
-			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			errEmit := s.eventEmitter.EmitEvent(ctx, "referral.create_failed", "", errMeta)
-			if errEmit != nil {
-				s.log.Warn("Failed to emit referral.create_failed event", zap.Error(errEmit))
-			}
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to create referral", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Error(codes.Internal, "failed to create referral")
+		return nil, graceful.ToStatusError(err)
 	}
-	// 4. Integration points (all use the improved metadata structure)
 	idStr := fmt.Sprint(record.ID)
-	if s.cache != nil && record.Metadata != nil {
-		if err := pattern.CacheMetadata(ctx, s.log, s.cache, "referral", idStr, record.Metadata, 10*time.Minute); err != nil {
-			s.log.Error("failed to cache metadata", zap.Error(err))
-		}
-	}
-	if err := pattern.RegisterSchedule(ctx, s.log, "referral", idStr, record.Metadata); err != nil {
-		s.log.Error("failed to register schedule", zap.Error(err))
-	}
-	if err := pattern.EnrichKnowledgeGraph(ctx, s.log, "referral", idStr, record.Metadata); err != nil {
-		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
-	}
-	if err := pattern.RegisterWithNexus(ctx, s.log, "referral", record.Metadata); err != nil {
-		s.log.Error("failed to register with nexus", zap.Error(err))
-	}
-	record.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "referral.created", idStr, record.Metadata)
-	// 5. Return referral details
+	success := graceful.WrapSuccess(ctx, codes.OK, "referral created", record, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: idStr, CacheValue: record, CacheTTL: 10 * time.Minute, Metadata: record.Metadata, EventEmitter: s.eventEmitter, EventEnabled: s.eventEnabled, EventType: "referral.created", EventID: idStr, PatternType: "referral", PatternID: idStr, PatternMeta: record.Metadata})
 	return &referralpb.CreateReferralResponse{
 		Referral: toProtoReferral(record),
 		Success:  true,
@@ -138,28 +103,59 @@ func (s *Service) CreateReferral(ctx context.Context, req *referralpb.CreateRefe
 }
 
 // GetReferralStats retrieves referral statistics.
-func (s *Service) GetReferralStats(_ context.Context, _ *referralpb.GetReferralStatsRequest) (*referralpb.GetReferralStatsResponse, error) {
-	// TODO: Implement GetReferralStats
-	// Pseudocode:
-	// 1. Validate user/referrer permissions
-	// 2. Query DB for referral stats
-	// 3. Return stats
-	return nil, status.Error(codes.Unimplemented, "GetReferralStats not yet implemented")
+func (s *Service) GetReferralStats(ctx context.Context, req *referralpb.GetReferralStatsRequest) (*referralpb.GetReferralStatsResponse, error) {
+	if req == nil || req.MasterId == 0 {
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "MasterId is required", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
+	}
+	stats, err := s.repo.GetStats(req.MasterId)
+	if err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to get referral stats", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
+	}
+	resp := &referralpb.GetReferralStatsResponse{
+		TotalReferrals:  utils.ToInt32(int(stats.TotalReferrals)),
+		ActiveReferrals: utils.ToInt32(int(stats.SuccessfulReferrals)),
+		GeneratedAt:     timestamppb.Now(),
+	}
+	return resp, nil
 }
 
 // GetReferral retrieves a specific referral by code.
-func (s *Service) GetReferral(_ context.Context, req *referralpb.GetReferralRequest) (*referralpb.GetReferralResponse, error) {
+func (s *Service) GetReferral(ctx context.Context, req *referralpb.GetReferralRequest) (*referralpb.GetReferralResponse, error) {
 	if req.ReferralCode == "" {
-		return nil, status.Error(codes.InvalidArgument, "referral_code is required")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "referral_code is required", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	s.log.Debug("GetReferral called", zap.String("referral_code", req.ReferralCode))
 	referral, err := s.repo.GetByCode(req.ReferralCode)
 	if err != nil {
 		if errors.Is(err, ErrReferralNotFound) {
-			return nil, status.Error(codes.NotFound, "referral not found")
+			err = graceful.WrapErr(ctx, codes.NotFound, "referral not found", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			}
+			return nil, graceful.ToStatusError(err)
 		}
-		s.log.Error("failed to get referral by code", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to get referral")
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to get referral", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	return &referralpb.GetReferralResponse{
 		Referral: toProtoReferral(referral),
@@ -204,21 +200,35 @@ func generateReferralCode() string {
 }
 
 // UpdateReferredMasterID updates the referred master ID for a referral.
-func (s *Service) UpdateReferredMasterID(_ context.Context, referralCode, referredMasterID string) error {
+func (s *Service) UpdateReferredMasterID(ctx context.Context, referralCode, referredMasterID string) error {
 	if referralCode == "" {
-		return status.Error(codes.InvalidArgument, "referral_code is required")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "referral_code is required", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(err)
 	}
 	var referredMasterIDInt int64
 	if referredMasterID != "" {
 		var err error
 		referredMasterIDInt, err = strconv.ParseInt(referredMasterID, 10, 64)
 		if err != nil {
-			return status.Error(codes.InvalidArgument, "invalid referredMasterID")
+			err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid referredMasterID", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			}
+			return graceful.ToStatusError(err)
 		}
 	}
 	if err := s.repo.UpdateReferredMasterID(referralCode, referredMasterIDInt); err != nil {
-		s.log.Error("failed to update referred master id", zap.Error(err))
-		return status.Error(codes.Internal, "failed to update referred master id")
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to update referred master id", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(err)
 	}
 	return nil
 }

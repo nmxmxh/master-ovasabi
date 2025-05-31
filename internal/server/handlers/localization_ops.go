@@ -3,9 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -47,6 +49,51 @@ func LocalizationOpsHandler(log *zap.Logger, container *di.Container) http.Handl
 			log.Error("Missing or invalid action in localization request", zap.Any("value", req["action"]))
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
+		}
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		roles := authCtx.Roles
+		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
+		isPlatformAdmin := false
+		isLocalizationManager := false
+		for _, r := range roles {
+			if r == "admin" {
+				isPlatformAdmin = true
+			}
+			if r == "localization_manager" {
+				isLocalizationManager = true
+			}
+		}
+		// --- Permission checks by action ---
+		mutatingActions := map[string]bool{
+			"create_translation": true,
+			"set_pricing_rule":   true,
+			// Add more mutating actions as needed
+		}
+		if mutatingActions[action] {
+			if isGuest || (!isPlatformAdmin && !isLocalizationManager) {
+				http.Error(w, "forbidden: admin or localization_manager required", http.StatusForbidden)
+				return
+			}
+			// --- Audit/metadata propagation ---
+			if m, ok := req["metadata"]; ok && m != nil {
+				if metaMap, ok := m.(map[string]interface{}); ok {
+					metaMap["audit"] = map[string]interface{}{
+						"performed_by": userID,
+						"roles":        roles,
+						"timestamp":    time.Now().UTC().Format(time.RFC3339),
+					}
+					req["metadata"] = metaMap
+				}
+			} else {
+				req["metadata"] = map[string]interface{}{
+					"audit": map[string]interface{}{
+						"performed_by": userID,
+						"roles":        roles,
+						"timestamp":    time.Now().UTC().Format(time.RFC3339),
+					},
+				}
+			}
 		}
 		ctx := r.Context()
 		switch action {

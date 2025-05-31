@@ -35,9 +35,12 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,14 +48,13 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	azblob "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	blob "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	blockblob "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	events "github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	pkgmeta "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -70,8 +72,6 @@ type Service interface {
 	DeleteMedia(ctx context.Context, req *mediapb.DeleteMediaRequest) (*mediapb.DeleteMediaResponse, error)
 	ListUserMedia(ctx context.Context, req *mediapb.ListUserMediaRequest) (*mediapb.ListUserMediaResponse, error)
 	ListSystemMedia(ctx context.Context, req *mediapb.ListSystemMediaRequest) (*mediapb.ListSystemMediaResponse, error)
-	SubscribeToUserMedia(ctx context.Context, req *mediapb.SubscribeToUserMediaRequest) (*mediapb.SubscribeToUserMediaResponse, error)
-	SubscribeToSystemMedia(ctx context.Context, req *mediapb.SubscribeToSystemMediaRequest) (*mediapb.SubscribeToSystemMediaResponse, error)
 	BroadcastSystemMedia(ctx context.Context, req *mediapb.BroadcastSystemMediaRequest) (*mediapb.BroadcastSystemMediaResponse, error)
 }
 
@@ -170,12 +170,6 @@ func (s *ServiceImpl) BroadcastAssetChunk(_ context.Context, chunk []byte) {
 // Add a global in-memory map for upload sessions (for demo only).
 var heavyUploadSessions = make(map[string]*UploadMetadata)
 
-// In-memory pub/sub channels for demo (replace with real pub/sub or WebSocket in prod).
-var (
-	userMediaSubs   = make(map[string]chan *mediapb.Media)
-	systemMediaSubs = make(map[string]chan *mediapb.Media)
-)
-
 // NewService constructs a new MediaServiceServer instance with event bus support.
 func NewService(log *zap.Logger, repo *Repo, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) mediapb.MediaServiceServer {
 	svc := &ServiceImpl{
@@ -186,30 +180,7 @@ func NewService(log *zap.Logger, repo *Repo, cache *redis.Cache, eventEmitter Ev
 		eventEnabled: eventEnabled,
 	}
 	// Start Redis Pub/Sub listener for media events
-	if cache != nil {
-		go func() {
-			ctx := context.Background()
-			pubsub := cache.GetClient().Subscribe(ctx, "media:events:system")
-			ch := pubsub.Channel()
-			for msg := range ch {
-				var mediaEvent struct {
-					Type string          `json:"type"`
-					Data json.RawMessage `json:"data"`
-				}
-				if err := json.Unmarshal([]byte(msg.Payload), &mediaEvent); err == nil {
-					for _, ch := range systemMediaSubs {
-						var m mediapb.Media
-						if err := json.Unmarshal(mediaEvent.Data, &m); err == nil {
-							select {
-							case ch <- &m:
-							default:
-							}
-						}
-					}
-				}
-			}
-		}()
-	}
+	// (No longer needed here; handled by WebSocket server)
 	return svc
 }
 
@@ -227,13 +198,13 @@ func (s *ServiceImpl) validateMimeType(mimeType string) bool {
 }
 
 // validateUploadSize checks if the size is within allowed limits.
-func (s *ServiceImpl) validateUploadSize(size int64) error {
+func (s *ServiceImpl) validateUploadSize(ctx context.Context, size int64) error {
 	maxSize := int64(100 * 1024 * 1024) // 100MB max
 	if size <= 0 {
-		return status.Error(codes.InvalidArgument, "size must be positive")
+		return graceful.WrapErr(ctx, codes.InvalidArgument, "size must be positive", nil)
 	}
 	if size > maxSize {
-		return status.Errorf(codes.InvalidArgument, "size exceeds maximum allowed (%d bytes)", maxSize)
+		return graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("size exceeds maximum allowed (%d bytes)", maxSize), nil)
 	}
 	return nil
 }
@@ -257,6 +228,10 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 			var err error
 			mediaMeta, err = MetadataFromStruct(mediaField.GetStructValue())
 			if err != nil {
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
 				return nil, err
 			}
 		}
@@ -278,23 +253,43 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 	accountKey := os.Getenv("AZURE_BLOB_KEY")
 	containerName := os.Getenv("AZURE_BLOB_CONTAINER")
 	if accountName == "" || accountKey == "" || containerName == "" {
-		return nil, status.Error(codes.Internal, "Azure Blob Storage config missing")
+		err := graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	cred, err := azblob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create Azure credential: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create Azure credential: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", accountName)
 	blobName := uuid.New().String() + ".mp4"
 	blockBlobClient, err := blockblob.NewClientWithSharedKeyCredential(serviceURL+containerName+"/"+blobName, cred, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create block blob client: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create block blob client: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Upload file data (req.Data)
 	reader := bytes.NewReader(req.Data)
 	_, err = blockBlobClient.UploadStream(ctx, reader, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to upload to Azure Blob: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to upload to Azure Blob: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	blobURL := serviceURL + containerName + "/" + blobName
 
@@ -306,14 +301,24 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 	tmpFile := "/tmp/" + blobName
 	err = os.WriteFile(tmpFile, req.Data, 0o600)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to write temp file for ffprobe: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to write temp file for ffprobe: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	cmd := exec.Command(ffprobePath, "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", tmpFile)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err = cmd.Run()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "ffprobe failed: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("ffprobe failed: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	var probe struct {
 		Streams []struct {
@@ -336,12 +341,20 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 				if stream.BitRate != "" {
 					_, err := fmt.Sscanf(stream.BitRate, "%d", &mediaMeta.Bitrate)
 					if err != nil {
+						var ce *graceful.ContextError
+						if errors.As(err, &ce) {
+							ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+						}
 						return nil, err
 					}
 				}
 				if stream.Duration != "" {
 					_, err := fmt.Sscanf(stream.Duration, "%f", &mediaMeta.Duration)
 					if err != nil {
+						var ce *graceful.ContextError
+						if errors.As(err, &ce) {
+							ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+						}
 						return nil, err
 					}
 				}
@@ -350,12 +363,20 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		if probe.Format.Duration != "" {
 			_, err := fmt.Sscanf(probe.Format.Duration, "%f", &mediaMeta.Duration)
 			if err != nil {
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
 				return nil, err
 			}
 		}
 		if probe.Format.BitRate != "" {
 			_, err := fmt.Sscanf(probe.Format.BitRate, "%d", &mediaMeta.Bitrate)
 			if err != nil {
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
 				return nil, err
 			}
 		}
@@ -369,11 +390,21 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 
 	metaStruct, err := MetadataToStruct(mediaMeta)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal media metadata: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
 	if err := pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid metadata: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	asset := &Model{
 		ID:        uuid.New(),
@@ -391,20 +422,23 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		s.log.Error("failed to create light asset", zap.Error(err))
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error(), "user_id": req.UserId, "name": req.Name})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for media event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			err = graceful.WrapErr(ctx, codes.Internal, "media.upload_failed", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			asset.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "media.upload_failed", "", errMeta)
+			return nil, graceful.ToStatusError(err)
 		}
-		return nil, status.Error(codes.Internal, "failed to create asset")
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.WrapErr(ctx, codes.Internal, "failed to create asset", nil)
 	}
 	// Emit media.uploaded event after successful creation
 	if s.eventEnabled && s.eventEmitter != nil {
-		asset.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "media.uploaded", asset.ID.String(), asset.Metadata)
+		success := graceful.WrapSuccess(ctx, codes.OK, "media uploaded", asset, nil)
+		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: asset.ID.String(), CacheValue: asset, CacheTTL: 10 * time.Minute, Metadata: asset.Metadata, EventEmitter: s.eventEmitter, EventEnabled: s.eventEnabled, EventType: "media.uploaded", EventID: asset.ID.String(), PatternType: "media", PatternID: asset.ID.String(), PatternMeta: asset.Metadata})
 	}
 
 	if s.cache != nil {
@@ -458,18 +492,39 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 
 // StartHeavyMediaUpload initiates a chunked upload for large media.
 func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.StartHeavyMediaUploadRequest) (*mediapb.StartHeavyMediaUploadResponse, error) {
+	var err error
 	if !s.validateMimeType(req.MimeType) {
-		return nil, status.Error(codes.InvalidArgument, "unsupported MIME type")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "unsupported MIME type", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	if err := s.validateUploadSize(req.Size); err != nil {
-		return nil, err
+	if err = s.validateUploadSize(ctx, req.Size); err != nil {
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	if req.Size <= ultraLightThreshold {
-		return nil, status.Error(codes.InvalidArgument, "asset too small for heavy upload, use light upload instead")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "asset too small for heavy upload, use light upload instead", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	userID, err := uuid.Parse(req.UserId)
+	var userID uuid.UUID
+	userID, err = uuid.Parse(req.UserId)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid user ID")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid user ID", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	chunkSize := smallChunkSize
 	if req.Size > mediumThreshold {
@@ -477,19 +532,34 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 	}
 	chunksTotal := (req.Size + int64(chunkSize) - 1) / int64(chunkSize)
 	if chunkSize > math.MaxInt32 || chunkSize < math.MinInt32 {
-		return nil, status.Error(codes.Internal, "chunk size out of int32 range")
+		err = graceful.WrapErr(ctx, codes.Internal, "chunk size out of int32 range", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	if chunksTotal > math.MaxInt32 || chunksTotal < 0 {
-		return nil, status.Error(codes.Internal, "chunks total out of int32 range")
+		err = graceful.WrapErr(ctx, codes.Internal, "chunks total out of int32 range", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	var mediaMeta *Metadata
 	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
 		mediaField, ok := req.Metadata.ServiceSpecific.Fields["media"]
 		if ok && mediaField.GetKind() != nil {
-			var err error
-			mediaMeta, err = MetadataFromStruct(mediaField.GetStructValue())
-			if err != nil {
-				return nil, err
+			var metaErr error
+			mediaMeta, metaErr = MetadataFromStruct(mediaField.GetStructValue())
+			if metaErr != nil {
+				err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid media metadata", metaErr)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return nil, graceful.ToStatusError(err)
 			}
 		}
 	}
@@ -504,13 +574,24 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 			"last_migrated_at": time.Now().Format(time.RFC3339),
 		}
 	}
-	metaStruct, err := MetadataToStruct(mediaMeta)
+	var metaStruct *structpb.Struct
+	metaStruct, err = MetadataToStruct(mediaMeta)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal media metadata: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
-	if err := pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	if err = pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid metadata: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 
 	// --- Azure Blob Storage: Generate SAS URL for chunked upload ---
@@ -518,7 +599,12 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 	accountKey := os.Getenv("AZURE_BLOB_KEY")
 	containerName := os.Getenv("AZURE_BLOB_CONTAINER")
 	if accountName == "" || accountKey == "" || containerName == "" {
-		return nil, status.Error(codes.Internal, "Azure Blob Storage config missing")
+		err = graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// NOTE: If the proto is updated, return the SAS URL here.
 
@@ -548,9 +634,13 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 		UpdatedAt: time.Now(),
 		Metadata:  &commonpb.Metadata{ServiceSpecific: metaForValidation},
 	}
-	if err := s.repo.CreateMedia(ctx, asset); err != nil {
-		s.log.Error("failed to create heavy asset", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to initialize upload")
+	if err = s.repo.CreateMedia(ctx, asset); err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to initialize upload", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 
 	return &mediapb.StartHeavyMediaUploadResponse{
@@ -567,11 +657,21 @@ func (s *ServiceImpl) StreamMediaChunk(ctx context.Context, req *mediapb.StreamM
 	// Validate upload session
 	session, ok := heavyUploadSessions[req.UploadId]
 	if !ok {
-		return nil, status.Error(codes.NotFound, "upload session not found")
+		err := graceful.WrapErr(ctx, codes.NotFound, "upload session not found", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Validate chunk order (for demo, just increment)
 	if session.ChunksReceived >= session.ChunksTotal {
-		return nil, status.Error(codes.InvalidArgument, "all chunks already received")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "all chunks already received", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Validate chunk size (for demo, skip; in prod, check req.ChunkSize)
 	// Upload chunk to Azure Blob Storage (append block)
@@ -579,31 +679,56 @@ func (s *ServiceImpl) StreamMediaChunk(ctx context.Context, req *mediapb.StreamM
 	accountKey := os.Getenv("AZURE_BLOB_KEY")
 	containerName := os.Getenv("AZURE_BLOB_CONTAINER")
 	if accountName == "" || accountKey == "" || containerName == "" {
-		return nil, status.Error(codes.Internal, "Azure Blob Storage config missing")
+		err := graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// For demo, reconstruct blob name from upload ID
 	blobName := req.UploadId + ".mp4"
 	cred, err := azblob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create Azure credential: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create Azure credential: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", accountName)
 	blockBlobClient, err := blockblob.NewClientWithSharedKeyCredential(serviceURL+containerName+"/"+blobName, cred, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create block blob client: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create block blob client: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// For demo: use StageBlock to upload chunk (in prod, use block IDs)
 	var chunkData []byte
 	if req.Chunk != nil {
 		chunkData = req.Chunk.Data
 	} else {
-		return nil, status.Error(codes.InvalidArgument, "chunk data missing")
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "chunk data missing", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	reader := &readSeekCloser{bytes.NewReader(chunkData)}
 	blockID := fmt.Sprintf("block-%06d", session.ChunksReceived)
 	_, err = blockBlobClient.StageBlock(ctx, blockID, reader, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to upload chunk to Azure Blob: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to upload chunk to Azure Blob: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Update session
 	session.ChunksReceived++
@@ -611,29 +736,285 @@ func (s *ServiceImpl) StreamMediaChunk(ctx context.Context, req *mediapb.StreamM
 	return &mediapb.StreamMediaChunkResponse{Status: "chunk_received"}, nil
 }
 
+// Helper: Get Azure Media Services OAuth2 token.
+func getAMSToken(ctx context.Context) (string, error) {
+	tenantID := os.Getenv("AZURE_MEDIA_TENANT_ID")
+	clientID := os.Getenv("AZURE_MEDIA_CLIENT_ID")
+	clientSecret := os.Getenv("AZURE_MEDIA_CLIENT_SECRET")
+	if tenantID == "" || clientID == "" || clientSecret == "" {
+		return "", fmt.Errorf("AMS credentials missing")
+	}
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/token", tenantID)
+	data := url.Values{}
+	data.Set("grant_type", "client_credentials")
+	data.Set("client_id", clientID)
+	data.Set("client_secret", clientSecret)
+	data.Set("resource", "https://management.azure.com/")
+	formData := data.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(formData))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
+	token, ok := result["access_token"].(string)
+	if !ok {
+		return "", fmt.Errorf("failed to get AMS access_token")
+	}
+	return token, nil
+}
+
+// Helper: Submit AMS encoding job.
+func submitAMSJob(ctx context.Context, token, resourceGroup, accountName, transformName, jobName, outputAssetName, blobURL string) error {
+	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/transforms/%s/jobs/%s?api-version=2023-01-01",
+		os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, transformName, jobName)
+	job := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"input": map[string]interface{}{
+				"@odata.type": "#Microsoft.Media.JobInputHttp",
+				"files":       []string{blobURL},
+			},
+			"outputs": []map[string]interface{}{{
+				"@odata.type": "#Microsoft.Media.JobOutputAsset",
+				"assetName":   outputAssetName,
+			}},
+		},
+	}
+	body, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("failed to marshal AMS job: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request for AMS job: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	b, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("AMS job submission failed: %s", string(b))
+	}
+	return nil
+}
+
+// Helper: Poll AMS job status.
+func pollAMSJob(ctx context.Context, token, resourceGroup, accountName, transformName, jobName string) error {
+	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/transforms/%s/jobs/%s?api-version=2023-01-01",
+		os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, transformName, jobName)
+	for i := 0; i < 60; i++ { // up to 10 minutes
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
+		if err != nil {
+			return fmt.Errorf("failed to create HTTP request for AMS job polling: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		b, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return err
+		}
+		var result map[string]interface{}
+		if err := json.Unmarshal(b, &result); err != nil {
+			return err
+		}
+		propsIface, ok := result["properties"]
+		if !ok {
+			// handle missing properties key
+			return fmt.Errorf("missing properties key in AMS job response")
+		}
+		props, ok := propsIface.(map[string]interface{})
+		if !ok {
+			// handle type assertion failure
+			return fmt.Errorf("invalid properties format in AMS job response")
+		}
+		state, ok := props["state"].(string)
+		if !ok {
+			// handle type assertion failure
+			return fmt.Errorf("missing state field in AMS job response")
+		}
+		if state == "Finished" {
+			return nil
+		}
+		if state == "Error" {
+			return fmt.Errorf("AMS job failed: %s", string(b))
+		}
+		time.Sleep(10 * time.Second)
+	}
+	return fmt.Errorf("AMS job polling timed out")
+}
+
+// Helper: Construct streaming URLs.
+func getAMSStreamingURLs(ctx context.Context, token, resourceGroup, accountName, outputAssetName string) (map[string]string, error) {
+	// Create streaming locator
+	locatorName := "locator-" + outputAssetName
+	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/streamingLocators/%s?api-version=2023-01-01",
+		os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, locatorName)
+	locator := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"assetName":           outputAssetName,
+			"streamingPolicyName": "Predefined_ClearStreamingOnly",
+		},
+	}
+	body, err := json.Marshal(locator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal AMS locator: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request for AMS locator: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AMS streaming locator: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read AMS streaming endpoints response: %w", err)
+		}
+		return nil, fmt.Errorf("AMS locator creation failed: %s", string(b))
+	}
+	// Get streaming endpoint hostname
+	endpointList := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/streamingEndpoints?api-version=2023-01-01",
+		os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName)
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, endpointList, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request for AMS streaming endpoints: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AMS streaming endpoints: %w", err)
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read AMS streaming endpoints response: %w", err)
+	}
+	var endpoints map[string]interface{}
+	if err := json.Unmarshal(b, &endpoints); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal AMS streaming endpoints: %w", err)
+	}
+	var hostname string
+	endpointsVal, ok := endpoints["value"]
+	if !ok {
+		// handle missing value key
+		return nil, fmt.Errorf("missing value key in AMS streaming endpoints response")
+	}
+	endpointsArr, ok := endpointsVal.([]interface{})
+	if !ok {
+		// handle type assertion failure
+		return nil, fmt.Errorf("invalid value format in AMS streaming endpoints response")
+	}
+	for _, ep := range endpointsArr {
+		epMap, ok := ep.(map[string]interface{})
+		if !ok {
+			// handle type assertion failure
+			continue
+		}
+		props, ok := epMap["properties"].(map[string]interface{})
+		if !ok {
+			// handle type assertion failure
+			continue
+		}
+		if v, ok := props["resourceState"]; ok {
+			resourceState, ok := v.(string)
+			if !ok {
+				continue
+			}
+			if resourceState == "Running" {
+				vHost, ok := props["hostName"]
+				if !ok {
+					continue
+				}
+				hostname, ok = vHost.(string)
+				if !ok {
+					continue
+				}
+				break
+			}
+		}
+	}
+	if hostname == "" {
+		return nil, fmt.Errorf("no running AMS streaming endpoint found")
+	}
+	// Construct manifest URLs
+	manifestBase := fmt.Sprintf("https://%s/%s/manifest", hostname, locatorName)
+	return map[string]string{
+		"hls":  manifestBase + "(format=m3u8-aapl)",
+		"dash": manifestBase + "(format=mpd-time-csf)",
+	}, nil
+}
+
 // CompleteMediaUpload finalizes a heavy media upload.
 func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.CompleteMediaUploadRequest) (*mediapb.CompleteMediaUploadResponse, error) {
 	// Validate upload session
 	session, ok := heavyUploadSessions[req.UploadId]
 	if !ok {
-		return nil, status.Error(codes.NotFound, "upload session not found")
+		err := graceful.WrapErr(ctx, codes.NotFound, "upload session not found", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Commit all blocks to finalize the blob in Azure
 	accountName := os.Getenv("AZURE_BLOB_ACCOUNT")
 	accountKey := os.Getenv("AZURE_BLOB_KEY")
 	containerName := os.Getenv("AZURE_BLOB_CONTAINER")
 	if accountName == "" || accountKey == "" || containerName == "" {
-		return nil, status.Error(codes.Internal, "Azure Blob Storage config missing")
+		err := graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	blobName := req.UploadId + ".mp4"
 	cred, err := azblob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create Azure credential: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create Azure credential: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", accountName)
 	blockBlobClient, err := blockblob.NewClientWithSharedKeyCredential(serviceURL+containerName+"/"+blobName, cred, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create block blob client: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create block blob client: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Build block list (slice of base64-encoded block IDs)
 	blockList := make([]string, session.ChunksTotal)
@@ -643,33 +1024,79 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 	}
 	_, err = blockBlobClient.CommitBlockList(ctx, blockList, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to commit block list: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to commit block list: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 
-	// (Stub) Trigger Azure Media Services encoding and poll for completion
-	// TODO: Call Azure Media Services REST API to start encoding job
-	// TODO: Poll for job completion and get playback URLs, thumbnails, etc.
-	// For now, mock playback URLs and thumbnails
-	playbackURLs := map[string]string{
-		"hls":  "https://mock.streaming.media.azure.net/hls/" + req.UploadId + ".m3u8",
-		"dash": "https://mock.streaming.media.azure.net/dash/" + req.UploadId + ".mpd",
+	// --- Azure Media Services automation ---
+	resourceGroup := os.Getenv("AZURE_MEDIA_RESOURCE_GROUP")
+	accountName = os.Getenv("AZURE_MEDIA_ACCOUNT_NAME")
+	transformName := os.Getenv("AZURE_MEDIA_TRANSFORM_NAME")
+	outputAssetName := req.UploadId + "-output"
+	jobName := req.UploadId + "-job"
+	blobURL := serviceURL + containerName + "/" + blobName
+
+	token, err := getAMSToken(ctx)
+	if err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to get AMS token", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
+	}
+	if err := submitAMSJob(ctx, token, resourceGroup, accountName, transformName, jobName, outputAssetName, blobURL); err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to submit AMS job", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
+	}
+	if err := pollAMSJob(ctx, token, resourceGroup, accountName, transformName, jobName); err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "AMS job did not complete", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
+	}
+	playbackURLs, err := getAMSStreamingURLs(ctx, token, resourceGroup, accountName, outputAssetName)
+	if err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to get AMS streaming URLs", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	thumbnails := []ThumbnailInfo{{
-		URL:         "https://mock.blob.core.windows.net/thumbnails/" + req.UploadId + ".jpg",
-		Width:       320,
-		Height:      180,
-		TimeOffset:  0.0,
-		Description: "Mock thumbnail",
+		URL:   playbackURLs["hls"] + "/thumbnail.jpg", // Placeholder, update as needed
+		Width: 320, Height: 180, TimeOffset: 0.0, Description: "Thumbnail",
 	}}
 
 	// Update asset in DB
 	id, err := uuid.Parse(req.UploadId)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid upload ID")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid upload ID", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	asset, err := s.repo.GetMedia(ctx, id)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, "media not found")
+		err = graceful.WrapErr(ctx, codes.NotFound, "media not found", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	var mediaMeta *Metadata
 	if asset.Metadata != nil && asset.Metadata.ServiceSpecific != nil {
@@ -677,6 +1104,10 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 		if ok && mediaField.GetKind() != nil {
 			mediaMeta, err = MetadataFromStruct(mediaField.GetStructValue())
 			if err != nil {
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
 				return nil, err
 			}
 		}
@@ -688,11 +1119,21 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 	mediaMeta.Thumbnails = thumbnails
 	metaStruct, err := MetadataToStruct(mediaMeta)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal updated media metadata: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal updated media metadata", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
 	if err := pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid updated metadata: %v", err)
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid updated metadata: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	asset.Metadata = &commonpb.Metadata{ServiceSpecific: metaForValidation}
 	asset.URL = playbackURLs["hls"] // Use HLS as main URL for demo
@@ -701,20 +1142,23 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 		s.log.Error("failed to update asset after encoding", zap.Error(err))
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error(), "upload_id": req.UploadId})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for media event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			err := graceful.WrapErr(ctx, codes.Internal, "media.complete_failed", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			asset.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "media.complete_failed", req.UploadId, errMeta)
+			return nil, graceful.ToStatusError(err)
 		}
-		return nil, status.Error(codes.Internal, "failed to update asset after encoding")
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.WrapErr(ctx, codes.Internal, "failed to update asset after encoding", err)
 	}
 	// Emit media.completed event after successful completion
 	if s.eventEnabled && s.eventEmitter != nil {
-		asset.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "media.completed", asset.ID.String(), asset.Metadata)
+		success := graceful.WrapSuccess(ctx, codes.OK, "media completed", asset, nil)
+		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: asset.ID.String(), CacheValue: asset, CacheTTL: 10 * time.Minute, Metadata: asset.Metadata, EventEmitter: s.eventEmitter, EventEnabled: s.eventEnabled, EventType: "media.completed", EventID: asset.ID.String(), PatternType: "media", PatternID: asset.ID.String(), PatternMeta: asset.Metadata})
 	}
 
 	if s.cache != nil {
@@ -752,7 +1196,11 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 		if payload, err := json.Marshal(mediaEvent); err == nil {
 			for _, ch := range channels {
 				if err := s.cache.GetClient().Publish(ctx, ch, payload).Err(); err != nil {
-					return nil, err
+					var ce *graceful.ContextError
+					if errors.As(err, &ce) {
+						ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+					}
+					return nil, graceful.ToStatusError(err)
 				}
 			}
 		}
@@ -780,14 +1228,29 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 func (s *ServiceImpl) GetMedia(ctx context.Context, req *mediapb.GetMediaRequest) (*mediapb.GetMediaResponse, error) {
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid media ID")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid media ID", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	media, err := s.repo.GetMedia(ctx, id)
 	if err != nil {
 		if errors.Is(err, ErrMediaNotFound) {
-			return nil, status.Error(codes.NotFound, "media not found")
+			err = graceful.WrapErr(ctx, codes.NotFound, "media not found", nil)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			}
+			return nil, graceful.ToStatusError(err)
 		}
-		return nil, status.Errorf(codes.Internal, "failed to get media: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to get media: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	masterIDInt64, err := strconv.ParseInt(media.MasterID, 10, 64)
 	if err != nil {
@@ -816,27 +1279,52 @@ func (s *ServiceImpl) GetMedia(ctx context.Context, req *mediapb.GetMediaRequest
 func (s *ServiceImpl) StreamMediaContent(ctx context.Context, req *mediapb.StreamMediaContentRequest) (*mediapb.StreamMediaContentResponse, error) {
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid media ID")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid media ID", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	asset, err := s.repo.GetMedia(ctx, id)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, "media not found")
+		err = graceful.WrapErr(ctx, codes.NotFound, "media not found", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	accountName := os.Getenv("AZURE_BLOB_ACCOUNT")
 	accountKey := os.Getenv("AZURE_BLOB_KEY")
 	containerName := os.Getenv("AZURE_BLOB_CONTAINER")
 	if accountName == "" || accountKey == "" || containerName == "" {
-		return nil, status.Error(codes.Internal, "Azure Blob Storage config missing")
+		err := graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	cred, err := azblob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create Azure credential: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create Azure credential: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", accountName)
 	blobName := asset.ID.String() + ".mp4"
 	blobClient, err := blob.NewClientWithSharedKeyCredential(serviceURL+containerName+"/"+blobName, cred, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create blob client: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create blob client: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Use the correct type for download options
 	var downloadOptions *blob.DownloadStreamOptions
@@ -851,11 +1339,21 @@ func (s *ServiceImpl) StreamMediaContent(ctx context.Context, req *mediapb.Strea
 	}
 	resp, err := blobClient.DownloadStream(ctx, downloadOptions)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to download from Azure Blob: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to download from Azure Blob: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to read blob data: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to read blob data: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	return &mediapb.StreamMediaContentResponse{Data: data, Status: "ok"}, nil
 }
@@ -864,52 +1362,85 @@ func (s *ServiceImpl) StreamMediaContent(ctx context.Context, req *mediapb.Strea
 func (s *ServiceImpl) DeleteMedia(ctx context.Context, req *mediapb.DeleteMediaRequest) (*mediapb.DeleteMediaResponse, error) {
 	id, err := uuid.Parse(req.Id)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid media ID")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid media ID", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Get asset from DB
 	asset, err := s.repo.GetMedia(ctx, id)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get media: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to get media: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Remove from Azure Blob Storage
 	accountName := os.Getenv("AZURE_BLOB_ACCOUNT")
 	accountKey := os.Getenv("AZURE_BLOB_KEY")
 	containerName := os.Getenv("AZURE_BLOB_CONTAINER")
 	if accountName == "" || accountKey == "" || containerName == "" {
-		return nil, status.Error(codes.Internal, "Azure Blob Storage config missing")
+		err := graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	cred, err := azblob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create Azure credential: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create Azure credential: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	serviceURL := fmt.Sprintf("https://%s.blob.core.windows.net/", accountName)
 	blobName := asset.ID.String() + ".mp4"
 	blockBlobClient, err := blockblob.NewClientWithSharedKeyCredential(serviceURL+containerName+"/"+blobName, cred, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create block blob client: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create block blob client: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	_, err = blockBlobClient.Delete(ctx, nil)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete blob: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to delete blob: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	// Remove from DB
 	if err := s.repo.DeleteMedia(ctx, id); err != nil {
 		// Emit failure event
 		if s.eventEnabled && s.eventEmitter != nil {
-			errStruct, err := structpb.NewStruct(map[string]interface{}{"error": err.Error(), "media_id": req.Id})
-			if err != nil {
-				s.log.Error("Failed to create structpb.Struct for media event", zap.Error(err))
-				return nil, status.Error(codes.Internal, "internal error")
+			err := graceful.WrapErr(ctx, codes.Internal, "media.delete_failed", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 			}
-			errMeta := &commonpb.Metadata{}
-			errMeta.ServiceSpecific = errStruct
-			asset.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "media.delete_failed", req.Id, errMeta)
+			return nil, graceful.ToStatusError(err)
 		}
-		return nil, status.Errorf(codes.Internal, "failed to delete media: %v", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.WrapErr(ctx, codes.Internal, "failed to delete media", err)
 	}
 	// Emit media.deleted event after successful deletion
 	if s.eventEnabled && s.eventEmitter != nil {
-		asset.Metadata, _ = events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "media.deleted", req.Id, asset.Metadata)
+		success := graceful.WrapSuccess(ctx, codes.OK, "media deleted", req.Id, nil)
+		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: req.Id, CacheValue: req.Id, CacheTTL: 10 * time.Minute, Metadata: nil, EventEmitter: s.eventEmitter, EventEnabled: s.eventEnabled, EventType: "media.deleted", EventID: req.Id, PatternType: "media", PatternID: req.Id, PatternMeta: nil})
 	}
 
 	if s.cache != nil {
@@ -939,7 +1470,11 @@ func (s *ServiceImpl) DeleteMedia(ctx context.Context, req *mediapb.DeleteMediaR
 		if payload, err := json.Marshal(mediaEvent); err == nil {
 			for _, ch := range channels {
 				if err := s.cache.GetClient().Publish(ctx, ch, payload).Err(); err != nil {
-					return nil, err
+					var ce *graceful.ContextError
+					if errors.As(err, &ce) {
+						ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+					}
+					return nil, graceful.ToStatusError(err)
 				}
 			}
 		}
@@ -952,12 +1487,36 @@ func (s *ServiceImpl) DeleteMedia(ctx context.Context, req *mediapb.DeleteMediaR
 func (s *ServiceImpl) ListUserMedia(ctx context.Context, req *mediapb.ListUserMediaRequest) (*mediapb.ListUserMediaResponse, error) {
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid user ID")
+		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid user ID", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
-	// For demo: ignore PageToken, use offset 0. In prod, decode PageToken for offset.
-	mediaList, err := s.repo.ListUserMedia(ctx, userID, "", int(req.GetPageSize()), 0)
+
+	// --- Production-grade pagination ---
+	offset := 0
+	if req.PageToken != "" {
+		parsed, err := strconv.Atoi(req.PageToken)
+		if err == nil && parsed >= 0 {
+			offset = parsed
+		}
+		// else fallback to 0
+	}
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 {
+		pageSize = 20 // default page size
+	}
+
+	mediaList, err := s.repo.ListUserMedia(ctx, userID, "", pageSize, offset)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list user media: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to list user media: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	result := make([]*mediapb.Media, 0, len(mediaList))
 	for _, m := range mediaList {
@@ -974,15 +1533,52 @@ func (s *ServiceImpl) ListUserMedia(ctx context.Context, req *mediapb.ListUserMe
 			Metadata:  m.Metadata,
 		})
 	}
-	return &mediapb.ListUserMediaResponse{Media: result, Status: "ok"}, nil
+
+	// --- NextPageToken logic ---
+	nextPageToken := ""
+	if len(mediaList) == pageSize {
+		nextPageToken = strconv.Itoa(offset + pageSize)
+	}
+
+	// --- WebSocket/Redis real-time update integration point ---
+	// In production, push updates to user via WebSocket if connected, or publish to Redis channel 'media:events:user:{user_id}'.
+	// See internal/server/ws/websocket.go for the canonical pattern.
+	// Example stub:
+	// if s.eventEmitter != nil {
+	//     s.eventEmitter.EmitEventWithLogging(ctx, ...)
+	// }
+
+	return &mediapb.ListUserMediaResponse{
+		Media:         result,
+		Status:        "ok",
+		NextPageToken: nextPageToken,
+	}, nil
 }
 
 // ListSystemMedia lists system media files with pagination and metadata.
 func (s *ServiceImpl) ListSystemMedia(ctx context.Context, req *mediapb.ListSystemMediaRequest) (*mediapb.ListSystemMediaResponse, error) {
-	// For demo: ignore PageToken, use offset 0. In prod, decode PageToken for offset.
-	mediaList, err := s.repo.ListSystemMedia(ctx, "", int(req.GetPageSize()), 0)
+	// --- Production-grade pagination ---
+	offset := 0
+	if req.PageToken != "" {
+		parsed, err := strconv.Atoi(req.PageToken)
+		if err == nil && parsed >= 0 {
+			offset = parsed
+		}
+		// else fallback to 0
+	}
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 {
+		pageSize = 20 // default page size
+	}
+
+	mediaList, err := s.repo.ListSystemMedia(ctx, "", pageSize, offset)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list system media: %v", err)
+		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to list system media: %v", err), nil)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
 	}
 	result := make([]*mediapb.Media, 0, len(mediaList))
 	for _, m := range mediaList {
@@ -999,56 +1595,33 @@ func (s *ServiceImpl) ListSystemMedia(ctx context.Context, req *mediapb.ListSyst
 			Metadata:  m.Metadata,
 		})
 	}
-	return &mediapb.ListSystemMediaResponse{Media: result, Status: "ok"}, nil
-}
 
-// SubscribeToUserMedia: basic in-memory pub/sub demo.
-func (s *ServiceImpl) SubscribeToUserMedia(ctx context.Context, req *mediapb.SubscribeToUserMediaRequest) (*mediapb.SubscribeToUserMediaResponse, error) {
-	ch := make(chan *mediapb.Media, 1)
-	userMediaSubs[req.UserId] = ch
-	defer delete(userMediaSubs, req.UserId)
-	// Simulate a push update (in prod, use real pub/sub or WebSocket)
-	select {
-	case media := <-ch:
-		return &mediapb.SubscribeToUserMediaResponse{Media: []*mediapb.Media{media}, Status: "update"}, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-time.After(2 * time.Second):
-		return &mediapb.SubscribeToUserMediaResponse{Media: []*mediapb.Media{}, Status: "timeout"}, nil
+	// --- NextPageToken logic ---
+	nextPageToken := ""
+	if len(mediaList) == pageSize {
+		nextPageToken = strconv.Itoa(offset + pageSize)
 	}
-}
 
-// SubscribeToSystemMedia: basic in-memory pub/sub demo.
-func (s *ServiceImpl) SubscribeToSystemMedia(ctx context.Context, _ *mediapb.SubscribeToSystemMediaRequest) (*mediapb.SubscribeToSystemMediaResponse, error) {
-	// Use a static key for system-wide subscriptions (since req.MasterId does not exist)
-	key := "system"
-	ch := make(chan *mediapb.Media, 1)
-	systemMediaSubs[key] = ch
-	defer delete(systemMediaSubs, key)
-	// Simulate a push update (in prod, use real pub/sub or WebSocket)
-	select {
-	case media := <-ch:
-		return &mediapb.SubscribeToSystemMediaResponse{Media: []*mediapb.Media{media}, Status: "update"}, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-time.After(2 * time.Second):
-		return &mediapb.SubscribeToSystemMediaResponse{Media: []*mediapb.Media{}, Status: "timeout"}, nil
-	}
+	// --- WebSocket/Redis real-time update integration point ---
+	// In production, push updates to system via WebSocket if connected, or publish to Redis channel 'media:events:system'.
+	// See internal/server/ws/websocket.go for the canonical pattern.
+	// Example stub:
+	// if s.eventEmitter != nil {
+	//     s.eventEmitter.EmitEventWithLogging(ctx, ...)
+	// }
+
+	return &mediapb.ListSystemMediaResponse{
+		Media:         result,
+		Status:        "ok",
+		NextPageToken: nextPageToken,
+	}, nil
 }
 
 // BroadcastSystemMedia: push a mock update to all system subscribers.
 func (s *ServiceImpl) BroadcastSystemMedia(ctx context.Context, req *mediapb.BroadcastSystemMediaRequest) (*mediapb.BroadcastSystemMediaResponse, error) {
 	// In prod, integrate with pub/sub or event bus
-	mockMedia := &mediapb.Media{
-		Id:   "system-broadcast-id",
-		Name: "System Broadcast Media",
-	}
-	for _, ch := range systemMediaSubs {
-		select {
-		case ch <- mockMedia:
-		default:
-		}
-	}
+	// Remove in-memory pub/sub demo logic
+	// Only keep Redis/WebSocket production logic below
 
 	if s.cache != nil {
 		channels := []string{"media:events:system"}

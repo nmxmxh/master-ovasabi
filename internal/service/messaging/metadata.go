@@ -147,7 +147,7 @@ func (mm *Metadata) ToStruct() (*structpb.Struct, error) {
 		m["delivery"] = d
 	}
 	// Add other fields (reactions, attachments, audit, compliance, versioning, custom)
-	return metadata.NewStructFromMap(m), nil
+	return metadata.NewStructFromMap(m, nil), nil
 }
 
 // UpdateDeliveryStatus updates the delivery/read/ack status for a user.

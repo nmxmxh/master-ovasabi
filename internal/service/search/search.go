@@ -2,16 +2,15 @@ package search
 
 import (
 	context "context"
+	"errors"
+	"time"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
-	events "github.com/nmxmxh/master-ovasabi/pkg/events"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // Add missing type definitions if not imported
@@ -52,19 +51,12 @@ func (s *Service) Search(ctx context.Context, req *searchpb.SearchRequest) (*sea
 
 	results, total, err := s.repo.SearchAllEntities(ctx, types, query, meta, req.GetCampaignId(), page, pageSize)
 	if err != nil {
-		s.log.Error("Search failed", zap.Error(err))
-		if s.eventEnabled && s.eventEmitter != nil {
-			errMeta := &commonpb.Metadata{
-				ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"error": err.Error(), "query": req.Query}),
-				Tags:            []string{},
-				Features:        []string{},
-			}
-			_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "search", "search.failed", "", errMeta, zap.Error(err))
-			if !ok {
-				s.log.Warn("Failed to emit search.failed event")
-			}
+		err = graceful.WrapErr(ctx, codes.Internal, "search failed", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
-		return nil, status.Errorf(codes.Internal, "search failed: %v", err)
+		return nil, graceful.ToStatusError(err)
 	}
 	protos := make([]*searchpb.SearchResult, 0, len(results))
 	for _, r := range results {
@@ -81,18 +73,7 @@ func (s *Service) Search(ctx context.Context, req *searchpb.SearchRequest) (*sea
 		PageNumber: utils.ToInt32(page),
 		PageSize:   utils.ToInt32(pageSize),
 	}
-	if s.eventEnabled && s.eventEmitter != nil {
-		successMeta := &commonpb.Metadata{
-			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"query": req.Query}),
-			Tags:            []string{},
-			Features:        []string{},
-		}
-		_, ok := events.EmitCallbackEvent(ctx, s.eventEmitter, s.log, s.Cache, "search", "search.completed", "", successMeta, zap.String("query", req.Query))
-		if !ok {
-			s.log.Warn("Failed to emit search.completed event")
-		}
-	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "search completed", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.Cache, CacheKey: "search:" + query, CacheValue: resp, CacheTTL: 5 * time.Minute, Metadata: meta, EventEmitter: s.eventEmitter, EventEnabled: s.eventEnabled, EventType: "search.completed", EventID: query, PatternType: "search", PatternID: query, PatternMeta: meta})
 	return resp, nil
 }
-
-// Optionally, implement Suggest and other endpoints as needed.

@@ -2,11 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
+	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -36,6 +40,21 @@ func CommerceOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		// Extract authentication context
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
+		if isGuest {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		var securitySvc securitypb.SecurityServiceClient
+		if err := container.Resolve(&securitySvc); err != nil {
+			log.Error("Failed to resolve SecurityService", zap.Error(err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("Failed to decode commerce request JSON", zap.Error(err))
@@ -49,6 +68,21 @@ func CommerceOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 			return
 		}
 		ctx := r.Context()
+		// Strict permission check for all commerce actions
+		err := shield.CheckPermission(ctx, securitySvc, action, "commerce", shield.WithMetadata(meta))
+		switch {
+		case err == nil:
+			// allowed, proceed
+		case errors.Is(err, shield.ErrUnauthenticated):
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		case errors.Is(err, shield.ErrPermissionDenied):
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
 		switch action {
 		case "create_quote":
 			userID, ok := req["user_id"].(string)

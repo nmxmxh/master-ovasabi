@@ -6623,6 +6623,102 @@ func (x *CreateReferralResponse) GetSuccess() bool {
 	return false
 }
 
+type RefreshSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshSessionRequest) Reset() {
+	*x = RefreshSessionRequest{}
+	mi := &file_user_v1_user_proto_msgTypes[110]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshSessionRequest) ProtoMessage() {}
+
+func (x *RefreshSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_user_proto_msgTypes[110]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshSessionRequest.ProtoReflect.Descriptor instead.
+func (*RefreshSessionRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_user_proto_rawDescGZIP(), []int{110}
+}
+
+func (x *RefreshSessionRequest) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
+	}
+	return ""
+}
+
+type RefreshSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	AccessToken   string                 `protobuf:"bytes,2,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshSessionResponse) Reset() {
+	*x = RefreshSessionResponse{}
+	mi := &file_user_v1_user_proto_msgTypes[111]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshSessionResponse) ProtoMessage() {}
+
+func (x *RefreshSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_user_proto_msgTypes[111]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshSessionResponse.ProtoReflect.Descriptor instead.
+func (*RefreshSessionResponse) Descriptor() ([]byte, []int) {
+	return file_user_v1_user_proto_rawDescGZIP(), []int{111}
+}
+
+func (x *RefreshSessionResponse) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
+	}
+	return ""
+}
+
+func (x *RefreshSessionResponse) GetAccessToken() string {
+	if x != nil {
+		return x.AccessToken
+	}
+	return ""
+}
+
 var File_user_v1_user_proto protoreflect.FileDescriptor
 
 const file_user_v1_user_proto_rawDesc = "" +
@@ -7130,7 +7226,12 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\rcampaign_slug\x18\x02 \x01(\tR\fcampaignSlug\"W\n" +
 	"\x16CreateReferralResponse\x12#\n" +
 	"\rreferral_code\x18\x01 \x01(\tR\freferralCode\x12\x18\n" +
-	"\asuccess\x18\x02 \x01(\bR\asuccess*\x8f\x01\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\"<\n" +
+	"\x15RefreshSessionRequest\x12#\n" +
+	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"`\n" +
+	"\x16RefreshSessionResponse\x12#\n" +
+	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\x12!\n" +
+	"\faccess_token\x18\x02 \x01(\tR\vaccessToken*\x8f\x01\n" +
 	"\n" +
 	"UserStatus\x12\x1b\n" +
 	"\x17USER_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -7147,7 +7248,7 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\fFollowStatus\x12\x1d\n" +
 	"\x19FOLLOW_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14FOLLOW_STATUS_ACTIVE\x10\x01\x12\x19\n" +
-	"\x15FOLLOW_STATUS_BLOCKED\x10\x022\xf5 \n" +
+	"\x15FOLLOW_STATUS_BLOCKED\x10\x022\xc8!\n" +
 	"\vUserService\x12G\n" +
 	"\n" +
 	"CreateUser\x12\x1a.user.v1.CreateUserRequest\x1a\x1b.user.v1.CreateUserResponse\"\x00\x12>\n" +
@@ -7208,7 +7309,8 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x15BlockGroupIndividuals\x12%.user.v1.BlockGroupIndividualsRequest\x1a&.user.v1.BlockGroupIndividualsResponse\"\x00\x12H\n" +
 	"\vUnmuteGroup\x12\x1b.user.v1.UnmuteGroupRequest\x1a\x1c.user.v1.UnmuteGroupResponse\x12i\n" +
 	"\x16UnmuteGroupIndividuals\x12&.user.v1.UnmuteGroupIndividualsRequest\x1a'.user.v1.UnmuteGroupIndividualsResponse\x12l\n" +
-	"\x17UnblockGroupIndividuals\x12'.user.v1.UnblockGroupIndividualsRequest\x1a(.user.v1.UnblockGroupIndividualsResponseB*Z(master-ovasabi/api/protos/user/v1;userv1b\x06proto3"
+	"\x17UnblockGroupIndividuals\x12'.user.v1.UnblockGroupIndividualsRequest\x1a(.user.v1.UnblockGroupIndividualsResponse\x12Q\n" +
+	"\x0eRefreshSession\x12\x1e.user.v1.RefreshSessionRequest\x1a\x1f.user.v1.RefreshSessionResponseB*Z(master-ovasabi/api/protos/user/v1;userv1b\x06proto3"
 
 var (
 	file_user_v1_user_proto_rawDescOnce sync.Once
@@ -7223,7 +7325,7 @@ func file_user_v1_user_proto_rawDescGZIP() []byte {
 }
 
 var file_user_v1_user_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_user_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 116)
+var file_user_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
 var file_user_v1_user_proto_goTypes = []any{
 	(UserStatus)(0),                         // 0: user.v1.UserStatus
 	(FriendshipStatus)(0),                   // 1: user.v1.FriendshipStatus
@@ -7338,99 +7440,101 @@ var file_user_v1_user_proto_goTypes = []any{
 	(*RegisterInterestResponse)(nil),        // 110: user.v1.RegisterInterestResponse
 	(*CreateReferralRequest)(nil),           // 111: user.v1.CreateReferralRequest
 	(*CreateReferralResponse)(nil),          // 112: user.v1.CreateReferralResponse
-	nil,                                     // 113: user.v1.User.ExternalIdsEntry
-	nil,                                     // 114: user.v1.UserProfile.CustomFieldsEntry
-	nil,                                     // 115: user.v1.UserGroup.RolesEntry
-	nil,                                     // 116: user.v1.UserEvent.PayloadEntry
-	nil,                                     // 117: user.v1.AuditLog.PayloadEntry
-	nil,                                     // 118: user.v1.CreateUserGroupRequest.RolesEntry
-	(*timestamppb.Timestamp)(nil),           // 119: google.protobuf.Timestamp
-	(*v1.Metadata)(nil),                     // 120: common.Metadata
+	(*RefreshSessionRequest)(nil),           // 113: user.v1.RefreshSessionRequest
+	(*RefreshSessionResponse)(nil),          // 114: user.v1.RefreshSessionResponse
+	nil,                                     // 115: user.v1.User.ExternalIdsEntry
+	nil,                                     // 116: user.v1.UserProfile.CustomFieldsEntry
+	nil,                                     // 117: user.v1.UserGroup.RolesEntry
+	nil,                                     // 118: user.v1.UserEvent.PayloadEntry
+	nil,                                     // 119: user.v1.AuditLog.PayloadEntry
+	nil,                                     // 120: user.v1.CreateUserGroupRequest.RolesEntry
+	(*timestamppb.Timestamp)(nil),           // 121: google.protobuf.Timestamp
+	(*v1.Metadata)(nil),                     // 122: common.Metadata
 }
 var file_user_v1_user_proto_depIdxs = []int32{
-	119, // 0: user.v1.User.created_at:type_name -> google.protobuf.Timestamp
-	119, // 1: user.v1.User.updated_at:type_name -> google.protobuf.Timestamp
-	120, // 2: user.v1.User.metadata:type_name -> common.Metadata
+	121, // 0: user.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	121, // 1: user.v1.User.updated_at:type_name -> google.protobuf.Timestamp
+	122, // 2: user.v1.User.metadata:type_name -> common.Metadata
 	4,   // 3: user.v1.User.profile:type_name -> user.v1.UserProfile
 	0,   // 4: user.v1.User.status:type_name -> user.v1.UserStatus
-	113, // 5: user.v1.User.external_ids:type_name -> user.v1.User.ExternalIdsEntry
-	114, // 6: user.v1.UserProfile.custom_fields:type_name -> user.v1.UserProfile.CustomFieldsEntry
-	115, // 7: user.v1.UserGroup.roles:type_name -> user.v1.UserGroup.RolesEntry
-	120, // 8: user.v1.UserGroup.metadata:type_name -> common.Metadata
-	119, // 9: user.v1.UserGroup.created_at:type_name -> google.protobuf.Timestamp
-	119, // 10: user.v1.UserGroup.updated_at:type_name -> google.protobuf.Timestamp
+	115, // 5: user.v1.User.external_ids:type_name -> user.v1.User.ExternalIdsEntry
+	116, // 6: user.v1.UserProfile.custom_fields:type_name -> user.v1.UserProfile.CustomFieldsEntry
+	117, // 7: user.v1.UserGroup.roles:type_name -> user.v1.UserGroup.RolesEntry
+	122, // 8: user.v1.UserGroup.metadata:type_name -> common.Metadata
+	121, // 9: user.v1.UserGroup.created_at:type_name -> google.protobuf.Timestamp
+	121, // 10: user.v1.UserGroup.updated_at:type_name -> google.protobuf.Timestamp
 	1,   // 11: user.v1.Friendship.status:type_name -> user.v1.FriendshipStatus
-	120, // 12: user.v1.Friendship.metadata:type_name -> common.Metadata
-	119, // 13: user.v1.Friendship.created_at:type_name -> google.protobuf.Timestamp
-	119, // 14: user.v1.Friendship.updated_at:type_name -> google.protobuf.Timestamp
+	122, // 12: user.v1.Friendship.metadata:type_name -> common.Metadata
+	121, // 13: user.v1.Friendship.created_at:type_name -> google.protobuf.Timestamp
+	121, // 14: user.v1.Friendship.updated_at:type_name -> google.protobuf.Timestamp
 	2,   // 15: user.v1.Follow.status:type_name -> user.v1.FollowStatus
-	120, // 16: user.v1.Follow.metadata:type_name -> common.Metadata
-	119, // 17: user.v1.Follow.created_at:type_name -> google.protobuf.Timestamp
-	119, // 18: user.v1.Follow.updated_at:type_name -> google.protobuf.Timestamp
+	122, // 16: user.v1.Follow.metadata:type_name -> common.Metadata
+	121, // 17: user.v1.Follow.created_at:type_name -> google.protobuf.Timestamp
+	121, // 18: user.v1.Follow.updated_at:type_name -> google.protobuf.Timestamp
 	4,   // 19: user.v1.CreateUserRequest.profile:type_name -> user.v1.UserProfile
-	120, // 20: user.v1.CreateUserRequest.metadata:type_name -> common.Metadata
+	122, // 20: user.v1.CreateUserRequest.metadata:type_name -> common.Metadata
 	3,   // 21: user.v1.CreateUserResponse.user:type_name -> user.v1.User
 	3,   // 22: user.v1.GetUserResponse.user:type_name -> user.v1.User
 	3,   // 23: user.v1.GetUserByUsernameResponse.user:type_name -> user.v1.User
 	3,   // 24: user.v1.GetUserByEmailResponse.user:type_name -> user.v1.User
 	3,   // 25: user.v1.UpdateUserRequest.user:type_name -> user.v1.User
-	120, // 26: user.v1.UpdateUserRequest.metadata:type_name -> common.Metadata
+	122, // 26: user.v1.UpdateUserRequest.metadata:type_name -> common.Metadata
 	3,   // 27: user.v1.UpdateUserResponse.user:type_name -> user.v1.User
-	120, // 28: user.v1.DeleteUserRequest.metadata:type_name -> common.Metadata
-	120, // 29: user.v1.ListUsersRequest.filters:type_name -> common.Metadata
-	120, // 30: user.v1.ListUsersRequest.metadata:type_name -> common.Metadata
+	122, // 28: user.v1.DeleteUserRequest.metadata:type_name -> common.Metadata
+	122, // 29: user.v1.ListUsersRequest.filters:type_name -> common.Metadata
+	122, // 30: user.v1.ListUsersRequest.metadata:type_name -> common.Metadata
 	3,   // 31: user.v1.ListUsersResponse.users:type_name -> user.v1.User
 	4,   // 32: user.v1.UpdateProfileRequest.profile:type_name -> user.v1.UserProfile
 	3,   // 33: user.v1.UpdateProfileResponse.user:type_name -> user.v1.User
 	34,  // 34: user.v1.CreateSessionResponse.session:type_name -> user.v1.Session
 	34,  // 35: user.v1.GetSessionResponse.session:type_name -> user.v1.Session
 	34,  // 36: user.v1.ListSessionsResponse.sessions:type_name -> user.v1.Session
-	119, // 37: user.v1.Session.created_at:type_name -> google.protobuf.Timestamp
-	119, // 38: user.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
-	120, // 39: user.v1.Session.metadata:type_name -> common.Metadata
+	121, // 37: user.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	121, // 38: user.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	122, // 39: user.v1.Session.metadata:type_name -> common.Metadata
 	47,  // 40: user.v1.ListUserEventsResponse.events:type_name -> user.v1.UserEvent
 	48,  // 41: user.v1.ListAuditLogsResponse.logs:type_name -> user.v1.AuditLog
-	119, // 42: user.v1.UserEvent.occurred_at:type_name -> google.protobuf.Timestamp
-	120, // 43: user.v1.UserEvent.metadata:type_name -> common.Metadata
-	116, // 44: user.v1.UserEvent.payload:type_name -> user.v1.UserEvent.PayloadEntry
-	119, // 45: user.v1.AuditLog.occurred_at:type_name -> google.protobuf.Timestamp
-	120, // 46: user.v1.AuditLog.metadata:type_name -> common.Metadata
-	117, // 47: user.v1.AuditLog.payload:type_name -> user.v1.AuditLog.PayloadEntry
-	120, // 48: user.v1.AddFriendRequest.metadata:type_name -> common.Metadata
+	121, // 42: user.v1.UserEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	122, // 43: user.v1.UserEvent.metadata:type_name -> common.Metadata
+	118, // 44: user.v1.UserEvent.payload:type_name -> user.v1.UserEvent.PayloadEntry
+	121, // 45: user.v1.AuditLog.occurred_at:type_name -> google.protobuf.Timestamp
+	122, // 46: user.v1.AuditLog.metadata:type_name -> common.Metadata
+	119, // 47: user.v1.AuditLog.payload:type_name -> user.v1.AuditLog.PayloadEntry
+	122, // 48: user.v1.AddFriendRequest.metadata:type_name -> common.Metadata
 	6,   // 49: user.v1.AddFriendResponse.friendship:type_name -> user.v1.Friendship
-	120, // 50: user.v1.RemoveFriendRequest.metadata:type_name -> common.Metadata
-	120, // 51: user.v1.ListFriendsRequest.metadata:type_name -> common.Metadata
+	122, // 50: user.v1.RemoveFriendRequest.metadata:type_name -> common.Metadata
+	122, // 51: user.v1.ListFriendsRequest.metadata:type_name -> common.Metadata
 	3,   // 52: user.v1.ListFriendsResponse.friends:type_name -> user.v1.User
-	120, // 53: user.v1.FollowUserRequest.metadata:type_name -> common.Metadata
+	122, // 53: user.v1.FollowUserRequest.metadata:type_name -> common.Metadata
 	7,   // 54: user.v1.FollowUserResponse.follow:type_name -> user.v1.Follow
-	120, // 55: user.v1.UnfollowUserRequest.metadata:type_name -> common.Metadata
-	120, // 56: user.v1.ListFollowersRequest.metadata:type_name -> common.Metadata
+	122, // 55: user.v1.UnfollowUserRequest.metadata:type_name -> common.Metadata
+	122, // 56: user.v1.ListFollowersRequest.metadata:type_name -> common.Metadata
 	3,   // 57: user.v1.ListFollowersResponse.followers:type_name -> user.v1.User
-	120, // 58: user.v1.ListFollowingRequest.metadata:type_name -> common.Metadata
+	122, // 58: user.v1.ListFollowingRequest.metadata:type_name -> common.Metadata
 	3,   // 59: user.v1.ListFollowingResponse.following:type_name -> user.v1.User
-	118, // 60: user.v1.CreateUserGroupRequest.roles:type_name -> user.v1.CreateUserGroupRequest.RolesEntry
-	120, // 61: user.v1.CreateUserGroupRequest.metadata:type_name -> common.Metadata
+	120, // 60: user.v1.CreateUserGroupRequest.roles:type_name -> user.v1.CreateUserGroupRequest.RolesEntry
+	122, // 61: user.v1.CreateUserGroupRequest.metadata:type_name -> common.Metadata
 	5,   // 62: user.v1.CreateUserGroupResponse.user_group:type_name -> user.v1.UserGroup
 	5,   // 63: user.v1.UpdateUserGroupRequest.user_group:type_name -> user.v1.UserGroup
-	120, // 64: user.v1.UpdateUserGroupRequest.metadata:type_name -> common.Metadata
+	122, // 64: user.v1.UpdateUserGroupRequest.metadata:type_name -> common.Metadata
 	5,   // 65: user.v1.UpdateUserGroupResponse.user_group:type_name -> user.v1.UserGroup
-	120, // 66: user.v1.DeleteUserGroupRequest.metadata:type_name -> common.Metadata
-	120, // 67: user.v1.ListUserGroupsRequest.metadata:type_name -> common.Metadata
+	122, // 66: user.v1.DeleteUserGroupRequest.metadata:type_name -> common.Metadata
+	122, // 67: user.v1.ListUserGroupsRequest.metadata:type_name -> common.Metadata
 	5,   // 68: user.v1.ListUserGroupsResponse.user_groups:type_name -> user.v1.UserGroup
-	120, // 69: user.v1.ListUserGroupMembersRequest.metadata:type_name -> common.Metadata
+	122, // 69: user.v1.ListUserGroupMembersRequest.metadata:type_name -> common.Metadata
 	3,   // 70: user.v1.ListUserGroupMembersResponse.members:type_name -> user.v1.User
-	120, // 71: user.v1.SuggestConnectionsRequest.metadata:type_name -> common.Metadata
+	122, // 71: user.v1.SuggestConnectionsRequest.metadata:type_name -> common.Metadata
 	3,   // 72: user.v1.SuggestConnectionsResponse.suggestions:type_name -> user.v1.User
-	120, // 73: user.v1.ListConnectionsRequest.metadata:type_name -> common.Metadata
+	122, // 73: user.v1.ListConnectionsRequest.metadata:type_name -> common.Metadata
 	3,   // 74: user.v1.ListConnectionsResponse.users:type_name -> user.v1.User
-	120, // 75: user.v1.BlockUserRequest.metadata:type_name -> common.Metadata
-	120, // 76: user.v1.MuteUserRequest.metadata:type_name -> common.Metadata
-	120, // 77: user.v1.ReportUserRequest.metadata:type_name -> common.Metadata
-	120, // 78: user.v1.BlockGroupContentRequest.metadata:type_name -> common.Metadata
-	120, // 79: user.v1.ReportGroupContentRequest.metadata:type_name -> common.Metadata
-	120, // 80: user.v1.MuteGroupContentRequest.metadata:type_name -> common.Metadata
-	120, // 81: user.v1.MuteGroupIndividualsRequest.metadata:type_name -> common.Metadata
-	120, // 82: user.v1.BlockGroupIndividualsRequest.metadata:type_name -> common.Metadata
+	122, // 75: user.v1.BlockUserRequest.metadata:type_name -> common.Metadata
+	122, // 76: user.v1.MuteUserRequest.metadata:type_name -> common.Metadata
+	122, // 77: user.v1.ReportUserRequest.metadata:type_name -> common.Metadata
+	122, // 78: user.v1.BlockGroupContentRequest.metadata:type_name -> common.Metadata
+	122, // 79: user.v1.ReportGroupContentRequest.metadata:type_name -> common.Metadata
+	122, // 80: user.v1.MuteGroupContentRequest.metadata:type_name -> common.Metadata
+	122, // 81: user.v1.MuteGroupIndividualsRequest.metadata:type_name -> common.Metadata
+	122, // 82: user.v1.BlockGroupIndividualsRequest.metadata:type_name -> common.Metadata
 	3,   // 83: user.v1.RegisterInterestResponse.user:type_name -> user.v1.User
 	8,   // 84: user.v1.UserService.CreateUser:input_type -> user.v1.CreateUserRequest
 	10,  // 85: user.v1.UserService.GetUser:input_type -> user.v1.GetUserRequest
@@ -7483,59 +7587,61 @@ var file_user_v1_user_proto_depIdxs = []int32{
 	103, // 132: user.v1.UserService.UnmuteGroup:input_type -> user.v1.UnmuteGroupRequest
 	105, // 133: user.v1.UserService.UnmuteGroupIndividuals:input_type -> user.v1.UnmuteGroupIndividualsRequest
 	107, // 134: user.v1.UserService.UnblockGroupIndividuals:input_type -> user.v1.UnblockGroupIndividualsRequest
-	9,   // 135: user.v1.UserService.CreateUser:output_type -> user.v1.CreateUserResponse
-	11,  // 136: user.v1.UserService.GetUser:output_type -> user.v1.GetUserResponse
-	13,  // 137: user.v1.UserService.GetUserByUsername:output_type -> user.v1.GetUserByUsernameResponse
-	15,  // 138: user.v1.UserService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
-	17,  // 139: user.v1.UserService.UpdateUser:output_type -> user.v1.UpdateUserResponse
-	19,  // 140: user.v1.UserService.DeleteUser:output_type -> user.v1.DeleteUserResponse
-	21,  // 141: user.v1.UserService.ListUsers:output_type -> user.v1.ListUsersResponse
-	23,  // 142: user.v1.UserService.UpdatePassword:output_type -> user.v1.UpdatePasswordResponse
-	25,  // 143: user.v1.UserService.UpdateProfile:output_type -> user.v1.UpdateProfileResponse
-	110, // 144: user.v1.UserService.RegisterInterest:output_type -> user.v1.RegisterInterestResponse
-	112, // 145: user.v1.UserService.CreateReferral:output_type -> user.v1.CreateReferralResponse
-	27,  // 146: user.v1.UserService.CreateSession:output_type -> user.v1.CreateSessionResponse
-	29,  // 147: user.v1.UserService.GetSession:output_type -> user.v1.GetSessionResponse
-	31,  // 148: user.v1.UserService.RevokeSession:output_type -> user.v1.RevokeSessionResponse
-	33,  // 149: user.v1.UserService.ListSessions:output_type -> user.v1.ListSessionsResponse
-	36,  // 150: user.v1.UserService.AssignRole:output_type -> user.v1.AssignRoleResponse
-	38,  // 151: user.v1.UserService.RemoveRole:output_type -> user.v1.RemoveRoleResponse
-	40,  // 152: user.v1.UserService.ListRoles:output_type -> user.v1.ListRolesResponse
-	42,  // 153: user.v1.UserService.ListPermissions:output_type -> user.v1.ListPermissionsResponse
-	44,  // 154: user.v1.UserService.ListUserEvents:output_type -> user.v1.ListUserEventsResponse
-	46,  // 155: user.v1.UserService.ListAuditLogs:output_type -> user.v1.ListAuditLogsResponse
-	50,  // 156: user.v1.UserService.InitiateSSO:output_type -> user.v1.InitiateSSOResponse
-	52,  // 157: user.v1.UserService.InitiateMFA:output_type -> user.v1.InitiateMFAResponse
-	54,  // 158: user.v1.UserService.SyncSCIM:output_type -> user.v1.SyncSCIMResponse
-	56,  // 159: user.v1.UserService.AddFriend:output_type -> user.v1.AddFriendResponse
-	58,  // 160: user.v1.UserService.RemoveFriend:output_type -> user.v1.RemoveFriendResponse
-	60,  // 161: user.v1.UserService.ListFriends:output_type -> user.v1.ListFriendsResponse
-	62,  // 162: user.v1.UserService.FollowUser:output_type -> user.v1.FollowUserResponse
-	64,  // 163: user.v1.UserService.UnfollowUser:output_type -> user.v1.UnfollowUserResponse
-	66,  // 164: user.v1.UserService.ListFollowers:output_type -> user.v1.ListFollowersResponse
-	68,  // 165: user.v1.UserService.ListFollowing:output_type -> user.v1.ListFollowingResponse
-	70,  // 166: user.v1.UserService.CreateUserGroup:output_type -> user.v1.CreateUserGroupResponse
-	72,  // 167: user.v1.UserService.UpdateUserGroup:output_type -> user.v1.UpdateUserGroupResponse
-	74,  // 168: user.v1.UserService.DeleteUserGroup:output_type -> user.v1.DeleteUserGroupResponse
-	76,  // 169: user.v1.UserService.ListUserGroups:output_type -> user.v1.ListUserGroupsResponse
-	78,  // 170: user.v1.UserService.ListUserGroupMembers:output_type -> user.v1.ListUserGroupMembersResponse
-	80,  // 171: user.v1.UserService.SuggestConnections:output_type -> user.v1.SuggestConnectionsResponse
-	82,  // 172: user.v1.UserService.ListConnections:output_type -> user.v1.ListConnectionsResponse
-	84,  // 173: user.v1.UserService.BlockUser:output_type -> user.v1.BlockUserResponse
-	86,  // 174: user.v1.UserService.UnblockUser:output_type -> user.v1.UnblockUserResponse
-	88,  // 175: user.v1.UserService.MuteUser:output_type -> user.v1.MuteUserResponse
-	90,  // 176: user.v1.UserService.UnmuteUser:output_type -> user.v1.UnmuteUserResponse
-	92,  // 177: user.v1.UserService.ReportUser:output_type -> user.v1.ReportUserResponse
-	94,  // 178: user.v1.UserService.BlockGroupContent:output_type -> user.v1.BlockGroupContentResponse
-	96,  // 179: user.v1.UserService.ReportGroupContent:output_type -> user.v1.ReportGroupContentResponse
-	98,  // 180: user.v1.UserService.MuteGroupContent:output_type -> user.v1.MuteGroupContentResponse
-	100, // 181: user.v1.UserService.MuteGroupIndividuals:output_type -> user.v1.MuteGroupIndividualsResponse
-	102, // 182: user.v1.UserService.BlockGroupIndividuals:output_type -> user.v1.BlockGroupIndividualsResponse
-	104, // 183: user.v1.UserService.UnmuteGroup:output_type -> user.v1.UnmuteGroupResponse
-	106, // 184: user.v1.UserService.UnmuteGroupIndividuals:output_type -> user.v1.UnmuteGroupIndividualsResponse
-	108, // 185: user.v1.UserService.UnblockGroupIndividuals:output_type -> user.v1.UnblockGroupIndividualsResponse
-	135, // [135:186] is the sub-list for method output_type
-	84,  // [84:135] is the sub-list for method input_type
+	113, // 135: user.v1.UserService.RefreshSession:input_type -> user.v1.RefreshSessionRequest
+	9,   // 136: user.v1.UserService.CreateUser:output_type -> user.v1.CreateUserResponse
+	11,  // 137: user.v1.UserService.GetUser:output_type -> user.v1.GetUserResponse
+	13,  // 138: user.v1.UserService.GetUserByUsername:output_type -> user.v1.GetUserByUsernameResponse
+	15,  // 139: user.v1.UserService.GetUserByEmail:output_type -> user.v1.GetUserByEmailResponse
+	17,  // 140: user.v1.UserService.UpdateUser:output_type -> user.v1.UpdateUserResponse
+	19,  // 141: user.v1.UserService.DeleteUser:output_type -> user.v1.DeleteUserResponse
+	21,  // 142: user.v1.UserService.ListUsers:output_type -> user.v1.ListUsersResponse
+	23,  // 143: user.v1.UserService.UpdatePassword:output_type -> user.v1.UpdatePasswordResponse
+	25,  // 144: user.v1.UserService.UpdateProfile:output_type -> user.v1.UpdateProfileResponse
+	110, // 145: user.v1.UserService.RegisterInterest:output_type -> user.v1.RegisterInterestResponse
+	112, // 146: user.v1.UserService.CreateReferral:output_type -> user.v1.CreateReferralResponse
+	27,  // 147: user.v1.UserService.CreateSession:output_type -> user.v1.CreateSessionResponse
+	29,  // 148: user.v1.UserService.GetSession:output_type -> user.v1.GetSessionResponse
+	31,  // 149: user.v1.UserService.RevokeSession:output_type -> user.v1.RevokeSessionResponse
+	33,  // 150: user.v1.UserService.ListSessions:output_type -> user.v1.ListSessionsResponse
+	36,  // 151: user.v1.UserService.AssignRole:output_type -> user.v1.AssignRoleResponse
+	38,  // 152: user.v1.UserService.RemoveRole:output_type -> user.v1.RemoveRoleResponse
+	40,  // 153: user.v1.UserService.ListRoles:output_type -> user.v1.ListRolesResponse
+	42,  // 154: user.v1.UserService.ListPermissions:output_type -> user.v1.ListPermissionsResponse
+	44,  // 155: user.v1.UserService.ListUserEvents:output_type -> user.v1.ListUserEventsResponse
+	46,  // 156: user.v1.UserService.ListAuditLogs:output_type -> user.v1.ListAuditLogsResponse
+	50,  // 157: user.v1.UserService.InitiateSSO:output_type -> user.v1.InitiateSSOResponse
+	52,  // 158: user.v1.UserService.InitiateMFA:output_type -> user.v1.InitiateMFAResponse
+	54,  // 159: user.v1.UserService.SyncSCIM:output_type -> user.v1.SyncSCIMResponse
+	56,  // 160: user.v1.UserService.AddFriend:output_type -> user.v1.AddFriendResponse
+	58,  // 161: user.v1.UserService.RemoveFriend:output_type -> user.v1.RemoveFriendResponse
+	60,  // 162: user.v1.UserService.ListFriends:output_type -> user.v1.ListFriendsResponse
+	62,  // 163: user.v1.UserService.FollowUser:output_type -> user.v1.FollowUserResponse
+	64,  // 164: user.v1.UserService.UnfollowUser:output_type -> user.v1.UnfollowUserResponse
+	66,  // 165: user.v1.UserService.ListFollowers:output_type -> user.v1.ListFollowersResponse
+	68,  // 166: user.v1.UserService.ListFollowing:output_type -> user.v1.ListFollowingResponse
+	70,  // 167: user.v1.UserService.CreateUserGroup:output_type -> user.v1.CreateUserGroupResponse
+	72,  // 168: user.v1.UserService.UpdateUserGroup:output_type -> user.v1.UpdateUserGroupResponse
+	74,  // 169: user.v1.UserService.DeleteUserGroup:output_type -> user.v1.DeleteUserGroupResponse
+	76,  // 170: user.v1.UserService.ListUserGroups:output_type -> user.v1.ListUserGroupsResponse
+	78,  // 171: user.v1.UserService.ListUserGroupMembers:output_type -> user.v1.ListUserGroupMembersResponse
+	80,  // 172: user.v1.UserService.SuggestConnections:output_type -> user.v1.SuggestConnectionsResponse
+	82,  // 173: user.v1.UserService.ListConnections:output_type -> user.v1.ListConnectionsResponse
+	84,  // 174: user.v1.UserService.BlockUser:output_type -> user.v1.BlockUserResponse
+	86,  // 175: user.v1.UserService.UnblockUser:output_type -> user.v1.UnblockUserResponse
+	88,  // 176: user.v1.UserService.MuteUser:output_type -> user.v1.MuteUserResponse
+	90,  // 177: user.v1.UserService.UnmuteUser:output_type -> user.v1.UnmuteUserResponse
+	92,  // 178: user.v1.UserService.ReportUser:output_type -> user.v1.ReportUserResponse
+	94,  // 179: user.v1.UserService.BlockGroupContent:output_type -> user.v1.BlockGroupContentResponse
+	96,  // 180: user.v1.UserService.ReportGroupContent:output_type -> user.v1.ReportGroupContentResponse
+	98,  // 181: user.v1.UserService.MuteGroupContent:output_type -> user.v1.MuteGroupContentResponse
+	100, // 182: user.v1.UserService.MuteGroupIndividuals:output_type -> user.v1.MuteGroupIndividualsResponse
+	102, // 183: user.v1.UserService.BlockGroupIndividuals:output_type -> user.v1.BlockGroupIndividualsResponse
+	104, // 184: user.v1.UserService.UnmuteGroup:output_type -> user.v1.UnmuteGroupResponse
+	106, // 185: user.v1.UserService.UnmuteGroupIndividuals:output_type -> user.v1.UnmuteGroupIndividualsResponse
+	108, // 186: user.v1.UserService.UnblockGroupIndividuals:output_type -> user.v1.UnblockGroupIndividualsResponse
+	114, // 187: user.v1.UserService.RefreshSession:output_type -> user.v1.RefreshSessionResponse
+	136, // [136:188] is the sub-list for method output_type
+	84,  // [84:136] is the sub-list for method input_type
 	84,  // [84:84] is the sub-list for extension type_name
 	84,  // [84:84] is the sub-list for extension extendee
 	0,   // [0:84] is the sub-list for field type_name
@@ -7552,7 +7658,7 @@ func file_user_v1_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_user_proto_rawDesc), len(file_user_v1_user_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   116,
+			NumMessages:   118,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

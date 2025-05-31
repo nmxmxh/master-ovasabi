@@ -2,12 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	userv1 "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
-	"github.com/nmxmxh/master-ovasabi/pkg/utils"
+	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -55,6 +58,10 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
+		meta := shield.BuildRequestMetadata(r, userID, isGuest)
 		action, ok := req["action"].(string)
 		if !ok || action == "" {
 			log.Error("Missing or invalid action in user request", zap.Any("value", req["action"]))
@@ -63,6 +70,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 		}
 		switch action {
 		case "create_user":
+			// Allow guest access for registration
 			username, ok := req["username"].(string)
 			if !ok {
 				log.Error("Missing or invalid username in create_user", zap.Any("value", req["username"]))
@@ -140,6 +148,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 				return
 			}
 		case "get_user":
+			// Allow guest access for public user info
 			userID, ok := req["user_id"].(string)
 			if !ok {
 				log.Error("Missing or invalid user_id in get_user", zap.Any("value", req["user_id"]))
@@ -158,174 +167,155 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 				return
 			}
-		case "update_user":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid user_id in update_user", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
+		case "update_user", "delete_user", "assign_role", "remove_role":
+			// Require authentication and permission check for sensitive actions
+			if isGuest {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
-			user := &userv1.User{}
-			if v, ok := req["username"].(string); ok {
-				user.Username = v
+			var securitySvc securitypb.SecurityServiceClient
+			if err := container.Resolve(&securitySvc); err != nil {
+				log.Error("Failed to resolve SecurityService", zap.Error(err))
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
 			}
-			if v, ok := req["email"].(string); ok {
-				user.Email = v
+			err := shield.CheckPermission(r.Context(), securitySvc, action, "user", shield.WithMetadata(meta))
+			if err != nil {
+				switch {
+				case errors.Is(err, shield.ErrUnauthenticated):
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+				case errors.Is(err, shield.ErrPermissionDenied):
+					http.Error(w, "forbidden", http.StatusForbidden)
+				default:
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+				}
+				return
 			}
-			if v, ok := req["roles"].([]interface{}); ok {
-				for _, r := range v {
-					if s, ok := r.(string); ok {
-						user.Roles = append(user.Roles, s)
+			// Strictly require admin role for these actions
+			if !isAdmin(authCtx.Roles) {
+				log.Error("Admin role required for action", zap.String("action", action), zap.Strings("roles", authCtx.Roles))
+				http.Error(w, "admin role required", http.StatusForbidden)
+				return
+			}
+			switch action {
+			case "update_user":
+				userID, ok := req["user_id"].(string)
+				if !ok {
+					log.Error("Missing or invalid user_id in update_user", zap.Any("value", req["user_id"]))
+					http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
+					return
+				}
+				user := &userv1.User{}
+				if v, ok := req["username"].(string); ok {
+					user.Username = v
+				}
+				if v, ok := req["email"].(string); ok {
+					user.Email = v
+				}
+				if v, ok := req["roles"].([]interface{}); ok {
+					for _, r := range v {
+						if s, ok := r.(string); ok {
+							user.Roles = append(user.Roles, s)
+						}
 					}
 				}
-			}
-			if p, ok := req["profile"].(map[string]interface{}); ok {
-				user.Profile = &userv1.UserProfile{}
-				if v, ok := p["first_name"].(string); ok {
-					user.Profile.FirstName = v
-				}
-				if v, ok := p["last_name"].(string); ok {
-					user.Profile.LastName = v
-				}
-				if v, ok := p["phone_number"].(string); ok {
-					user.Profile.PhoneNumber = v
-				}
-				if v, ok := p["avatar_url"].(string); ok {
-					user.Profile.AvatarUrl = v
-				}
-				if v, ok := p["bio"].(string); ok {
-					user.Profile.Bio = v
-				}
-				if v, ok := p["timezone"].(string); ok {
-					user.Profile.Timezone = v
-				}
-				if v, ok := p["language"].(string); ok {
-					user.Profile.Language = v
-				}
-			}
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				if metaStruct, err := structpb.NewStruct(m); err == nil {
-					user.Metadata = &commonpb.Metadata{ServiceSpecific: metaStruct}
-				}
-			}
-			fieldsToUpdate := []string{}
-			if arr, ok := req["fields_to_update"].([]interface{}); ok {
-				for _, v := range arr {
-					if s, ok := v.(string); ok {
-						fieldsToUpdate = append(fieldsToUpdate, s)
+				if p, ok := req["profile"].(map[string]interface{}); ok {
+					user.Profile = &userv1.UserProfile{}
+					if v, ok := p["first_name"].(string); ok {
+						user.Profile.FirstName = v
+					}
+					if v, ok := p["last_name"].(string); ok {
+						user.Profile.LastName = v
+					}
+					if v, ok := p["phone_number"].(string); ok {
+						user.Profile.PhoneNumber = v
+					}
+					if v, ok := p["avatar_url"].(string); ok {
+						user.Profile.AvatarUrl = v
+					}
+					if v, ok := p["bio"].(string); ok {
+						user.Profile.Bio = v
+					}
+					if v, ok := p["timezone"].(string); ok {
+						user.Profile.Timezone = v
+					}
+					if v, ok := p["language"].(string); ok {
+						user.Profile.Language = v
 					}
 				}
-			}
-			protoReq := &userv1.UpdateUserRequest{
-				UserId:         userID,
-				User:           user,
-				FieldsToUpdate: fieldsToUpdate,
-			}
-			resp, err := userSvc.UpdateUser(r.Context(), protoReq)
-			if err != nil {
-				log.Error("Failed to update user", zap.Error(err))
-				http.Error(w, "failed to update user", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"user": resp.User}); err != nil {
-				log.Error("Failed to write JSON response (update_user)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "delete_user":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid user_id in delete_user", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
-				return
-			}
-			protoReq := &userv1.DeleteUserRequest{UserId: userID}
-			resp, err := userSvc.DeleteUser(r.Context(), protoReq)
-			if err != nil {
-				log.Error("Failed to delete user", zap.Error(err))
-				http.Error(w, "failed to delete user", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": resp.Success}); err != nil {
-				log.Error("Failed to write JSON response (delete_user)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "list_users":
-			page := 0
-			if p, ok := req["page"].(float64); ok {
-				page = int(p)
-			}
-			pageSize := 20
-			if ps, ok := req["page_size"].(float64); ok {
-				pageSize = int(ps)
-			}
-			page32 := utils.ToInt32(page)
-			pageSize32 := utils.ToInt32(pageSize)
-			protoReq := &userv1.ListUsersRequest{
-				Page:     page32,
-				PageSize: pageSize32,
-			}
-			resp, err := userSvc.ListUsers(r.Context(), protoReq)
-			if err != nil {
-				log.Error("Failed to list users", zap.Error(err))
-				http.Error(w, "failed to list users", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"users": resp.Users, "total_count": resp.TotalCount}); err != nil {
-				log.Error("Failed to write JSON response (list_users)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "assign_role":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid user_id in assign_role", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
-				return
-			}
-			role, ok := req["role"].(string)
-			if !ok {
-				log.Error("Missing or invalid role in assign_role", zap.Any("value", req["role"]))
-				http.Error(w, "missing or invalid role", http.StatusBadRequest)
-				return
-			}
-			protoReq := &userv1.AssignRoleRequest{UserId: userID, Role: role}
-			resp, err := userSvc.AssignRole(r.Context(), protoReq)
-			if err != nil {
-				log.Error("Failed to assign role", zap.Error(err))
-				http.Error(w, "failed to assign role", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": resp.Success}); err != nil {
-				log.Error("Failed to write JSON response (assign_role)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "remove_role":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid user_id in remove_role", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
-				return
-			}
-			role, ok := req["role"].(string)
-			if !ok {
-				log.Error("Missing or invalid role in remove_role", zap.Any("value", req["role"]))
-				http.Error(w, "missing or invalid role", http.StatusBadRequest)
-				return
-			}
-			protoReq := &userv1.RemoveRoleRequest{UserId: userID, Role: role}
-			resp, err := userSvc.RemoveRole(r.Context(), protoReq)
-			if err != nil {
-				log.Error("Failed to remove role", zap.Error(err))
-				http.Error(w, "failed to remove role", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": resp.Success}); err != nil {
-				log.Error("Failed to write JSON response (remove_role)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
+				if m, ok := req["metadata"].(map[string]interface{}); ok {
+					if metaStruct, err := structpb.NewStruct(m); err == nil {
+						user.Metadata = &commonpb.Metadata{ServiceSpecific: metaStruct}
+					}
+				}
+				fieldsToUpdate := []string{}
+				if arr, ok := req["fields_to_update"].([]interface{}); ok {
+					for _, v := range arr {
+						if s, ok := v.(string); ok {
+							fieldsToUpdate = append(fieldsToUpdate, s)
+						}
+					}
+				}
+				protoReq := &userv1.UpdateUserRequest{
+					UserId:         userID,
+					User:           user,
+					FieldsToUpdate: fieldsToUpdate,
+				}
+				resp, err := userSvc.UpdateUser(r.Context(), protoReq)
+				if err != nil {
+					log.Error("Failed to update user", zap.Error(err))
+					http.Error(w, "failed to update user", http.StatusInternalServerError)
+					return
+				}
+				if err := json.NewEncoder(w).Encode(map[string]interface{}{"user": resp.User}); err != nil {
+					log.Error("Failed to write JSON response (update_user)", zap.Error(err))
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+					return
+				}
+			case "delete_user":
+				userID, ok := req["user_id"].(string)
+				if !ok {
+					log.Error("Missing or invalid user_id in delete_user", zap.Any("value", req["user_id"]))
+					http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
+					return
+				}
+				protoReq := &userv1.DeleteUserRequest{UserId: userID}
+				resp, err := userSvc.DeleteUser(r.Context(), protoReq)
+				if err != nil {
+					log.Error("Failed to delete user", zap.Error(err))
+					http.Error(w, "failed to delete user", http.StatusInternalServerError)
+					return
+				}
+				if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": resp.Success}); err != nil {
+					log.Error("Failed to write JSON response (delete_user)", zap.Error(err))
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+					return
+				}
+			case "assign_role", "remove_role":
+				userID, ok := req["user_id"].(string)
+				if !ok {
+					log.Error("Missing or invalid user_id in assign_role or remove_role", zap.Any("value", req["user_id"]))
+					http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
+					return
+				}
+				role, ok := req["role"].(string)
+				if !ok {
+					log.Error("Missing or invalid role in assign_role or remove_role", zap.Any("value", req["role"]))
+					http.Error(w, "missing or invalid role", http.StatusBadRequest)
+					return
+				}
+				protoReq := &userv1.AssignRoleRequest{UserId: userID, Role: role}
+				resp, err := userSvc.AssignRole(r.Context(), protoReq)
+				if err != nil {
+					log.Error("Failed to assign role", zap.Error(err))
+					http.Error(w, "failed to assign role", http.StatusInternalServerError)
+					return
+				}
+				if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": resp.Success}); err != nil {
+					log.Error("Failed to write JSON response (assign_role or remove_role)", zap.Error(err))
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+					return
+				}
 			}
 		case "update_preferences":
 			userID, ok := req["user_id"].(string)
@@ -718,4 +708,14 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 			return
 		}
 	}
+}
+
+// isAdmin returns true if the user has the 'admin' role.
+func isAdmin(roles []string) bool {
+	for _, r := range roles {
+		if r == "admin" {
+			return true
+		}
+	}
+	return false
 }

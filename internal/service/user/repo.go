@@ -28,6 +28,38 @@ func SetLogger(l *zap.Logger) {
 	log = l
 }
 
+func validatePassword(pw string) error {
+	if len(pw) < 10 {
+		return ErrPasswordTooShort
+	}
+	hasUpper, hasLower, hasDigit, hasSpecial := false, false, false, false
+	for _, c := range pw {
+		switch {
+		case unicode.IsUpper(c):
+			hasUpper = true
+		case unicode.IsLower(c):
+			hasLower = true
+		case unicode.IsDigit(c):
+			hasDigit = true
+		case unicode.IsPunct(c) || unicode.IsSymbol(c):
+			hasSpecial = true
+		}
+	}
+	if !hasUpper {
+		return ErrPasswordNoUpper
+	}
+	if !hasLower {
+		return ErrPasswordNoLower
+	}
+	if !hasDigit {
+		return ErrPasswordNoDigit
+	}
+	if !hasSpecial {
+		return ErrPasswordNoSpecial
+	}
+	return nil
+}
+
 // User represents a user in the service_user table.
 type User struct {
 	ID           string             `db:"id"`
@@ -129,6 +161,11 @@ func (r *Repository) Create(ctx context.Context, user *User) (*User, error) {
 
 	// Validate metadata
 	if err := metadatautil.ValidateMetadata(user.Metadata); err != nil {
+		return nil, err
+	}
+
+	// Validate password
+	if err := validatePassword(user.PasswordHash); err != nil {
 		return nil, err
 	}
 
@@ -276,6 +313,11 @@ func (r *Repository) Update(ctx context.Context, user *User) error {
 
 	// Validate metadata
 	if err := metadatautil.ValidateMetadata(user.Metadata); err != nil {
+		return err
+	}
+
+	// Validate password
+	if err := validatePassword(user.PasswordHash); err != nil {
 		return err
 	}
 
@@ -594,7 +636,7 @@ func (r *Repository) CreateSession(ctx context.Context, session *userv1.Session)
 		VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
 		RETURNING id, created_at, expires_at
 	`
-	meta, err := protojson.Marshal(session.Metadata)
+	meta, err := metadatautil.MarshalCanonical(session.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("marshal metadata: %w", err)
 	}
@@ -747,7 +789,7 @@ func (r *Repository) AddFriend(ctx context.Context, userID, friendID string, met
 		}
 		status = "accepted"
 	}
-	meta, err := protojson.Marshal(metadata)
+	meta, err := metadatautil.MarshalCanonical(metadata)
 	if err != nil {
 		return nil, fmt.Errorf("marshal metadata: %w", err)
 	}
@@ -816,7 +858,7 @@ func (r *Repository) ListFriends(ctx context.Context, userID string, page, pageS
 }
 
 func (r *Repository) FollowUser(ctx context.Context, followerID, followeeID string, metadata *commonpb.Metadata) (*userv1.Follow, error) {
-	meta, err := protojson.Marshal(metadata)
+	meta, err := metadatautil.MarshalCanonical(metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -1085,7 +1127,7 @@ func (r *Repository) ListConnections(ctx context.Context, userID, connType strin
 
 // --- User Groups ---.
 func (r *Repository) CreateUserGroup(ctx context.Context, group *userv1.UserGroup) (*userv1.UserGroup, error) {
-	meta, err := protojson.Marshal(group.Metadata)
+	meta, err := metadatautil.MarshalCanonical(group.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -1137,7 +1179,7 @@ func (r *Repository) UpdateUserGroup(ctx context.Context, groupID string, group 
 			args = append(args, roles)
 			argIdx++
 		case "metadata":
-			meta, err := protojson.Marshal(group.Metadata)
+			meta, err := metadatautil.MarshalCanonical(group.Metadata)
 			if err != nil {
 				return nil, err
 			}

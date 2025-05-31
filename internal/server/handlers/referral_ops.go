@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/auth"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
@@ -60,8 +62,38 @@ func ReferralOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
+		authCtx := auth.FromContext(r.Context())
+		userID := authCtx.UserID
+		roles := authCtx.Roles
+		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
 		switch action {
 		case "create_referral":
+			deviceHash, ok := req["device_hash"].(string)
+			if !ok {
+				// handle type assertion failure
+				return
+			}
+			if isGuest && deviceHash == "" {
+				http.Error(w, "unauthorized: device_hash required for guests", http.StatusUnauthorized)
+				return
+			}
+			// Enrich metadata with audit info (user or device)
+			if m, ok := req["metadata"].(map[string]interface{}); ok {
+				if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+					if ref, ok := ss["referral"].(map[string]interface{}); ok {
+						audit := map[string]interface{}{"created_at": time.Now().Format(time.RFC3339)}
+						if isGuest {
+							audit["created_by"] = deviceHash
+						} else {
+							audit["created_by"] = userID
+						}
+						ref["audit"] = audit
+						ss["referral"] = ref
+						m["service_specific"] = ss
+						req["metadata"] = m
+					}
+				}
+			}
 			referrerID, ok := req["referrer_master_id"].(string)
 			if !ok {
 				log.Error("Missing or invalid referrer_master_id in referral request", zap.Any("value", req["referrer_master_id"]))
@@ -71,12 +103,6 @@ func ReferralOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 			campaignID := int64(0)
 			if v, ok := req["campaign_id"].(float64); ok {
 				campaignID = int64(v)
-			}
-			deviceHash, ok := req["device_hash"].(string)
-			if !ok {
-				log.Error("Missing or invalid device_hash in referral request", zap.Any("value", req["device_hash"]))
-				http.Error(w, "missing or invalid device_hash", http.StatusBadRequest)
-				return
 			}
 			// Build metadata from request fields (enrich as needed)
 			fraudSignals := map[string]interface{}{"device_hash": deviceHash}

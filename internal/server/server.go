@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nmxmxh/master-ovasabi/internal/config"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
@@ -336,8 +337,15 @@ func Run() {
 	// Get Nexus event bus address from env/config (example: NEXUS_GRPC_ADDR)
 	nexusAddr := getEnvOrDefault("NEXUS_GRPC_ADDR", "nexus:50052")
 
+	// Load config (with JWTSecret)
+	cfg, err := config.Load()
+	if err != nil {
+		log.Error("Failed to load config", zap.Error(err))
+		return
+	}
+
 	// Initialize provider (minimal pattern)
-	provider, err := service.NewProvider(log, db, redisProvider, nexusAddr, container)
+	provider, err := service.NewProvider(log, db, redisProvider, nexusAddr, container, cfg.JWTSecret)
 	if err != nil {
 		log.Error("Failed to initialize service provider", zap.Error(err))
 		return

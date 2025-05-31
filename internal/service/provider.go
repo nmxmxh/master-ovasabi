@@ -8,6 +8,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -22,9 +23,10 @@ type Provider struct {
 	RedisProvider *redis.Provider
 	NexusClient   nexusv1.NexusServiceClient
 	Container     *di.Container
+	JWTSecret     string
 }
 
-func NewProvider(log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, nexusAddr string, container *di.Container) (*Provider, error) {
+func NewProvider(log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, nexusAddr string, container *di.Container, jwtSecret string) (*Provider, error) {
 	conn, err := grpc.DialContext(context.Background(), nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // grpc.DialContext is required until generated client supports NewClient API
 	if err != nil {
 		log.Error("Failed to connect to Nexus event bus", zap.Error(err))
@@ -38,6 +40,7 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, nex
 		RedisProvider: redisProvider,
 		NexusClient:   nexusClient,
 		Container:     container,
+		JWTSecret:     jwtSecret,
 	}, nil
 }
 
@@ -79,4 +82,54 @@ func (p *Provider) SubscribeEvents(ctx context.Context, eventTypes []string, met
 		}
 		handle(event)
 	}
+}
+
+// EmitEventWithLogging emits an event to Nexus and logs the outcome, orchestrating errors with graceful.
+func (p *Provider) EmitEventWithLogging(
+	ctx context.Context,
+	_ interface{},
+	log *zap.Logger,
+	eventType, eventID string,
+	meta *commonpb.Metadata,
+) (string, bool) {
+	if p.NexusClient == nil {
+		if log != nil {
+			log.Error("NexusClient is nil, cannot emit event",
+				zap.String("eventType", eventType),
+				zap.String("eventID", eventID),
+			)
+		}
+		return "", false
+	}
+
+	req := &nexusv1.EventRequest{
+		EventType: eventType,
+		EntityId:  eventID,
+		Metadata:  meta,
+	}
+
+	resp, err := p.NexusClient.EmitEvent(ctx, req)
+	if err != nil {
+		if log != nil {
+			log.Error("Failed to emit event to Nexus",
+				zap.String("eventType", eventType),
+				zap.String("eventID", eventID),
+				zap.Error(err),
+			)
+		}
+		graceful.WrapErr(ctx, codes.Internal, "failed to emit event to Nexus", err).StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:     log,
+			Context: ctx,
+		})
+		return "", false
+	}
+
+	if log != nil {
+		log.Info("Event emitted to Nexus",
+			zap.String("eventType", eventType),
+			zap.String("eventID", eventID),
+			zap.String("nexus_message", resp.GetMessage()),
+		)
+	}
+	return resp.GetMessage(), resp.GetSuccess()
 }

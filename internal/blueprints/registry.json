@@ -1,0 +1,4 @@
+[
+  { "name": "Guild Campaign", "file": "campaign_guild.json", "version": "1.0.0" },
+  { "name": "Party Campaign", "file": "campaign_party.json", "version": "1.0.0" }
+]

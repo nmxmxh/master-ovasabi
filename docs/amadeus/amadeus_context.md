@@ -1613,3 +1613,137 @@ The event bus acts as the "spinal cord" of your backend, connecting REST, WebSoc
 Reference this section in all service onboarding, implementation, and review checklists.
 
 ---
+
+## Platform Standard: Graceful Error and Success Handling
+
+All services must use the `graceful` package for robust, context-aware error and success handling. This includes:
+
+- **Extensible Error Maps:**
+  - Register all service-specific error mappings at startup using `graceful.RegisterErrorMap`.
+  - Use `graceful.MapAndWrapErr` to map errors to gRPC codes/messages and wrap with context, eliminating repetitive switch/case logic.
+  - Ensures consistent, DRY, and observable error handling across the platform.
+
+- **Success Orchestration:**
+  - Use `graceful.WrapSuccess` and `StandardOrchestrate` for all post-success activities (caching, event emission, knowledge graph enrichment, etc.).
+  - Centralizes and standardizes all post-success flows, reducing repetition and improving maintainability.
+
+- **Error Orchestration:**
+  - Use `graceful.ContextError.StandardOrchestrate` for audit logging, alerting, and fallback on error flows.
+  - Supports conditional/switch-based orchestration for advanced error handling patterns.
+
+### Usage Pattern
+
+- Register error maps at service startup:
+  ```go
+  graceful.RegisterErrorMap(map[error]graceful.ErrorMapEntry{
+      user.ErrInvalidUsername:  {codes.InvalidArgument, "invalid username format"},
+      user.ErrUsernameReserved: {codes.InvalidArgument, "username is reserved"},
+      user.ErrUsernameTaken:    {codes.AlreadyExists, "username is already taken"},
+      // ...
+  })
+  ```
+- Use `MapAndWrapErr` in all error returns:
+  ```go
+  if err != nil {
+      return nil, graceful.ToStatusError(
+          graceful.MapAndWrapErr(ctx, err, "failed to create user", codes.Internal),
+      )
+  }
+  ```
+- Use `WrapSuccess` and `StandardOrchestrate` for all post-success flows.
+
+### Migration Guidance
+- Refactor all services to use the graceful error/success pattern.
+- Remove repetitive switch/case error handling and manual orchestration code.
+- Register all error mappings at startup for each service.
+- Reference this section for onboarding and code review.
+
+**This is now the canonical standard for all error and success handling in the OVASABI platform.**
+
+---
+
+# Automatic, Symmetrical Orchestration Pattern (Graceful Success & Error)
+
+## Overview
+This section documents the canonical, thesis-level orchestration pattern implemented in the OVASABI platform using the `graceful` package. It enables fully automatic, DRY, and symmetrical orchestration for both success and error flows, with extensibility for cross-cultural and collaborative development.
+
+---
+
+## Architectural Rationale
+- **Centralized Orchestration:** All post-success and post-error actions (caching, metadata, event emission, knowledge graph, scheduler, nexus, audit, alerting, fallback) are managed centrally in the `graceful` package.
+- **Automatic by Default:** If a custom hook is not provided, graceful runs the default action for each orchestration step using the metadata and context in the config.
+- **Extensible:** Any step can be overridden with a custom hook, allowing for service-specific or culturally-specific logic.
+- **Symmetrical (Yin & Yang):** Success and error flows are managed in a mirrored, back-and-forth pattern, ensuring consistency and clarity across the codebase.
+- **Culturally Robust:** The pattern is clear, explicit, and easy for any team, anywhere in the world, to understand and extend. It is informed by global best practices and collaborative input from diverse sources (including DeepSeek, GPT, and others).
+
+---
+
+## Code Usage Example
+
+### Success Orchestration
+```go
+success := graceful.WrapSuccess(ctx, codes.OK, "user updated", response, nil)
+success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+    Log:          logger,
+    Cache:        cache,
+    CacheKey:     user.ID,
+    CacheValue:   response,
+    CacheTTL:     10 * time.Minute,
+    Metadata:     user.Metadata,
+    EventEmitter: eventEmitter,
+    EventEnabled: eventEnabled,
+    EventType:    "user_updated",
+    EventID:      user.ID,
+    PatternType:  "user",
+    PatternID:    user.ID,
+    PatternMeta:  user.Metadata,
+    // Optionally override any step with a custom hook
+    // MetadataHook: func(ctx context.Context) error { ... },
+})
+```
+
+### Error Orchestration
+```go
+err := graceful.WrapErr(ctx, codes.Internal, "something failed", cause)
+err.StandardOrchestrate(graceful.ErrorOrchestrationConfig{
+    Log: logger,
+    // Optionally override with custom audit, alert, fallback, etc.
+})
+```
+
+---
+
+## Cultural and Collaborative Context
+- **Diversity of Perspective:** The pattern is informed by input from multiple AI models, global best practices, and real-world engineering experience.
+- **Collaboration:** The architecture is designed to be robust to different coding styles, cultural values, and team structures.
+- **Thesis Material:** This orchestration pattern is suitable for academic discussion, technical talks, and as a reference for future extensible backend systems.
+
+---
+
+## Benefits
+- **DRY and Consistent:** No more repeated orchestration code in every service.
+- **Easy to Extend:** Override any step with a custom hook as needed.
+- **Centralized:** All orchestration logic is in one place (graceful).
+- **Symmetrical:** Success and error flows are managed in a yin-yang, back-and-forth pattern.
+- **Culturally Robust:** Ready for global collaboration and onboarding.
+
+---
+
+## References
+- See `pkg/graceful/success.go` and `pkg/graceful/error.go` for implementation.
+- See `internal/service/user/user.go` for usage in a real service.
+- For more on the collaborative and cultural context, see the discussion in this documentation and related code review threads.
+
+---
+
+*This section is a living reference. Update it as new orchestration patterns, hooks, or cultural insights are added to the platform.*
+
+---
+
+## New Orchestration Standard (2025)
+
+All orchestration (caching, event emission, knowledge graph enrichment, scheduling, audit, etc.) must be handled exclusively via the `graceful` package's orchestration config. Manual calls to orchestration helpers (such as `pattern.EnrichKnowledgeGraph`, `pattern.RegisterSchedule`, `pattern.CacheMetadata`, etc.) are forbidden in all service methods. 
+
+- Both success and error flows must use `StandardOrchestrate` for full compliance.
+- This ensures DRY, centralized, and platform-compliant orchestration for all services.
+- See service code for canonical usage patterns.

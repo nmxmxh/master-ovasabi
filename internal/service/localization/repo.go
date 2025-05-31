@@ -10,7 +10,7 @@ import (
 	"github.com/lib/pq"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	repo "github.com/nmxmxh/master-ovasabi/internal/repository"
-	"google.golang.org/protobuf/encoding/protojson"
+	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 )
 
 var (
@@ -72,7 +72,7 @@ func (r *Repository) BatchTranslate(ctx context.Context, keys []string, locale s
 
 // CreateTranslation creates a new translation entry.
 func (r *Repository) CreateTranslation(ctx context.Context, key, language, value, masterID, masterUUID string, metadata *commonpb.Metadata, campaignID int64) (string, error) {
-	meta, err := protojson.Marshal(metadata)
+	meta, err := metadatautil.MarshalCanonical(metadata)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +100,7 @@ func (r *Repository) GetTranslation(ctx context.Context, translationID string) (
 		return nil, err
 	}
 	var meta commonpb.Metadata
-	if err := protojson.Unmarshal(metaRaw, &meta); err != nil {
+	if err := metadatautil.UnmarshalCanonical(metaRaw, &meta); err != nil {
 		meta = commonpb.Metadata{}
 	}
 	t.Metadata = &meta
@@ -130,7 +130,7 @@ func (r *Repository) ListTranslations(ctx context.Context, language string, page
 			return nil, 0, err
 		}
 		var meta commonpb.Metadata
-		if err := protojson.Unmarshal(metaRaw, &meta); err != nil {
+		if err := metadatautil.UnmarshalCanonical(metaRaw, &meta); err != nil {
 			meta = commonpb.Metadata{}
 		}
 		t.Metadata = &meta
@@ -164,7 +164,7 @@ func (r *Repository) GetPricingRule(ctx context.Context, country, region, city s
 		return nil, err
 	}
 	var meta commonpb.Metadata
-	if err := protojson.Unmarshal(metaRaw, &meta); err != nil {
+	if err := metadatautil.UnmarshalCanonical(metaRaw, &meta); err != nil {
 		meta = commonpb.Metadata{}
 	}
 	rule.Metadata = &meta
@@ -173,7 +173,7 @@ func (r *Repository) GetPricingRule(ctx context.Context, country, region, city s
 
 // SetPricingRule creates or updates a pricing rule.
 func (r *Repository) SetPricingRule(ctx context.Context, rule *PricingRule) error {
-	meta, err := protojson.Marshal(rule.Metadata)
+	meta, err := metadatautil.MarshalCanonical(rule.Metadata)
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func (r *Repository) ListPricingRules(ctx context.Context, country, region strin
 			return nil, 0, err
 		}
 		var meta commonpb.Metadata
-		if err := protojson.Unmarshal(metaRaw, &meta); err != nil {
+		if err := metadatautil.UnmarshalCanonical(metaRaw, &meta); err != nil {
 			meta = commonpb.Metadata{}
 		}
 		rule.Metadata = &meta
@@ -244,7 +244,7 @@ func (r *Repository) ListLocales(ctx context.Context) ([]*Locale, error) {
 			return nil, err
 		}
 		var meta commonpb.Metadata
-		if err := protojson.Unmarshal(metaRaw, &meta); err != nil {
+		if err := metadatautil.UnmarshalCanonical(metaRaw, &meta); err != nil {
 			meta = commonpb.Metadata{}
 		}
 		l.Metadata = &meta
@@ -268,7 +268,7 @@ func (r *Repository) GetLocaleMetadata(ctx context.Context, locale string) (*Loc
 		return nil, err
 	}
 	var meta commonpb.Metadata
-	if err := protojson.Unmarshal(metaRaw, &meta); err != nil {
+	if err := metadatautil.UnmarshalCanonical(metaRaw, &meta); err != nil {
 		meta = commonpb.Metadata{}
 	}
 	l.Metadata = &meta
@@ -319,7 +319,7 @@ type Locale struct {
 
 // --- Translation CRUD ---.
 func (r *Repository) UpdateTranslation(ctx context.Context, id, value string, metadata *commonpb.Metadata) error {
-	meta, err := protojson.Marshal(metadata)
+	meta, err := metadatautil.MarshalCanonical(metadata)
 	if err != nil {
 		return err
 	}
@@ -339,7 +339,7 @@ func (r *Repository) DeleteTranslation(ctx context.Context, id string) error {
 
 // --- PricingRule CRUD ---.
 func (r *Repository) CreatePricingRule(ctx context.Context, rule *PricingRule) (int64, error) {
-	meta, err := protojson.Marshal(rule.Metadata)
+	meta, err := metadatautil.MarshalCanonical(rule.Metadata)
 	if err != nil {
 		return 0, err
 	}
@@ -355,7 +355,7 @@ func (r *Repository) CreatePricingRule(ctx context.Context, rule *PricingRule) (
 }
 
 func (r *Repository) UpdatePricingRule(ctx context.Context, id int64, rule *PricingRule) error {
-	meta, err := protojson.Marshal(rule.Metadata)
+	meta, err := metadatautil.MarshalCanonical(rule.Metadata)
 	if err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func (r *Repository) DeletePricingRule(ctx context.Context, id int64) error {
 
 // --- Locale CRUD ---.
 func (r *Repository) CreateLocale(ctx context.Context, locale *Locale) error {
-	meta, err := protojson.Marshal(locale.Metadata)
+	meta, err := metadatautil.MarshalCanonical(locale.Metadata)
 	if err != nil {
 		return err
 	}
@@ -384,7 +384,7 @@ func (r *Repository) CreateLocale(ctx context.Context, locale *Locale) error {
 }
 
 func (r *Repository) UpdateLocale(ctx context.Context, code string, locale *Locale) error {
-	meta, err := protojson.Marshal(locale.Metadata)
+	meta, err := metadatautil.MarshalCanonical(locale.Metadata)
 	if err != nil {
 		return err
 	}
