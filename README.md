@@ -1,11 +1,12 @@
-# OVASABI Platform (Work in Progress)
+# Master by Ovasabi
 
-A metadata-driven, extensible, and fair digital system for orchestrating services, relationships,
-and value—built for the community, by the community.
+Welcome to **Master by Ovasabi**—a self-documenting, AI-ready, and community-driven platform for orchestrating digital services, relationships, and value.
 
-> **Work in Progress:** OVASABI is a living project, continuously evolving with new paradigms,
-> features, and best practices. See the [manifesto](docs/amadeus/manifesto.md) and
-> [project preface](docs/amadeus/project_preface.md) for philosophy, roadmap, and intent.
+---
+
+## What is Master by Ovasabi?
+
+**Master by Ovasabi** is more than a backend—it's a living ecosystem for modern digital products, powered by a robust, metadata-driven knowledge graph (Amadeus). Every service, relationship, and capability is continuously documented, orchestrated, and made accessible to both humans and AI.
 
 ## Philosophy
 

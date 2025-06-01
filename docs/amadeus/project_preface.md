@@ -1,6 +1,6 @@
 # Project Preface
 
-Welcome to OVASABI—a project born from the desire to build not just software, but a living, breathing digital legacy.
+Welcome to Master by Ovasabi—a project born from the desire to build not just software, but a living, breathing digital legacy.
 
 This system is a reflection of my journey: the lessons learned, the values cherished, and the vision for a more open, fair, and enduring digital world. Here, code is more than instructions for a machine; it is a record of intent, a map of relationships, and a testament to the power of community.
 
@@ -10,7 +10,7 @@ This project is an invitation to you: to read, to learn, to question, and to con
 
 Let's build something that lasts. Let's build something that matters.
 
-— OVASABI Creator
+— Master by Ovasabi Creator
 
 ---
 
@@ -20,7 +20,7 @@ Thank you to everyone who reads, contributes, or is inspired by this project. Yo
 
 ## About the Author
 
-**Nobert Momoh** is the creator of OVASABI. Driven by a passion for simplicity, fairness, and digital legacy, Nobert believes in building systems that serve people and endure beyond their creators. This project is a reflection of that vision—and an open invitation to all who share it.
+**Nobert Momoh** is the creator of Master by Ovasabi. Driven by a passion for simplicity, fairness, and digital legacy, Nobert believes in building systems that serve people and endure beyond their creators. This project is a reflection of that vision—and an open invitation to all who share it.
 
 ## Acknowledgments
 
@@ -30,7 +30,7 @@ In the spirit of our metadata philosophy, every contribution—whether from a pe
 
 ## Learning from Everything
 
-In OVASABI, both errors and successes are recognized, orchestrated, and valued. Every outcome—whether a breakthrough or a setback—contributes to the growth of the system and the community.
+In Master by Ovasabi, both errors and successes are recognized, orchestrated, and valued. Every outcome—whether a breakthrough or a setback—contributes to the growth of the system and the community.
 
 - **Every outcome is valuable:** Successes move us forward, but errors become sources of learning, improvement, and even recognition.
 - **Transparency and growth are built-in:** Graceful error handling and visible orchestration turn mistakes into opportunities for help, adaptation, and collective progress.
@@ -38,7 +38,7 @@ In OVASABI, both errors and successes are recognized, orchestrated, and valued. 
 - **Contributors are celebrated for trying:** Whether a contribution "succeeds" or "fails," the act of participating, experimenting, and iterating is what moves the project forward.
 - **Legacy is richer:** The record of both what worked and what didn't becomes part of the project's digital will, guiding future contributors and building real experience into the system.
 
-**In OVASABI, every step—whether a stumble or a leap—is a step forward. This is the foundation of true innovation and community.**
+**In Master by Ovasabi, every step—whether a stumble or a leap—is a step forward. This is the foundation of true innovation and community.**
 
 ## Coming Soon & Community Roadmap
 
@@ -89,7 +89,7 @@ Standardize graceful error/success handling across all services and handlers. Re
 - **Handler Improvements and Functionality**
   - Refactor and standardize all HTTP/gRPC handlers for consistency, graceful error handling, and extensibility. Address missing or incomplete handler functionality, such as authentication, validation, error propagation, and advanced orchestration. Community help is welcome to implement, review, and document handler features and best practices.
 - **Production Deployment Patterns**
-  - Develop and document best practices for deploying OVASABI in production (Docker, Kubernetes, CI/CD, monitoring, scaling, etc.). Community contributions are encouraged for deployment scripts, templates, and real-world examples.
+  - Develop and document best practices for deploying Master by Ovasabi in production (Docker, Kubernetes, CI/CD, monitoring, scaling, etc.). Community contributions are encouraged for deployment scripts, templates, and real-world examples.
 
 ### Additional Suggestions
 
@@ -108,7 +108,7 @@ Standardize graceful error/success handling across all services and handlers. Re
 
 ---
 
-**Your ideas, feedback, and contributions are welcome! Together, we can make OVASABI even better.**
+**Your ideas, feedback, and contributions are welcome! Together, we can make Master by Ovasabi even better.**
 
 ## Testing & Uniform Methods
 
