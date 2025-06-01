@@ -36,6 +36,9 @@ type Metadata struct {
 	Tags            []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`                                              // Tags for search, analytics, etc.
 	ServiceSpecific *structpb.Struct       `protobuf:"bytes,6,opt,name=service_specific,json=serviceSpecific,proto3" json:"service_specific,omitempty"` // Service-specific extensions (e.g., {"content": {...}})
 	KnowledgeGraph  *structpb.Struct       `protobuf:"bytes,7,opt,name=knowledge_graph,json=knowledgeGraph,proto3" json:"knowledge_graph,omitempty"`    // For knowledge graph enrichment
+	Taxation        *TieredTax             `protobuf:"bytes,8,opt,name=taxation,proto3" json:"taxation,omitempty"`
+	Owner           *OwnerMetadata         `protobuf:"bytes,9,opt,name=owner,proto3" json:"owner,omitempty"`
+	Referral        *ReferralMetadata      `protobuf:"bytes,10,opt,name=referral,proto3" json:"referral,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -119,11 +122,372 @@ func (x *Metadata) GetKnowledgeGraph() *structpb.Struct {
 	return nil
 }
 
+func (x *Metadata) GetTaxation() *TieredTax {
+	if x != nil {
+		return x.Taxation
+	}
+	return nil
+}
+
+func (x *Metadata) GetOwner() *OwnerMetadata {
+	if x != nil {
+		return x.Owner
+	}
+	return nil
+}
+
+func (x *Metadata) GetReferral() *ReferralMetadata {
+	if x != nil {
+		return x.Referral
+	}
+	return nil
+}
+
+type TieredTax struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MinProjects   int32                  `protobuf:"varint,1,opt,name=min_projects,json=minProjects,proto3" json:"min_projects,omitempty"`
+	MaxProjects   int32                  `protobuf:"varint,2,opt,name=max_projects,json=maxProjects,proto3" json:"max_projects,omitempty"` // null = unlimited
+	Percentage    float64                `protobuf:"fixed64,3,opt,name=percentage,proto3" json:"percentage,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TieredTax) Reset() {
+	*x = TieredTax{}
+	mi := &file_metadata_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TieredTax) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TieredTax) ProtoMessage() {}
+
+func (x *TieredTax) ProtoReflect() protoreflect.Message {
+	mi := &file_metadata_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TieredTax.ProtoReflect.Descriptor instead.
+func (*TieredTax) Descriptor() ([]byte, []int) {
+	return file_metadata_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *TieredTax) GetMinProjects() int32 {
+	if x != nil {
+		return x.MinProjects
+	}
+	return 0
+}
+
+func (x *TieredTax) GetMaxProjects() int32 {
+	if x != nil {
+		return x.MaxProjects
+	}
+	return 0
+}
+
+func (x *TieredTax) GetPercentage() float64 {
+	if x != nil {
+		return x.Percentage
+	}
+	return 0
+}
+
+type TaxationConnector struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Type            string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`           // "creator" or "referral"
+	Recipient       string                 `protobuf:"bytes,2,opt,name=recipient,proto3" json:"recipient,omitempty"` // e.g., "nmxmxh"
+	RecipientWallet string                 `protobuf:"bytes,3,opt,name=recipient_wallet,json=recipientWallet,proto3" json:"recipient_wallet,omitempty"`
+	Percentage      float64                `protobuf:"fixed64,4,opt,name=percentage,proto3" json:"percentage,omitempty"`
+	Tiered          []*TieredTax           `protobuf:"bytes,5,rep,name=tiered,proto3" json:"tiered,omitempty"`
+	AppliedOn       string                 `protobuf:"bytes,6,opt,name=applied_on,json=appliedOn,proto3" json:"applied_on,omitempty"`
+	Domain          string                 `protobuf:"bytes,7,opt,name=domain,proto3" json:"domain,omitempty"`
+	Default         bool                   `protobuf:"varint,8,opt,name=default,proto3" json:"default,omitempty"`
+	Enforced        bool                   `protobuf:"varint,9,opt,name=enforced,proto3" json:"enforced,omitempty"`
+	Justification   string                 `protobuf:"bytes,10,opt,name=justification,proto3" json:"justification,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *TaxationConnector) Reset() {
+	*x = TaxationConnector{}
+	mi := &file_metadata_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaxationConnector) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaxationConnector) ProtoMessage() {}
+
+func (x *TaxationConnector) ProtoReflect() protoreflect.Message {
+	mi := &file_metadata_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaxationConnector.ProtoReflect.Descriptor instead.
+func (*TaxationConnector) Descriptor() ([]byte, []int) {
+	return file_metadata_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *TaxationConnector) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *TaxationConnector) GetRecipient() string {
+	if x != nil {
+		return x.Recipient
+	}
+	return ""
+}
+
+func (x *TaxationConnector) GetRecipientWallet() string {
+	if x != nil {
+		return x.RecipientWallet
+	}
+	return ""
+}
+
+func (x *TaxationConnector) GetPercentage() float64 {
+	if x != nil {
+		return x.Percentage
+	}
+	return 0
+}
+
+func (x *TaxationConnector) GetTiered() []*TieredTax {
+	if x != nil {
+		return x.Tiered
+	}
+	return nil
+}
+
+func (x *TaxationConnector) GetAppliedOn() string {
+	if x != nil {
+		return x.AppliedOn
+	}
+	return ""
+}
+
+func (x *TaxationConnector) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *TaxationConnector) GetDefault() bool {
+	if x != nil {
+		return x.Default
+	}
+	return false
+}
+
+func (x *TaxationConnector) GetEnforced() bool {
+	if x != nil {
+		return x.Enforced
+	}
+	return false
+}
+
+func (x *TaxationConnector) GetJustification() string {
+	if x != nil {
+		return x.Justification
+	}
+	return ""
+}
+
+type Taxation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Connectors    []*TaxationConnector   `protobuf:"bytes,1,rep,name=connectors,proto3" json:"connectors,omitempty"`
+	ProjectCount  int32                  `protobuf:"varint,2,opt,name=project_count,json=projectCount,proto3" json:"project_count,omitempty"`
+	TotalTax      float64                `protobuf:"fixed64,3,opt,name=total_tax,json=totalTax,proto3" json:"total_tax,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Taxation) Reset() {
+	*x = Taxation{}
+	mi := &file_metadata_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Taxation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Taxation) ProtoMessage() {}
+
+func (x *Taxation) ProtoReflect() protoreflect.Message {
+	mi := &file_metadata_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Taxation.ProtoReflect.Descriptor instead.
+func (*Taxation) Descriptor() ([]byte, []int) {
+	return file_metadata_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Taxation) GetConnectors() []*TaxationConnector {
+	if x != nil {
+		return x.Connectors
+	}
+	return nil
+}
+
+func (x *Taxation) GetProjectCount() int32 {
+	if x != nil {
+		return x.ProjectCount
+	}
+	return 0
+}
+
+func (x *Taxation) GetTotalTax() float64 {
+	if x != nil {
+		return x.TotalTax
+	}
+	return 0
+}
+
+type OwnerMetadata struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Wallet        string                 `protobuf:"bytes,2,opt,name=wallet,proto3" json:"wallet,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OwnerMetadata) Reset() {
+	*x = OwnerMetadata{}
+	mi := &file_metadata_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OwnerMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OwnerMetadata) ProtoMessage() {}
+
+func (x *OwnerMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_metadata_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OwnerMetadata.ProtoReflect.Descriptor instead.
+func (*OwnerMetadata) Descriptor() ([]byte, []int) {
+	return file_metadata_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *OwnerMetadata) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *OwnerMetadata) GetWallet() string {
+	if x != nil {
+		return x.Wallet
+	}
+	return ""
+}
+
+type ReferralMetadata struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Wallet        string                 `protobuf:"bytes,2,opt,name=wallet,proto3" json:"wallet,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReferralMetadata) Reset() {
+	*x = ReferralMetadata{}
+	mi := &file_metadata_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReferralMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReferralMetadata) ProtoMessage() {}
+
+func (x *ReferralMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_metadata_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReferralMetadata.ProtoReflect.Descriptor instead.
+func (*ReferralMetadata) Descriptor() ([]byte, []int) {
+	return file_metadata_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ReferralMetadata) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ReferralMetadata) GetWallet() string {
+	if x != nil {
+		return x.Wallet
+	}
+	return ""
+}
+
 var File_metadata_proto protoreflect.FileDescriptor
 
 const file_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x0emetadata.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\"\xe4\x02\n" +
+	"\x0emetadata.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\"\xf6\x03\n" +
 	"\bMetadata\x127\n" +
 	"\n" +
 	"scheduling\x18\x01 \x01(\v2\x17.google.protobuf.StructR\n" +
@@ -133,7 +497,44 @@ const file_metadata_proto_rawDesc = "" +
 	"\x05audit\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x05audit\x12\x12\n" +
 	"\x04tags\x18\x05 \x03(\tR\x04tags\x12B\n" +
 	"\x10service_specific\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x0fserviceSpecific\x12@\n" +
-	"\x0fknowledge_graph\x18\a \x01(\v2\x17.google.protobuf.StructR\x0eknowledgeGraphB@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
+	"\x0fknowledge_graph\x18\a \x01(\v2\x17.google.protobuf.StructR\x0eknowledgeGraph\x12-\n" +
+	"\btaxation\x18\b \x01(\v2\x11.common.TieredTaxR\btaxation\x12+\n" +
+	"\x05owner\x18\t \x01(\v2\x15.common.OwnerMetadataR\x05owner\x124\n" +
+	"\breferral\x18\n" +
+	" \x01(\v2\x18.common.ReferralMetadataR\breferral\"q\n" +
+	"\tTieredTax\x12!\n" +
+	"\fmin_projects\x18\x01 \x01(\x05R\vminProjects\x12!\n" +
+	"\fmax_projects\x18\x02 \x01(\x05R\vmaxProjects\x12\x1e\n" +
+	"\n" +
+	"percentage\x18\x03 \x01(\x01R\n" +
+	"percentage\"\xce\x02\n" +
+	"\x11TaxationConnector\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1c\n" +
+	"\trecipient\x18\x02 \x01(\tR\trecipient\x12)\n" +
+	"\x10recipient_wallet\x18\x03 \x01(\tR\x0frecipientWallet\x12\x1e\n" +
+	"\n" +
+	"percentage\x18\x04 \x01(\x01R\n" +
+	"percentage\x12)\n" +
+	"\x06tiered\x18\x05 \x03(\v2\x11.common.TieredTaxR\x06tiered\x12\x1d\n" +
+	"\n" +
+	"applied_on\x18\x06 \x01(\tR\tappliedOn\x12\x16\n" +
+	"\x06domain\x18\a \x01(\tR\x06domain\x12\x18\n" +
+	"\adefault\x18\b \x01(\bR\adefault\x12\x1a\n" +
+	"\benforced\x18\t \x01(\bR\benforced\x12$\n" +
+	"\rjustification\x18\n" +
+	" \x01(\tR\rjustification\"\x87\x01\n" +
+	"\bTaxation\x129\n" +
+	"\n" +
+	"connectors\x18\x01 \x03(\v2\x19.common.TaxationConnectorR\n" +
+	"connectors\x12#\n" +
+	"\rproject_count\x18\x02 \x01(\x05R\fprojectCount\x12\x1b\n" +
+	"\ttotal_tax\x18\x03 \x01(\x01R\btotalTax\"7\n" +
+	"\rOwnerMetadata\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06wallet\x18\x02 \x01(\tR\x06wallet\":\n" +
+	"\x10ReferralMetadata\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06wallet\x18\x02 \x01(\tR\x06walletB@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
 
 var (
 	file_metadata_proto_rawDescOnce sync.Once
@@ -147,22 +548,32 @@ func file_metadata_proto_rawDescGZIP() []byte {
 	return file_metadata_proto_rawDescData
 }
 
-var file_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_metadata_proto_goTypes = []any{
-	(*Metadata)(nil),        // 0: common.Metadata
-	(*structpb.Struct)(nil), // 1: google.protobuf.Struct
+	(*Metadata)(nil),          // 0: common.Metadata
+	(*TieredTax)(nil),         // 1: common.TieredTax
+	(*TaxationConnector)(nil), // 2: common.TaxationConnector
+	(*Taxation)(nil),          // 3: common.Taxation
+	(*OwnerMetadata)(nil),     // 4: common.OwnerMetadata
+	(*ReferralMetadata)(nil),  // 5: common.ReferralMetadata
+	(*structpb.Struct)(nil),   // 6: google.protobuf.Struct
 }
 var file_metadata_proto_depIdxs = []int32{
-	1, // 0: common.Metadata.scheduling:type_name -> google.protobuf.Struct
-	1, // 1: common.Metadata.custom_rules:type_name -> google.protobuf.Struct
-	1, // 2: common.Metadata.audit:type_name -> google.protobuf.Struct
-	1, // 3: common.Metadata.service_specific:type_name -> google.protobuf.Struct
-	1, // 4: common.Metadata.knowledge_graph:type_name -> google.protobuf.Struct
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	6,  // 0: common.Metadata.scheduling:type_name -> google.protobuf.Struct
+	6,  // 1: common.Metadata.custom_rules:type_name -> google.protobuf.Struct
+	6,  // 2: common.Metadata.audit:type_name -> google.protobuf.Struct
+	6,  // 3: common.Metadata.service_specific:type_name -> google.protobuf.Struct
+	6,  // 4: common.Metadata.knowledge_graph:type_name -> google.protobuf.Struct
+	1,  // 5: common.Metadata.taxation:type_name -> common.TieredTax
+	4,  // 6: common.Metadata.owner:type_name -> common.OwnerMetadata
+	5,  // 7: common.Metadata.referral:type_name -> common.ReferralMetadata
+	1,  // 8: common.TaxationConnector.tiered:type_name -> common.TieredTax
+	2,  // 9: common.Taxation.connectors:type_name -> common.TaxationConnector
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_metadata_proto_init() }
@@ -176,7 +587,7 @@ func file_metadata_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_metadata_proto_rawDesc), len(file_metadata_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

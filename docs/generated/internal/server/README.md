@@ -33,6 +33,14 @@ enforcement and auditability across the platform.
 
 ## Functions
 
+### ContextInjectionMiddleware
+
+HTTP middleware to inject request ID, trace ID, and feature flags into context
+
+### ContextInjectionUnaryInterceptor
+
+gRPC interceptor to inject request ID, trace ID, and feature flags into context
+
 ### RegisterAllServices
 
 RegisterAllServices registers all gRPC services with the server.

@@ -31,11 +31,37 @@ Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
 
 ##### GetKnowledgeGraph
 
+##### GetOwner
+
+##### GetReferral
+
 ##### GetScheduling
 
 ##### GetServiceSpecific
 
 ##### GetTags
+
+##### GetTaxation
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### OwnerMetadata
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use OwnerMetadata.ProtoReflect.Descriptor instead.
+
+##### GetId
+
+##### GetWallet
 
 ##### ProtoMessage
 
@@ -58,6 +84,106 @@ Deprecated: Use Payload.ProtoReflect.Descriptor instead.
 ##### GetData
 
 ##### GetVersioning
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### ReferralMetadata
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use ReferralMetadata.ProtoReflect.Descriptor instead.
+
+##### GetId
+
+##### GetWallet
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### Taxation
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use Taxation.ProtoReflect.Descriptor instead.
+
+##### GetConnectors
+
+##### GetProjectCount
+
+##### GetTotalTax
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### TaxationConnector
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use TaxationConnector.ProtoReflect.Descriptor instead.
+
+##### GetAppliedOn
+
+##### GetDefault
+
+##### GetDomain
+
+##### GetEnforced
+
+##### GetJustification
+
+##### GetPercentage
+
+##### GetRecipient
+
+##### GetRecipientWallet
+
+##### GetTiered
+
+##### GetType
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### TieredTax
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use TieredTax.ProtoReflect.Descriptor instead.
+
+##### GetMaxProjects
+
+##### GetMinProjects
+
+##### GetPercentage
 
 ##### ProtoMessage
 

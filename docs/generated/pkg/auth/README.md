@@ -21,5 +21,3 @@ HasScope checks if the current user has the given scope.
 JWTMiddleware is a minimal HTTP middleware for JWT auth.
 
 ### NewContext
-
-NewContext returns a new context with the given AuthContext.
