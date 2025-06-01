@@ -1,5 +1,7 @@
 # Master by Ovasabi
 
+> **🚧 Work in Progress (WIP):** Master by Ovasabi is an actively evolving platform. We are seeking collaboration from Go engineers, database specialists, QA/test engineers, and anyone passionate about building robust, extensible digital systems. If you're interested in shaping the future of this platform, your contributions and ideas are welcome—see the Contributing section below!
+
 Welcome to **Master by Ovasabi**—a self-documenting, AI-ready, and community-driven platform for orchestrating digital services, relationships, and value.
 
 ---
