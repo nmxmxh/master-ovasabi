@@ -1,0 +1,5 @@
+PASSWORD1 #Replace string '@Osiano1995' with '***REMOVED***' (default)
+PASSWORD2==>examplePass        
+PASSWORD3==>                    
+regex:password=\w+==>password=  
+regex:\r(\n)==>$1               

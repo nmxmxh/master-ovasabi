@@ -8,7 +8,7 @@ By implementing this contract, I have sought to encode not just logic, but meani
 
 This project is an invitation to you: to read, to learn, to question, and to contribute. Whether you are here to use, to build, or simply to be inspired, you are part of this story now.
 
-Let’s build something that lasts. Let’s build something that matters.
+Let's build something that lasts. Let's build something that matters.
 
 — OVASABI Creator
 
@@ -109,3 +109,37 @@ Standardize graceful error/success handling across all services and handlers. Re
 ---
 
 **Your ideas, feedback, and contributions are welcome! Together, we can make OVASABI even better.**
+
+## Testing & Uniform Methods
+
+**Testing Philosophy:**
+
+Master by Ovasabi is committed to reliability, maintainability, and rapid iteration. To achieve this, all code and services should be covered by automated, uniform tests. Testing is not just a gate for merging code—it is a tool for learning, refactoring, and ensuring the platform's evolution is safe and predictable.
+
+**Recommended Testing Approaches:**
+
+- **Unit Tests:**
+  - Every core function, method, and business logic should have unit tests.
+  - Use table-driven tests and cover edge cases.
+- **Integration Tests:**
+  - Test service interactions, database access, and external dependencies.
+  - Use test containers or mocks for databases and Redis.
+- **End-to-End (E2E) Tests:**
+  - Simulate real user flows and API calls.
+  - Ensure critical paths (e.g., user signup, referral, payment) are always working.
+- **Mocking & Fakes:**
+  - Use mocks for external APIs and services to ensure tests are fast and deterministic.
+- **Continuous Integration (CI):**
+  - All tests should run automatically in CI (see `.github/workflows/` or Makefile targets).
+  - PRs should not be merged unless tests pass.
+- **Test Coverage:**
+  - Aim for high coverage, but prioritize meaningful tests over coverage numbers.
+- **Documentation:**
+  - Document test strategies and add examples in `docs/development/testing.md` if available.
+
+**Actionable for Contributors:**
+
+- Write tests for all new code and bug fixes.
+- Refactor legacy code to improve testability.
+- Review and improve existing tests as part of code review.
+- See `CONTRIBUTING.md` and `docs/development/testing.md` for more details.

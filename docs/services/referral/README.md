@@ -10,6 +10,50 @@ The Referral service manages user referrals, referral codes, rewards, and referr
 OVASABI platform. It provides functionality for creating and tracking referrals, managing rewards,
 and analyzing referral performance.
 
+The Referral service now supports **tiered, multi-level referral chains** and a robust taxing/commission model. Any user can be an original referrer to others, forming a referral ancestry tree. Whenever a referred user (referee) performs a commercial activity (e.g., purchase, booking, payment), a tiered payment fee (commission/tax) is distributed up the referral chain. This means:
+
+- **Original referrers** (and all ancestors in the referral chain) receive a percentage of every commercial activity performed by their referees, according to a configurable tiered structure.
+- The referral chain is tracked in metadata, allowing for transparent, auditable, and extensible commission logic.
+- All referral and tax/commission data is stored in the canonical `common.Metadata` pattern, under `service_specific.referral` and `taxation` fields.
+- The system supports unlimited tiers (configurable), and each tier can have its own percentage or rule.
+- The referral ancestry and all payments are queryable for analytics, compliance, and reward distribution.
+
+## Example: Tiered Referral Metadata
+
+```json
+{
+  "metadata": {
+    "service_specific": {
+      "referral": {
+        "chain": [
+          { "user_id": "user_1", "wallet": "wallet_1", "tier": 1 },
+          { "user_id": "user_2", "wallet": "wallet_2", "tier": 2 },
+          { "user_id": "user_3", "wallet": "wallet_3", "tier": 3 }
+        ],
+        "original_referrer": { "user_id": "user_1", "wallet": "wallet_1" },
+        "referee": { "user_id": "user_4", "wallet": "wallet_4" }
+      }
+    },
+    "taxation": {
+      "connectors": [
+        { "type": "referral", "recipient": "user_1", "percentage": 0.10, "tiered": [ { "tier": 1, "percentage": 0.10 }, { "tier": 2, "percentage": 0.05 } ] },
+        { "type": "referral", "recipient": "user_2", "percentage": 0.05 }
+      ],
+      "total_tax": 0.15
+    }
+  }
+}
+```
+
+- `chain`: The ancestry of referrers, with tier and wallet info.
+- `original_referrer`: The first user in the chain.
+- `taxation.connectors`: How much each referrer receives per commercial activity.
+- `total_tax`: The sum of all referral commissions for this activity.
+
+**All referral, reward, and tax logic must use this metadata pattern for extensibility and analytics.**
+
+For more, see the [Robust Metadata Pattern for Extensible Services](../../amadeus/amadeus_context.md#standard-robust-metadata-pattern-for-extensible-services) and the `common.Metadata` proto.
+
 ## Architecture
 
 ```mermaid

@@ -203,12 +203,9 @@ For the full philosophy, advice, and roadmap, see
 
 ## The OVASABI Thank You Tax
 
-OVASABI is my digital will—a living system, a manifesto, and a gift to the world. If you've found
-value here—if this project has inspired you, saved you time, or sparked new ideas—consider paying a
-small "thank you tax."
+OVASABI is my digital will—a living system, a manifesto, and a gift to the world. If you've found value here—if this project has inspired you, saved you time, or sparked new ideas—consider paying a small "thank you tax."
 
-This isn't a tax in the traditional sense. It's a gesture of gratitude—a way to say, _"I see you. I
-appreciate the work. I want this legacy to grow."_
+This isn't a tax in the traditional sense. It's a gesture of gratitude—a way to say, _"I see you. I appreciate the work. I want this legacy to grow."_
 
 Your contribution helps me:
 
@@ -216,12 +213,11 @@ Your contribution helps me:
 - Dedicate more time to building, documenting, and supporting the community
 - Ensure OVASABI remains open, accessible, and evolving for everyone
 
-**No amount is too small.** Every "thank you tax" is a vote for open knowledge, fairness, and
-digital legacy.
+**No amount is too small.** Every "thank you tax" is a vote for open knowledge, fairness, and digital legacy.
 
-If you'd like to contribute, you can do so here: [**Support OVASABI**](#)
+If you'd like to contribute, you can do so here:
 
-<!-- Replace # with your funding link (GitHub Sponsors, Open Collective, etc.) -->
+[![Sponsor nmxmxh on GitHub](https://img.shields.io/badge/Sponsor%20@nmxmxh%20%E2%9D%A4%EF%B8%8F-purple?logo=github)](https://github.com/sponsors/nmxmxh)
 
 Thank you for being part of this journey. Let's keep building—together.
 

@@ -1,62 +1,79 @@
-# Master Platform: Self-Documenting, AI-Ready Service Ecosystem
+# Master by Ovasabi: Living Knowledge Platform
 
-**Master** is more than just a backend—it's a living, breathing ecosystem for modern digital
-products. At its core, Master is powered by a **self-documenting knowledge graph** (Amadeus) that
-keeps every service, relationship, and capability up-to-date and accessible, both to humans and to
-AI.
+version: 2025-06-01
 
-## Key Services & Capabilities
-
-- **Asset Service**: Handles all digital assets—images, videos, 3D models—automatically optimizing,
-  transforming, and streaming them in real time.
-- **User, Auth, and Notification Services**: Secure, scalable user management and communication,
-  ready for any app.
-- **Finance, Quotes, and Campaigns**: Built-in support for payments, dynamic pricing, and marketing
-  automation.
-- **Referral System**: Fosters a vibrant, growth-oriented community by rewarding users for bringing
-  others into the ecosystem.
-- **Babel Service**: Globalizes your app with seamless internationalization and location-based
-  pricing.
-
-## Database & Architecture
-
-- **Unified Data Model**: All services interact through a well-structured, versioned database,
-  ensuring consistency and traceability.
-- **Centralized Service Registration**: Every service is registered and resolved via a Provider/DI
-  container, making the system modular, discoverable, and easy to extend.
-
-## Nexus: The Orchestration Engine
-
-- **Nexus** enables complex workflows and integrations, letting you compose, automate, and evolve
-  business logic without tangled code.
-
-## Self-Documenting & AI-Ready
-
-- **Amadeus Knowledge Graph**: Every service, schema, and relationship is tracked and visualized,
-  enabling:
-  - **Instant documentation** for developers and stakeholders.
-  - **Impact analysis** before changes.
-  - **AI-powered insights**—from anomaly detection to automated decision support.
-- **Continuous Context**: The system's state, history, and patterns are always available, making it
-  the perfect foundation for AI agents and advanced analytics.
-
-## Community & Growth
-
-- **Referral System**: Not just a feature, but a philosophy—Master is designed to grow communities,
-  reward engagement, and foster collaboration.
-- **Open Patterns**: Share, remix, and extend service patterns and workflows, building a
-  knowledge-driven community.
-
-## Why Master?
-
-- **For Developers**: Ship faster, with confidence—every service is discoverable, documented, and
-  testable.
-- **For Product Teams**: Adapt and scale—add new features, markets, or integrations with minimal
-  friction.
-- **For AI & Data Science**: Leverage a rich, evolving context for smarter automation,
-  recommendations, and insights.
+Welcome to **Master by Ovasabi**—a self-documenting, AI-ready, and community-driven platform for orchestrating digital services, relationships, and value.
 
 ---
 
-**Master** isn't just a backend—it's a platform for building, learning, and growing together,
-powered by context, community, and continuous knowledge.
+## What is Master?
+
+**Master** is more than a backend—it's a living ecosystem for modern digital products, powered by a robust, metadata-driven knowledge graph (Amadeus). Every service, relationship, and capability is continuously documented, orchestrated, and made accessible to both humans and AI.
+
+- **Self-Documenting:** Every service, schema, and relationship is tracked and visualized in the Amadeus Knowledge Graph.
+- **Extensible by Design:** Add new services, features, or integrations without breaking what came before.
+- **Fair and Transparent:** All value flows, contributions, and rewards are tracked in metadata—forming a universal ledger for the ecosystem.
+- **Community-First:** Built for the community, by the community. Every contribution is recognized and valued.
+
+---
+
+## Core Capabilities
+
+- **Unified Knowledge Graph:** Amadeus provides a programmatically accessible, evolving map of all system components and their relationships.  
+  [Learn more →](amadeus/index.md)
+- **Composable Metadata Standard:** All APIs, events, and entities use a canonical, extensible metadata pattern for future-proofing, analytics, and orchestration.  
+  [Metadata Standard →](services/metadata.md)
+- **Tiered Referral & Taxation:** Multi-level referral chains and programmable, metadata-driven taxation for fair, transparent value distribution.  
+  [Referral Docs →](services/referral/README.md)
+- **Event-Driven Orchestration:** Nexus event bus and orchestration patterns enable real-time, cross-service automation and integration.
+- **Continuous Context:** The system's state, history, and patterns are always available—enabling AI agents, analytics, and impact analysis.
+- **Graceful Error & Success Handling:** Centralized, symmetrical orchestration for all outcomes, supporting resilience and compliance.
+
+---
+
+## Key Services
+
+- **User & Auth:** Identity, RBAC, audit, and profile management
+- **Referral:** Growth, rewards, and multi-level value flows
+- **Campaign:** Marketing automation and analytics
+- **Content:** Articles, media, comments, and reactions
+- **Commerce:** Orders, payments, and billing
+- **Notification:** Multi-channel, real-time communication
+- **Localization:** i18n, translation, and compliance
+- **Search:** Full-text, fuzzy, and cross-entity search
+- **Security, Analytics, Talent, Admin, Nexus, and more...**
+
+[Full Service List →](services/service_list.md)
+
+---
+
+## Why Master?
+
+- **For Developers:** Ship faster, with confidence—every service is discoverable, documented, and testable.
+- **For Product Teams:** Adapt and scale—add new features, markets, or integrations with minimal friction.
+- **For AI & Data Science:** Leverage a rich, evolving context for smarter automation, recommendations, and insights.
+- **For the Community:** Build, learn, and grow together—every contribution is part of the digital legacy.
+
+---
+
+## Quick Links
+
+- [Amadeus Knowledge Graph](amadeus/index.md)
+- [Architecture Overview](architecture/README.md)
+- [API Reference](api/)
+- [Service List](services/service_list.md)
+- [Referral Service (Tiered/Taxing Logic)](services/referral/README.md)
+- [Advanced Architecture Articles](articles/index.md)
+- [Manifesto & Philosophy](amadeus/manifesto.md)
+- [Project Preface & Roadmap](amadeus/project_preface.md)
+
+---
+
+## Contributing & Community
+
+Master by Ovasabi is a living project—your ideas, feedback, and contributions are welcome!  
+See the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) for onboarding and guidelines.
+
+---
+
+**Master** isn't just a backend—it's a platform for building, learning, and growing together, powered by context, community, and continuous knowledge.
