@@ -1,23 +1,21 @@
-# Documentation
+# Master by Ovasabi: Metadata Standard & Patterns
 
-version: 2025-05-31
-
-version: 2024-06-14
-
-version: 2024-06-14
+version: 2025-06-01
 
 ## Overview
 
-This document defines the canonical metadata pattern for the OVASABI platform. All services,
-entities, and communication patterns (REST, gRPC, WebSocket, orchestration, analytics, audit) must
-follow this standard for extensibility, traceability, and future-proofing.
+This document defines the canonical metadata pattern for the Master by Ovasabi platform. All services, entities, and communication patterns (REST, gRPC, WebSocket, orchestration, analytics, audit) must follow this standard for extensibility, traceability, and future-proofing.
+
+---
 
 ## References
 
 - [Versioning Standard & Documentation](./versioning.md)
 - [Amadeus Context: Metadata Pattern](../amadeus/amadeus_context.md#standard-robust-metadata-pattern-for-extensible-services)
 
-## Canonical Metadata Pattern
+---
+
+# Canonical Metadata Pattern
 
 - All core entities use the `common.Metadata` proto message.
 - All extensible fields (especially `service_specific`) must include the `versioning` field as
@@ -146,7 +144,7 @@ follow this standard for extensibility, traceability, and future-proofing.
 - [ ] Reference this file in all metadata-related code
 - [ ] Validate metadata using shared helpers
 
-## Translation Provenance & Translator Roles
+# Translation Provenance & Translator Roles
 
 All metadata for localized content must include a `translation_provenance` field under
 `service_specific.localization` or `service_specific.content`:
@@ -185,164 +183,6 @@ relevant service docs for implementation details.
   }
 }
 ```
-
----
-
-**This file is the authoritative reference for all metadata actions, patterns, and extensions.
-Update as new standards or service-specific actions are added.**
-
-# User Metadata Standard (2024-06-14)
-
-## Overview
-
-This document defines the canonical metadata structure for the User service, following the
-extensible, privacy-compliant, and orchestration-ready pattern described in the Amadeus context. All
-fields are stored under `metadata.service_specific.user` in the `common.Metadata` proto.
-
-## Structure
-
-```json
-{
-  "metadata": {
-    "service_specific": {
-      "user": {
-        "auth": {
-          "last_login_at": "2024-06-14T12:00:00Z",
-          "login_source": "oauth:google",
-          "failed_login_attempts": 0,
-          "last_failed_login_at": null,
-          "mfa_enabled": true,
-          "mfa_last_verified_at": "2024-06-14T12:01:00Z",
-          "mfa_last_challenge_at": "2024-06-14T12:00:30Z",
-          "oauth_provider": "google",
-          "provider_user_id": "1234567890",
-          "password_reset_requested_at": "2024-06-14T11:00:00Z",
-          "password_reset_at": "2024-06-14T11:05:00Z",
-          "account_locked_until": null,
-          "email_verification_sent_at": "2024-06-14T10:00:00Z",
-          "email_verified_at": "2024-06-14T10:05:00Z"
-        },
-        "jwt": {
-          "last_jwt_issued_at": "2024-06-14T12:00:00Z",
-          "last_jwt_id": "jwt-uuid-123",
-          "jwt_revoked_at": null,
-          "jwt_audience": "ovasabi-app",
-          "jwt_scopes": ["user:read", "user:write"]
-        },
-        "versioning": {
-          "system_version": "1.0.0",
-          "service_version": "1.0.0",
-          "user_version": "1.0.0",
-          "environment": "dev",
-          "feature_flags": ["new_ui"],
-          "last_migrated_at": "2024-06-14T00:00:00Z"
-        },
-        "audit": {
-          "created_by": "user_id:master_id",
-          "last_modified_by": "user_id:master_id",
-          "history": ["created", "login", "oauth_login", "password_reset"]
-        },
-        "rbac": ["user", "admin"],
-        "device_id": "device-abc123",
-        "guest": false,
-        "guest_created_at": null
-      }
-    }
-  }
-}
-```
-
-## Field Reference
-
-### `auth` (Authentication)
-
-| Field                       | Type   | Purpose                                     |
-| --------------------------- | ------ | ------------------------------------------- |
-| last_login_at               | string | Timestamp of last successful login          |
-| login_source                | string | Source of login (web, mobile, oauth:google) |
-| failed_login_attempts       | int    | Number of failed login attempts             |
-| last_failed_login_at        | string | Timestamp of last failed login              |
-| mfa_enabled                 | bool   | Whether MFA is enabled                      |
-| mfa_last_verified_at        | string | Last time MFA was successfully verified     |
-| mfa_last_challenge_at       | string | Last time MFA challenge was issued          |
-| oauth_provider              | string | OAuth provider name                         |
-| provider_user_id            | string | External OAuth user ID                      |
-| password_reset_requested_at | string | When password reset was requested           |
-| password_reset_at           | string | When password was reset                     |
-| account_locked_until        | string | If locked, when lockout expires             |
-| email_verification_sent_at  | string | When verification email was sent            |
-| email_verified_at           | string | When email was verified                     |
-
-### `jwt` (JWT Token Info)
-
-| Field              | Type     | Purpose                            |
-| ------------------ | -------- | ---------------------------------- |
-| last_jwt_issued_at | string   | Timestamp of last JWT issued       |
-| last_jwt_id        | string   | Last JWT ID issued                 |
-| jwt_revoked_at     | string   | When last JWT was revoked (if any) |
-| jwt_audience       | string   | Audience claim                     |
-| jwt_scopes         | [string] | List of scopes/claims              |
-
-### `versioning`
-
-| Field            | Type     | Purpose                                 |
-| ---------------- | -------- | --------------------------------------- |
-| system_version   | string   | System-wide version                     |
-| service_version  | string   | User service version                    |
-| user_version     | string   | User-specific version                   |
-| environment      | string   | Deployment environment (dev, prod, etc) |
-| feature_flags    | [string] | Feature flags enabled for user          |
-| last_migrated_at | string   | Last migration timestamp                |
-
-### `audit` (Privacy/Compliance)
-
-| Field            | Type     | Purpose                                    |
-| ---------------- | -------- | ------------------------------------------ |
-| created_by       | string   | Non-PII user reference (user_id:master_id) |
-| last_modified_by | string   | Non-PII user reference (user_id:master_id) |
-| history          | [string] | List of audit events                       |
-
-> **Compliance Note:** All audit fields must use non-PII user references (user_id:master_id) for
-> GDPR and privacy compliance. See
-> [Amadeus Context](../amadeus/amadeus_context.md#gdpr-and-privacy-standards).
-
-### Other Fields
-
-| Field            | Type     | Purpose                        |
-| ---------------- | -------- | ------------------------------ |
-| rbac             | [string] | List of roles assigned to user |
-| device_id        | string   | Device identifier              |
-| guest            | bool     | Whether user is a guest        |
-| guest_created_at | string   | When guest account was created |
-
-## Extensibility
-
-- New fields can be added under `auth`, `jwt`, or the top-level `user` object as needed.
-- All fields should be documented here and in the proto.
-- Use the provided helpers in the user service to update these fields.
-
-## Example Usage in Go
-
-```go
-_ = updateAuthMetadata(user, map[string]interface{}{
-    "last_login_at": time.Now().Format(time.RFC3339),
-    "login_source": "oauth:google",
-    "mfa_enabled": true,
-})
-_ = updateJWTMetadata(user, map[string]interface{}{
-    "last_jwt_issued_at": time.Now().Format(time.RFC3339),
-    "last_jwt_id": jwtID,
-    "jwt_audience": "ovasabi-app",
-    "jwt_scopes": []string{"user:read", "user:write"},
-})
-```
-
-## References
-
-- [Amadeus Context: User Metadata](../amadeus/amadeus_context.md#user-service-canonical-identity--access-management)
-- [GDPR and Privacy Standards](../amadeus/amadeus_context.md#gdpr-and-privacy-standards)
-- [Composable Request Pattern](../amadeus/amadeus_context.md#composable-request-pattern-standard)
-- [Robust Metadata Pattern](../amadeus/amadeus_context.md#standard-robust-metadata-pattern-for-extensible-services)
 
 # Master-Ovasabi Tax (Canonical, Metadata-Driven)
 
@@ -472,3 +312,88 @@ transparency, and digital DNA tracking across forks and contributions.
 - For collaborative or community-driven forks, use the primary maintainer or community name as
   `creator`/`company`.
 - This field helps track digital DNA and provenance across the ecosystem.
+
+# System Currency Pattern: Suspenseful, Auditable, and Fair
+
+## Overview
+
+The Master by Ovasabi platform implements a unique, metadata-driven "system currency" pattern. This pattern tracks value, rewards, and contributions for every user, service, and entity in a way that is:
+
+- **Suspenseful:** Users only see their usable balance, which is updated in a weekly "reveal" event, building anticipation and engagement.
+- **Auditable:** All changes are logged in an append-only history, and a hidden, internal-only `pending` field allows for fraud analysis and intervention before balances are revealed.
+- **Fair and Anti-Gaming:** By batching updates and hiding pending rewards, the system prevents real-time gaming and enables robust anti-abuse checks.
+
+## Metadata Schema Example
+
+```json
+{
+  "metadata": {
+    "currency": {
+      "usable": 100.0,                // User-visible, spendable balance
+      "pending": 15.0,                // Internal only, not exposed to user
+      "last_reveal": "2025-06-02T08:00:00Z",
+      "history": [
+        {"delta": +10, "reason": "referral", "at": "2025-05-29T10:00:00Z"},
+        {"delta": +5, "reason": "content", "at": "2025-05-30T12:00:00Z"}
+      ]
+    }
+  }
+}
+```
+
+- **usable:** The balance the user can spend, updated only at the scheduled reveal.
+- **pending:** Internal field for new earnings, not visible to users. Used for audit, fraud analysis, and suspense.
+- **last_reveal:** Timestamp of the last balance update.
+- **history:** Full audit trail of all changes, including deltas, reasons, and timestamps.
+
+## Weekly "Accounts Get Checked" Moment
+
+- Every **Monday at 9am Lagos time**, a scheduled job runs (via the Scheduler service or cron):
+  - All `pending` balances are moved to `usable`.
+  - The event is logged in `history`.
+  - `pending` is reset to zero.
+  - Users are notified of their new balance (the "payday" moment).
+- **Pending is never exposed to users**—only `usable` and `history` are returned in user-facing APIs.
+- This creates a sense of anticipation and prevents users from gaming the system by tracking real-time increments.
+
+## Audit & Fraud Protection
+
+- The internal `pending` field allows the system to:
+  - **Audit all new rewards** before they become usable.
+  - **Run fraud detection and anomaly analysis** on pending balances.
+  - **Flag, freeze, or adjust** suspicious accounts before the reveal.
+  - **Roll back or correct** pending amounts if abuse is detected, without affecting user-visible balances.
+- All changes are append-only in `history`, ensuring a full audit trail for compliance and dispute resolution.
+
+## Connection to Referrals and Digital Will
+
+- **Referrals:**
+  - When a user earns a reward via a referral, the amount is added to their `pending` balance with a `reason` of `referral` in `history`.
+  - The actual reward becomes usable only after the next scheduled reveal, allowing for fraud checks (e.g., fake accounts, circular referrals) before payout.
+- **Digital Will:**
+  - The system currency is part of the user's digital legacy. Upon certain triggers (e.g., account closure, digital will execution), the final `usable` balance and full `history` are used to determine allocations, inheritance, or legacy actions.
+
+## Separation of Transactional Concurrency and Metadata Calculation
+
+- **Transactional Concurrency:**
+  - All actions that generate rewards (e.g., referrals, content creation) are processed in real time, with atomic, transactional updates to the `pending` field.
+  - This ensures no double-spending or race conditions at the event level.
+- **Metadata Count Calculation:**
+  - The actual, user-visible balance (`usable`) is only updated during the scheduled reveal.
+  - This separation allows for robust, scalable, and auditable value flows, while maintaining suspense and anti-abuse guarantees.
+
+## Best Practices
+
+- Never expose `pending` in user-facing APIs or UIs.
+- Always log all changes in `history` for auditability.
+- Run fraud and anomaly detection on `pending` before each reveal.
+- Use the scheduled "accounts get checked" moment to batch updates, notify users, and create a sense of anticipation.
+- Integrate with the knowledge graph for analytics, reporting, and digital will execution.
+
+---
+
+**This pattern ensures that the system currency is fair, suspenseful, and robust—supporting both user engagement and platform integrity.**
+
+---
+
+**This file is the authoritative reference for all metadata actions, patterns, and extensions. Update as new standards or service-specific actions are added.**

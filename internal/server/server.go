@@ -58,12 +58,14 @@ import (
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"
 	restserver "github.com/nmxmxh/master-ovasabi/internal/server/rest"
 	campaignsvc "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
@@ -216,11 +218,14 @@ func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger)
 
 		// --- Context Extraction: Extract user/session/guest info from context ---
 		authCtx := contextx.Auth(ctx)
-		principal := authCtx.UserID
-		if principal == "" {
-			principal = "guest"
+		principal := "guest"
+		roles := []string{}
+		if authCtx != nil {
+			if authCtx.UserID != "" {
+				principal = authCtx.UserID
+			}
+			roles = authCtx.Roles
 		}
-		roles := authCtx.Roles
 
 		// Convert roles []string to []interface{} for structpb compatibility
 		rolesIface := make([]interface{}, len(roles))
@@ -360,9 +365,7 @@ func Run() {
 		MaxRetries:   getEnvOrDefaultInt("REDIS_MAX_RETRIES", 3),
 	}
 
-	// Use the modular provider that registers all service caches:
-
-	redisProvider, _, err := service.NewRedisProvider(log, *redisConfig)
+	redisProvider, redisClient, err := service.NewRedisProvider(log, *redisConfig)
 	if err != nil {
 		log.Error("Failed to initialize Redis provider", zap.Error(err))
 		return
@@ -370,6 +373,13 @@ func Run() {
 
 	// Initialize DI container
 	container := di.New()
+
+	// Register KGService in DI container (before any service that needs it)
+	if err := container.Register((*kgserver.KGService)(nil), func(_ *di.Container) (interface{}, error) {
+		return kgserver.NewKGService(redisClient.Client, log), nil
+	}); err != nil {
+		log.Error("Failed to register KGService in DI container", zap.Error(err))
+	}
 
 	// Initialize master repository
 	masterRepo := repository.NewRepository(db, log)
@@ -395,6 +405,18 @@ func Run() {
 		return provider, nil
 	}); err != nil {
 		log.Error("Failed to register service.Provider in DI container", zap.Error(err))
+	}
+
+	// Register SchedulerServiceClient in DI container for orchestration helpers
+	if err := container.Register((*schedulerpb.SchedulerServiceClient)(nil), func(_ *di.Container) (interface{}, error) {
+		addr := getEnvOrDefault("SCHEDULER_GRPC_ADDR", "localhost:50053")
+		conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return nil, err
+		}
+		return schedulerpb.NewSchedulerServiceClient(conn), nil
+	}); err != nil {
+		log.Error("Failed to register SchedulerServiceClient in DI container", zap.Error(err))
 	}
 
 	// Register all services using the ServiceBootstrapper

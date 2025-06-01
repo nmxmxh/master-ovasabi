@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -84,7 +86,11 @@ func (s *Server) Start() error {
 	}
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		s.Logger.Fatal("Failed to create listener", zap.Error(err))
+		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to create listener", err).
+			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{
+				// Optionally: Log: s.Logger,
+			})
+		return err
 	}
 	s.Logger.Info("Starting gRPC server", zap.String("address", lis.Addr().String()))
 	return s.GRPCServer.Serve(lis)

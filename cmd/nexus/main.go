@@ -12,7 +12,9 @@ import (
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	servernexus "github.com/nmxmxh/master-ovasabi/internal/server/nexus"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	redis "github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"google.golang.org/grpc/codes"
 )
 
 func main() {
@@ -34,17 +36,18 @@ func main() {
 	}
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		if syncErr := log.Sync(); syncErr != nil {
-			log.Error("Failed to sync logger before fatal", zap.Error(syncErr))
-		}
-		log.Fatal("Failed to listen on "+addr, zap.Error(err))
+		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to listen on "+addr, err).
+			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
+		return
 	}
 	grpcServer := grpc.NewServer()
 
 	// Initialize Redis cache
 	cache, err := redis.NewCache(context.Background(), nil, log)
 	if err != nil {
-		log.Fatal("Failed to initialize Redis cache", zap.Error(err))
+		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to initialize Redis cache", err).
+			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
+		return
 	}
 
 	// Create the Nexus service implementation
@@ -55,11 +58,9 @@ func main() {
 
 	log.Info("Nexus event bus gRPC server starting", zap.String("address", addr))
 	if err := grpcServer.Serve(lis); err != nil {
-		if syncErr := log.Sync(); syncErr != nil {
-			log.Error("Failed to sync logger before fatal", zap.Error(syncErr))
-		}
-		_ = cache.Close()
-		log.Fatal("Failed to serve gRPC server", zap.Error(err))
+		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to serve gRPC server", err).
+			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
+		return
 	}
 
 	log.Info("Nexus event bus gRPC server started and ready", zap.String("address", addr))

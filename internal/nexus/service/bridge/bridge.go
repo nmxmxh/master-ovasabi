@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"google.golang.org/grpc/codes"
 )
 
 // Service provides the Nexus bridge orchestration and protocol adapter logic.
@@ -27,7 +30,13 @@ func NewBridgeService(rules []RoutingRule, bus EventBus) *Service {
 func (b *Service) initEventBus() {
 	err := b.eventBus.Subscribe("bridge.outbound", b.handleOutboundEvent)
 	if err != nil {
-		log.Fatalf("Failed to subscribe to bridge.outbound: %v", err)
+		// Graceful orchestration instead of abrupt fatal exit
+		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to subscribe to bridge.outbound", err).
+			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{
+				// Optionally: add logger or custom hooks here
+			})
+		// Optionally: return or exit gracefully if needed
+		return
 	}
 }
 

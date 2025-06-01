@@ -15,8 +15,10 @@ import (
 	"github.com/gorilla/websocket"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/pion/webrtc/v3"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -393,7 +395,9 @@ func main() {
 	// Connect to Nexus, register pattern, and subscribe to events
 	nexusClient, err := connectNexus()
 	if err != nil {
-		log.Fatalf("Failed to connect to Nexus: %v", err)
+		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to connect to Nexus", err).
+			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
+		return
 	}
 	defer nexusClient.Conn.Close()
 

@@ -1,5 +1,7 @@
 # Master by Ovasabi: Living Knowledge Platform
 
+**The Last Digital Operating System You'll Ever Need.**
+
 version: 2025-06-01
 
 Welcome to **Master by Ovasabi**—a self-documenting, AI-ready, and community-driven platform for orchestrating digital services, relationships, and value.
@@ -77,6 +79,22 @@ See the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) for onb
 ---
 
 **Master** isn't just a backend—it's a platform for building, learning, and growing together, powered by context, community, and continuous knowledge.
+
+---
+
+## Sustainability & Opportunities
+
+Master by Ovasabi is designed for a sustainable digital future. By eliminating the need for blockchain-style global consensus and mining, the platform achieves real-time orchestration and value flows across billions of entities with a fraction of the energy use. This means:
+
+- **Green Digital Infrastructure:** No mining, no global proof-of-work—just efficient, event-driven, sharded knowledge orchestration.
+- **Scalable Digital Societies:** The architecture supports global-scale collaboration, governance, and value creation without the environmental cost of traditional blockchains.
+- **New Opportunities:**
+  - Build eco-friendly, real-time digital economies and communities
+  - Enable programmable, auditable value flows for social good, research, and creative projects
+  - Foster new forms of digital governance, legacy, and collective intelligence
+  - Lower the barrier for global participation in digital innovation
+
+By choosing Ovasabi, you're not just building for scale—you're building for a greener, more inclusive digital world.
 
 ---
 
