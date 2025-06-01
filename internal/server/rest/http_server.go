@@ -21,34 +21,34 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container) {
 	mux := http.NewServeMux()
 	ws.RegisterWebSocketHandlers(mux, log, container, nil)
 
-	mux.HandleFunc("/api/media/upload", handlers.MediaOpsHandler(log, container))
+	mux.HandleFunc("/api/media/upload", handlers.MediaOpsHandler(container))
 	mux.HandleFunc("/api/campaigns/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/state") && r.Method == http.MethodGet {
 			if strings.Contains(r.URL.Path, "/user/") {
-				handlers.CampaignUserStateHandler(log, container)(w, r)
+				handlers.CampaignUserStateHandler(container)(w, r)
 				return
 			}
-			handlers.CampaignStateHandler(log, container)(w, r)
+			handlers.CampaignStateHandler(container)(w, r)
 			return
 		}
 		if strings.HasSuffix(r.URL.Path, "/leaderboard") && r.Method == http.MethodGet {
-			handlers.CampaignLeaderboardHandler(log, container)(w, r)
+			handlers.CampaignLeaderboardHandler(container)(w, r)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
 	})
-	mux.HandleFunc("/api/campaign", handlers.CampaignHandler(log, container))
-	mux.HandleFunc("/api/notification", handlers.NotificationHandler(log, container))
-	mux.HandleFunc("/api/referral", handlers.ReferralOpsHandler(log, container))
-	mux.HandleFunc("/api/content", handlers.ContentOpsHandler(log, container))
-	mux.HandleFunc("/api/analytics", handlers.AnalyticsOpsHandler(log, container))
-	mux.HandleFunc("/api/product", handlers.ProductOpsHandler(log, container))
-	mux.HandleFunc("/api/commerce", handlers.CommerceOpsHandler(log, container))
-	mux.HandleFunc("/api/user/auth", handlers.UserOpsHandler(log, container))
-	mux.HandleFunc("/api/localization", handlers.LocalizationOpsHandler(log, container))
-	mux.HandleFunc("/api/talent", handlers.TalentOpsHandler(log, container))
-	mux.HandleFunc("/api/admin", handlers.AdminOpsHandler(log, container))
-	mux.HandleFunc("/api/search", handlers.SearchOpsHandler(log, container))
+	mux.HandleFunc("/api/campaign", handlers.CampaignHandler(container))
+	mux.HandleFunc("/api/notification", handlers.NotificationHandler(container))
+	mux.HandleFunc("/api/referral", handlers.ReferralOpsHandler(container))
+	mux.HandleFunc("/api/content", handlers.ContentOpsHandler(container))
+	mux.HandleFunc("/api/analytics", handlers.AnalyticsOpsHandler(container))
+	mux.HandleFunc("/api/product", handlers.ProductOpsHandler(container))
+	mux.HandleFunc("/api/commerce", handlers.CommerceOpsHandler(container))
+	mux.HandleFunc("/api/user/auth", handlers.UserOpsHandler(container))
+	mux.HandleFunc("/api/localization", handlers.LocalizationOpsHandler(container))
+	mux.HandleFunc("/api/talent", handlers.TalentOpsHandler(container))
+	mux.HandleFunc("/api/admin", handlers.AdminOpsHandler(container))
+	mux.HandleFunc("/api/search", handlers.SearchOpsHandler(container))
 
 	// Register the NexusOpsHandler for /api/nexus
 	mux.Handle("/api/nexus", handlers.NewNexusOpsHandler(container, log))

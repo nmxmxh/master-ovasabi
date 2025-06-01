@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -19,7 +18,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	"github.com/nmxmxh/master-ovasabi/internal/service/media"
 	"github.com/nmxmxh/master-ovasabi/internal/service/user"
-	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
@@ -62,8 +61,10 @@ type diContainerKey struct{}
 // @Router /api/campaign_ops [post]
 
 // CampaignHandler returns an http.HandlerFunc for campaign operations (composable endpoint).
-func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func CampaignHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var campaignSvc campaignpb.CampaignServiceServer
 		if err := container.Resolve(&campaignSvc); err != nil {
 			log.Error("Failed to resolve CampaignService", zap.Error(err))
@@ -87,10 +88,11 @@ func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			return
 		}
 		// Extract authentication context for sensitive/admin actions
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
 		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		ctx = contextx.WithMetadata(ctx, meta)
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
@@ -115,7 +117,7 @@ func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 				http.Error(w, "admin role required", http.StatusForbidden)
 				return
 			}
-			err := shield.CheckPermission(r.Context(), securitySvc, action, "campaign", shield.WithMetadata(meta))
+			err := shield.CheckPermission(ctx, securitySvc, action, "campaign", shield.WithMetadata(meta))
 			switch {
 			case err == nil:
 				// allowed, proceed
@@ -210,7 +212,7 @@ func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			if endDate != nil {
 				protoReq.EndDate = timestamppb.New(*endDate)
 			}
-			resp, err := campaignSvc.CreateCampaign(r.Context(), protoReq)
+			resp, err := campaignSvc.CreateCampaign(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to create campaign", zap.Error(err))
 				http.Error(w, "failed to create campaign", http.StatusInternalServerError)
@@ -300,7 +302,7 @@ func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			if meta != nil {
 				updateReq.Campaign.Metadata = meta
 			}
-			resp, err := campaignSvc.UpdateCampaign(r.Context(), updateReq)
+			resp, err := campaignSvc.UpdateCampaign(ctx, updateReq)
 			if err != nil {
 				log.Error("Failed to update campaign", zap.Error(err))
 				http.Error(w, "failed to update campaign", http.StatusInternalServerError)
@@ -333,7 +335,7 @@ func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 				Page:     page32,
 				PageSize: pageSize32,
 			}
-			resp, err := campaignSvc.ListCampaigns(r.Context(), listReq)
+			resp, err := campaignSvc.ListCampaigns(ctx, listReq)
 			if err != nil {
 				log.Error("Failed to list campaigns", zap.Error(err))
 				http.Error(w, "failed to list campaigns", http.StatusInternalServerError)
@@ -353,7 +355,7 @@ func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			}
 			slug := slugRaw
 			getReq := &campaignpb.GetCampaignRequest{Slug: slug}
-			resp, err := campaignSvc.GetCampaign(r.Context(), getReq)
+			resp, err := campaignSvc.GetCampaign(ctx, getReq)
 			if err != nil {
 				log.Error("Failed to get campaign", zap.Error(err))
 				http.Error(w, "failed to get campaign", http.StatusInternalServerError)
@@ -377,7 +379,7 @@ func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			}
 			slug := slugRaw
 			deleteReq := &campaignpb.DeleteCampaignRequest{Id: id, Slug: slug}
-			resp, err := campaignSvc.DeleteCampaign(r.Context(), deleteReq)
+			resp, err := campaignSvc.DeleteCampaign(ctx, deleteReq)
 			if err != nil {
 				log.Error("Failed to delete campaign", zap.Error(err))
 				http.Error(w, "failed to delete campaign", http.StatusInternalServerError)
@@ -412,21 +414,17 @@ func CampaignHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 // GET /api/campaigns/{id}/leaderboard
 //
 // All responses are consistent with WebSocket state payloads.
-func CampaignStateHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func CampaignStateHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		// Inject DI container into context using type-safe key
-		ctx = context.WithValue(ctx, diContainerKey{}, container)
-		id := strings.TrimPrefix(r.URL.Path, "/api/campaigns/")
-		id = strings.TrimSuffix(id, "/state")
-		userID := r.URL.Query().Get("user_id")
-		fieldsParam := r.URL.Query().Get("fields")
-		var fields []string
-		if fieldsParam != "" {
-			fields = strings.Split(fieldsParam, ",")
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
+		// Extract campaign ID from URL path
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) < 4 {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
 		}
-
-		// --- Event-driven orchestration ---
+		id := parts[3]
 		var nexusClient nexusv1.NexusServiceClient
 		if err := container.Resolve(&nexusClient); err != nil {
 			errResp := graceful.WrapErr(ctx, codes.Internal, "Failed to resolve NexusServiceClient", err)
@@ -437,6 +435,12 @@ func CampaignStateHandler(log *zap.Logger, container *di.Container) http.Handler
 
 		// Build metadata for the event
 		meta := &commonpb.Metadata{}
+		userID := r.URL.Query().Get("user_id")
+		fieldsParam := r.URL.Query().Get("fields")
+		var fields []string
+		if fieldsParam != "" {
+			fields = strings.Split(fieldsParam, ",")
+		}
 		if userID != "" || len(fields) > 0 {
 			serviceSpecific := map[string]interface{}{}
 			if userID != "" {
@@ -476,9 +480,10 @@ func CampaignStateHandler(log *zap.Logger, container *di.Container) http.Handler
 	}
 }
 
-func CampaignUserStateHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func CampaignUserStateHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		parts := strings.Split(r.URL.Path, "/")
 		if len(parts) < 6 {
 			if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid path"}); err != nil {
@@ -564,9 +569,10 @@ func CampaignUserStateHandler(log *zap.Logger, container *di.Container) http.Han
 	}
 }
 
-func CampaignLeaderboardHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func CampaignLeaderboardHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		id := strings.TrimPrefix(r.URL.Path, "/api/campaigns/")
 		id = strings.TrimSuffix(id, "/leaderboard")
 		// --- Resolve services ---

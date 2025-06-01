@@ -1,10 +1,10 @@
 # Documentation
 
-version: 2025-05-14
+version: 2025-05-31
 
-version: 2025-05-14
+version: 2024-06-14
 
-version: 2025-05-14
+version: 2024-06-14
 
 ## Overview
 
@@ -55,7 +55,11 @@ follow this standard for extensibility, traceability, and future-proofing.
       }
       // ... other service-specific extensions
     },
-    "knowledge_graph": { ... }
+    "knowledge_graph": { ... },
+    "lineage": {
+      "creator": "Nobert Momoh",
+      "company": "OVASABI"
+    }
   }
 }
 ```
@@ -339,3 +343,132 @@ _ = updateJWTMetadata(user, map[string]interface{}{
 - [GDPR and Privacy Standards](../amadeus/amadeus_context.md#gdpr-and-privacy-standards)
 - [Composable Request Pattern](../amadeus/amadeus_context.md#composable-request-pattern-standard)
 - [Robust Metadata Pattern](../amadeus/amadeus_context.md#standard-robust-metadata-pattern-for-extensible-services)
+
+# Master-Ovasabi Tax (Canonical, Metadata-Driven)
+
+## Overview
+
+The master-ovasabi tax is a metadata-driven, domain-attached, open source tax pattern. It encodes
+tiered creator and referral fees directly in metadata, with nmxmxh as the default original creator
+and referral. All orchestration, smart contracts, and off-chain engines must honor these rules for
+consistency and sustainability.
+
+## Taxation Rules
+
+- **Creator Tax (per domain):**
+  - 4% for first 4 projects
+  - 15% from 5th project onwards
+- **Referral Tax (per domain):**
+  - 5% for first 5 projects
+  - 10% from 9th project onwards
+- **Original creator/owner:**
+  - `nmxmxh` is always the original creator and referral by default in metadata.
+
+## Canonical Metadata Example
+
+```json
+{
+  "metadata": {
+    "domain": "example.com",
+    "owner": {
+      "id": "nmxmxh",
+      "wallet": "0xnmxmxh..."
+    },
+    "referral": {
+      "id": "nmxmxh",
+      "wallet": "0xnmxmxh..."
+    },
+    "taxation": {
+      "connectors": [
+        {
+          "type": "creator",
+          "recipient": "nmxmxh",
+          "recipient_wallet": "0xnmxmxh...",
+          "percentage": 0.04,
+          "tiered": [
+            { "min_projects": 1, "max_projects": 4, "percentage": 0.04 },
+            { "min_projects": 5, "max_projects": null, "percentage": 0.15 }
+          ],
+          "applied_on": "2024-06-14T12:00:00Z",
+          "domain": "example.com",
+          "default": true,
+          "enforced": true,
+          "justification": "Master-ovasabi creator tax"
+        },
+        {
+          "type": "referral",
+          "recipient": "nmxmxh",
+          "recipient_wallet": "0xnmxmxh...",
+          "percentage": 0.05,
+          "tiered": [
+            { "min_projects": 1, "max_projects": 5, "percentage": 0.05 },
+            { "min_projects": 9, "max_projects": null, "percentage": 0.1 }
+          ],
+          "applied_on": "2024-06-14T12:00:00Z",
+          "domain": "example.com",
+          "default": true,
+          "enforced": true,
+          "justification": "Master-ovasabi referral tax"
+        }
+      ],
+      "project_count": 1,
+      "total_tax": 0.09
+    }
+  }
+}
+```
+
+## Summary Table
+
+| Role     | Recipient | Tier 1 (Projects 1–4/5) | Tier 2 (5+/9+) | Default | Enforced |
+| -------- | --------- | ----------------------- | -------------- | ------- | -------- |
+| Creator  | nmxmxh    | 4% (1–4)                | 15% (5+)       | true    | true     |
+| Referral | nmxmxh    | 5% (1–5)                | 10% (9+)       | true    | true     |
+
+## Open Source Messaging
+
+"This project uses the master-ovasabi open source tax: 4%/15% creator and 5%/10% referral, always to
+the original creator (`nmxmxh`) by default. This ensures sustainability and rewards the original
+innovator, while remaining open and transparent."
+
+### Lineage Field (Recommended)
+
+**Purpose:** Tracks the origin and evolution of an entity, fork, or codebase by recording the
+creator and company (or organization) responsible for its current form. This enables provenance,
+transparency, and digital DNA tracking across forks and contributions.
+
+**Structure:**
+
+```json
+{
+  "lineage": {
+    "creator": "Nobert Momoh",
+    "company": "OVASABI"
+  }
+}
+```
+
+- `creator`: The individual or primary author responsible for the entity or codebase version.
+- `company`: The organization, company, or community stewarding the entity or fork.
+
+**Example Usage:**
+
+```json
+{
+  "metadata": {
+    "lineage": {
+      "creator": "Jane Doe",
+      "company": "Acme Corp"
+    }
+    // ... other metadata fields ...
+  }
+}
+```
+
+**Guidance:**
+
+- On forking or major modification, update the `lineage` field to reflect the new creator and
+  company.
+- For collaborative or community-driven forks, use the primary maintainer or community name as
+  `creator`/`company`.
+- This field helps track digital DNA and provenance across the ecosystem.

@@ -18,4 +18,42 @@ message Metadata {
   repeated string tags = 5;                      // Tags for search, analytics, etc.
   google.protobuf.Struct service_specific = 6;   // Service-specific extensions (e.g., {"content": {...}})
   google.protobuf.Struct knowledge_graph = 7;    // For knowledge graph enrichment
+  TieredTax taxation = 8;
+  OwnerMetadata owner = 9;
+  ReferralMetadata referral = 10;
+}
+
+message TieredTax {
+  int32 min_projects = 1;
+  int32 max_projects = 2; // null = unlimited
+  double percentage = 3;
+}
+
+message TaxationConnector {
+  string type = 1; // "creator" or "referral"
+  string recipient = 2; // e.g., "nmxmxh"
+  string recipient_wallet = 3;
+  double percentage = 4;
+  repeated TieredTax tiered = 5;
+  string applied_on = 6;
+  string domain = 7;
+  bool default = 8;
+  bool enforced = 9;
+  string justification = 10;
+}
+
+message Taxation {
+  repeated TaxationConnector connectors = 1;
+  int32 project_count = 2;
+  double total_tax = 3;
+}
+
+message OwnerMetadata {
+  string id = 1;
+  string wallet = 2;
+}
+
+message ReferralMetadata {
+  string id = 1;
+  string wallet = 2;
 } 

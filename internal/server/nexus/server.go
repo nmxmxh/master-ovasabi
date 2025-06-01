@@ -8,6 +8,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	pkgredis "github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/trace"
@@ -179,12 +180,10 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	}
 
 	// Extract user_id if present in context
-	var userID string
-	if v := ctx.Value("user_id"); v != nil {
-		if uid, ok := v.(string); ok && uid != "" {
-			userID = uid
-			s.log.Info("Emitting event for user", zap.String("user_id", userID))
-		}
+	userID := ""
+	authCtx := contextx.Auth(ctx)
+	if authCtx != nil && authCtx.UserID != "" {
+		userID = authCtx.UserID
 	}
 
 	// Enrich metadata: add trace_id and user_id under service_specific.nexus

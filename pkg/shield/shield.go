@@ -6,7 +6,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 )
 
 // Custom error types for clear error handling.
@@ -50,7 +50,7 @@ func CheckPermission(
 		opt(cfg)
 	}
 
-	authInfo := auth.FromContext(ctx)
+	authInfo := contextx.Auth(ctx)
 	if authInfo == nil || authInfo.UserID == "" {
 		return ErrUnauthenticated
 	}

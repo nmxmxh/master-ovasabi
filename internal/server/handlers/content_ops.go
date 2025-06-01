@@ -10,7 +10,7 @@ import (
 	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	campaignmeta "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
-	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -36,8 +36,11 @@ func writeJSON(w http.ResponseWriter, v interface{}, log *zap.Logger) {
 // @Success 200 {object} object "Response depends on action"
 // @Failure 400 {object} ErrorResponse
 // @Router /api/content_ops [post].
-func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func ContentOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var contentSvc contentpb.ContentServiceServer
 		if err := container.Resolve(&contentSvc); err != nil {
 			log.Error("Failed to resolve ContentService", zap.Error(err))
@@ -61,7 +64,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 			return
 		}
 		// Extract authentication context
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
 		var securitySvc securitypb.SecurityServiceClient
@@ -122,7 +125,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				} else {
 					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
 				}
-				campResp, err := campaignSvc.GetCampaign(r.Context(), getReq)
+				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
 				if err != nil || campResp == nil || campResp.Campaign == nil {
 					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
 					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
@@ -195,7 +198,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				CampaignId: campaignID,
 			}
 			protoReq := &contentpb.CreateContentRequest{Content: content, CampaignId: campaignID}
-			resp, err := contentSvc.CreateContent(r.Context(), protoReq)
+			resp, err := contentSvc.CreateContent(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to create content", zap.Error(err))
 				http.Error(w, "failed to create content", http.StatusInternalServerError)
@@ -238,7 +241,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				} else {
 					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
 				}
-				campResp, err := campaignSvc.GetCampaign(r.Context(), getReq)
+				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
 				if err != nil || campResp == nil || campResp.Campaign == nil {
 					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
 					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
@@ -317,7 +320,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				CampaignId: campaignID,
 			}
 			protoReq := &contentpb.UpdateContentRequest{Content: content}
-			resp, err := contentSvc.UpdateContent(r.Context(), protoReq)
+			resp, err := contentSvc.UpdateContent(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to update content", zap.Error(err))
 				http.Error(w, "failed to update content", http.StatusInternalServerError)
@@ -360,7 +363,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				} else {
 					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
 				}
-				campResp, err := campaignSvc.GetCampaign(r.Context(), getReq)
+				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
 				if err != nil || campResp == nil || campResp.Campaign == nil {
 					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
 					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
@@ -391,7 +394,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				return
 			}
 			protoReq := &contentpb.DeleteContentRequest{Id: id}
-			resp, err := contentSvc.DeleteContent(r.Context(), protoReq)
+			resp, err := contentSvc.DeleteContent(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to delete content", zap.Error(err))
 				http.Error(w, "failed to delete content", http.StatusInternalServerError)
@@ -434,7 +437,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				} else {
 					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
 				}
-				campResp, err := campaignSvc.GetCampaign(r.Context(), getReq)
+				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
 				if err != nil || campResp == nil || campResp.Campaign == nil {
 					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
 					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
@@ -465,7 +468,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				return
 			}
 			protoReq := &contentpb.GetContentRequest{Id: id}
-			resp, err := contentSvc.GetContent(r.Context(), protoReq)
+			resp, err := contentSvc.GetContent(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to get content", zap.Error(err))
 				http.Error(w, "failed to get content", http.StatusInternalServerError)
@@ -530,7 +533,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				} else {
 					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
 				}
-				campResp, err := campaignSvc.GetCampaign(r.Context(), getReq)
+				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
 				if err != nil || campResp == nil || campResp.Campaign == nil {
 					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
 					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
@@ -561,7 +564,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				PageSize: pageSize,
 				Tags:     tags,
 			}
-			resp, err := contentSvc.ListContent(r.Context(), protoReq)
+			resp, err := contentSvc.ListContent(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to list content", zap.Error(err))
 				http.Error(w, "failed to list content", http.StatusInternalServerError)
@@ -596,7 +599,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				UserId:    userID,
 				Reaction:  reaction,
 			}
-			resp, err := contentSvc.AddReaction(r.Context(), protoReq)
+			resp, err := contentSvc.AddReaction(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to add reaction", zap.Error(err))
 				http.Error(w, "failed to add reaction", http.StatusInternalServerError)
@@ -648,7 +651,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				Body:      body,
 				Metadata:  commentMeta,
 			}
-			resp, err := contentSvc.AddComment(r.Context(), protoReq)
+			resp, err := contentSvc.AddComment(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to add comment", zap.Error(err))
 				http.Error(w, "failed to add comment", http.StatusInternalServerError)
@@ -690,7 +693,7 @@ func ContentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 				ModeratorId: moderatorID,
 				Reason:      reason,
 			}
-			resp, err := contentSvc.ModerateContent(r.Context(), protoReq)
+			resp, err := contentSvc.ModerateContent(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to moderate content", zap.Error(err))
 				http.Error(w, "failed to moderate content", http.StatusInternalServerError)

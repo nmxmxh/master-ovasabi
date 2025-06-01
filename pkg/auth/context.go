@@ -17,32 +17,11 @@ type Context struct {
 	Metadata  map[string]interface{} // For metadata-driven access
 }
 
-// contextKey is unexported to avoid collisions.
-type contextKey struct{}
-
-var authContextKey = &contextKey{}
-
-// NewContext returns a new context with the given AuthContext.
-func NewContext(ctx context.Context, auth *Context) context.Context {
-	return context.WithValue(ctx, authContextKey, auth)
-}
-
-// FromContext extracts the AuthContext from the context, or returns a guest context if not present.
-func FromContext(ctx context.Context) *Context {
-	val := ctx.Value(authContextKey)
-	if val == nil {
-		return &Context{Roles: []string{"guest"}}
-	}
-	authCtx, ok := val.(*Context)
-	if !ok {
-		return &Context{Roles: []string{"guest"}}
-	}
-	return authCtx
-}
-
 // HasRole checks if the current user has the given role.
-func HasRole(ctx context.Context, role string) bool {
-	auth := FromContext(ctx)
+func HasRole(auth *Context, role string) bool {
+	if auth == nil {
+		return false
+	}
 	for _, r := range auth.Roles {
 		if r == role {
 			return true
@@ -52,12 +31,21 @@ func HasRole(ctx context.Context, role string) bool {
 }
 
 // HasScope checks if the current user has the given scope.
-func HasScope(ctx context.Context, scope string) bool {
-	auth := FromContext(ctx)
+func HasScope(auth *Context, scope string) bool {
+	if auth == nil {
+		return false
+	}
 	for _, s := range auth.Scopes {
 		if s == scope {
 			return true
 		}
 	}
 	return false
+}
+
+// NewContext returns a new context with the given AuthContext.
+type contextKey struct{}
+
+func NewContext(ctx context.Context, authCtx *Context) context.Context {
+	return context.WithValue(ctx, contextKey{}, authCtx)
 }

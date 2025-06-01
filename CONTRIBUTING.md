@@ -1,6 +1,33 @@
 # Contributing to OVASABI
 
-This document describes the project structure and guidelines for contributing to the codebase.
+Thank you for your interest in contributing! We welcome code, documentation, ideas, and feedback
+from everyone.
+
+## How to Contribute
+
+- **Issues:** Report bugs, suggest features, or ask questions via GitHub Issues.
+- **Pull Requests:** Fork the repo, create a branch, and submit a pull request. Please describe your
+  changes clearly.
+- **Code Style:** Follow Go best practices. Use clear, descriptive names (e.g., `fileStructure` not
+  `file_structure`).
+- **Documentation:** Update or add docs in the `docs/` directory as needed.
+
+## Adding New Connectors/Services
+
+- Edit `tax/ovasabi_default.go` to add new connectors (people, services, compliance, etc.).
+- For automatic service addition, update the service registry in `internal/service/registry.go`.
+- Document your changes in the appropriate markdown files in `docs/`.
+
+## Community Spirit
+
+- Please read the [Manifesto and Advice](docs/amadeus/manifesto.md) for our philosophy and
+  expectations.
+- Be kind, inclusive, and constructive.
+- Celebrate all contributions—code, art, feedback, and support.
+
+## Questions?
+
+Open an issue or start a discussion. We're here to help!
 
 ## Project Structure
 

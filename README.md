@@ -1,204 +1,253 @@
-# Master Ovasabi
+# OVASABI Platform (Work in Progress)
 
-A production-ready Go gRPC service boilerplate with comprehensive monitoring, concurrency
-management, and Kubernetes support.
+A metadata-driven, extensible, and fair digital system for orchestrating services, relationships,
+and value—built for the community, by the community.
 
-## Architecture Overview
+> **Work in Progress:** OVASABI is a living project, continuously evolving with new paradigms,
+> features, and best practices. See the [manifesto](docs/amadeus/manifesto.md) and
+> [project preface](docs/amadeus/project_preface.md) for philosophy, roadmap, and intent.
 
-The project follows a clean architecture approach with clear separation of concerns:
+## Philosophy
 
-- **Service Layer**: Business logic implementation
-- **Repository Layer**: Data access and persistence
-- **Infrastructure Layer**: Cross-cutting concerns (monitoring, concurrency, etc.)
+See [docs/amadeus/manifesto.md](docs/amadeus/manifesto.md) for the full manifesto and advice. In
+short: simplicity, extensibility, fairness, and digital legacy are at the heart of everything we do.
 
-### Key Features
+## Latest Standards & Innovations
 
-- **Monitoring & Observability**
+- **Metadata as System Currency:** Metadata is the universal ledger and currency of OVASABI,
+  tracking value, reputation, and contributions across users, services, content, and tasks.
+- **System-Wide Timezone Awareness:** All events, transactions, and metadata updates are timestamped
+  and normalized for global consistency (TimezoneZ).
+- **System Currency Explorer:** A tool (UI/API) for visualizing and analyzing the total value,
+  contributions, and flows within the ecosystem.
+- **User, Service, and Task Scores:** Every entity can have its own score, history, and value,
+  contributing to the living system currency.
+- **Dual Licensing:** OVASABI is available under the MIT License for open source use and a
+  commercial license for enterprise features, support, and additional guarantees.
+- **Canonical/Hosted Platform:** The hosted version of OVASABI is the de facto source of truth for
+  standards, updates, and governance.
 
-  - Prometheus metrics collection
-  - OpenTelemetry distributed tracing with Jaeger
-  - Structured logging with Zap
-  - Health checks and readiness probes
+## Features
 
-- **Service Implementation**
+- Metadata-centric, self-documenting architecture
+- Extensible connectors for people, services, compliance, and more
+- Digital will pattern for legacy and allocation
+- Accessibility and compliance built-in
+- Automation with intention, transparency, and resilience
+- Real-time, event-driven orchestration (Nexus, Redis, PostgreSQL)
+- System-wide timezone and temporal intelligence (TimezoneZ)
+- System Currency Explorer for value analytics and governance
+- Tiered, programmable taxation and UBI encoded in metadata
+- Graceful, symmetrical error and success orchestration
+- Modular adapters and bridge layer for protocol extensibility
+- Open source and commercial support options
 
-  - gRPC service with interceptors
-  - Dependency injection
-  - Interface-based design
-  - Comprehensive error handling
-  - Request context management
+## Directory Structure (Work in Progress)
 
-- Modular, concurrent service registration using dependency injection (DI)
-- Each service is automatically registered as a pattern in the Nexus orchestrator for orchestration
-  and introspection
-- Robust error handling for all registration and orchestration steps
+```go
+.
+├── api/                # Protobuf definitions for all services
+├── internal/           # Service implementations, handlers, business logic
+│   ├── blueprints/     # Service blueprints and patterns
+│   ├── bootstrap/      # System bootstrap logic
+│   ├── config/         # Configuration management
+│   ├── health/         # Health checks and metrics
+│   ├── metrics/        # Metrics collection
+│   ├── nexus/          # Orchestration, event bus, bridge, adapters
+│   │   ├── service/
+│   │   │   ├── pattern/    # Orchestration patterns
+│   │   │   ├── bridge/     # Protocol bridge, adapters, registry
+│   │   │   └── adapters/   # Protocol adapters (MQTT, WebSocket, etc.)
+│   ├── repository/     # Data access and caching
+│   ├── server/         # API, WebSocket, REST, gRPC handlers
+│   ├── service/        # All core and extension services
+│   └── shared/         # Shared utilities and interfaces
+├── pkg/                # Shared packages (graceful, utils, logger, etc.)
+├── tax/                # Digital will, allocation, and taxation logic
+├── docs/               # Documentation, manifesto, advice, explorer, patterns
+│   └── amadeus/
+│       ├── manifesto.md
+│       ├── project_preface.md
+│       ├── amadeus_context.md
+│       └── explorer.md
+├── explorer/           # System Currency Explorer (UI/API, WIP)
+├── TimezoneZ/          # Timezone and temporal intelligence (WIP)
+├── README.md           # This file
+├── CONTRIBUTING.md     # How to contribute
+├── CODE_OF_CONDUCT.md  # Community guidelines
+├── LICENSE             # Open source license
+```
 
-The Provider struct now includes a patternStore field, which manages pattern orchestration
-registration in Nexus.
+## Services List (Work in Progress)
 
-## Canonical Metadata Pattern
+- **User**: Identity, authentication, RBAC, audit
+- **Notification**: Multi-channel, templates, real-time
+- **Campaign**: Campaign management, analytics
+- **Referral**: Referral, rewards, fraud detection
+- **Security**: Policies, audit, compliance
+- **Content**: Articles, micro-posts, video, comments, reactions
+- **Commerce**: Orders, payments, billing
+- **Localization**: i18n, translation, compliance
+- **Search**: Full-text, fuzzy, entity search
+- **Admin**: Admin user management, roles, audit
+- **Analytics**: Event, usage, reporting
+- **ContentModeration**: Moderation, compliance
+- **Talent**: Talent profiles, bookings
+- **Nexus**: Orchestration, event bus, bridge, adapters
+- **Adapters/Bridge**: MQTT, WebSocket, AMQP, HTTP, and more
+- **Scheduler**: Time-based orchestration (WIP)
+- **Explorer**: System Currency Explorer (WIP)
+- **TimezoneZ**: Temporal normalization (WIP)
 
-All services now use a central, extensible `common.Metadata` message for all metadata fields. This
-enables:
+## Metadata (System Currency & Extensibility)
 
-- Consistent, discoverable metadata across all services
-- Service-specific extensibility via the `service_specific` field
-- Efficient storage and querying with Postgres `jsonb`
-- Intrinsic scheduling and orchestration via the Scheduler service and Postgres triggers
-- Knowledge graph and AI/ML integration
+- **Universal Ledger:** Metadata tracks every operation, service, and relationship, making it
+  possible to value and reward all forms of participation—human or machine.
+- **Lineage and Provenance:** Every entity, fork, and contribution is traceable via the `lineage`
+  field and audit trails.
+- **Extensible Patterns:** New fields, services, and value flows can be added without breaking
+  existing data or requiring disruptive migrations.
+- **System Currency:** The sum of all scores and values across the system forms a living, auditable
+  measure of reputation, contribution, and impact.
+- **See:** [docs/services/metadata.md](docs/services/metadata.md),
+  [docs/amadeus/amadeus_context.md](docs/amadeus/amadeus_context.md)
 
-See the Amadeus context for full documentation and best practices.
+## Graceful Orchestration (Error & Success)
+
+- **Centralized Handling:** All errors and successes are handled via the `graceful` package,
+  orchestrating post-action flows (logging, audit, cache, events) automatically and symmetrically.
+- **Extensible Hooks:** Custom hooks and overrides allow for service-specific or advanced
+  orchestration.
+- **Auditability:** Every outcome is logged and auditable, supporting resilience and compliance.
+- **See:** [pkg/graceful/](pkg/graceful/),
+  [docs/amadeus/amadeus_context.md#platform-standard-graceful-error-and-success-handling](docs/amadeus/amadeus_context.md#platform-standard-graceful-error-and-success-handling)
+
+## Database & Redis Practices
+
+- **PostgreSQL:**
+  - Use `jsonb` columns for rich, extensible metadata
+  - Full-text search, GIN/partial indexes for performance
+  - Partitioning, archiving, and audit trails for scalability
+- **Redis:**
+  - Hot data caching for low-latency access
+  - Pub/sub for real-time events and notifications
+  - Rate limiting, counters, and ephemeral state
+- **See:** [docs/development/database_practices.md](docs/development/database_practices.md),
+  [docs/development/redis_practices.md](docs/development/redis_practices.md)
+
+## Handlers, Nexus, and Orchestration Patterns
+
+- **Handlers:** REST, gRPC, and WebSocket handlers translate external requests into canonical
+  metadata-driven actions.
+- **Nexus:** The event bus and orchestration layer connect all services, adapters, and real-time
+  flows, enabling dynamic, metadata-driven automation.
+- **Bridge/Adapters:** Protocol adapters (MQTT, WebSocket, etc.) enable integration with any
+  external system or device.
+- **See:** [internal/nexus/service/pattern/](internal/nexus/service/pattern/),
+  [internal/nexus/service/bridge/](internal/nexus/service/bridge/)
+
+## Manifesto & Key Documentation
+
+- [Manifesto](docs/amadeus/manifesto.md): Philosophy, values, and intent
+- [Project Preface](docs/amadeus/project_preface.md): Roadmap, acknowledgments, learning philosophy
+- [Amadeus Context](docs/amadeus/amadeus_context.md): System architecture, metadata, orchestration
+- [Metadata Standard](docs/services/metadata.md): Canonical metadata pattern
+- [Explorer](docs/amadeus/explorer.md): System Currency Explorer (WIP)
 
 ## Getting Started
 
-1. **Prerequisites**
-
-   - Go 1.22.2+
-   - Docker & Kubernetes
-   - Make
-   - Protocol Buffers compiler (protoc)
-
-2. **Installation**
-
-   ```bash
-   # Install protobuf generators
-   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
-
-   # Setup project
-   make setup
-   make build
-   ```
-
-3. **Development**
-
-   ```bash
-   # Generate protobuf code
-   protoc --go_out=. --go_opt=paths=source_relative \
-          --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-          api/protos/*.proto
-
-   # Run tests
-   make test
-   ```
-
-4. **Docker Build & Run**
-
-   ```bash
-   # Build and run with Docker Compose
-   cd deployments/docker
-   docker-compose up --build -d
-
-   # Or build Docker image manually
-   docker build -t ovasabi/master-ovasabi:latest -f deployments/docker/Dockerfile .
-
-   # Run container manually
-   docker run -p 50051:50051 -p 9090:9090 ovasabi/master-ovasabi:latest
-   ```
-
-5. **Kubernetes Deployment**
-
-   ```bash
-   kubectl apply -f deployments/kubernetes/deployment.yaml
-   ```
-
-## Directory Structure
-
-```text
-.
-├── api/                # API definitions (protobuf)
-├── cmd/                # Application entry points
-├── config/             # Configuration files
-├── deployments/        # Deployment configurations
-├── docs/              # Documentation
-├── internal/          # Private application code
-│   ├── server/       # gRPC server implementation
-│   └── service/      # Service implementations (User, Notification, Content, Commerce, etc.)
-├── pkg/               # Public packages
-│   ├── logger/       # Logging package
-│   ├── metrics/      # Metrics package
-│   └── tracing/      # Tracing package
-└── test/              # Test suites
-```
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [API Documentation](docs/api.md)
-- [Development Guide](docs/development.md)
-- [Deployment Guide](docs/deployment.md)
-- [Documentation Tooling](docs/tools/documentation-tooling.md)
+1. Clone the repo
+2. Install Go and dependencies (`go mod tidy`)
+3. See `tax/ovasabi_default.go` for the digital will pattern
+4. Explore the docs and services
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. All are welcome—code, docs, ideas, and
+feedback!
 
 ## License
 
-MIT License
+See [LICENSE](LICENSE) for details.
 
-## Protobuf Code Generation
+## Roadmap & Community Efforts
 
-### Prerequisites
+See the [Project Preface Roadmap](docs/amadeus/project_preface.md#coming-soon--community-roadmap)
+for a detailed list of missing functionality, areas for improvement, and opportunities for community
+contribution.
 
-Before generating protobuf code, ensure you have the following installed:
+Highlights:
 
-1. Protocol Buffers Compiler (protoc)
-2. Go plugins for protoc:
+- Automated service discovery for connectors
+- Dynamic relationship management (friend/family/lover/children blocks)
+- Advanced orchestration and graceful error/success handling
+- Accessibility and compliance automation
+- Real-time knowledge graph updates and visualization
+- Frontend reference implementation
+- Internationalization, localization, and more
 
-   ```bash
-   make deps
-   ```
+**Your ideas, feedback, and contributions are welcome!**
 
-   This will install:
+## Explore More
 
-   - protoc-gen-go (for generating Go code)
-   - protoc-gen-grpc-gateway (for gRPC-Gateway)
-   - protoc-gen-swagger (for Swagger/OpenAPI)
-   - go-swagger (for API documentation)
+- **Experimental Features:** See `docs/architecture/experimental/` for cutting-edge ideas and
+  prototypes.
+- **Campaign Documentation:** See `docs/campaign/` for campaign scaffolding, best practices, and
+  examples.
+- **Articles:** See `docs/articles/` for in-depth explorations, technical deep-dives, and thought
+  leadership.
 
-### Generating Code
+For the full philosophy, advice, and roadmap, see
+[docs/amadeus/manifesto.md](docs/amadeus/manifesto.md) and
+[docs/amadeus/project_preface.md](docs/amadeus/project_preface.md).
 
-To generate code from your .proto files:
+## The OVASABI Thank You Tax
 
-```bash
-make proto
-```
+OVASABI is my digital will—a living system, a manifesto, and a gift to the world. If you've found
+value here—if this project has inspired you, saved you time, or sparked new ideas—consider paying a
+small "thank you tax."
 
-This command will generate Go code for all proto files in the following directories:
+This isn't a tax in the traditional sense. It's a gesture of gratitude—a way to say, _"I see you. I
+appreciate the work. I want this legacy to grow."_
 
-- api/protos/auth/
-- api/protos/broadcast/
-- api/protos/i18n/
-- api/protos/notification/
-- api/protos/quotes/
-- api/protos/referral/
-- api/protos/user/
-- api/protos/content/
+Your contribution helps me:
 
-### Creating a New Service
+- Keep the lights on and the servers running
+- Dedicate more time to building, documenting, and supporting the community
+- Ensure OVASABI remains open, accessible, and evolving for everyone
 
-To create a new service with proto files:
+**No amount is too small.** Every "thank you tax" is a vote for open knowledge, fairness, and
+digital legacy.
 
-```bash
-make new-service
-```
+If you'd like to contribute, you can do so here: [**Support OVASABI**](#)
 
-When prompted, enter your service name (e.g., payment, inventory, content). This will:
+<!-- Replace # with your funding link (GitHub Sponsors, Open Collective, etc.) -->
 
-1. Create a new directory in api/protos/<service_name>
-2. Generate a basic proto file template
-3. Create a service implementation template in internal/service/
+Thank you for being part of this journey. Let's keep building—together.
 
-After creating a new service, run `make proto` to generate the Go code.
+— Nobert Momoh (OVASABI Creator)
 
-### Available Make Commands
+## Dual Licensing
 
-- `make deps` - Install all required protobuf dependencies
-- `make proto` - Generate Go code from proto files
-- `make swagger` - Generate Swagger/OpenAPI documentation
-- `make help` - Show all available make commands
+OVASABI is dual-licensed:
+
+- **MIT License:** Free and open source for community use, contributions, and research. See
+  [LICENSE](LICENSE).
+- **Commercial License:** For enterprises or organizations needing additional features, support,
+  SLAs, or legal guarantees. Contact us for commercial licensing options.
+
+## System Currency Explorer (Work in Progress)
+
+The System Currency Explorer visualizes and analyzes the total value, contributions, and flows
+within OVASABI. It enables:
+
+- Viewing the total system currency (sum of all metadata scores)
+- Drilling down into users, services, and tasks to see their value and history
+- Tracking value flows, tax, and rewards
+- Auditing provenance and digital legacy
+
+## Canonical/Hosted Platform
+
+The hosted version of OVASABI is the canonical source of truth for standards, updates, and
+governance. Forks and integrations inherit the metadata lineage, but the hosted platform sets the
+reference for the ecosystem.

@@ -16,6 +16,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/nexus"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -520,29 +521,14 @@ func (s *Service) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.
 
 // extractAuthContext extracts user_id, roles, guest_nickname, device_id from context or metadata.
 func extractAuthContext(ctx context.Context, meta *commonpb.Metadata) (userID string, roles []string, guestNickname, deviceID string) {
-	// Try context first
-	if v := ctx.Value("user_id"); v != nil {
-		if s, ok := v.(string); ok {
-			userID = s
-		}
-	}
-	if v := ctx.Value("roles"); v != nil {
-		if arr, ok := v.([]string); ok {
-			roles = arr
-		}
-	}
-	if v := ctx.Value("guest_nickname"); v != nil {
-		if s, ok := v.(string); ok {
-			guestNickname = s
-		}
-	}
-	if v := ctx.Value("device_id"); v != nil {
-		if s, ok := v.(string); ok {
-			deviceID = s
-		}
+	// Try contextx.Auth first
+	authCtx := contextx.Auth(ctx)
+	if authCtx != nil {
+		userID = authCtx.UserID
+		roles = authCtx.Roles
 	}
 	// Fallback: try metadata
-	if meta != nil && meta.ServiceSpecific != nil {
+	if (userID == "" || len(roles) == 0) && meta != nil && meta.ServiceSpecific != nil {
 		m := meta.ServiceSpecific.AsMap()
 		if a, ok := m["actor"].(map[string]interface{}); ok {
 			if v, ok := a["user_id"].(string); ok && userID == "" {

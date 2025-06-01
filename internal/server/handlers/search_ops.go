@@ -11,7 +11,7 @@ import (
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
-	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
@@ -31,8 +31,11 @@ import (
 // @Router /api/search_ops [post]
 
 // SearchOpsHandler: Composable, robust handler for search operations.
-func SearchOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func SearchOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var searchSvc searchpb.SearchServiceServer
 		if err := container.Resolve(&searchSvc); err != nil {
 			log.Error("Failed to resolve SearchService", zap.Error(err))
@@ -40,18 +43,18 @@ func SearchOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc
 			return
 		}
 		// Extract user context
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(r.Context())
 		userID := authCtx.UserID
 		roles := authCtx.Roles
 		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
 		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		ctx = contextx.WithMetadata(ctx, meta)
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		ctx := r.Context()
 		var req *searchpb.SearchRequest
 		switch r.Method {
 		case http.MethodGet:
@@ -139,6 +142,8 @@ func SearchOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc
 			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
 			return
 		}
+		// After building meta:
+		ctx = contextx.WithMetadata(ctx, meta)
 		// --- Permission enforcement by type ---
 		// Determine required permission based on types and metadata
 		needAuth := false

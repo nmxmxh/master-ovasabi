@@ -10,6 +10,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -533,14 +534,13 @@ func mapStatusToProto(s Status) notificationpb.NotificationStatus {
 
 // extractAuthContext extracts user_id from context or metadata.
 func extractAuthContext(ctx context.Context, meta *commonpb.Metadata) (userID string) {
-	// Try context first
-	if v := ctx.Value("user_id"); v != nil {
-		if s, ok := v.(string); ok {
-			userID = s
-		}
+	// Try contextx.Auth first
+	authCtx := contextx.Auth(ctx)
+	if authCtx != nil && authCtx.UserID != "" {
+		userID = authCtx.UserID
 	}
 	// Fallback: try metadata
-	if meta != nil && meta.ServiceSpecific != nil {
+	if userID == "" && meta != nil && meta.ServiceSpecific != nil {
 		m := meta.ServiceSpecific.AsMap()
 		if a, ok := m["actor"].(map[string]interface{}); ok {
 			if v, ok := a["user_id"].(string); ok && userID == "" {

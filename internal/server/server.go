@@ -30,15 +30,18 @@ import (
 
 	"github.com/nmxmxh/master-ovasabi/internal/config"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 
+	"github.com/google/uuid"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/google"
 	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
 	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
@@ -63,7 +66,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // ServiceRegistration represents a service registration entry for the knowledge graph.
@@ -206,32 +211,67 @@ func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger)
 		// Extract service and method names
 		svcName, methodName := extractServiceAndMethod(info.FullMethod)
 
-		// --- Context Extraction: Extract user/session/guest info from context ---
-		// (no longer need principal or guestMode for logging)
-		// ... existing code ...
-		// --- Authorization (stub: always allow for now) ---
-		// ... existing code ...
 		// --- Handler Execution ---
 		resp, err := handler(ctx, req)
 
-		// --- Single Audit Point ---
+		// --- Context Extraction: Extract user/session/guest info from context ---
+		authCtx := contextx.Auth(ctx)
+		principal := authCtx.UserID
+		if principal == "" {
+			principal = "guest"
+		}
+		roles := authCtx.Roles
+
+		// Convert roles []string to []interface{} for structpb compatibility
+		rolesIface := make([]interface{}, len(roles))
+		for i, r := range roles {
+			rolesIface[i] = r
+		}
+
+		// Try to extract resource from the request if possible (pseudo-code, extend as needed)
+		var resource string
+		if r, ok := req.(interface{ GetResourceId() string }); ok {
+			resource = r.GetResourceId()
+		}
+		// Optionally, try common field names
+		if resource == "" {
+			if m, ok := req.(map[string]interface{}); ok {
+				if v, ok := m["user_id"].(string); ok && v != "" {
+					resource = v
+				} else if v, ok := m["id"].(string); ok && v != "" {
+					resource = v
+				}
+			}
+		}
+
+		// Build metadata with status, error, roles, timestamp, etc.
+		metaMap := map[string]interface{}{
+			"roles":     rolesIface,
+			"status":    "success",
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		}
+		if err != nil {
+			metaMap["status"] = "fail"
+			metaMap["error"] = err.Error()
+		}
+		metaStruct, errMeta := structpb.NewStruct(metaMap)
+		if errMeta != nil {
+			log.Warn("Failed to build audit metadata struct", zap.Error(errMeta))
+			return resp, err
+		}
+		metadata := &commonpb.Metadata{ServiceSpecific: metaStruct}
+
 		var securitySvc securitypb.SecurityServiceServer
 		if err := provider.Container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
 			// Do not fail the request if audit logging is unavailable
 		} else {
-			// statusStr := "success" // Uncomment and use when proto supports status field
-			// if err != nil { statusStr = "fail" }
-			// TODO: Populate with more context as proto evolves (principal, resource, guestMode, etc.)
 			_, auditErr := securitySvc.AuditEvent(ctx, &securitypb.AuditEventRequest{
-				// Service: svcName,
-				// Method: methodName,
-				// PrincipalId: principal,
-				// Resource: resource,
-				// GuestMode: guestMode,
-				// Status: statusStr,
-				// Error: err.Error(),
-				// Timestamp: time.Now().Format(time.RFC3339),
+				EventType:   "grpc_request",
+				PrincipalId: principal,
+				Resource:    resource,
+				Action:      methodName,
+				Metadata:    metadata,
 			})
 			if auditErr != nil {
 				log.Warn("Failed to record audit event", zap.String("service", svcName), zap.String("method", methodName), zap.Error(auditErr))
@@ -401,7 +441,10 @@ func Run() {
 
 	// Initialize gRPC server
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(SecurityUnaryServerInterceptor(provider, log)),
+		grpc.ChainUnaryInterceptor(
+			diContainerUnaryInterceptor(container, log),
+			SecurityUnaryServerInterceptor(provider, log),
+		),
 	)
 
 	// Health server
@@ -694,4 +737,65 @@ func startAggregatedLogger(log *zap.Logger) {
 			)
 		}
 	}()
+}
+
+// Update diContainerUnaryInterceptor to accept a logger and log the gRPC method name.
+func diContainerUnaryInterceptor(container *di.Container, log *zap.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		log.Debug("gRPC method called", zap.String("method", info.FullMethod))
+		ctx = contextx.WithDI(ctx, container)
+		rv, err := handler(ctx, req)
+		return rv, err
+	}
+}
+
+// HTTP middleware to inject request ID, trace ID, and feature flags into context
+func ContextInjectionMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqID := r.Header.Get("X-Request-ID")
+		if reqID == "" {
+			reqID = uuid.NewString()
+		}
+		traceID := r.Header.Get("X-Trace-ID")
+		if traceID == "" {
+			traceID = uuid.NewString()
+		}
+		flagsHeader := r.Header.Get("X-Feature-Flags")
+		var flags []string
+		if flagsHeader != "" {
+			flags = strings.Split(flagsHeader, ",")
+		}
+		ctx := r.Context()
+		ctx = contextx.WithRequestID(ctx, reqID)
+		ctx = contextx.WithTraceID(ctx, traceID)
+		ctx = contextx.WithFeatureFlags(ctx, flags)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// gRPC interceptor to inject request ID, trace ID, and feature flags into context
+func ContextInjectionUnaryInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		md, _ := metadata.FromIncomingContext(ctx)
+		reqID := ""
+		if vals := md.Get("x-request-id"); len(vals) > 0 {
+			reqID = vals[0]
+		} else {
+			reqID = uuid.NewString()
+		}
+		traceID := ""
+		if vals := md.Get("x-trace-id"); len(vals) > 0 {
+			traceID = vals[0]
+		} else {
+			traceID = uuid.NewString()
+		}
+		flags := []string{}
+		if vals := md.Get("x-feature-flags"); len(vals) > 0 {
+			flags = strings.Split(vals[0], ",")
+		}
+		ctx = contextx.WithRequestID(ctx, reqID)
+		ctx = contextx.WithTraceID(ctx, traceID)
+		ctx = contextx.WithFeatureFlags(ctx, flags)
+		return handler(ctx, req)
+	}
 }

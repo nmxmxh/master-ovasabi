@@ -1,17 +1,22 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	userv1 "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -40,8 +45,11 @@ import (
 //	if !ok { log.Error(...); http.Error(...); return }
 //
 // This pattern is enforced for all handler files.
-func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func UserOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var userSvc userv1.UserServiceServer
 		if err := container.Resolve(&userSvc); err != nil {
 			log.Error("Failed to resolve UserService", zap.Error(err))
@@ -58,10 +66,11 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
 		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		ctx = contextx.WithMetadata(ctx, meta)
 		action, ok := req["action"].(string)
 		if !ok || action == "" {
 			log.Error("Missing or invalid action in user request", zap.Any("value", req["action"]))
@@ -136,12 +145,48 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 				Roles:    roles,
 				Metadata: meta,
 			}
-			resp, err := userSvc.CreateUser(r.Context(), protoReq)
+			// Resolve EventEmitter and Cache for orchestration
+			var eventEmitter interface {
+				EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType string, eventID string, meta *commonpb.Metadata) (string, bool)
+			}
+			if err := container.Resolve(&eventEmitter); err != nil {
+				log.Error("Failed to resolve EventEmitter", zap.Error(err))
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			var userCache *redis.Cache
+			if err := container.Resolve(&userCache); err != nil {
+				log.Error("Failed to resolve UserCache", zap.Error(err))
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			cache := &cacheAdapter{c: userCache}
+			resp, err := userSvc.CreateUser(ctx, protoReq)
 			if err != nil {
-				log.Error("Failed to create user", zap.Error(err))
+				errResp := graceful.WrapErr(ctx, codes.Internal, "failed to create user", err)
+				errResp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+					Log:          log,
+					Cache:        cache,
+					CacheKey:     username,
+					EventEmitter: eventEmitter,
+					EventEnabled: true,
+					EventType:    "user_create_failed",
+					EventID:      username,
+					PatternType:  "user",
+					PatternID:    username,
+					PatternMeta:  meta,
+					Metadata:     meta,
+				})
 				http.Error(w, "failed to create user", http.StatusInternalServerError)
 				return
 			}
+			success := graceful.WrapSuccess(ctx, codes.OK, "user created", resp.User, nil)
+			success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+				Log:          log,
+				Cache:        cache,
+				EventEmitter: eventEmitter,
+				Metadata:     resp.User.Metadata,
+			})
 			if err := json.NewEncoder(w).Encode(map[string]interface{}{"user": resp.User}); err != nil {
 				log.Error("Failed to write JSON response (create_user)", zap.Error(err))
 				http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -156,7 +201,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 				return
 			}
 			protoReq := &userv1.GetUserRequest{UserId: userID}
-			resp, err := userSvc.GetUser(r.Context(), protoReq)
+			resp, err := userSvc.GetUser(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to get user", zap.Error(err))
 				http.Error(w, "failed to get user", http.StatusInternalServerError)
@@ -179,7 +224,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
 			}
-			err := shield.CheckPermission(r.Context(), securitySvc, action, "user", shield.WithMetadata(meta))
+			err := shield.CheckPermission(ctx, securitySvc, action, "user", shield.WithMetadata(meta))
 			if err != nil {
 				switch {
 				case errors.Is(err, shield.ErrUnauthenticated):
@@ -261,7 +306,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 					User:           user,
 					FieldsToUpdate: fieldsToUpdate,
 				}
-				resp, err := userSvc.UpdateUser(r.Context(), protoReq)
+				resp, err := userSvc.UpdateUser(ctx, protoReq)
 				if err != nil {
 					log.Error("Failed to update user", zap.Error(err))
 					http.Error(w, "failed to update user", http.StatusInternalServerError)
@@ -280,7 +325,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 					return
 				}
 				protoReq := &userv1.DeleteUserRequest{UserId: userID}
-				resp, err := userSvc.DeleteUser(r.Context(), protoReq)
+				resp, err := userSvc.DeleteUser(ctx, protoReq)
 				if err != nil {
 					log.Error("Failed to delete user", zap.Error(err))
 					http.Error(w, "failed to delete user", http.StatusInternalServerError)
@@ -305,7 +350,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 					return
 				}
 				protoReq := &userv1.AssignRoleRequest{UserId: userID, Role: role}
-				resp, err := userSvc.AssignRole(r.Context(), protoReq)
+				resp, err := userSvc.AssignRole(ctx, protoReq)
 				if err != nil {
 					log.Error("Failed to assign role", zap.Error(err))
 					http.Error(w, "failed to assign role", http.StatusInternalServerError)
@@ -332,7 +377,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 			}
 			// Fetch user, update metadata.service_specific.user.preferences
 			getReq := &userv1.GetUserRequest{UserId: userID}
-			getResp, err := userSvc.GetUser(r.Context(), getReq)
+			getResp, err := userSvc.GetUser(ctx, getReq)
 			if err != nil {
 				log.Error("Failed to get user for update_preferences", zap.Error(err))
 				http.Error(w, "failed to get user", http.StatusInternalServerError)
@@ -366,7 +411,7 @@ func UserOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
 				User:           user,
 				FieldsToUpdate: []string{"metadata"},
 			}
-			resp, err := userSvc.UpdateUser(r.Context(), updateReq)
+			resp, err := userSvc.UpdateUser(ctx, updateReq)
 			if err != nil {
 				log.Error("Failed to update preferences", zap.Error(err))
 				http.Error(w, "failed to update preferences", http.StatusInternalServerError)
@@ -718,4 +763,21 @@ func isAdmin(roles []string) bool {
 		}
 	}
 	return false
+}
+
+// Adapter for graceful orchestration cache interface
+type cacheAdapter struct {
+	c *redis.Cache
+}
+
+func (a *cacheAdapter) Set(ctx context.Context, key, field string, value interface{}, ttl time.Duration) error {
+	return a.c.Set(ctx, key, field, value, ttl)
+}
+
+func (a *cacheAdapter) Delete(ctx context.Context, key string, fields ...string) error {
+	field := ""
+	if len(fields) > 0 {
+		field = fields[0]
+	}
+	return a.c.Delete(ctx, key, field)
 }

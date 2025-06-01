@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // ContextError wraps an error with context, gRPC code, and structured fields.
@@ -97,6 +100,53 @@ type ErrorOrchestrationConfig struct {
 	FallbackFunc func(context.Context, *ContextError) error                       // e.g., fallback logic
 	SwitchFunc   func(*ContextError) []func(context.Context, *ContextError) error // returns hooks based on error context
 	Context      context.Context
+
+	// Yin-Yang: Symmetrical orchestration fields (mirroring SuccessOrchestrationConfig)
+	Cache interface {
+		Set(context.Context, string, string, interface{}, time.Duration) error
+		Delete(context.Context, string, ...string) error
+	}
+	CacheKey     string
+	CacheValue   interface{}
+	CacheTTL     time.Duration
+	Metadata     interface{} // Accept *commonpb.Metadata or similar
+	EventEmitter interface {
+		EmitEventWithLogging(context.Context, interface{}, *zap.Logger, string, string, *commonpb.Metadata) (string, bool)
+	}
+	EventEnabled bool
+	EventType    string
+	EventID      string
+	PatternType  string
+	PatternID    string
+	PatternMeta  interface{}
+
+	// Custom orchestration hooks (optional)
+	MetadataHook       func(context.Context) error
+	KnowledgeGraphHook func(context.Context) error
+	SchedulerHook      func(context.Context) error
+	NexusHook          func(context.Context) error
+	EventHook          func(context.Context) error
+	NormalizationHook  func(context.Context, interface{}, string, bool) (interface{}, error)
+	PartialUpdate      bool
+}
+
+// Helper to build error metadata with closure info.
+func buildErrorMetadata(e *ContextError, closure map[string]interface{}) *commonpb.Metadata {
+	errorMap := map[string]interface{}{
+		"code":    e.Code.String(),
+		"message": e.Message,
+	}
+	fields := map[string]interface{}{
+		"error": errorMap,
+	}
+	if closure != nil {
+		fields["closure"] = closure
+	}
+	ss, err := structpb.NewStruct(fields)
+	if err != nil {
+		return nil
+	}
+	return &commonpb.Metadata{ServiceSpecific: ss}
 }
 
 // StandardOrchestrate runs all standard error orchestration steps based on the config.
@@ -154,6 +204,78 @@ func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchest
 	} else {
 		// Default: return orchestration failure for unimplemented fallback
 		errs = append(errs, errors.New("error fallback not implemented"))
+	}
+	// 5. Yin-Yang orchestration: cache invalidation, error event emission, etc.
+	if cfg.Cache != nil && cfg.CacheKey != "" {
+		if err := cfg.Cache.Delete(ctx, cfg.CacheKey, "profile"); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("Failed to invalidate cache on error", zap.Error(err))
+			}
+		}
+	}
+	if cfg.MetadataHook != nil {
+		if err := cfg.MetadataHook(ctx); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("MetadataHook (error) failed", zap.Error(err))
+			}
+		}
+	}
+	if cfg.KnowledgeGraphHook != nil {
+		if err := cfg.KnowledgeGraphHook(ctx); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("KnowledgeGraphHook (error) failed", zap.Error(err))
+			}
+		}
+	}
+	if cfg.SchedulerHook != nil {
+		if err := cfg.SchedulerHook(ctx); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("SchedulerHook (error) failed", zap.Error(err))
+			}
+		}
+	}
+	if cfg.EventHook != nil {
+		if err := cfg.EventHook(ctx); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("EventHook (error) failed", zap.Error(err))
+			}
+		}
+	} else if cfg.EventEnabled && cfg.EventEmitter != nil {
+		var meta *commonpb.Metadata
+		switch m := cfg.PatternMeta.(type) {
+		case *commonpb.Metadata:
+			meta = m
+		case nil:
+			meta = buildErrorMetadata(e, map[string]interface{}{
+				"code":    e.Code.String(),
+				"message": e.Message,
+				"context": e.Context,
+			})
+		default:
+			meta = buildErrorMetadata(e, map[string]interface{}{
+				"code":             e.Code.String(),
+				"message":          e.Message,
+				"context":          e.Context,
+				"raw_pattern_meta": m,
+			})
+		}
+		_, ok := cfg.EventEmitter.EmitEventWithLogging(ctx, cfg.EventEmitter, cfg.Log, cfg.EventType, cfg.EventID, meta)
+		if !ok {
+			errs = append(errs, errors.New("failed to emit error event (yin-yang)"))
+		}
+	}
+	if cfg.NexusHook != nil {
+		if err := cfg.NexusHook(ctx); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("NexusHook (error) failed", zap.Error(err))
+			}
+		}
 	}
 	return errs
 }

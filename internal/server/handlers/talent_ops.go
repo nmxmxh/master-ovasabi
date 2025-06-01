@@ -6,6 +6,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -24,8 +25,11 @@ import (
 // @Router /api/talent_ops [post]
 
 // TalentOpsHandler: Composable, robust handler for talent operations.
-func TalentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var talentSvc talentpb.TalentServiceServer
 		if err := container.Resolve(&talentSvc); err != nil {
 			log.Error("Failed to resolve TalentService", zap.Error(err))
@@ -48,7 +52,6 @@ func TalentOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		ctx := r.Context()
 		switch action {
 		case "create_talent_profile":
 			profile := &talentpb.TalentProfile{}

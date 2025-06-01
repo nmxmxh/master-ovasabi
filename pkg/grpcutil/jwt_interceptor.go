@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -35,7 +36,7 @@ func NewJWTUnaryInterceptor(secret string) grpc.UnaryServerInterceptor {
 		} else {
 			authCtx = &auth.Context{Roles: []string{"guest"}}
 		}
-		ctx = auth.NewContext(ctx, authCtx)
+		ctx = contextx.WithAuth(ctx, authCtx)
 		return handler(ctx, req)
 	}
 }

@@ -9,7 +9,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
-	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
@@ -29,8 +29,11 @@ import (
 // @Router /api/admin_ops [post]
 
 // AdminOpsHandler: Composable, robust handler for admin operations.
-func AdminOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func AdminOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var adminSvc adminpb.AdminServiceServer
 		if err := container.Resolve(&adminSvc); err != nil {
 			log.Error("Failed to resolve AdminService", zap.Error(err))
@@ -42,7 +45,7 @@ func AdminOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			return
 		}
 		// Extract authentication context
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
 		if isGuest {
@@ -55,6 +58,7 @@ func AdminOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			return
 		}
 		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		ctx = contextx.WithMetadata(ctx, meta)
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
@@ -71,7 +75,6 @@ func AdminOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc 
 			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil, zap.Any("value", req["action"]))
 			return
 		}
-		ctx := r.Context()
 		// Permission check for all admin actions
 		err := shield.CheckPermission(ctx, securitySvc, action, "admin", shield.WithMetadata(meta))
 		switch {

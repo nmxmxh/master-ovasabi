@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
-	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 )
@@ -22,8 +22,11 @@ import (
 // @Failure 400 {object} ErrorResponse
 // @Router /api/scheduler_ops [post]
 
-func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func SchedulerOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var schedulerSvc schedulerpb.SchedulerServiceServer
 		if err := container.Resolve(&schedulerSvc); err != nil {
 			log.Error("SchedulerServiceServer not found in container", zap.Error(err))
@@ -46,7 +49,7 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		roles := authCtx.Roles
 		isSystem := false
 		for _, r := range roles {
@@ -108,7 +111,7 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				}
 			}
 			protoReq := &schedulerpb.CreateJobRequest{Job: &job, CampaignId: campaignID}
-			resp, err := schedulerSvc.CreateJob(r.Context(), protoReq)
+			resp, err := schedulerSvc.CreateJob(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to create job", zap.Error(err))
 				http.Error(w, "failed to create job", http.StatusInternalServerError)
@@ -162,7 +165,7 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				}
 			}
 			protoReq := &schedulerpb.UpdateJobRequest{Job: &job, CampaignId: campaignID}
-			resp, err := schedulerSvc.UpdateJob(r.Context(), protoReq)
+			resp, err := schedulerSvc.UpdateJob(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to update job", zap.Error(err))
 				http.Error(w, "failed to update job", http.StatusInternalServerError)
@@ -185,7 +188,7 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 			protoReq := &schedulerpb.DeleteJobRequest{JobId: jobID, CampaignId: campaignID}
-			resp, err := schedulerSvc.DeleteJob(r.Context(), protoReq)
+			resp, err := schedulerSvc.DeleteJob(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to delete job", zap.Error(err))
 				http.Error(w, "failed to delete job", http.StatusInternalServerError)
@@ -204,7 +207,7 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 			protoReq := &schedulerpb.GetJobRequest{JobId: jobID, CampaignId: campaignID}
-			resp, err := schedulerSvc.GetJob(r.Context(), protoReq)
+			resp, err := schedulerSvc.GetJob(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to get job", zap.Error(err))
 				http.Error(w, "failed to get job", http.StatusInternalServerError)
@@ -231,7 +234,7 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				status = ""
 			}
 			protoReq := &schedulerpb.ListJobsRequest{Page: page, PageSize: pageSize, Status: status, CampaignId: campaignID}
-			resp, err := schedulerSvc.ListJobs(r.Context(), protoReq)
+			resp, err := schedulerSvc.ListJobs(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to list jobs", zap.Error(err))
 				http.Error(w, "failed to list jobs", http.StatusInternalServerError)
@@ -250,7 +253,7 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 			protoReq := &schedulerpb.RunJobRequest{JobId: jobID, CampaignId: campaignID}
-			resp, err := schedulerSvc.RunJob(r.Context(), protoReq)
+			resp, err := schedulerSvc.RunJob(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to run job", zap.Error(err))
 				http.Error(w, "failed to run job", http.StatusInternalServerError)
@@ -277,7 +280,7 @@ func SchedulerOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				pageSize = int32(v)
 			}
 			protoReq := &schedulerpb.ListJobRunsRequest{JobId: jobID, Page: page, PageSize: pageSize, CampaignId: campaignID}
-			resp, err := schedulerSvc.ListJobRuns(r.Context(), protoReq)
+			resp, err := schedulerSvc.ListJobRuns(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to list job runs", zap.Error(err))
 				http.Error(w, "failed to list job runs", http.StatusInternalServerError)

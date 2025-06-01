@@ -1,10 +1,10 @@
 # Documentation
 
-version: 2025-05-14
+version: 2025-05-31
 
-version: 2025-05-14
+version: 2024-06-14
 
-version: 2025-05-14
+version: 2024-06-14
 
 
 > **Note:** Always refer to this Amadeus context and knowledge graph documentation before implementing or updating any service. This ensures all dependencies, capabilities, and integration points are current and consistent across the platform.
@@ -1747,3 +1747,94 @@ All orchestration (caching, event emission, knowledge graph enrichment, scheduli
 - Both success and error flows must use `StandardOrchestrate` for full compliance.
 - This ensures DRY, centralized, and platform-compliant orchestration for all services.
 - See service code for canonical usage patterns.
+
+## Nexus Communication Pipeline: Technical View
+
+The following Mermaid diagram illustrates how the Nexus orchestrator sits at the heart of the communication pipeline, connecting REST/gRPC handlers, WebSocket servers, and the event bus for real-time, metadata-driven orchestration:
+
+```mermaid
+graph TD
+    subgraph API Layer
+        A1[REST Handler] 
+        A2[gRPC Handler]
+        A3[WebSocket Handler]
+    end
+    
+    subgraph Service Layer
+        B1[Service Logic]
+    end
+    
+    subgraph Orchestration
+        C1[Nexus Event Bus]
+    end
+    
+    subgraph Real-Time
+        D1[WebSocket Server]
+    end
+    
+    subgraph Data & State
+        E1[Database]
+        E2[Redis Cache]
+        E3[Knowledge Graph]
+    end
+
+    %% API to Service
+    A1 -- Request/Response (metadata) --> B1
+    A2 -- Request/Response (metadata) --> B1
+    A3 -- Subscribe/Push (metadata) --> D1
+
+    %% Service to Orchestration
+    B1 -- Emit Event (metadata) --> C1
+    C1 -- Orchestrate/Route Event --> B1
+    C1 -- Broadcast Event --> D1
+
+    %% Real-Time
+    D1 -- Push Update (metadata) --> A3
+
+    %% Service to Data
+    B1 -- Query/Update --> E1
+    B1 -- Cache/Fetch --> E2
+    B1 -- Enrich/Update --> E3
+    C1 -- Update/Query --> E3
+
+    %% Data Feedback
+    E3 -- Enriches Metadata --> B1
+
+    %% Notes
+    classDef faded fill:#f9f,stroke:#333,stroke-width:1px,color:#999;
+```
+
+**Description:**
+- REST and gRPC handlers receive requests, pass them (with metadata) to service logic.
+- Service logic emits events to the Nexus event bus after actions (create, update, etc.).
+- Nexus orchestrates, routes, and broadcasts events to other services and the WebSocket server.
+- WebSocket server pushes real-time updates to connected clients via handlers.
+- All layers communicate using the canonical metadata pattern, ensuring extensibility and traceability.
+- Data flows to and from the database, cache, and knowledge graph, enriching the system's state and context.
+
+## Metadata as System Currency
+
+In OVASABI, metadata is not just a record of user actions or attributes—it is the universal ledger and currency of the entire system. Every entity (user, service, content, task, or event) maintains its own metadata, which can include scores, history, value, and relationships. The sum of all these scores and values across the system forms the "system currency": a living, auditable measure of reputation, contribution, and impact.
+
+- **Universal Ledger:** Metadata tracks every operation, service, and relationship, making it possible to value and reward all forms of participation—human or machine.
+- **Service and Task Scores:** Services and automated tasks can have their own metadata, including scores for reliability, uptime, contributions, and completed actions. These scores contribute to the overall system value.
+- **Dynamic, Extensible Value:** As new entities, services, or tasks are added, their metadata is incorporated into the system currency, ensuring the ledger evolves with the ecosystem.
+- **Proof of Work and Reputation:** The system currency is not just financial—it encodes trust, proof of work, and digital legacy, all transparently recorded in metadata.
+
+## System Currency Explorer (Design)
+
+The System Currency Explorer is a tool (UI or API) that visualizes and analyzes the total value, contributions, and flows within the OVASABI ecosystem. It enables users, admins, and services to:
+
+- View the total system currency (sum of all metadata scores across users, services, content, and tasks)
+- Drill down into individual entities to see their score, history, and percentage of the system
+- Track contributions and value flows over time (e.g., who solved issues, which services contributed most uptime, etc.)
+- Visualize relationships and impact using graphs and leaderboards
+- Audit and verify the provenance of value, reputation, and rewards
+
+**Example Explorer Features:**
+- System dashboard: total currency, recent changes, top contributors
+- Entity explorer: search and view metadata for any user, service, or task
+- Value flow graph: visualize how value moves between entities (e.g., through tax, rewards, or task completion)
+- Historical analytics: see how the system currency and individual scores evolve over time
+
+This explorer makes the living ledger of OVASABI visible and actionable, empowering users and services to understand, participate in, and shape the digital economy of the platform.

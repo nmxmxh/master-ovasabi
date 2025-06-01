@@ -8,7 +8,7 @@ import (
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
 	campaignmeta "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
-	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 )
@@ -26,8 +26,11 @@ import (
 // @Router /api/contentmoderation_ops [post]
 
 // ContentModerationOpsHandler: composable handler for content moderation operations.
-func ContentModerationOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func ContentModerationOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var moderationSvc contentmoderationpb.ContentModerationServiceServer
 		if err := container.Resolve(&moderationSvc); err != nil {
 			log.Error("Failed to resolve ContentModerationService", zap.Error(err))
@@ -50,7 +53,7 @@ func ContentModerationOpsHandler(log *zap.Logger, container *di.Container) http.
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		roles := authCtx.Roles
 		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
@@ -87,7 +90,7 @@ func ContentModerationOpsHandler(log *zap.Logger, container *di.Container) http.
 				} else {
 					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
 				}
-				campResp, err := campaignSvc.GetCampaign(r.Context(), getReq)
+				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
 				if err == nil && campResp != nil && campResp.Campaign != nil {
 					role := campaignmeta.GetUserRoleInCampaign(campResp.Campaign.Metadata, userID, campResp.Campaign.OwnerId)
 					if role == "admin" {
@@ -118,23 +121,33 @@ func ContentModerationOpsHandler(log *zap.Logger, container *di.Container) http.
 		// --- Audit/metadata propagation ---
 		if m, ok := req["metadata"]; ok && m != nil {
 			if metaMap, ok := m.(map[string]interface{}); ok {
+				// Convert roles []string to []interface{} for structpb compatibility
+				rolesIface := make([]interface{}, len(roles))
+				for i, r := range roles {
+					rolesIface[i] = r
+				}
+				metaMap["roles"] = rolesIface
 				metaMap["audit"] = map[string]interface{}{
 					"performed_by": userID,
-					"roles":        roles,
 					"timestamp":    time.Now().UTC().Format(time.RFC3339),
 				}
 				req["metadata"] = metaMap
 			}
 		} else {
+			// Convert roles []string to []interface{} for structpb compatibility
+			rolesIface := make([]interface{}, len(roles))
+			for i, r := range roles {
+				rolesIface[i] = r
+			}
 			req["metadata"] = map[string]interface{}{
 				"audit": map[string]interface{}{
 					"performed_by": userID,
-					"roles":        roles,
+					"roles":        rolesIface,
 					"timestamp":    time.Now().UTC().Format(time.RFC3339),
 				},
+				"roles": rolesIface,
 			}
 		}
-		ctx := r.Context()
 		switch action {
 		case "submit_content_for_moderation":
 			var protoReq contentmoderationpb.SubmitContentForModerationRequest

@@ -8,7 +8,7 @@ import (
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
-	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
@@ -28,8 +28,11 @@ import (
 // @Router /api/commerce_ops [post]
 
 // CommerceOpsHandler: Composable, robust handler for commerce operations.
-func CommerceOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func CommerceOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var commerceSvc commercepb.CommerceServiceServer
 		if err := container.Resolve(&commerceSvc); err != nil {
 			log.Error("Failed to resolve CommerceService", zap.Error(err))
@@ -41,7 +44,7 @@ func CommerceOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 			return
 		}
 		// Extract authentication context
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
 		if isGuest {
@@ -67,7 +70,6 @@ func CommerceOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		ctx := r.Context()
 		// Strict permission check for all commerce actions
 		err := shield.CheckPermission(ctx, securitySvc, action, "commerce", shield.WithMetadata(meta))
 		switch {

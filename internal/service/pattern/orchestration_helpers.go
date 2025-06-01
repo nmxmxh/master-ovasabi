@@ -8,7 +8,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"
-	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"go.uber.org/zap"
 )
 
@@ -35,21 +35,12 @@ func extractScheduleFromMetadata(meta *commonpb.Metadata) (string, error) {
 	return "", fmt.Errorf("no cron or interval found in scheduling metadata")
 }
 
-// Helper to extract the DI container from context.
-func getDIContainer(ctx context.Context) (*di.Container, error) {
-	container, ok := ctx.Value("DIContainer").(*di.Container)
-	if !ok || container == nil {
-		return nil, fmt.Errorf("DIContainer not found in context")
-	}
-	return container, nil
-}
-
 // EnrichKnowledgeGraph connects to the KGService and publishes an update using DI.
 func EnrichKnowledgeGraph(ctx context.Context, log *zap.Logger, patternType, patternID string, meta *commonpb.Metadata) error {
-	container, err := getDIContainer(ctx)
-	if err != nil {
-		log.Error("DIContainer not found in context", zap.Error(err))
-		return err
+	container := contextx.DI(ctx)
+	if container == nil {
+		log.Error("DIContainer not found in context")
+		return fmt.Errorf("DIContainer not found in context")
 	}
 	var kgService *kgserver.KGService
 	if err := container.Resolve(&kgService); err != nil || kgService == nil {
@@ -80,10 +71,10 @@ func EnrichKnowledgeGraph(ctx context.Context, log *zap.Logger, patternType, pat
 
 // RegisterSchedule connects to the SchedulerService and registers a job using DI.
 func RegisterSchedule(ctx context.Context, log *zap.Logger, patternType, patternID string, meta *commonpb.Metadata) error {
-	container, err := getDIContainer(ctx)
-	if err != nil {
-		log.Error("DIContainer not found in context", zap.Error(err))
-		return err
+	container := contextx.DI(ctx)
+	if container == nil {
+		log.Error("DIContainer not found in context")
+		return fmt.Errorf("DIContainer not found in context")
 	}
 	var schedulerClient schedulerpb.SchedulerServiceClient
 	if err := container.Resolve(&schedulerClient); err != nil || schedulerClient == nil {

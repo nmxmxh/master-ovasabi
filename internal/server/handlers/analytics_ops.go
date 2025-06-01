@@ -7,7 +7,7 @@ import (
 
 	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
-	auth "github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
@@ -26,8 +26,11 @@ import (
 // @Router /api/analytics_ops [post]
 
 // AnalyticsOpsHandler is a composable endpoint for all analytics operations.
-func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func AnalyticsOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var analyticsSvc analyticspb.AnalyticsServiceServer
 		if err := container.Resolve(&analyticsSvc); err != nil {
 			log.Error("Failed to resolve AnalyticsService", zap.Error(err))
@@ -35,7 +38,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 			return
 		}
 		// Extract authentication context
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
 		if isGuest {
@@ -43,6 +46,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 			return
 		}
 		meta := shield.BuildRequestMetadata(r, userID, isGuest)
+		ctx = contextx.WithMetadata(ctx, meta)
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
@@ -61,7 +65,6 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		ctx := r.Context()
 		// Permission check for all analytics actions
 		err := shield.CheckPermission(ctx, securitySvc, action, "analytics", shield.WithMetadata(meta))
 		switch {
@@ -93,7 +96,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 					captureReq.CampaignId = vv
 				}
 			}
-			resp, err := analyticsSvc.CaptureEvent(r.Context(), &captureReq)
+			resp, err := analyticsSvc.CaptureEvent(ctx, &captureReq)
 			if err != nil {
 				log.Error("service error in capture_event", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -105,7 +108,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				return
 			}
 		case "list_events":
-			resp, err := analyticsSvc.ListEvents(r.Context(), &analyticspb.ListEventsRequest{})
+			resp, err := analyticsSvc.ListEvents(ctx, &analyticspb.ListEventsRequest{})
 			if err != nil {
 				log.Error("service error in list_events", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -131,7 +134,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 					enrichReq.CampaignId = vv
 				}
 			}
-			resp, err := analyticsSvc.EnrichEventMetadata(r.Context(), &enrichReq)
+			resp, err := analyticsSvc.EnrichEventMetadata(ctx, &enrichReq)
 			if err != nil {
 				log.Error("service error in enrich_event_metadata", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -161,7 +164,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 					}
 				}
 			}
-			resp, err := analyticsSvc.TrackEvent(r.Context(), &trackReq)
+			resp, err := analyticsSvc.TrackEvent(ctx, &trackReq)
 			if err != nil {
 				log.Error("service error in track_event", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -191,7 +194,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 					}
 				}
 			}
-			resp, err := analyticsSvc.BatchTrackEvents(r.Context(), &batchReq)
+			resp, err := analyticsSvc.BatchTrackEvents(ctx, &batchReq)
 			if err != nil {
 				log.Error("service error in batch_track_events", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -217,7 +220,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 					userReq.CampaignId = vv
 				}
 			}
-			resp, err := analyticsSvc.GetUserEvents(r.Context(), &userReq)
+			resp, err := analyticsSvc.GetUserEvents(ctx, &userReq)
 			if err != nil {
 				log.Error("service error in get_user_events", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -243,7 +246,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 					prodReq.CampaignId = vv
 				}
 			}
-			resp, err := analyticsSvc.GetProductEvents(r.Context(), &prodReq)
+			resp, err := analyticsSvc.GetProductEvents(ctx, &prodReq)
 			if err != nil {
 				log.Error("service error in get_product_events", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -261,7 +264,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				http.Error(w, "invalid get_report request", http.StatusBadRequest)
 				return
 			}
-			resp, err := analyticsSvc.GetReport(r.Context(), &reportReq)
+			resp, err := analyticsSvc.GetReport(ctx, &reportReq)
 			if err != nil {
 				log.Error("service error in get_report", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -279,7 +282,7 @@ func AnalyticsOpsHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				http.Error(w, "invalid list_reports request", http.StatusBadRequest)
 				return
 			}
-			resp, err := analyticsSvc.ListReports(r.Context(), &listReq)
+			resp, err := analyticsSvc.ListReports(ctx, &listReq)
 			if err != nil {
 				log.Error("service error in list_reports", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)

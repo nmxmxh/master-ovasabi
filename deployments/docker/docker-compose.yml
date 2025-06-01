@@ -171,6 +171,38 @@ services:
       - postgres
     restart: unless-stopped
 
+  media-streaming:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.media-streaming
+    ports:
+      - '8081:8081'
+    environment:
+      APP_ENV: '${APP_ENV:-development}'
+      LOG_LEVEL: debug
+      SERVICE_NAME: media-streaming
+      NEXUS_GRPC_ADDR: 'nexus:50052'
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+      REDIS_PORT: '${REDIS_PORT:-6379}'
+      DB_HOST: postgres
+      DB_PORT: '${DB_PORT:-5432}'
+      DB_USER: 'postgres'
+      DB_PASSWORD: 'postgres'
+      DB_NAME: 'master_ovasabi'
+      CAMPAIGN_ID: '${CAMPAIGN_ID:-0}'
+    depends_on:
+      nexus:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - ovasabi-network
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+
 volumes:
   postgres_data:
   redis_data:

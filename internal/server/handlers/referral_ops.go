@@ -7,7 +7,7 @@ import (
 	"time"
 
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
@@ -38,8 +38,11 @@ import (
 // @Success 200 {object} object "Response depends on action"
 // @Failure 400 {object} ErrorResponse
 // @Router /api/referral_ops [post].
-func ReferralOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func ReferralOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var referralSvc referralpb.ReferralServiceServer
 		if err := container.Resolve(&referralSvc); err != nil {
 			log.Error("Failed to resolve ReferralService", zap.Error(err))
@@ -62,7 +65,7 @@ func ReferralOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		roles := authCtx.Roles
 		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
@@ -119,7 +122,7 @@ func ReferralOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 				DeviceHash:       deviceHash,
 				Metadata:         meta,
 			}
-			resp, err := referralSvc.CreateReferral(r.Context(), protoReq)
+			resp, err := referralSvc.CreateReferral(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to create referral", zap.Error(err))
 				http.Error(w, "failed to create referral", http.StatusInternalServerError)
@@ -138,7 +141,7 @@ func ReferralOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 				return
 			}
 			protoReq := &referralpb.GetReferralRequest{ReferralCode: referralCode}
-			resp, err := referralSvc.GetReferral(r.Context(), protoReq)
+			resp, err := referralSvc.GetReferral(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to get referral", zap.Error(err))
 				http.Error(w, "failed to get referral", http.StatusInternalServerError)
@@ -161,7 +164,7 @@ func ReferralOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFu
 				masterIDInt = 0 // or handle error as needed
 			}
 			protoReq := &referralpb.GetReferralStatsRequest{MasterId: masterIDInt}
-			resp, err := referralSvc.GetReferralStats(r.Context(), protoReq)
+			resp, err := referralSvc.GetReferralStats(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to get referral stats", zap.Error(err))
 				http.Error(w, "failed to get referral stats", http.StatusInternalServerError)

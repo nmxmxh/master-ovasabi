@@ -7,6 +7,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
@@ -26,8 +27,11 @@ import (
 // @Router /api/notification_ops [post]
 
 // NotificationHandler handles notification-related actions (send, list, acknowledge, etc.).
-func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func NotificationHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var notifSvc notificationpb.NotificationServiceServer
 		if err := container.Resolve(&notifSvc); err != nil {
 			log.Error("Failed to resolve NotificationService", zap.Error(err))
@@ -106,7 +110,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				Metadata:   meta,
 				CampaignId: campaignID,
 			}
-			resp, err := notifSvc.SendNotification(r.Context(), protoReq)
+			resp, err := notifSvc.SendNotification(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to send notification", zap.Error(err))
 				http.Error(w, "failed to send notification", http.StatusInternalServerError)
@@ -164,7 +168,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				Metadata:   meta,
 				CampaignId: campaignID,
 			}
-			resp, err := notifSvc.SendEmail(r.Context(), protoReq)
+			resp, err := notifSvc.SendEmail(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to send email", zap.Error(err))
 				http.Error(w, "failed to send email", http.StatusInternalServerError)
@@ -215,7 +219,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				Metadata:   meta,
 				CampaignId: campaignID,
 			}
-			resp, err := notifSvc.SendSMS(r.Context(), protoReq)
+			resp, err := notifSvc.SendSMS(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to send SMS", zap.Error(err))
 				http.Error(w, "failed to send SMS", http.StatusInternalServerError)
@@ -274,7 +278,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				Metadata:   meta,
 				CampaignId: campaignID,
 			}
-			resp, err := notifSvc.SendPushNotification(r.Context(), protoReq)
+			resp, err := notifSvc.SendPushNotification(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to send push notification", zap.Error(err))
 				http.Error(w, "failed to send push notification", http.StatusInternalServerError)
@@ -314,7 +318,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				PageSize:   int32(pageSize),
 				CampaignId: campaignID,
 			}
-			resp, err := notifSvc.ListNotifications(r.Context(), protoReq)
+			resp, err := notifSvc.ListNotifications(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to list notifications", zap.Error(err))
 				http.Error(w, "failed to list notifications", http.StatusInternalServerError)
@@ -337,7 +341,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				NotificationId: notificationID,
 				UserId:         userID,
 			}
-			resp, err := notifSvc.AcknowledgeNotification(r.Context(), protoReq)
+			resp, err := notifSvc.AcknowledgeNotification(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to acknowledge notification", zap.Error(err))
 				http.Error(w, "failed to acknowledge notification", http.StatusInternalServerError)
@@ -395,7 +399,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				Payload:    payload,
 				CampaignId: campaignID,
 			}
-			resp, err := notifSvc.BroadcastEvent(r.Context(), protoReq)
+			resp, err := notifSvc.BroadcastEvent(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to broadcast event", zap.Error(err))
 				http.Error(w, "failed to broadcast event", http.StatusInternalServerError)
@@ -435,7 +439,7 @@ func NotificationHandler(log *zap.Logger, container *di.Container) http.HandlerF
 				PageSize:       int32(pageSize),
 				CampaignId:     campaignID,
 			}
-			resp, err := notifSvc.ListNotificationEvents(r.Context(), protoReq)
+			resp, err := notifSvc.ListNotificationEvents(ctx, protoReq)
 			if err != nil {
 				log.Error("Failed to list notification events", zap.Error(err))
 				http.Error(w, "failed to list notification events", http.StatusInternalServerError)
@@ -570,17 +574,18 @@ func (s *singleChunkStream) RecvMsg(_ interface{}) error  { return nil }
 // extractAuthContext extracts user_id, device_id from context or metadata.
 func extractAuthContext(r *http.Request) (userID string) {
 	ctx := r.Context()
-	if v := ctx.Value("user_id"); v != nil {
-		if s, ok := v.(string); ok {
-			userID = s
+	// Try contextx.Auth first
+	authCtx := contextx.Auth(ctx)
+	if authCtx != nil && authCtx.UserID != "" {
+		userID = authCtx.UserID
+	}
+	// Fallback: try device_id if needed
+	if userID == "" {
+		if v := ctx.Value("device_id"); v != nil {
+			if s, ok := v.(string); ok {
+				userID = s
+			}
 		}
 	}
-	if v := ctx.Value("device_id"); v != nil {
-		if s, ok := v.(string); ok {
-			userID = s
-		}
-	}
-	// Fallback: try metadata in request body if available
-	// (Assume req["metadata"] is parsed above)
 	return userID
 }

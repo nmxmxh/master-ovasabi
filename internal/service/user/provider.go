@@ -73,6 +73,20 @@ func Register(ctx context.Context, container *di.Container, eventEmitter EventEm
 		log.With(zap.String("service", "user")).Error("Failed to register user service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
+	// Register EventEmitter for handler orchestration
+	if err := container.Register((*EventEmitter)(nil), func(_ *di.Container) (interface{}, error) {
+		return eventEmitter, nil
+	}); err != nil {
+		log.With(zap.String("service", "user")).Error("Failed to register user EventEmitter", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		return err
+	}
+	// Register redis.Cache for handler orchestration
+	if err := container.Register((*redis.Cache)(nil), func(_ *di.Container) (interface{}, error) {
+		return cache, nil
+	}); err != nil {
+		log.With(zap.String("service", "user")).Error("Failed to register user cache", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		return err
+	}
 	return nil
 }
 

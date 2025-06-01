@@ -72,6 +72,7 @@ import (
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 )
@@ -524,7 +525,7 @@ func RegisterWebSocketHandlers(mux *http.ServeMux, log *zap.Logger, container *d
 		} else {
 			authCtx = &auth.Context{Roles: []string{"guest"}}
 		}
-		r = r.WithContext(auth.NewContext(r.Context(), authCtx))
+		r = r.WithContext(contextx.WithAuth(r.Context(), authCtx))
 		// Expect path: /ws/{campaign_id}/{user_id}
 		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ws/"), "/")
 		if len(parts) < 2 {

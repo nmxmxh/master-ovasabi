@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // SuccessContext wraps a successful result with context, process metadata, and orchestration options.
@@ -126,6 +127,25 @@ type SuccessOrchestrationConfig struct {
 	PartialUpdate      bool
 }
 
+// Helper to build success metadata with closure info.
+func buildSuccessMetadata(code codes.Code, message string, closure map[string]interface{}) *commonpb.Metadata {
+	successMap := map[string]interface{}{
+		"code":    code.String(),
+		"message": message,
+	}
+	fields := map[string]interface{}{
+		"success": successMap,
+	}
+	if closure != nil {
+		fields["closure"] = closure
+	}
+	ss, err := structpb.NewStruct(fields)
+	if err != nil {
+		return nil
+	}
+	return &commonpb.Metadata{ServiceSpecific: ss}
+}
+
 // StandardOrchestrate runs all standard orchestration steps based on the config.
 // Usage: success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{...}).
 func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrchestrationConfig) []error {
@@ -205,8 +225,18 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 				cfg.Log.Warn("EventHook failed", zap.Error(err))
 			}
 		}
-	} else if cfg.EventEnabled && cfg.EventEmitter != nil && cfg.PatternMeta != nil {
-		_, ok := cfg.EventEmitter.EmitEventWithLogging(ctx, cfg.EventEmitter, cfg.Log, cfg.EventType, cfg.EventID, cfg.PatternMeta)
+	} else if cfg.EventEnabled && cfg.EventEmitter != nil {
+		var meta *commonpb.Metadata
+		if cfg.PatternMeta != nil {
+			meta = cfg.PatternMeta
+		} else {
+			meta = buildSuccessMetadata(s.Code, s.Message, map[string]interface{}{
+				"code":    s.Code.String(),
+				"message": s.Message,
+				"context": s.Context,
+			})
+		}
+		_, ok := cfg.EventEmitter.EmitEventWithLogging(ctx, cfg.EventEmitter, cfg.Log, cfg.EventType, cfg.EventID, meta)
 		if !ok {
 			errs = append(errs, errors.New("failed to emit event (default)"))
 		}

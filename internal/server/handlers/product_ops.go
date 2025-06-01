@@ -8,7 +8,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -38,8 +38,11 @@ const metadataFiltersKey contextKey = "metadata_filters"
 // @Failure 400 {object} ErrorResponse
 // @Router /api/product_ops [post]
 
-func ProductOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func ProductOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var productSvc productpb.ProductServiceServer
 		if err := container.Resolve(&productSvc); err != nil {
 			log.Error("Failed to resolve ProductService", zap.Error(err))
@@ -62,11 +65,10 @@ func ProductOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFun
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		roles := authCtx.Roles
 		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
-		ctx := r.Context()
 		switch action {
 		case "create_product":
 			if isGuest {

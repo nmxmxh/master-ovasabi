@@ -7,7 +7,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/auth"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -26,8 +26,11 @@ import (
 // @Router /api/localization_ops [post]
 
 // LocalizationOpsHandler: Composable, robust handler for localization operations.
-func LocalizationOpsHandler(log *zap.Logger, container *di.Container) http.HandlerFunc {
+func LocalizationOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Inject logger into context
+		log := contextx.Logger(r.Context())
+		ctx := contextx.WithLogger(r.Context(), log)
 		var localizationSvc localizationpb.LocalizationServiceServer
 		if err := container.Resolve(&localizationSvc); err != nil {
 			log.Error("Failed to resolve LocalizationService", zap.Error(err))
@@ -50,7 +53,7 @@ func LocalizationOpsHandler(log *zap.Logger, container *di.Container) http.Handl
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
 		}
-		authCtx := auth.FromContext(r.Context())
+		authCtx := contextx.Auth(r.Context())
 		userID := authCtx.UserID
 		roles := authCtx.Roles
 		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
@@ -78,6 +81,12 @@ func LocalizationOpsHandler(log *zap.Logger, container *di.Container) http.Handl
 			// --- Audit/metadata propagation ---
 			if m, ok := req["metadata"]; ok && m != nil {
 				if metaMap, ok := m.(map[string]interface{}); ok {
+					// Convert roles []string to []interface{} for structpb compatibility
+					rolesIface := make([]interface{}, len(roles))
+					for i, r := range roles {
+						rolesIface[i] = r
+					}
+					metaMap["roles"] = rolesIface
 					metaMap["audit"] = map[string]interface{}{
 						"performed_by": userID,
 						"roles":        roles,
@@ -95,7 +104,6 @@ func LocalizationOpsHandler(log *zap.Logger, container *di.Container) http.Handl
 				}
 			}
 		}
-		ctx := r.Context()
 		switch action {
 		case "create_translation":
 			key, ok := req["key"].(string)
