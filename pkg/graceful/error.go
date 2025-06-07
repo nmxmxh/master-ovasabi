@@ -11,7 +11,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // ContextError wraps an error with context, gRPC code, and structured fields.
@@ -112,6 +111,7 @@ type ErrorOrchestrationConfig struct {
 	Metadata     interface{} // Accept *commonpb.Metadata or similar
 	EventEmitter interface {
 		EmitEventWithLogging(context.Context, interface{}, *zap.Logger, string, string, *commonpb.Metadata) (string, bool)
+		EmitRawEventWithLogging(context.Context, *zap.Logger, string, string, []byte) (string, bool)
 	}
 	EventEnabled bool
 	EventType    string
@@ -130,95 +130,86 @@ type ErrorOrchestrationConfig struct {
 	PartialUpdate      bool
 }
 
-// Helper to build error metadata with closure info.
-func buildErrorMetadata(e *ContextError, closure map[string]interface{}) *commonpb.Metadata {
-	errorMap := map[string]interface{}{
-		"code":    e.Code.String(),
-		"message": e.Message,
-	}
-	fields := map[string]interface{}{
-		"error": errorMap,
-	}
-	if closure != nil {
-		fields["closure"] = closure
-	}
-	ss, err := structpb.NewStruct(fields)
-	if err != nil {
-		return nil
-	}
-	return &commonpb.Metadata{ServiceSpecific: ss}
-}
-
 // StandardOrchestrate runs all standard error orchestration steps based on the config.
 func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchestrationConfig) []error {
-	errs := []error{}
-	// 1. Switch/conditional hooks
-	if cfg.SwitchFunc != nil {
-		for i, hook := range cfg.SwitchFunc(e) {
-			if err := hook(ctx, e); err != nil {
-				errs = append(errs, err)
-				if cfg.Log != nil {
-					cfg.Log.Warn("Error orchestration switch hook failed", zap.Int("hook_index", i), zap.Error(err))
-				}
+	// 1. Canonical orchestration event emission (yin)
+	correlationID := utils.GetStringFromContext(ctx, "correlation_id")
+	service := cfg.PatternType
+	entityID := cfg.PatternID
+	if correlationID == "" {
+		correlationID = utils.GetStringFromContext(ctx, "request_id")
+	}
+	event := CanonicalOrchestrationEvent{
+		Type: "orchestration.error",
+		Payload: CanonicalOrchestrationPayload{
+			Code:          e.Code.String(),
+			Message:       e.Message,
+			Metadata:      cfg.Metadata,
+			YinYang:       "yin",
+			CorrelationID: correlationID,
+			Service:       service,
+			EntityID:      entityID,
+			Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		},
+	}
+	if cfg.EventEmitter != nil {
+		payload, err := utils.MarshalJSON(event)
+		if err != nil {
+			if cfg.Log != nil {
+				cfg.Log.Warn("Failed to marshal orchestration event to JSON", zap.Error(err))
+			}
+		} else {
+			// Use the new raw event emitter for canonical orchestration events
+			_, ok := cfg.EventEmitter.EmitRawEventWithLogging(ctx, cfg.Log, event.Type, event.Payload.EntityID, payload)
+			if !ok && cfg.Log != nil {
+				cfg.Log.Warn("Failed to emit orchestration event", zap.String("type", event.Type))
 			}
 		}
-	} else {
-		// Default: return orchestration failure for unimplemented switch
-		errs = append(errs, errors.New("error orchestration switch not implemented"))
 	}
-	// 2. Audit logging
+
+	// 2. Run all orchestration hooks (audit, alert, fallback, etc.) for full yin-yang symmetry
+	errs := []error{}
 	if cfg.AuditLogger != nil {
 		if err := cfg.AuditLogger(ctx, e); err != nil {
 			errs = append(errs, err)
 			if cfg.Log != nil {
-				cfg.Log.Warn("Error audit log failed", zap.Error(err))
+				cfg.Log.Warn("AuditLogger failed", zap.Error(err))
 			}
 		}
-	} else {
-		// Default: return orchestration failure for unimplemented audit log
-		if cfg.Log != nil {
-			cfg.Log.Error("[Default] Error audit log", zap.String("message", e.Message), zap.Error(e.Cause))
-		}
-		errs = append(errs, errors.New("error audit log not implemented"))
 	}
-	// 3. Alerting
 	if cfg.AlertFunc != nil {
 		if err := cfg.AlertFunc(ctx, e); err != nil {
 			errs = append(errs, err)
 			if cfg.Log != nil {
-				cfg.Log.Warn("Error alerting failed", zap.Error(err))
+				cfg.Log.Warn("AlertFunc failed", zap.Error(err))
 			}
 		}
-	} else {
-		// Default: return orchestration failure for unimplemented alerting
-		errs = append(errs, errors.New("error alerting not implemented"))
 	}
-	// 4. Fallback logic
 	if cfg.FallbackFunc != nil {
 		if err := cfg.FallbackFunc(ctx, e); err != nil {
 			errs = append(errs, err)
 			if cfg.Log != nil {
-				cfg.Log.Warn("Error fallback failed", zap.Error(err))
-			}
-		}
-	} else {
-		// Default: return orchestration failure for unimplemented fallback
-		errs = append(errs, errors.New("error fallback not implemented"))
-	}
-	// 5. Yin-Yang orchestration: cache invalidation, error event emission, etc.
-	if cfg.Cache != nil && cfg.CacheKey != "" {
-		if err := cfg.Cache.Delete(ctx, cfg.CacheKey, "profile"); err != nil {
-			errs = append(errs, err)
-			if cfg.Log != nil {
-				cfg.Log.Warn("Failed to invalidate cache on error", zap.Error(err))
+				cfg.Log.Warn("FallbackFunc failed", zap.Error(err))
 			}
 		}
 	}
+	if cfg.SwitchFunc != nil {
+		hooks := cfg.SwitchFunc(e)
+		for _, hook := range hooks {
+			if err := hook(ctx, e); err != nil {
+				errs = append(errs, err)
+				if cfg.Log != nil {
+					cfg.Log.Warn("SwitchFunc hook failed", zap.Error(err))
+				}
+			}
+		}
+	}
+	// Add more orchestration hooks as needed for symmetry (metadata, knowledge graph, scheduler, etc.)
 	if cfg.MetadataHook != nil {
 		if err := cfg.MetadataHook(ctx); err != nil {
 			errs = append(errs, err)
 			if cfg.Log != nil {
-				cfg.Log.Warn("MetadataHook (error) failed", zap.Error(err))
+				cfg.Log.Warn("MetadataHook failed", zap.Error(err))
 			}
 		}
 	}
@@ -226,7 +217,7 @@ func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchest
 		if err := cfg.KnowledgeGraphHook(ctx); err != nil {
 			errs = append(errs, err)
 			if cfg.Log != nil {
-				cfg.Log.Warn("KnowledgeGraphHook (error) failed", zap.Error(err))
+				cfg.Log.Warn("KnowledgeGraphHook failed", zap.Error(err))
 			}
 		}
 	}
@@ -234,7 +225,15 @@ func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchest
 		if err := cfg.SchedulerHook(ctx); err != nil {
 			errs = append(errs, err)
 			if cfg.Log != nil {
-				cfg.Log.Warn("SchedulerHook (error) failed", zap.Error(err))
+				cfg.Log.Warn("SchedulerHook failed", zap.Error(err))
+			}
+		}
+	}
+	if cfg.NexusHook != nil {
+		if err := cfg.NexusHook(ctx); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("NexusHook failed", zap.Error(err))
 			}
 		}
 	}
@@ -242,38 +241,7 @@ func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchest
 		if err := cfg.EventHook(ctx); err != nil {
 			errs = append(errs, err)
 			if cfg.Log != nil {
-				cfg.Log.Warn("EventHook (error) failed", zap.Error(err))
-			}
-		}
-	} else if cfg.EventEnabled && cfg.EventEmitter != nil {
-		var meta *commonpb.Metadata
-		switch m := cfg.PatternMeta.(type) {
-		case *commonpb.Metadata:
-			meta = m
-		case nil:
-			meta = buildErrorMetadata(e, map[string]interface{}{
-				"code":    e.Code.String(),
-				"message": e.Message,
-				"context": e.Context,
-			})
-		default:
-			meta = buildErrorMetadata(e, map[string]interface{}{
-				"code":             e.Code.String(),
-				"message":          e.Message,
-				"context":          e.Context,
-				"raw_pattern_meta": m,
-			})
-		}
-		_, ok := cfg.EventEmitter.EmitEventWithLogging(ctx, cfg.EventEmitter, cfg.Log, cfg.EventType, cfg.EventID, meta)
-		if !ok {
-			errs = append(errs, errors.New("failed to emit error event (yin-yang)"))
-		}
-	}
-	if cfg.NexusHook != nil {
-		if err := cfg.NexusHook(ctx); err != nil {
-			errs = append(errs, err)
-			if cfg.Log != nil {
-				cfg.Log.Warn("NexusHook (error) failed", zap.Error(err))
+				cfg.Log.Warn("EventHook failed", zap.Error(err))
 			}
 		}
 	}

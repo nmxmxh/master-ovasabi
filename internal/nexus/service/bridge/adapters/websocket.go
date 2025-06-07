@@ -2,22 +2,25 @@ package adapters
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/nexus/service/bridge"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 // WebSocketAdapter implements a production-grade WebSocket protocol adapter for the Nexus bridge.
 type WebSocketAdapter struct {
 	serverAddr string
-	clients    map[string]*websocket.Conn
-	outChans   map[string]chan []byte // Per-client outgoing buffered channels
+	clients    map[string]*WebSocketClient // Now stores per-client state
 	handler    bridge.MessageHandler
 	mu         sync.RWMutex
 	shutdown   chan struct{}
@@ -27,11 +30,18 @@ type WebSocketConfig struct {
 	ServerAddr string
 }
 
+// WebSocketClient holds per-connection state: filters and encoding preference.
+type WebSocketClient struct {
+	conn    *websocket.Conn
+	ch      chan []byte
+	filters map[string]bool // event type filters
+	format  string          // "json" or "protobuf"
+}
+
 func NewWebSocketAdapter(cfg WebSocketConfig) *WebSocketAdapter {
 	return &WebSocketAdapter{
 		serverAddr: cfg.ServerAddr,
-		clients:    make(map[string]*websocket.Conn),
-		outChans:   make(map[string]chan []byte),
+		clients:    make(map[string]*WebSocketClient),
 		shutdown:   make(chan struct{}),
 	}
 }
@@ -58,11 +68,11 @@ func (a *WebSocketAdapter) Connect(_ context.Context, _ bridge.AdapterConfig) er
 		}
 		ln, err := net.Listen("tcp", a.serverAddr)
 		if err != nil {
-			fmt.Printf("[WebSocketAdapter] Listen error: %v\n", err)
+			zap.L().Warn("WebSocketAdapter Listen error", zap.Error(err))
 			return
 		}
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("[WebSocketAdapter] Serve error: %v\n", err)
+			zap.L().Warn("WebSocketAdapter Serve error", zap.Error(err))
 		}
 	}()
 	return nil
@@ -71,16 +81,16 @@ func (a *WebSocketAdapter) Connect(_ context.Context, _ bridge.AdapterConfig) er
 // Send sends a message to a specific WebSocket client using a buffered channel.
 func (a *WebSocketAdapter) Send(_ context.Context, msg *bridge.Message) error {
 	a.mu.RLock()
-	ch, ok := a.outChans[msg.Destination]
+	client, ok := a.clients[msg.Destination]
 	a.mu.RUnlock()
 	if !ok {
 		return fmt.Errorf("WebSocket client not found: %s", msg.Destination)
 	}
 	select {
-	case ch <- msg.Payload:
+	case client.ch <- msg.Payload:
 		return nil
 	default:
-		fmt.Printf("[WebSocketAdapter] Dropped frame for client %s (buffer full)\n", msg.Destination)
+		zap.L().Warn("WebSocket send buffer full for client", zap.String("client", msg.Destination))
 		return fmt.Errorf("WebSocket send buffer full for client %s", msg.Destination)
 	}
 }
@@ -105,12 +115,26 @@ func (a *WebSocketAdapter) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clientID := r.RemoteAddr
-	ch := make(chan []byte, 32) // Buffered channel for outgoing messages
+	ch := make(chan []byte, 32)
+
+	// --- Per-client filter and format negotiation ---
+	filters := map[string]bool{}
+	format := "json" // default
+	// Negotiate via query params (e.g., /ws?filters=search,messaging&format=protobuf)
+	if f := r.URL.Query().Get("filters"); f != "" {
+		for _, typ := range strings.Split(f, ",") {
+			filters[strings.TrimSpace(typ)] = true
+		}
+	}
+	if r.URL.Query().Get("format") == "protobuf" {
+		format = "protobuf"
+	}
+	client := &WebSocketClient{conn: conn, ch: ch, filters: filters, format: format}
+
 	a.mu.Lock()
-	a.clients[clientID] = conn
-	a.outChans[clientID] = ch
+	a.clients[clientID] = client
 	a.mu.Unlock()
-	fmt.Printf("[WebSocketAdapter] Client connected: %s\n", clientID)
+	zap.L().Info("WebSocketAdapter Client connected", zap.String("clientID", clientID), zap.Any("filters", filters), zap.String("format", format))
 
 	// Start write goroutine
 	go func() {
@@ -118,7 +142,7 @@ func (a *WebSocketAdapter) handleWS(w http.ResponseWriter, r *http.Request) {
 			select {
 			case msg := <-ch:
 				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-					fmt.Printf("[WebSocketAdapter] Write error for %s: %v\n", clientID, err)
+					zap.L().Warn("WebSocketAdapter Write error", zap.String("clientID", clientID), zap.Error(err))
 					return
 				}
 			case <-a.shutdown:
@@ -143,18 +167,19 @@ func (a *WebSocketAdapter) handleWS(w http.ResponseWriter, r *http.Request) {
 		a.mu.RUnlock()
 		if h != nil {
 			if err := h(r.Context(), bridgeMsg); err != nil {
-				fmt.Printf("[WebSocketAdapter] Handler error for %s: %v\n", clientID, err)
+				zap.L().Warn("WebSocketAdapter Handler error", zap.String("clientID", clientID), zap.Error(err))
 			}
 		}
 	}
 	// Cleanup on disconnect
 	a.mu.Lock()
+	if c, ok := a.clients[clientID]; ok {
+		close(c.ch)
+	}
 	delete(a.clients, clientID)
-	close(ch)
-	delete(a.outChans, clientID)
 	a.mu.Unlock()
 	conn.Close()
-	fmt.Printf("[WebSocketAdapter] Client disconnected: %s\n", clientID)
+	zap.L().Info("WebSocketAdapter Client disconnected", zap.String("clientID", clientID))
 }
 
 func (a *WebSocketAdapter) HealthCheck() bridge.HealthStatus {
@@ -169,16 +194,48 @@ func (a *WebSocketAdapter) HealthCheck() bridge.HealthStatus {
 func (a *WebSocketAdapter) Close() error {
 	close(a.shutdown)
 	a.mu.Lock()
-	for clientID, conn := range a.clients {
-		conn.Close()
-		if ch, ok := a.outChans[clientID]; ok {
-			close(ch)
-		}
+	for _, client := range a.clients {
+		client.conn.Close()
+		close(client.ch)
 	}
-	a.clients = make(map[string]*websocket.Conn)
-	a.outChans = make(map[string]chan []byte)
+	a.clients = make(map[string]*WebSocketClient)
 	a.mu.Unlock()
 	return nil
+}
+
+// BroadcastEvent sends an event to all clients matching the event type filter, using their preferred format.
+func (a *WebSocketAdapter) BroadcastEvent(eventType string, event interface{}) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	for _, client := range a.clients {
+		// If client has no filters, default to all allowed event types
+		allowed := client.filters
+		if len(allowed) == 0 {
+			allowed = map[string]bool{"search": true, "messaging": true, "content": true, "talent": true, "product": true, "campaign": true}
+		}
+		if !allowed[eventType] {
+			continue
+		}
+		if client.format == "protobuf" {
+			if pb, ok := event.(proto.Message); ok {
+				data, err := proto.Marshal(pb)
+				if err != nil {
+					zap.L().Warn("Failed to marshal proto message", zap.Error(err))
+					continue
+				}
+				client.ch <- data
+			} else {
+				continue
+			}
+		} else {
+			data, err := json.Marshal(event)
+			if err != nil {
+				zap.L().Warn("Failed to marshal event to JSON", zap.Error(err))
+				continue
+			}
+			client.ch <- data
+		}
+	}
 }
 
 func init() {

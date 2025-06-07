@@ -26,24 +26,32 @@ import (
 	"context"
 	"database/sql"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
 	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// EventEmitter defines the interface for emitting events (canonical platform interface).
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-}
-
 // Register registers the messaging service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repository.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
-	repo := NewRepository(db, masterRepo, nil)
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter events.EventEmitter,
+	db *sql.DB,
+	masterRepo repository.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{}, // unused, keep for signature consistency
+) error {
+	repo := NewRepository(db, masterRepo, log)
 	cache, err := redisProvider.GetCache(ctx, "messaging")
 	if err != nil {
 		log.Warn("failed to get messaging cache", zap.Error(err))
@@ -55,13 +63,18 @@ func Register(ctx context.Context, container *di.Container, eventEmitter EventEm
 		log.Error("Failed to register messaging service", zap.Error(err))
 		return err
 	}
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "messaging")
+	}
 	return nil
 }
 
 // NewMessagingClient creates a new gRPC client connection and returns a MessagingServiceClient and a cleanup function.
+// Replace grpc.Dial with the modern NewClient pattern if available.
+// TODO: Replace with messagingpb.NewClient when available in generated code.
 func NewMessagingClient(target string) (messagingpb.MessagingServiceClient, func() error, error) {
-	//nolint:staticcheck // grpc.Dial is required until generated client supports NewClient API
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, err
 	}

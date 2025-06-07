@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"go.uber.org/zap"
 )
 
 // CanonicalEvent wraps the existing Event struct and adds extensibility for multi-event orchestration and metadata.
@@ -40,22 +41,58 @@ type EventRepository interface {
 
 // SQLEventRepository is a SQL-backed implementation of EventRepository.
 type SQLEventRepository struct {
-	db *sql.DB
+	db  *sql.DB
+	log *zap.Logger
 }
 
-func NewSQLEventRepository(db *sql.DB) *SQLEventRepository {
-	return &SQLEventRepository{db: db}
+// NewSQLEventRepository creates a new SQL event repository.
+func NewSQLEventRepository(db *sql.DB, log *zap.Logger) *SQLEventRepository {
+	return &SQLEventRepository{
+		db:  db,
+		log: log,
+	}
 }
 
+// Helper function to safely get request ID from context.
+func getRequestID(ctx context.Context) string {
+	if requestID, ok := ctx.Value("request_id").(string); ok {
+		return requestID
+	}
+	return ""
+}
+
+// SaveEvent persists an event to the database.
 func (r *SQLEventRepository) SaveEvent(ctx context.Context, event *CanonicalEvent) error {
+	r.log.Info("Saving event",
+		zap.String("event_id", event.ID.String()),
+		zap.String("event_type", event.EventType),
+		zap.String("request_id", getRequestID(ctx)),
+	)
+
 	metaBytes, err := json.Marshal(event.Metadata)
 	if err != nil {
+		if r.log != nil {
+			r.log.Error("Failed to marshal event metadata",
+				zap.Error(err),
+				zap.String("event_id", event.ID.String()),
+				zap.String("request_id", getRequestID(ctx)),
+			)
+		}
 		return err
 	}
+
 	payloadBytes, err := json.Marshal(event.Payload)
 	if err != nil {
+		if r.log != nil {
+			r.log.Error("Failed to marshal event payload",
+				zap.Error(err),
+				zap.String("event_id", event.ID.String()),
+				zap.String("request_id", getRequestID(ctx)),
+			)
+		}
 		return err
 	}
+
 	_, err = r.db.ExecContext(ctx, `
 		INSERT INTO service_event (
 			id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
@@ -63,25 +100,84 @@ func (r *SQLEventRepository) SaveEvent(ctx context.Context, event *CanonicalEven
 	`,
 		event.ID, event.MasterID, event.EntityType, event.EventType, payloadBytes, metaBytes, event.Status, event.CreatedAt, event.ProcessedAt, event.PatternID, event.Step, event.Retries, event.Error,
 	)
-	return err
+	if err != nil {
+		if r.log != nil {
+			r.log.Error("Failed to save event",
+				zap.Error(err),
+				zap.String("event_id", event.ID.String()),
+				zap.String("event_type", event.EventType),
+				zap.String("request_id", getRequestID(ctx)),
+			)
+		}
+		return err
+	}
+
+	if r.log != nil {
+		r.log.Info("Event saved successfully",
+			zap.String("event_id", event.ID.String()),
+			zap.String("event_type", event.EventType),
+			zap.String("request_id", getRequestID(ctx)),
+		)
+	}
+
+	return nil
 }
 
+// GetEvent retrieves an event from the database.
 func (r *SQLEventRepository) GetEvent(ctx context.Context, id uuid.UUID) (*CanonicalEvent, error) {
+	r.log.Info("Getting event",
+		zap.String("event_id", id.String()),
+		zap.String("request_id", getRequestID(ctx)),
+	)
+
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
 		FROM service_event WHERE id = $1
 	`, id)
+
 	var event CanonicalEvent
 	var payloadBytes, metaBytes []byte
 	if err := row.Scan(&event.ID, &event.MasterID, &event.EntityType, &event.EventType, &payloadBytes, &metaBytes, &event.Status, &event.CreatedAt, &event.ProcessedAt, &event.PatternID, &event.Step, &event.Retries, &event.Error); err != nil {
+		if r.log != nil {
+			r.log.Error("Failed to scan event row",
+				zap.Error(err),
+				zap.String("event_id", id.String()),
+				zap.String("request_id", getRequestID(ctx)),
+			)
+		}
 		return nil, err
 	}
+
 	if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
+		if r.log != nil {
+			r.log.Error("Failed to unmarshal event payload",
+				zap.Error(err),
+				zap.String("event_id", id.String()),
+				zap.String("request_id", getRequestID(ctx)),
+			)
+		}
 		return nil, err
 	}
+
 	if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
+		if r.log != nil {
+			r.log.Error("Failed to unmarshal event metadata",
+				zap.Error(err),
+				zap.String("event_id", id.String()),
+				zap.String("request_id", getRequestID(ctx)),
+			)
+		}
 		return nil, err
 	}
+
+	if r.log != nil {
+		r.log.Info("Event retrieved successfully",
+			zap.String("event_id", id.String()),
+			zap.String("event_type", event.EventType),
+			zap.String("request_id", getRequestID(ctx)),
+		)
+	}
+
 	return &event, nil
 }
 
@@ -116,6 +212,11 @@ func (r *SQLEventRepository) ListEventsByMaster(ctx context.Context, masterID in
 }
 
 func (r *SQLEventRepository) ListPendingEvents(ctx context.Context, entityType repository.EntityType) ([]*CanonicalEvent, error) {
+	r.log.Info("Listing pending events",
+		zap.String("event_type", string(entityType)),
+		zap.String("request_id", getRequestID(ctx)),
+	)
+
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
 		FROM service_event WHERE entity_type = $1 AND status = 'pending' ORDER BY created_at ASC
@@ -146,6 +247,12 @@ func (r *SQLEventRepository) ListPendingEvents(ctx context.Context, entityType r
 }
 
 func (r *SQLEventRepository) UpdateEventStatus(ctx context.Context, id uuid.UUID, status string, errMsg *string) error {
+	r.log.Info("Updating event status",
+		zap.String("event_id", id.String()),
+		zap.String("status", status),
+		zap.String("request_id", getRequestID(ctx)),
+	)
+
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE service_event SET status = $1, error = $2, processed_at = NOW() WHERE id = $3
 	`, status, errMsg, id)
@@ -153,6 +260,11 @@ func (r *SQLEventRepository) UpdateEventStatus(ctx context.Context, id uuid.UUID
 }
 
 func (r *SQLEventRepository) ListEventsByPattern(ctx context.Context, patternID string) ([]*CanonicalEvent, error) {
+	r.log.Info("Listing events by pattern",
+		zap.String("pattern", patternID),
+		zap.String("request_id", getRequestID(ctx)),
+	)
+
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, master_id, entity_type, event_type, payload, metadata, status, created_at, processed_at, pattern_id, step, retries, error
 		FROM service_event WHERE pattern_id = $1 ORDER BY created_at ASC

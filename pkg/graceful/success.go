@@ -7,12 +7,11 @@ import (
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // SuccessContext wraps a successful result with context, process metadata, and orchestration options.
@@ -109,6 +108,7 @@ type SuccessOrchestrationConfig struct {
 	Metadata     *commonpb.Metadata
 	EventEmitter interface {
 		EmitEventWithLogging(context.Context, interface{}, *zap.Logger, string, string, *commonpb.Metadata) (string, bool)
+		EmitRawEventWithLogging(context.Context, *zap.Logger, string, string, []byte) (string, bool)
 	}
 	EventEnabled bool
 	EventType    string
@@ -127,37 +127,23 @@ type SuccessOrchestrationConfig struct {
 	PartialUpdate      bool
 }
 
-// Helper to build success metadata with closure info.
-func buildSuccessMetadata(code codes.Code, message string, closure map[string]interface{}) *commonpb.Metadata {
-	successMap := map[string]interface{}{
-		"code":    code.String(),
-		"message": message,
-	}
-	fields := map[string]interface{}{
-		"success": successMap,
-	}
-	if closure != nil {
-		fields["closure"] = closure
-	}
-	ss, err := structpb.NewStruct(fields)
-	if err != nil {
-		return nil
-	}
-	return &commonpb.Metadata{ServiceSpecific: ss}
-}
-
 // StandardOrchestrate runs all standard orchestration steps based on the config.
 // Usage: success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{...}).
 func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrchestrationConfig) []error {
 	errs := []error{}
-	// 0. Normalize metadata (before caching/event)
-	if cfg.Metadata != nil && cfg.PatternType != "" {
+	// 0. Normalize and calculate metadata (before caching/event)
+	if cfg.Metadata != nil && cfg.PatternType != "" && cfg.PatternID != "" {
 		var normMeta *commonpb.Metadata
 		var err error
 		if cfg.NormalizationHook != nil {
 			normMeta, err = cfg.NormalizationHook(ctx, cfg.Metadata, cfg.PatternType, cfg.PartialUpdate)
 		} else {
-			normMeta, err = pattern.NormalizeMetadata(cfg.Metadata, cfg.PatternType, cfg.PartialUpdate)
+			prevID := cfg.PatternID + ":prev"
+			nextID := cfg.PatternID + ":next"
+			relatedIDs := []string{}
+			metaMap := metadata.ProtoToMap(cfg.Metadata)
+			normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, prevID, nextID, relatedIDs, "success", s.Message)
+			normMeta = metadata.MapToProto(normMap)
 		}
 		if err != nil {
 			if cfg.Log != nil {
@@ -165,6 +151,8 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 			}
 		} else {
 			cfg.Metadata = normMeta
+			// Enrich and hash metadata after normalization
+			metadata.EnrichAndHashMetadata(cfg.Metadata, "graceful.success")
 		}
 	}
 	// 1. Cache profile (as before)
@@ -202,7 +190,6 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 		}
 	} else if cfg.PatternMeta != nil && cfg.PatternType != "" && cfg.PatternID != "" {
 		// Default: enrich knowledge graph (stub, implement as needed)
-		// Explicitly return orchestration failure for unimplemented stub
 		errs = append(errs, errors.New("knowledge graph enrichment not implemented"))
 	}
 	// 4. Scheduler registration
@@ -217,7 +204,7 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 		// Default: register with scheduler (stub, implement as needed)
 		errs = append(errs, errors.New("scheduler registration not implemented"))
 	}
-	// 5. Event emission
+	// 5. Event emission (legacy, not canonical orchestration event)
 	if cfg.EventHook != nil {
 		if err := cfg.EventHook(ctx); err != nil {
 			errs = append(errs, err)
@@ -225,20 +212,10 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 				cfg.Log.Warn("EventHook failed", zap.Error(err))
 			}
 		}
-	} else if cfg.EventEnabled && cfg.EventEmitter != nil {
-		var meta *commonpb.Metadata
-		if cfg.PatternMeta != nil {
-			meta = cfg.PatternMeta
-		} else {
-			meta = buildSuccessMetadata(s.Code, s.Message, map[string]interface{}{
-				"code":    s.Code.String(),
-				"message": s.Message,
-				"context": s.Context,
-			})
-		}
-		_, ok := cfg.EventEmitter.EmitEventWithLogging(ctx, cfg.EventEmitter, cfg.Log, cfg.EventType, cfg.EventID, meta)
-		if !ok {
-			errs = append(errs, errors.New("failed to emit event (default)"))
+	} else if cfg.EventEmitter != nil && cfg.EventEnabled && cfg.EventType != "" && cfg.EventID != "" && cfg.Metadata != nil {
+		_, ok := cfg.EventEmitter.EmitEventWithLogging(ctx, cfg.EventEmitter, cfg.Log, cfg.EventType, cfg.EventID, cfg.Metadata)
+		if !ok && cfg.Log != nil {
+			cfg.Log.Warn("Failed to emit event in success orchestration", zap.String("EventType", cfg.EventType), zap.String("EventID", cfg.EventID))
 		}
 	}
 	// 6. Nexus registration
@@ -253,5 +230,41 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 		// Default: register with Nexus (stub, implement as needed)
 		errs = append(errs, errors.New("nexus registration not implemented"))
 	}
+
+	// 7. Canonical orchestration event emission (NEW, canonical pattern)
+	if cfg.EventEmitter != nil {
+		correlationID := utils.GetStringFromContext(ctx, "correlation_id")
+		service := cfg.PatternType
+		entityID := cfg.PatternID
+		if correlationID == "" {
+			correlationID = utils.GetStringFromContext(ctx, "request_id")
+		}
+		event := CanonicalOrchestrationEvent{
+			Type: "orchestration.success",
+			Payload: CanonicalOrchestrationPayload{
+				Code:          s.Code.String(),
+				Message:       s.Message,
+				Metadata:      cfg.Metadata,
+				YinYang:       "yang",
+				CorrelationID: correlationID,
+				Service:       service,
+				EntityID:      entityID,
+				Timestamp:     time.Now().UTC().Format(time.RFC3339),
+			},
+		}
+		payload, err := utils.MarshalJSON(event)
+		if err != nil {
+			if cfg.Log != nil {
+				cfg.Log.Warn("Failed to marshal orchestration event to JSON", zap.Error(err))
+			}
+		} else {
+			// Use the new raw event emitter for canonical orchestration events
+			_, ok := cfg.EventEmitter.EmitRawEventWithLogging(ctx, cfg.Log, event.Type, event.Payload.EntityID, payload)
+			if !ok && cfg.Log != nil {
+				cfg.Log.Warn("Failed to emit orchestration event", zap.String("type", event.Type))
+			}
+		}
+	}
+
 	return errs
 }

@@ -84,26 +84,6 @@ ServiceMetadata for talent, with diversity, inclusion, and industry-standard fie
 
 ## Functions
 
-### BuildTalentMetadata
-
-BuildTalentMetadata builds a commonpb.Metadata from ServiceMetadata and tags.
-
-### ExtractAndEnrichTalentMetadata
-
-ExtractAndEnrichTalentMetadata extracts, validates, and enriches talent metadata.
-
-### ExtractTalentLevel
-
-ExtractTalentLevel extracts level from metadata.
-
-### ExtractTalentRoles
-
-ExtractTalentRoles extracts roles from metadata.
-
-### ExtractTalentTeamworkScore
-
-ExtractTalentTeamworkScore extracts teamwork score from metadata.
-
 ### NewService
 
 ### Register

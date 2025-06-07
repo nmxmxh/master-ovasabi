@@ -8,10 +8,6 @@
 
 ## Types
 
-### AssetChunk
-
---- Asset Chunk Storage (Optional, stub) ---.
-
 ### AzureEmailProvider
 
 #### Methods
@@ -72,8 +68,6 @@ Create inserts a new notification record.
 
 Delete removes a notification and its master record.
 
-##### GetAssetChunks
-
 ##### GetBroadcast
 
 ##### GetByID
@@ -97,8 +91,6 @@ ListByUserID retrieves all notifications for a specific user.
 ListPendingScheduled retrieves all pending notifications that are scheduled to be sent.
 
 ##### LogNotificationEvent
-
-##### StoreAssetChunk
 
 ##### Update
 
@@ -143,8 +135,6 @@ NotificationStatus represents the status of a notification.
 NotificationType represents the type of notification.
 
 ## Functions
-
-### MetadataToStruct
 
 ### NewService
 

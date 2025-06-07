@@ -63,3 +63,6 @@ services:
     channels: ["email", "sms", "push"]
     batch_size: 100
     retry_attempts: 3
+  localization:
+    libretranslate_endpoint: "http://localhost:5002"
+    libretranslate_timeout: "10s"

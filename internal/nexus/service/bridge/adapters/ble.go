@@ -61,11 +61,7 @@ func (a *BLEAdapter) Receive(ctx context.Context, handler bridge.MessageHandler)
 			case <-ticker.C:
 				// Simulate receiving a BLE message
 				if a.handler != nil {
-					msg := &bridge.Message{
-						Payload:  []byte("simulated BLE message"),
-						Metadata: map[string]string{"ble": "message"},
-					}
-					if err := a.handler(ctx, msg); err != nil {
+					if err := a.handler(ctx, nil); err != nil {
 						fmt.Printf("[BLEAdapter] Handler error: %v\n", err)
 					}
 				}

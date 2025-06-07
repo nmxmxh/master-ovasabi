@@ -4,6 +4,7 @@ import (
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
@@ -152,7 +153,7 @@ func DefaultOvasabiMetadata(domain string, projectCount int) *commonpb.Metadata 
 			errorMsg := "If this contract fails, revert to system default and notify all heirs."
 			successMsg := "Legacy secured: all relations and assets distributed as intended."
 			packages := []string{"pkg/utils/safeint.go", "pkg/graceful/", "internal/service/", "docs/amadeus/amadeus_context.md"}
-			ss, _ := structpb.NewStruct(map[string]interface{}{
+			ss := metadata.NewStructFromMap(map[string]interface{}{
 				"taxation":       taxationMap,
 				"profile":        profileMap,
 				"dynamic_blocks": dynamicBlocks,
@@ -161,8 +162,71 @@ func DefaultOvasabiMetadata(domain string, projectCount int) *commonpb.Metadata 
 				"error":          errorMsg,
 				"success":        successMsg,
 				"packages":       packages,
-			})
+			}, nil)
 			return ss
 		}(),
+	}
+}
+
+// MinimalUserTaxMetadata returns a minimal connectors array for a new user: only creator, referrer (if any), government, and ubi.
+func MinimalUserTaxMetadata(userID, userWallet, referrerID, referrerWallet string) *commonpb.Metadata {
+	now := time.Now().Format(time.RFC3339)
+	connectors := []interface{}{
+		map[string]interface{}{
+			"type":             "creator",
+			"recipient":        userID,
+			"recipient_wallet": userWallet,
+			"percentage":       0.06,
+			"applied_on":       now,
+			"default":          true,
+			"enforced":         true,
+			"justification":    "Main creator",
+		},
+	}
+	if referrerID != "" && referrerWallet != "" {
+		connectors = append(connectors, map[string]interface{}{
+			"type":             "referral",
+			"recipient":        referrerID,
+			"recipient_wallet": referrerWallet,
+			"percentage":       0.04,
+			"applied_on":       now,
+			"default":          true,
+			"enforced":         true,
+			"justification":    "Referral",
+		})
+	}
+	// Always add government and ubi
+	connectors = append(connectors,
+		map[string]interface{}{
+			"type":             "government",
+			"recipient":        "government",
+			"recipient_wallet": "0xGov...",
+			"percentage":       0.04,
+			"applied_on":       now,
+			"default":          true,
+			"enforced":         true,
+			"justification":    "Government VAT",
+		},
+		map[string]interface{}{
+			"type":             "ubi",
+			"recipient":        "ubi_pool",
+			"recipient_wallet": "0xUBI...",
+			"percentage":       0.01,
+			"applied_on":       now,
+			"default":          true,
+			"enforced":         true,
+			"justification":    "Universal Basic Income",
+		},
+	)
+	ss := metadata.NewStructFromMap(map[string]interface{}{
+		"taxation": map[string]interface{}{
+			"connectors":      connectors,
+			"project_count":   0,
+			"total_tax":       0.15,
+			"tax_from_system": true,
+		},
+	}, nil)
+	return &commonpb.Metadata{
+		ServiceSpecific: ss,
 	}
 }

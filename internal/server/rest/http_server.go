@@ -15,9 +15,8 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/metaversion"
 )
 
-// StartHTTPServer sets up and starts the HTTP server in a goroutine.
-// evaluator and logger should be provided from main server setup.
-func StartHTTPServer(log *gozap.Logger, container *di.Container) {
+// StartHTTPServer sets up and returns the HTTP server. The caller is responsible for starting and stopping it.
+func StartHTTPServer(log *gozap.Logger, container *di.Container) *http.Server {
 	mux := http.NewServeMux()
 	ws.RegisterWebSocketHandlers(mux, log, container, nil)
 
@@ -69,10 +68,5 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container) {
 		Handler:           wrappedMux,
 		ReadHeaderTimeout: 10 * time.Second, // Mitigate Slowloris
 	}
-	go func() {
-		log.Info("Starting HTTP server for REST/WebSocket", gozap.String("address", httpPort))
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("HTTP server failed", gozap.Error(err))
-		}
-	}()
+	return server
 }

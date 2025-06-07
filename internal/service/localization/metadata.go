@@ -24,15 +24,10 @@
 
 package localization
 
-import (
-	"encoding/json"
-	"time"
-
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
-	structpb "google.golang.org/protobuf/types/known/structpb"
-)
-
 // ServiceMetadata holds all localization service-specific metadata fields.
+// This struct documents all fields expected under metadata.service_specific["localization"] in the common.Metadata proto.
+// Reference: docs/services/metadata.md, docs/amadeus/amadeus_context.md
+// All extraction and mutation must use canonical helpers from pkg/metadata.
 type ServiceMetadata struct {
 	Locale                string                         `json:"locale,omitempty"`            // Target locale (e.g., en-US)
 	Language              string                         `json:"language,omitempty"`          // Target language (e.g., en)
@@ -97,85 +92,5 @@ type AuditMetadata struct {
 	History        []string `json:"history,omitempty"`
 }
 
-// ServiceMetadataFromStruct converts a structpb.Struct to ServiceMetadata.
-func ServiceMetadataFromStruct(s *structpb.Struct) (*ServiceMetadata, error) {
-	if s == nil {
-		return &ServiceMetadata{}, nil
-	}
-	b, err := json.Marshal(s.AsMap())
-	if err != nil {
-		return nil, err
-	}
-	var meta ServiceMetadata
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-	return &meta, nil
-}
-
-// ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
-func ServiceMetadataToStruct(meta *ServiceMetadata) (*structpb.Struct, error) {
-	if meta == nil {
-		return metadata.NewStructFromMap(map[string]interface{}{}, nil), nil
-	}
-	b, err := json.Marshal(meta)
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]interface{}
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return nil, err
-	}
-	return metadata.NewStructFromMap(m, nil), nil
-}
-
-// ExtractAndEnrichLocalizationMetadata extracts, validates, and enriches localization metadata.
-func ExtractAndEnrichLocalizationMetadata(meta *ServiceMetadata, userID string, isCreate bool) *ServiceMetadata {
-	if meta == nil {
-		meta = &ServiceMetadata{}
-	}
-	// Ensure versioning
-	if meta.Versioning == nil {
-		meta.Versioning = &VersioningMetadata{
-			SystemVersion:  "1.0.0",
-			ServiceVersion: "1.0.0",
-			Environment:    "prod",
-			LastMigratedAt: time.Now().Format(time.RFC3339),
-		}
-	}
-	// Ensure audit
-	if meta.Audit == nil {
-		meta.Audit = &AuditMetadata{
-			CreatedBy: userID,
-			History:   []string{"created"},
-		}
-	} else {
-		meta.Audit.LastModifiedBy = userID
-		if isCreate {
-			meta.Audit.History = append(meta.Audit.History, "created")
-		} else {
-			meta.Audit.History = append(meta.Audit.History, "updated")
-		}
-	}
-	// Ensure translation provenance
-	if meta.TranslationProvenance == nil {
-		meta.TranslationProvenance = &TranslationProvenanceMetadata{
-			Type:      "machine",
-			Engine:    "unknown",
-			Timestamp: time.Now().Format(time.RFC3339),
-		}
-	}
-	// Ensure compliance
-	if meta.Compliance == nil {
-		meta.Compliance = &ComplianceMetadata{
-			Standards: []ComplianceStandard{{Name: "WCAG", Level: "AA", Version: "2.1", Compliant: true}},
-			CheckedBy: "localization-service",
-			CheckedAt: time.Now().Format(time.RFC3339),
-			Method:    "automated",
-			Issues:    []ComplianceIssue{},
-		}
-	}
-	return meta
-}
+// [CANONICAL] All metadata must be normalized and calculated via metadata.NormalizeAndCalculate before persistence or emission.
+// Ensure required fields (versioning, audit, etc.) are present under the correct namespace.

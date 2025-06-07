@@ -80,7 +80,15 @@ type User struct {
 	ExternalIDs  map[string]string  `db:"external_ids"`
 	CreatedAt    time.Time          `db:"created_at"`
 	UpdatedAt    time.Time          `db:"updated_at"`
+	// Score tracks the user's system currency, with subfields for balance and pending.
+	Score Score `db:"score" json:"score"`
 	// reserved for extensibility
+}
+
+// Score holds balance and pending fields for system currency.
+type Score struct {
+	Balance float64 `db:"score_balance" json:"balance"`
+	Pending float64 `db:"score_pending" json:"pending"`
 }
 
 type Profile struct {
@@ -95,16 +103,16 @@ type Profile struct {
 	// reserved for extensibility
 }
 
-// UserRepository handles operations on the service_user table.
+// Repository handles user data persistence.
 type Repository struct {
 	*repository.BaseRepository
 	masterRepo repository.MasterRepository
 }
 
-// NewUserRepository creates a new user repository instance.
-func NewRepository(db *sql.DB, masterRepo repository.MasterRepository) *Repository {
+// NewRepository creates a new user repository.
+func NewRepository(db *sql.DB, log *zap.Logger, masterRepo repository.MasterRepository) *Repository {
 	return &Repository{
-		BaseRepository: repository.NewBaseRepository(db),
+		BaseRepository: repository.NewBaseRepository(db, log),
 		masterRepo:     masterRepo,
 	}
 }
@@ -1910,4 +1918,59 @@ func (r *Repository) GetUserGroupByID(ctx context.Context, groupID string) (*use
 		return nil, err
 	}
 	return group, nil
+}
+
+// UpdateTx updates a user within a provided transaction (for atomic multi-user updates).
+func (r *Repository) UpdateTx(ctx context.Context, tx *sql.Tx, user *User) error {
+	// If username is being changed, validate it
+	if user.Username != "" {
+		currentUser, err := r.GetByID(ctx, user.ID)
+		if err != nil {
+			return err
+		}
+		if currentUser.Username != user.Username {
+			if err := r.validateUsername(ctx, user.Username); err != nil {
+				return err
+			}
+			// Update master record name
+			master := &repository.Master{
+				ID:   user.MasterID,
+				Name: user.Username,
+			}
+			if err := r.masterRepo.Update(ctx, master); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Validate metadata
+	if err := metadatautil.ValidateMetadata(user.Metadata); err != nil {
+		return err
+	}
+
+	// Validate password
+	if err := validatePassword(user.PasswordHash); err != nil {
+		return err
+	}
+
+	result, err := tx.ExecContext(ctx,
+		`UPDATE service_user 
+		SET username = $1, email = $2, password_hash = $3, referral_code = $4, referred_by = $5, device_hash = $6, location = $7, profile = $8, roles = $9, status = $10, metadata = $11, updated_at = NOW()
+		WHERE id = $12`,
+		user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, user.Location, user.Profile, user.Roles, user.Status, user.Metadata, user.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
 }

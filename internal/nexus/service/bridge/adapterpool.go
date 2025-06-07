@@ -2,6 +2,8 @@ package bridge
 
 import (
 	"context"
+
+	"go.uber.org/zap"
 )
 
 type AdapterFactory interface {
@@ -41,6 +43,8 @@ func (p *AdapterPool) Put(adapter Adapter) {
 	case p.adapters <- adapter:
 		// returned to pool
 	default:
-		_ = adapter.Close() // pool full, close adapter
+		if err := adapter.Close(); err != nil {
+			zap.L().Warn("Failed to close adapter in pool", zap.Error(err))
+		}
 	}
 }

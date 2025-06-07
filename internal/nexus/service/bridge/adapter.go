@@ -35,12 +35,4 @@ type Metrics struct {
 	LastError        string
 }
 
-type Message struct {
-	ID          string            `json:"id"`
-	Source      string            `json:"source"`
-	Destination string            `json:"destination"`
-	Metadata    map[string]string `json:"metadata"`
-	Payload     []byte            `json:"payload"`
-}
-
 type MessageHandler func(context.Context, *Message) error

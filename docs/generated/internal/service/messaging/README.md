@@ -48,11 +48,6 @@ MessagingMetadata is the canonical struct for messaging-specific metadata.
 
 #### Methods
 
-##### ToStruct
-
-ToStruct converts MessagingMetadata to a structpb.Struct for storage in
-Metadata.service_specific.messaging.
-
 ##### UpdateDeliveryStatus
 
 UpdateDeliveryStatus updates the delivery/read/ack status for a user.

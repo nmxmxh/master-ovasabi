@@ -37,13 +37,24 @@ with the Amadeus knowledge graph and orchestration system.
   `upload_media`, `start_stream`)
 - **Extensible:** New actions and data fields can be added without new endpoints
 
-### WebSocket Event System
+### WebSocket Event System (Unified Event Bus)
 
-- **Endpoint:** `/ws/{campaign}/{user_id}`
-- **Event types:** `update_ack`, `campaign_event`, `stats_update`, `media_event`, `stream_event`,
-  `error`, `notification`, etc.
-- **Real-time feedback:** All updates, notifications, and streaming events are pushed to clients
-- **Correlation:** REST actions and WebSocket events are linked by user/session/campaign context
+- **Endpoint:** `/ws/{campaign}/{user_id}` (or `/ws` for general event bus)
+- **Unified event envelope:** All messages (from client or server) use:
+  ```json
+  {
+    "type": "event_type",
+    "payload": { ... },
+    "metadata": { ... }
+  }
+  ```
+- **Clients as emitters and receivers:** Any client (browser, WASM, mobile, etc.) can emit events
+  (e.g., search, actions) and receive events (e.g., search results, campaign updates, notifications)
+  via the WebSocket connection.
+- **Event routing:** The WebSocket server emits all incoming events to the Nexus event bus, and
+  routes all relevant events from the bus to the appropriate clients.
+- **Loose coupling and orchestration:** All communication is event-driven and metadata-rich,
+  enabling orchestration, automation, and extensibility.
 
 ### Metadata-Driven Orchestration
 
@@ -213,3 +224,13 @@ paths:
 - [Service Implementation Pattern](../services/implementation_pattern.md)
 - [OpenAPI Specification](https://swagger.io/specification/)
 - [AsyncAPI (for WebSocket/Event Docs)](https://www.asyncapi.com/)
+
+### Example Event Flow
+
+- Client sends a `search` event via WebSocket → WebSocket server emits `search.requested` to Nexus →
+  Search service processes and emits `search.completed` → WebSocket server routes result to client.
+
+### Extensibility
+
+- New event types and workflows can be added without changing endpoints or protocol.
+- All events are tracked, versioned, and auditable via metadata and the knowledge graph.

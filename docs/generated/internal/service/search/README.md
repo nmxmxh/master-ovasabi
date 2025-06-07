@@ -48,28 +48,14 @@ multiple entity types as specified in req.Types.
 
 ## Functions
 
-### ComposeMetadataFilter
-
-ComposeMetadataFilter builds a SQL filter string and args for service-specific metadata fields.
-Compatible with multi-entity search: use in conjunction with the 'types' field to filter per-entity.
-It returns a SQL fragment (e.g., " AND metadata->'service_specific'->>'foo' = ?") and the
-corresponding args. Extend as needed for entity-type-specific metadata logic.
-
-### ExtractServiceSpecific
-
-ExtractServiceSpecific returns a map of service-specific metadata fields for a given service
-namespace.
-
 ### NewService
 
-NewService creates a new SearchService instance with event bus support.
+NewService creates a new SearchService instance with event bus and provider support (canonical
+pattern).
 
 ### Register
 
-Register registers the search service with the DI container and event bus support.
+Register registers the search service with the DI container and event bus support (canonical
+pattern).
 
 ### StartEventSubscribers
-
-### ValidateMetadataKeys
-
-ValidateMetadataKeys checks that only allowed keys are present in service-specific metadata.

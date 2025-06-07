@@ -1,3 +1,7 @@
+> **Context:** This manifesto is part of the Inos Internet-Native OS project — a distributed, device-agnostic, and scalable OS for the post-platform era. See the [README](../../README.md) for architecture and onboarding.
+>
+> **🚧 Work in Progress (WIP):** This document evolves with the community and the platform.
+
 # OVASABI Digital Will Manifesto
 
 **1. Simplicity First**  

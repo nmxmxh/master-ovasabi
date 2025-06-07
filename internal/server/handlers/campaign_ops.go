@@ -45,9 +45,6 @@ type MediaState struct {
 	UploadProgress float64
 }
 
-// Type-safe context key for DI container.
-type diContainerKey struct{}
-
 // CampaignOpsHandler handles campaign-related actions via the "action" field.
 //
 // @Summary Campaign Operations

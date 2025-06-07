@@ -149,7 +149,10 @@ Translate returns a translation for a given key and locale.
 
 ### ServiceMetadata
 
-ServiceMetadata holds all localization service-specific metadata fields.
+ServiceMetadata holds all localization service-specific metadata fields. This struct documents all
+fields expected under metadata.service_specific["localization"] in the common.Metadata proto.
+Reference: docs/services/metadata.md, docs/amadeus/amadeus_context.md All extraction and mutation
+must use canonical helpers from pkg/metadata.
 
 ### Translation
 
@@ -168,9 +171,5 @@ TranslationProvenanceMetadata describes how a translation was produced.
 ### Register
 
 Register registers the localization service with the DI container and event bus support.
-
-### ServiceMetadataToStruct
-
-ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
 
 ### StartEventSubscribers

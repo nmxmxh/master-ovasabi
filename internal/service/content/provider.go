@@ -30,21 +30,29 @@ import (
 	"context"
 	"database/sql"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
 	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
-// EventEmitter defines the interface for emitting events in the content service.
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-}
-
 // Register registers the content service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repository.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter events.EventEmitter,
+	db *sql.DB,
+	masterRepo repository.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{}, // unused, keep for signature consistency
+) error {
 	repo := NewRepository(db, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "content")
 	if err != nil {
@@ -56,6 +64,10 @@ func Register(ctx context.Context, container *di.Container, eventEmitter EventEm
 	}); err != nil {
 		log.With(zap.String("service", "content")).Error("Failed to register content service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
+	}
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "content")
 	}
 	return nil
 }

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: '{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}'
+          imagePullPolicy: { { .Values.redis.image.pullPolicy } }
+          ports:
+            - containerPort: { { .Values.redis.service.port } }
+          resources: { { - toYaml .Values.resources | nindent 12 } }
+          affinity: { { - toYaml .Values.affinity | nindent 12 } }
+          tolerations: { { - toYaml .Values.tolerations | nindent 12 } }
+          nodeSelector: { { - toYaml .Values.nodeSelector | nindent 12 } }

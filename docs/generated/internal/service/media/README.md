@@ -149,10 +149,6 @@ UploadMetadata stores upload session information.
 
 ## Functions
 
-### MetadataToStruct
-
-MediaMetadataToStruct converts MediaMetadata to structpb.Struct.
-
 ### NewMediaClient
 
 NewMediaClient creates a new gRPC client connection and returns a MediaServiceClient and a cleanup

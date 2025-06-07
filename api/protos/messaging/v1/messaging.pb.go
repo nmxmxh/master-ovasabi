@@ -767,7 +767,9 @@ type SendMessageRequest struct {
 	Type           MessageType            `protobuf:"varint,7,opt,name=type,proto3,enum=messaging.v1.MessageType" json:"type,omitempty"`
 	Attachments    []*Attachment          `protobuf:"bytes,8,rep,name=attachments,proto3" json:"attachments,omitempty"`
 	Metadata       *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId     int64                  `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId      string                 `protobuf:"bytes,10,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId     string                 `protobuf:"bytes,11,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId       string                 `protobuf:"bytes,12,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -865,11 +867,25 @@ func (x *SendMessageRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *SendMessageRequest) GetCampaignId() int64 {
+func (x *SendMessageRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *SendMessageRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *SendMessageRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type SendMessageResponse struct {
@@ -924,7 +940,9 @@ type SendGroupMessageRequest struct {
 	Type          MessageType            `protobuf:"varint,4,opt,name=type,proto3,enum=messaging.v1.MessageType" json:"type,omitempty"`
 	Attachments   []*Attachment          `protobuf:"bytes,5,rep,name=attachments,proto3" json:"attachments,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,7,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,8,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,9,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1001,11 +1019,25 @@ func (x *SendGroupMessageRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *SendGroupMessageRequest) GetCampaignId() int64 {
+func (x *SendGroupMessageRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *SendGroupMessageRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *SendGroupMessageRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type SendGroupMessageResponse struct {
@@ -1059,7 +1091,9 @@ type EditMessageRequest struct {
 	NewContent     string                 `protobuf:"bytes,3,opt,name=new_content,json=newContent,proto3" json:"new_content,omitempty"`
 	NewAttachments []*Attachment          `protobuf:"bytes,4,rep,name=new_attachments,json=newAttachments,proto3" json:"new_attachments,omitempty"`
 	Metadata       *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId     int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId      string                 `protobuf:"bytes,6,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId     string                 `protobuf:"bytes,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId       string                 `protobuf:"bytes,8,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1129,11 +1163,25 @@ func (x *EditMessageRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *EditMessageRequest) GetCampaignId() int64 {
+func (x *EditMessageRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *EditMessageRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *EditMessageRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type EditMessageResponse struct {
@@ -1185,7 +1233,9 @@ type DeleteMessageRequest struct {
 	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	RequesterId   string                 `protobuf:"bytes,2,opt,name=requester_id,json=requesterId,proto3" json:"requester_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,4,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,6,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1241,11 +1291,25 @@ func (x *DeleteMessageRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *DeleteMessageRequest) GetCampaignId() int64 {
+func (x *DeleteMessageRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *DeleteMessageRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *DeleteMessageRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type DeleteMessageResponse struct {
@@ -1298,7 +1362,9 @@ type ReactToMessageRequest struct {
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Emoji         string                 `protobuf:"bytes,3,opt,name=emoji,proto3" json:"emoji,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,5,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,7,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1361,11 +1427,25 @@ func (x *ReactToMessageRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *ReactToMessageRequest) GetCampaignId() int64 {
+func (x *ReactToMessageRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *ReactToMessageRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *ReactToMessageRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type ReactToMessageResponse struct {
@@ -1509,7 +1589,9 @@ type ListMessagesRequest struct {
 	PageSize       int32                  `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	Filters        *v1.Metadata           `protobuf:"bytes,6,opt,name=filters,proto3" json:"filters,omitempty"`
 	Metadata       *v1.Metadata           `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId     int64                  `protobuf:"varint,8,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId      string                 `protobuf:"bytes,8,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId     string                 `protobuf:"bytes,9,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId       string                 `protobuf:"bytes,10,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`      // optional
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1593,11 +1675,25 @@ func (x *ListMessagesRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *ListMessagesRequest) GetCampaignId() int64 {
+func (x *ListMessagesRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *ListMessagesRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *ListMessagesRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type ListMessagesResponse struct {
@@ -1675,7 +1771,9 @@ type ListThreadsRequest struct {
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	Filters       *v1.Metadata           `protobuf:"bytes,4,opt,name=filters,proto3" json:"filters,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,6,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,8,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1745,11 +1843,25 @@ func (x *ListThreadsRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *ListThreadsRequest) GetCampaignId() int64 {
+func (x *ListThreadsRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *ListThreadsRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *ListThreadsRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type ListThreadsResponse struct {
@@ -1827,7 +1939,9 @@ type ListConversationsRequest struct {
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	Filters       *v1.Metadata           `protobuf:"bytes,4,opt,name=filters,proto3" json:"filters,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,6,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,8,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1897,11 +2011,25 @@ func (x *ListConversationsRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *ListConversationsRequest) GetCampaignId() int64 {
+func (x *ListConversationsRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *ListConversationsRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *ListConversationsRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type ListConversationsResponse struct {
@@ -1980,7 +2108,9 @@ type StreamMessagesRequest struct {
 	ChatGroupIds    []string               `protobuf:"bytes,3,rep,name=chat_group_ids,json=chatGroupIds,proto3" json:"chat_group_ids,omitempty"`
 	Filters         *v1.Metadata           `protobuf:"bytes,4,opt,name=filters,proto3" json:"filters,omitempty"`
 	Metadata        *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId      int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId       string                 `protobuf:"bytes,10,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId      string                 `protobuf:"bytes,11,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId        string                 `protobuf:"bytes,12,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -2050,11 +2180,25 @@ func (x *StreamMessagesRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *StreamMessagesRequest) GetCampaignId() int64 {
+func (x *StreamMessagesRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *StreamMessagesRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *StreamMessagesRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type MessageEvent struct {
@@ -2067,7 +2211,9 @@ type MessageEvent struct {
 	EventType      string                 `protobuf:"bytes,6,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"` // sent, delivered, read, edited, deleted, reaction, etc.
 	Payload        *structpb.Struct       `protobuf:"bytes,7,opt,name=payload,proto3" json:"payload,omitempty"`
 	CreatedAt      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	CampaignId     int64                  `protobuf:"varint,9,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId      string                 `protobuf:"bytes,9,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`     // optional
+	CampaignId     string                 `protobuf:"bytes,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId       string                 `protobuf:"bytes,11,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2158,11 +2304,25 @@ func (x *MessageEvent) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *MessageEvent) GetCampaignId() int64 {
+func (x *MessageEvent) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *MessageEvent) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *MessageEvent) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type StreamTypingRequest struct {
@@ -2171,7 +2331,9 @@ type StreamTypingRequest struct {
 	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
 	ChatGroupId    string                 `protobuf:"bytes,3,opt,name=chat_group_id,json=chatGroupId,proto3" json:"chat_group_id,omitempty"`
 	Metadata       *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId     int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId      string                 `protobuf:"bytes,5,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId     string                 `protobuf:"bytes,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId       string                 `protobuf:"bytes,7,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2234,11 +2396,25 @@ func (x *StreamTypingRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *StreamTypingRequest) GetCampaignId() int64 {
+func (x *StreamTypingRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *StreamTypingRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *StreamTypingRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type TypingEvent struct {
@@ -2248,7 +2424,9 @@ type TypingEvent struct {
 	ChatGroupId    string                 `protobuf:"bytes,3,opt,name=chat_group_id,json=chatGroupId,proto3" json:"chat_group_id,omitempty"`
 	IsTyping       bool                   `protobuf:"varint,4,opt,name=is_typing,json=isTyping,proto3" json:"is_typing,omitempty"`
 	Timestamp      *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	CampaignId     int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId      string                 `protobuf:"bytes,6,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId     string                 `protobuf:"bytes,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId       string                 `protobuf:"bytes,8,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2318,18 +2496,34 @@ func (x *TypingEvent) GetTimestamp() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *TypingEvent) GetCampaignId() int64 {
+func (x *TypingEvent) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *TypingEvent) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *TypingEvent) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type StreamPresenceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,3,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,5,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2378,11 +2572,25 @@ func (x *StreamPresenceRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *StreamPresenceRequest) GetCampaignId() int64 {
+func (x *StreamPresenceRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *StreamPresenceRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *StreamPresenceRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type PresenceEvent struct {
@@ -2390,7 +2598,9 @@ type PresenceEvent struct {
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"` // online, offline, away, dnd
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,4,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,6,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2446,11 +2656,25 @@ func (x *PresenceEvent) GetTimestamp() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *PresenceEvent) GetCampaignId() int64 {
+func (x *PresenceEvent) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *PresenceEvent) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *PresenceEvent) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 // --- Read/Delivery/Ack ---
@@ -2459,7 +2683,9 @@ type MarkAsReadRequest struct {
 	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,4,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,6,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2515,11 +2741,25 @@ func (x *MarkAsReadRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *MarkAsReadRequest) GetCampaignId() int64 {
+func (x *MarkAsReadRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *MarkAsReadRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *MarkAsReadRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type MarkAsReadResponse struct {
@@ -2571,7 +2811,9 @@ type MarkAsDeliveredRequest struct {
 	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,4,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,6,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2627,11 +2869,25 @@ func (x *MarkAsDeliveredRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *MarkAsDeliveredRequest) GetCampaignId() int64 {
+func (x *MarkAsDeliveredRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *MarkAsDeliveredRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *MarkAsDeliveredRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type MarkAsDeliveredResponse struct {
@@ -2683,7 +2939,9 @@ type AcknowledgeMessageRequest struct {
 	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,4,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,6,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2739,11 +2997,25 @@ func (x *AcknowledgeMessageRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *AcknowledgeMessageRequest) GetCampaignId() int64 {
+func (x *AcknowledgeMessageRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *AcknowledgeMessageRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *AcknowledgeMessageRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type AcknowledgeMessageResponse struct {
@@ -2798,7 +3070,9 @@ type CreateChatGroupRequest struct {
 	MemberIds     []string               `protobuf:"bytes,3,rep,name=member_ids,json=memberIds,proto3" json:"member_ids,omitempty"`
 	Roles         map[string]string      `protobuf:"bytes,4,rep,name=roles,proto3" json:"roles,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,10,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,11,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,12,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2868,11 +3142,25 @@ func (x *CreateChatGroupRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *CreateChatGroupRequest) GetCampaignId() int64 {
+func (x *CreateChatGroupRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *CreateChatGroupRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *CreateChatGroupRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type CreateChatGroupResponse struct {
@@ -2925,7 +3213,9 @@ type AddChatGroupMemberRequest struct {
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Role          string                 `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,5,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,7,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2988,11 +3278,25 @@ func (x *AddChatGroupMemberRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *AddChatGroupMemberRequest) GetCampaignId() int64 {
+func (x *AddChatGroupMemberRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *AddChatGroupMemberRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *AddChatGroupMemberRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type AddChatGroupMemberResponse struct {
@@ -3044,7 +3348,9 @@ type RemoveChatGroupMemberRequest struct {
 	ChatGroupId   string                 `protobuf:"bytes,1,opt,name=chat_group_id,json=chatGroupId,proto3" json:"chat_group_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,4,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,6,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3100,11 +3406,25 @@ func (x *RemoveChatGroupMemberRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *RemoveChatGroupMemberRequest) GetCampaignId() int64 {
+func (x *RemoveChatGroupMemberRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *RemoveChatGroupMemberRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *RemoveChatGroupMemberRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type RemoveChatGroupMemberResponse struct {
@@ -3157,7 +3477,9 @@ type ListChatGroupMembersRequest struct {
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,5,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,7,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3220,11 +3542,25 @@ func (x *ListChatGroupMembersRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *ListChatGroupMembersRequest) GetCampaignId() int64 {
+func (x *ListChatGroupMembersRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *ListChatGroupMembersRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *ListChatGroupMembersRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type ListChatGroupMembersResponse struct {
@@ -3304,7 +3640,9 @@ type MessagingPreferences struct {
 	QuietHours        []string               `protobuf:"bytes,4,rep,name=quiet_hours,json=quietHours,proto3" json:"quiet_hours,omitempty"`
 	Timezone          string                 `protobuf:"bytes,5,opt,name=timezone,proto3" json:"timezone,omitempty"`
 	Metadata          *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId        int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId         string                 `protobuf:"bytes,7,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId        string                 `protobuf:"bytes,8,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId          string                 `protobuf:"bytes,9,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -3381,18 +3719,34 @@ func (x *MessagingPreferences) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *MessagingPreferences) GetCampaignId() int64 {
+func (x *MessagingPreferences) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *MessagingPreferences) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *MessagingPreferences) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type UpdateMessagingPreferencesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Preferences   *MessagingPreferences  `protobuf:"bytes,2,opt,name=preferences,proto3" json:"preferences,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,3,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,5,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3441,11 +3795,25 @@ func (x *UpdateMessagingPreferencesRequest) GetPreferences() *MessagingPreferenc
 	return nil
 }
 
-func (x *UpdateMessagingPreferencesRequest) GetCampaignId() int64 {
+func (x *UpdateMessagingPreferencesRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *UpdateMessagingPreferencesRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *UpdateMessagingPreferencesRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type UpdateMessagingPreferencesResponse struct {
@@ -3508,7 +3876,9 @@ type ListMessageEventsRequest struct {
 	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	Filters       *v1.Metadata           `protobuf:"bytes,4,opt,name=filters,proto3" json:"filters,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	ProductId     string                 `protobuf:"bytes,6,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`    // optional
+	CampaignId    string                 `protobuf:"bytes,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // optional
+	TalentId      string                 `protobuf:"bytes,8,opt,name=talent_id,json=talentId,proto3" json:"talent_id,omitempty"`       // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3578,11 +3948,25 @@ func (x *ListMessageEventsRequest) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *ListMessageEventsRequest) GetCampaignId() int64 {
+func (x *ListMessageEventsRequest) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *ListMessageEventsRequest) GetCampaignId() string {
 	if x != nil {
 		return x.CampaignId
 	}
-	return 0
+	return ""
+}
+
+func (x *ListMessageEventsRequest) GetTalentId() string {
+	if x != nil {
+		return x.TalentId
+	}
+	return ""
 }
 
 type ListMessageEventsResponse struct {
@@ -3731,7 +4115,7 @@ const file_messaging_v1_messaging_proto_rawDesc = "" +
 	"\x04type\x18\x03 \x01(\tR\x04type\x12\x1a\n" +
 	"\bfilename\x18\x04 \x01(\tR\bfilename\x12\x12\n" +
 	"\x04size\x18\x05 \x01(\x03R\x04size\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"\x94\x03\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"\xd0\x03\n" +
 	"\x12SendMessageRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12'\n" +
 	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\"\n" +
@@ -3741,23 +4125,29 @@ const file_messaging_v1_messaging_proto_rawDesc = "" +
 	"\acontent\x18\x06 \x01(\tR\acontent\x12-\n" +
 	"\x04type\x18\a \x01(\x0e2\x19.messaging.v1.MessageTypeR\x04type\x12:\n" +
 	"\vattachments\x18\b \x03(\v2\x18.messaging.v1.AttachmentR\vattachments\x12,\n" +
-	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\n" +
-	" \x01(\x03R\n" +
-	"campaignId\"F\n" +
+	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\n" +
+	" \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\v \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\f \x01(\tR\btalentId\"F\n" +
 	"\x13SendMessageResponse\x12/\n" +
-	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"\xae\x02\n" +
+	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"\xea\x02\n" +
 	"\x17SendGroupMessageRequest\x12\"\n" +
 	"\rchat_group_id\x18\x01 \x01(\tR\vchatGroupId\x12\x1b\n" +
 	"\tsender_id\x18\x02 \x01(\tR\bsenderId\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x12-\n" +
 	"\x04type\x18\x04 \x01(\x0e2\x19.messaging.v1.MessageTypeR\x04type\x12:\n" +
 	"\vattachments\x18\x05 \x03(\v2\x18.messaging.v1.AttachmentR\vattachments\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\a \x01(\x03R\n" +
-	"campaignId\"K\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\a \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\b \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\t \x01(\tR\btalentId\"K\n" +
 	"\x18SendGroupMessageResponse\x12/\n" +
-	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"\x83\x02\n" +
+	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"\xbf\x02\n" +
 	"\x12EditMessageRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x1b\n" +
@@ -3765,35 +4155,44 @@ const file_messaging_v1_messaging_proto_rawDesc = "" +
 	"\vnew_content\x18\x03 \x01(\tR\n" +
 	"newContent\x12A\n" +
 	"\x0fnew_attachments\x18\x04 \x03(\v2\x18.messaging.v1.AttachmentR\x0enewAttachments\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
-	"campaignId\"F\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x06 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\b \x01(\tR\btalentId\"F\n" +
 	"\x13EditMessageResponse\x12/\n" +
-	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"\xa7\x01\n" +
+	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"\xe3\x01\n" +
 	"\x14DeleteMessageRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12!\n" +
 	"\frequester_id\x18\x02 \x01(\tR\vrequesterId\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
-	"campaignId\"1\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x04 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\x06 \x01(\tR\btalentId\"1\n" +
 	"\x15DeleteMessageResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xb4\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xf0\x01\n" +
 	"\x15ReactToMessageRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05emoji\x18\x03 \x01(\tR\x05emoji\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
-	"campaignId\"I\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x05 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\a \x01(\tR\btalentId\"I\n" +
 	"\x16ReactToMessageResponse\x12/\n" +
 	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"2\n" +
 	"\x11GetMessageRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\"E\n" +
 	"\x12GetMessageResponse\x12/\n" +
-	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"\xab\x02\n" +
+	"\amessage\x18\x01 \x01(\v2\x15.messaging.v1.MessageR\amessage\"\xe7\x02\n" +
 	"\x13ListMessagesRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12'\n" +
 	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\"\n" +
@@ -3801,54 +4200,68 @@ const file_messaging_v1_messaging_proto_rawDesc = "" +
 	"\x04page\x18\x04 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x05 \x01(\x05R\bpageSize\x12*\n" +
 	"\afilters\x18\x06 \x01(\v2\x10.common.MetadataR\afilters\x12,\n" +
-	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\b \x01(\x03R\n" +
-	"campaignId\"\x9f\x01\n" +
+	"\bmetadata\x18\a \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\b \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\t \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\n" +
+	" \x01(\tR\btalentId\"\x9f\x01\n" +
 	"\x14ListMessagesResponse\x121\n" +
 	"\bmessages\x18\x01 \x03(\v2\x15.messaging.v1.MessageR\bmessages\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\xd9\x01\n" +
+	"totalPages\"\x95\x02\n" +
 	"\x12ListThreadsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12*\n" +
 	"\afilters\x18\x04 \x01(\v2\x10.common.MetadataR\afilters\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
-	"campaignId\"\x9b\x01\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x06 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\b \x01(\tR\btalentId\"\x9b\x01\n" +
 	"\x13ListThreadsResponse\x12.\n" +
 	"\athreads\x18\x01 \x03(\v2\x14.messaging.v1.ThreadR\athreads\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\xdf\x01\n" +
+	"totalPages\"\x9b\x02\n" +
 	"\x18ListConversationsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12*\n" +
 	"\afilters\x18\x04 \x01(\v2\x10.common.MetadataR\afilters\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
-	"campaignId\"\xb3\x01\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x06 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\b \x01(\tR\btalentId\"\xb3\x01\n" +
 	"\x19ListConversationsResponse\x12@\n" +
 	"\rconversations\x18\x01 \x03(\v2\x1a.messaging.v1.ConversationR\rconversations\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\xfc\x01\n" +
+	"totalPages\"\xb8\x02\n" +
 	"\x15StreamMessagesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12)\n" +
 	"\x10conversation_ids\x18\x02 \x03(\tR\x0fconversationIds\x12$\n" +
 	"\x0echat_group_ids\x18\x03 \x03(\tR\fchatGroupIds\x12*\n" +
 	"\afilters\x18\x04 \x01(\v2\x10.common.MetadataR\afilters\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
-	"campaignId\"\xe0\x02\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\n" +
+	" \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\v \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\f \x01(\tR\btalentId\"\x9c\x03\n" +
 	"\fMessageEvent\x12\x19\n" +
 	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x1d\n" +
 	"\n" +
@@ -3860,104 +4273,142 @@ const file_messaging_v1_messaging_proto_rawDesc = "" +
 	"event_type\x18\x06 \x01(\tR\teventType\x121\n" +
 	"\apayload\x18\a \x01(\v2\x17.google.protobuf.StructR\apayload\x129\n" +
 	"\n" +
-	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1f\n" +
-	"\vcampaign_id\x18\t \x01(\x03R\n" +
-	"campaignId\"\xca\x01\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\t \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\n" +
+	" \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\v \x01(\tR\btalentId\"\x86\x02\n" +
 	"\x13StreamTypingRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
 	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\"\n" +
 	"\rchat_group_id\x18\x03 \x01(\tR\vchatGroupId\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
-	"campaignId\"\xeb\x01\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x05 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\a \x01(\tR\btalentId\"\xa7\x02\n" +
 	"\vTypingEvent\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
 	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\"\n" +
 	"\rchat_group_id\x18\x03 \x01(\tR\vchatGroupId\x12\x1b\n" +
 	"\tis_typing\x18\x04 \x01(\bR\bisTyping\x128\n" +
-	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1f\n" +
-	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
-	"campaignId\"\x7f\n" +
+	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x06 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\b \x01(\tR\btalentId\"\xbb\x01\n" +
 	"\x15StreamPresenceRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12,\n" +
-	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x03 \x01(\x03R\n" +
-	"campaignId\"\x9b\x01\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x03 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\x05 \x01(\tR\btalentId\"\xd7\x01\n" +
 	"\rPresenceEvent\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x128\n" +
-	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1f\n" +
-	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
-	"campaignId\"\x9a\x01\n" +
+	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x04 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\x06 \x01(\tR\btalentId\"\xd6\x01\n" +
 	"\x11MarkAsReadRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
-	"campaignId\".\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x04 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\x06 \x01(\tR\btalentId\".\n" +
 	"\x12MarkAsReadResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x9f\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xdb\x01\n" +
 	"\x16MarkAsDeliveredRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
-	"campaignId\"3\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x04 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\x06 \x01(\tR\btalentId\"3\n" +
 	"\x17MarkAsDeliveredResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xa2\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xde\x01\n" +
 	"\x19AcknowledgeMessageRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
-	"campaignId\"6\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x04 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\x06 \x01(\tR\btalentId\"6\n" +
 	"\x1aAcknowledgeMessageResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xbd\x02\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xf9\x02\n" +
 	"\x16CreateChatGroupRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1d\n" +
 	"\n" +
 	"member_ids\x18\x03 \x03(\tR\tmemberIds\x12E\n" +
 	"\x05roles\x18\x04 \x03(\v2/.messaging.v1.CreateChatGroupRequest.RolesEntryR\x05roles\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
-	"campaignId\x1a8\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\n" +
+	" \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\v \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\f \x01(\tR\btalentId\x1a8\n" +
 	"\n" +
 	"RolesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Q\n" +
 	"\x17CreateChatGroupResponse\x126\n" +
 	"\n" +
-	"chat_group\x18\x01 \x01(\v2\x17.messaging.v1.ChatGroupR\tchatGroup\"\xbb\x01\n" +
+	"chat_group\x18\x01 \x01(\v2\x17.messaging.v1.ChatGroupR\tchatGroup\"\xf7\x01\n" +
 	"\x19AddChatGroupMemberRequest\x12\"\n" +
 	"\rchat_group_id\x18\x01 \x01(\tR\vchatGroupId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04role\x18\x03 \x01(\tR\x04role\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
-	"campaignId\"T\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x05 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\a \x01(\tR\btalentId\"T\n" +
 	"\x1aAddChatGroupMemberResponse\x126\n" +
 	"\n" +
-	"chat_group\x18\x01 \x01(\v2\x17.messaging.v1.ChatGroupR\tchatGroup\"\xaa\x01\n" +
+	"chat_group\x18\x01 \x01(\v2\x17.messaging.v1.ChatGroupR\tchatGroup\"\xe6\x01\n" +
 	"\x1cRemoveChatGroupMemberRequest\x12\"\n" +
 	"\rchat_group_id\x18\x01 \x01(\tR\vchatGroupId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
-	"campaignId\"W\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x04 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\x06 \x01(\tR\btalentId\"W\n" +
 	"\x1dRemoveChatGroupMemberResponse\x126\n" +
 	"\n" +
-	"chat_group\x18\x01 \x01(\v2\x17.messaging.v1.ChatGroupR\tchatGroup\"\xc1\x01\n" +
+	"chat_group\x18\x01 \x01(\v2\x17.messaging.v1.ChatGroupR\tchatGroup\"\xfd\x01\n" +
 	"\x1bListChatGroupMembersRequest\x12\"\n" +
 	"\rchat_group_id\x18\x01 \x01(\tR\vchatGroupId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
-	"campaignId\"\x93\x01\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x05 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x06 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\a \x01(\tR\btalentId\"\x93\x01\n" +
 	"\x1cListChatGroupMembersResponse\x12\x1d\n" +
 	"\n" +
 	"member_ids\x18\x01 \x03(\tR\tmemberIds\x12\x1f\n" +
@@ -3965,7 +4416,7 @@ const file_messaging_v1_messaging_proto_rawDesc = "" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
 	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
-	"totalPages\"\x80\x03\n" +
+	"totalPages\"\xbc\x03\n" +
 	"\x14MessagingPreferences\x12\x12\n" +
 	"\x04mute\x18\x01 \x01(\bR\x04mute\x12\x18\n" +
 	"\aarchive\x18\x02 \x01(\bR\aarchive\x12h\n" +
@@ -3973,29 +4424,38 @@ const file_messaging_v1_messaging_proto_rawDesc = "" +
 	"\vquiet_hours\x18\x04 \x03(\tR\n" +
 	"quietHours\x12\x1a\n" +
 	"\btimezone\x18\x05 \x01(\tR\btimezone\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\a \x01(\x03R\n" +
-	"campaignId\x1aD\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\a \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\b \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\t \x01(\tR\btalentId\x1aD\n" +
 	"\x16NotificationTypesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"\xa3\x01\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\"\xdf\x01\n" +
 	"!UpdateMessagingPreferencesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12D\n" +
-	"\vpreferences\x18\x02 \x01(\v2\".messaging.v1.MessagingPreferencesR\vpreferences\x12\x1f\n" +
-	"\vcampaign_id\x18\x03 \x01(\x03R\n" +
-	"campaignId\"\x89\x01\n" +
+	"\vpreferences\x18\x02 \x01(\v2\".messaging.v1.MessagingPreferencesR\vpreferences\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x03 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\x04 \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\x05 \x01(\tR\btalentId\"\x89\x01\n" +
 	"\"UpdateMessagingPreferencesResponse\x12D\n" +
 	"\vpreferences\x18\x01 \x01(\v2\".messaging.v1.MessagingPreferencesR\vpreferences\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x02 \x01(\x03R\tupdatedAt\"\xdf\x01\n" +
+	"updated_at\x18\x02 \x01(\x03R\tupdatedAt\"\x9b\x02\n" +
 	"\x18ListMessageEventsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12*\n" +
 	"\afilters\x18\x04 \x01(\v2\x10.common.MetadataR\afilters\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x06 \x01(\x03R\n" +
-	"campaignId\"\xa5\x01\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x06 \x01(\tR\tproductId\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\tR\n" +
+	"campaignId\x12\x1b\n" +
+	"\ttalent_id\x18\b \x01(\tR\btalentId\"\xa5\x01\n" +
 	"\x19ListMessageEventsResponse\x122\n" +
 	"\x06events\x18\x01 \x03(\v2\x1a.messaging.v1.MessageEventR\x06events\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +

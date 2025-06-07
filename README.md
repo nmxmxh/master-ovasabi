@@ -1,14 +1,25 @@
-# Master by Ovasabi
+# Inos: The Internet-Native OS
 
-> **🚧 Work in Progress (WIP):** Master by Ovasabi is an actively evolving platform. We are seeking collaboration from Go engineers, database specialists, QA/test engineers, and anyone passionate about building robust, extensible digital systems. If you're interested in shaping the future of this platform, your contributions and ideas are welcome—see the Contributing section below!
+> **🚧 Work in Progress (WIP):**  
+> Inos is an actively evolving platform. We are seeking collaboration from Go engineers, database
+> specialists, QA/test engineers, and anyone passionate about building robust, extensible digital
+> systems. If you're interested in shaping the future of this platform, your contributions and ideas
+> are welcome—see the Contributing section below!
 
-Welcome to **Master by Ovasabi**—a self-documenting, AI-ready, and community-driven platform for orchestrating digital services, relationships, and value.
+> **🚀 Launching the Internet-Native OS:**  
+> A distributed, device-agnostic, and scalable operating system for the post-platform era — powered
+> by Go, WASM, WebGPU, and DAG orchestration.
+
+Welcome to **Inos**—a self-documenting, AI-ready, and community-driven platform for orchestrating
+digital services, relationships, and value.
 
 ---
 
-## What is Master by Ovasabi?
+## What is Inos?
 
-**Master by Ovasabi** is more than a backend—it's a living ecosystem for modern digital products, powered by a robust, metadata-driven knowledge graph (Amadeus). Every service, relationship, and capability is continuously documented, orchestrated, and made accessible to both humans and AI.
+**Inos** is more than a backend—it's a living ecosystem for modern digital products, powered by a
+robust, metadata-driven knowledge graph (Amadeus). Every service, relationship, and capability is
+continuously documented, orchestrated, and made accessible to both humans and AI.
 
 ## Philosophy
 
@@ -206,9 +217,12 @@ For the full philosophy, advice, and roadmap, see
 
 ## The OVASABI Thank You Tax
 
-OVASABI is my digital will—a living system, a manifesto, and a gift to the world. If you've found value here—if this project has inspired you, saved you time, or sparked new ideas—consider paying a small "thank you tax."
+OVASABI is my digital will—a living system, a manifesto, and a gift to the world. If you've found
+value here—if this project has inspired you, saved you time, or sparked new ideas—consider paying a
+small "thank you tax."
 
-This isn't a tax in the traditional sense. It's a gesture of gratitude—a way to say, _"I see you. I appreciate the work. I want this legacy to grow."_
+This isn't a tax in the traditional sense. It's a gesture of gratitude—a way to say, _"I see you. I
+appreciate the work. I want this legacy to grow."_
 
 Your contribution helps me:
 
@@ -216,7 +230,8 @@ Your contribution helps me:
 - Dedicate more time to building, documenting, and supporting the community
 - Ensure OVASABI remains open, accessible, and evolving for everyone
 
-**No amount is too small.** Every "thank you tax" is a vote for open knowledge, fairness, and digital legacy.
+**No amount is too small.** Every "thank you tax" is a vote for open knowledge, fairness, and
+digital legacy.
 
 If you'd like to contribute, you can do so here:
 

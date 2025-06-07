@@ -131,8 +131,4 @@ ServiceMetadata holds all security service-specific metadata fields.
 
 Register registers the security service with the DI container and event bus support.
 
-### ServiceMetadataToStruct
-
-ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
-
 ### StartEventSubscribers

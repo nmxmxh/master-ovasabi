@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 )
@@ -49,7 +49,7 @@ func (a *AzureSMSProvider) SendSMS(ctx context.Context, to, message string) erro
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("%s/sms?api-version=2021-03-07", a.Endpoint)
+	url := a.Endpoint + "/sms?api-version=2021-03-07"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (a *AzureSMSProvider) SendSMS(ctx context.Context, to, message string) erro
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("azure sms send failed: %s", resp.Status)
+		return errors.New("azure sms send failed: " + resp.Status)
 	}
 	return nil
 }

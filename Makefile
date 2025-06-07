@@ -1,4 +1,4 @@
-.PHONY: setup build test test-unit test-integration test-bench coverage benchmark clean proto docker-* k8s-* docs backup lint-fix docs-format docs-check-format docs-check-links docs-validate restore js-setup docs-all docs-site-setup docs-site docs-serve docs-deploy-github docs-prepare-hosting lint-focused docs-fix-links openapi-gen openapi-validate openapi-diff sync-openapi update-doc-dates validate-doc-dates openapi-json-diff
+.PHONY: setup build test test-unit test-integration test-bench coverage benchmark clean proto docker-* k8s-* docs backup lint-fix docs-format docs-check-format docs-check-links docs-validate restore js-setup docs-all docs-site-setup docs-site docs-serve docs-deploy-github docs-prepare-hosting lint-focused docs-fix-links openapi-gen openapi-validate openapi-diff sync-openapi update-doc-dates validate-doc-dates openapi-json-diff docs-generate-tests wasm-build frontend-build frontend-dev wasm-dev docker-wasm-build docker-wasm-up docker-wasm-down wasm-threaded serve-wasm helm-install helm-upgrade helm-uninstall helm-status helm-dry-run
 
 # Variables
 BINARY_NAME=master-ovasabi
@@ -124,11 +124,31 @@ docker-restart:
 docker-restart-app:
 	$(DOCKER_COMPOSE) restart app
 
-docker-clean:
-	$(DOCKER_COMPOSE) down -v --remove-orphans
+# Docker cleanup target
+# Usage:
+#   make docker-clean         # Safe cleanup: build cache, images, containers, volumes
+#   make docker-clean ALL=1   # Aggressive: also does full system prune (removes ALL unused images, containers, networks, and volumes)
 
-docker-prune:
-	docker system prune -af
+docker-clean:
+	@echo "[docker-clean] Pruning Docker build cache (this will free the most space)..."
+	docker builder prune -a -f
+	@echo "[docker-clean] Pruning unused Docker images..."
+	docker image prune -a -f
+	@echo "[docker-clean] Pruning unused Docker containers..."
+	docker container prune -f
+	@echo "[docker-clean] Pruning unused Docker volumes..."
+	docker volume prune -f
+ifneq ($(ALL),)
+	@echo "[docker-clean] WARNING: Running full system prune. This will remove ALL unused images, containers, networks, and volumes!"
+	@read -p "Are you sure? (y/N): " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		docker system prune -a -f --volumes; \
+		echo "[docker-clean] Full system prune complete."; \
+	else \
+		echo "[docker-clean] Skipping full system prune."; \
+	fi
+endif
+	@echo "[docker-clean] Docker cleanup complete!"
 
 # Scan Docker image with Trivy
 trivy-scan:
@@ -330,15 +350,18 @@ new-service:
 
 # Run database migrations up using Docker Compose
 migrate-up:
-	$(DOCKER_COMPOSE) run --rm migrate -path=/migrations -database "postgres://$${DB_USER:-postgres}:$${DB_PASSWORD:-postgres}@postgres:5432/$${DB_NAME:-master_ovasabi}?sslmode=disable" up
+	$(DOCKER_COMPOSE) run --rm migrate -path=/migrations -database "postgres://$${DB_USER:-postgres}:$${DB_PASSWORD:-postgres}@postgres:5432/$${DB_NAME:-master_ovasabi}?sslmode=disable" $${ARGS:-up}
 
-# Generate documentation
-docs: js-setup
-	@echo "Generating documentation..."
-	@go run tools/docgen/cmd/main.go -source . -output docs/generated
-	@echo "Formatting generated documentation..."
-	@yarn format:docs
-	@echo "Documentation generated and formatted successfully"
+# Generate scenario-driven test documentation (auto-generated from test suites)
+docs-generate-tests:
+	go run scripts/gen_test_docs.go
+
+# Main documentation workflow (add docs-generate-tests as a prerequisite)
+docs: docs-generate-tests docs-format docs-validate
+	@echo "All documentation generated and validated."
+
+docs-all: docs-generate-tests docs-format docs-validate docs-serve
+	@echo "Full documentation workflow complete."
 
 # JS dependencies
 js-setup:
@@ -364,10 +387,6 @@ docs-check-links:
 
 docs-validate: docs-check-format docs-check-links docs-fix-links
 	@echo "Documentation validation complete."
-
-# Comprehensive documentation command
-docs-all: update-doc-dates docs openapi-gen openapi-validate
-	@echo "All documentation and OpenAPI schema tasks completed successfully"
 
 # Amadeus Restore Command
 restore:
@@ -543,3 +562,38 @@ vet:
 
 api-docs:
 	swag init -g internal/server/handlers/docs.go -o docs/api
+
+# --- WASM/Frontend Build (Vite-centric, progressive threads) ---
+
+# Build single-threaded Go WASM (default)
+wasm-build:
+	cd wasm && GOOS=js GOARCH=wasm go build -o ../frontend/public/main.wasm
+	cp /opt/homebrew/Cellar/go/1.24.3/libexec/lib/wasm/wasm_exec.js frontend/public/
+
+# Build multi-threaded Go WASM (WASM threads)
+wasm-threaded:
+	cd wasm && GOOS=js GOARCH=wasm  go build -o ../frontend/public/main.threads.wasm
+	cp /opt/homebrew/Cellar/go/1.24.3/libexec/lib/wasm/wasm_exec.js frontend/public/
+
+# Start Vite dev server (ensure vite.config.js sets COOP/COEP headers for WASM threads)
+vite-wasm:
+	cd frontend && yarn dev
+	@echo "[NOTE] If using WASM threads, ensure Vite is configured to set COOP/COEP headers. See vite.config.js example in docs."
+
+# Remove old serve-wasm (python http.server) target, as Vite is used for serving
+
+# Helm Chart Commands
+helm-install:
+	helm install ovasabi deployments/kubernetes
+
+helm-upgrade:
+	helm upgrade ovasabi deployments/kubernetes
+
+helm-uninstall:
+	helm uninstall ovasabi
+
+helm-status:
+	helm status ovasabi
+
+helm-dry-run:
+	helm install ovasabi deployments/kubernetes --dry-run --debug

@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus
+  labels:
+    app: nexus
+spec:
+  replicas: { { .Values.nexus.replicaCount } }
+  selector:
+    matchLabels:
+      app: nexus
+  template:
+    metadata:
+      labels:
+        app: nexus
+    spec:
+      containers:
+        - name: nexus
+          image: '{{ .Values.nexus.image.repository }}:{{ .Values.nexus.image.tag }}'
+          imagePullPolicy: { { .Values.nexus.image.pullPolicy } }
+          ports:
+            - containerPort: { { .Values.nexus.service.port } }
+          resources: { { - toYaml .Values.resources | nindent 12 } }
+          envFrom:
+            - configMapRef:
+                name: ovasabi-config
+            - secretRef:
+                name: ovasabi-secrets
+          affinity: { { - toYaml .Values.affinity | nindent 12 } }
+          tolerations: { { - toYaml .Values.tolerations | nindent 12 } }
+          nodeSelector: { { - toYaml .Values.nodeSelector | nindent 12 } }

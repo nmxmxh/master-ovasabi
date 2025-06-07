@@ -63,11 +63,7 @@ func (a *HackingAdapter) Receive(ctx context.Context, handler bridge.MessageHand
 			case <-ticker.C:
 				// Simulate receiving a C2/exploit response
 				if a.handler != nil {
-					msg := &bridge.Message{
-						Payload:  []byte("simulated C2 response"),
-						Metadata: map[string]string{"c2": "response"},
-					}
-					if err := a.handler(ctx, msg); err != nil {
+					if err := a.handler(ctx, nil); err != nil {
 						fmt.Printf("[HackingAdapter] Handler error: %v\n", err)
 					}
 				}

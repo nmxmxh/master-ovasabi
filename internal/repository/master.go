@@ -39,10 +39,10 @@ type DefaultMasterRepository struct {
 	log *zap.Logger
 }
 
-// NewMasterRepository creates a new master repository instance.
-func NewRepository(db *sql.DB, log *zap.Logger) MasterRepository {
+// NewMasterRepository creates a new master repository.
+func NewMasterRepository(db *sql.DB, log *zap.Logger) *DefaultMasterRepository {
 	return &DefaultMasterRepository{
-		BaseRepository: NewBaseRepository(db),
+		BaseRepository: NewBaseRepository(db, log),
 		log:            log,
 	}
 }

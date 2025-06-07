@@ -1,35 +1,48 @@
-# Master by Ovasabi: Living Knowledge Platform
+# Inos: Living Knowledge Platform
 
 **The Last Digital Operating System You'll Ever Need.**
 
 version: 2025-06-01
 
-Welcome to **Master by Ovasabi**—a self-documenting, AI-ready, and community-driven platform for orchestrating digital services, relationships, and value.
+Welcome to **Inos**—a self-documenting, AI-ready, and community-driven platform for orchestrating
+digital services, relationships, and value.
 
 ---
 
-## What is Master?
+## What is Inos?
 
-**Master** is more than a backend—it's a living ecosystem for modern digital products, powered by a robust, metadata-driven knowledge graph (Amadeus). Every service, relationship, and capability is continuously documented, orchestrated, and made accessible to both humans and AI.
+**Inos** is more than a backend—it's a living ecosystem for modern digital products, powered by a
+robust, metadata-driven knowledge graph (Amadeus). Every service, relationship, and capability is
+continuously documented, orchestrated, and made accessible to both humans and AI.
 
-- **Self-Documenting:** Every service, schema, and relationship is tracked and visualized in the Amadeus Knowledge Graph.
-- **Extensible by Design:** Add new services, features, or integrations without breaking what came before.
-- **Fair and Transparent:** All value flows, contributions, and rewards are tracked in metadata—forming a universal ledger for the ecosystem.
-- **Community-First:** Built for the community, by the community. Every contribution is recognized and valued.
+- **Self-Documenting:** Every service, schema, and relationship is tracked and visualized in the
+  Amadeus Knowledge Graph.
+- **Extensible by Design:** Add new services, features, or integrations without breaking what came
+  before.
+- **Fair and Transparent:** All value flows, contributions, and rewards are tracked in
+  metadata—forming a universal ledger for the ecosystem.
+- **Community-First:** Built for the community, by the community. Every contribution is recognized
+  and valued.
 
 ---
 
 ## Core Capabilities
 
-- **Unified Knowledge Graph:** Amadeus provides a programmatically accessible, evolving map of all system components and their relationships.  
+- **Unified Knowledge Graph:** Amadeus provides a programmatically accessible, evolving map of all
+  system components and their relationships.  
   [Learn more →](amadeus/index.md)
-- **Composable Metadata Standard:** All APIs, events, and entities use a canonical, extensible metadata pattern for future-proofing, analytics, and orchestration.  
+- **Composable Metadata Standard:** All APIs, events, and entities use a canonical, extensible
+  metadata pattern for future-proofing, analytics, and orchestration.  
   [Metadata Standard →](services/metadata.md)
-- **Tiered Referral & Taxation:** Multi-level referral chains and programmable, metadata-driven taxation for fair, transparent value distribution.  
+- **Tiered Referral & Taxation:** Multi-level referral chains and programmable, metadata-driven
+  taxation for fair, transparent value distribution.  
   [Referral Docs →](services/referral/README.md)
-- **Event-Driven Orchestration:** Nexus event bus and orchestration patterns enable real-time, cross-service automation and integration.
-- **Continuous Context:** The system's state, history, and patterns are always available—enabling AI agents, analytics, and impact analysis.
-- **Graceful Error & Success Handling:** Centralized, symmetrical orchestration for all outcomes, supporting resilience and compliance.
+- **Event-Driven Orchestration:** Nexus event bus and orchestration patterns enable real-time,
+  cross-service automation and integration.
+- **Continuous Context:** The system's state, history, and patterns are always available—enabling AI
+  agents, analytics, and impact analysis.
+- **Graceful Error & Success Handling:** Centralized, symmetrical orchestration for all outcomes,
+  supporting resilience and compliance.
 
 ---
 
@@ -49,12 +62,16 @@ Welcome to **Master by Ovasabi**—a self-documenting, AI-ready, and community-d
 
 ---
 
-## Why Master?
+## Why Inos?
 
-- **For Developers:** Ship faster, with confidence—every service is discoverable, documented, and testable.
-- **For Product Teams:** Adapt and scale—add new features, markets, or integrations with minimal friction.
-- **For AI & Data Science:** Leverage a rich, evolving context for smarter automation, recommendations, and insights.
-- **For the Community:** Build, learn, and grow together—every contribution is part of the digital legacy.
+- **For Developers:** Ship faster, with confidence—every service is discoverable, documented, and
+  testable.
+- **For Product Teams:** Adapt and scale—add new features, markets, or integrations with minimal
+  friction.
+- **For AI & Data Science:** Leverage a rich, evolving context for smarter automation,
+  recommendations, and insights.
+- **For the Community:** Build, learn, and grow together—every contribution is part of the digital
+  legacy.
 
 ---
 
@@ -73,35 +90,43 @@ Welcome to **Master by Ovasabi**—a self-documenting, AI-ready, and community-d
 
 ## Contributing & Community
 
-Master by Ovasabi is a living project—your ideas, feedback, and contributions are welcome!  
-See the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) for onboarding and guidelines.
+Inos is a living project—your ideas, feedback, and contributions are welcome!  
+See the [README](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) for onboarding and
+guidelines.
 
 ---
 
-**Master** isn't just a backend—it's a platform for building, learning, and growing together, powered by context, community, and continuous knowledge.
+**Inos** isn't just a backend—it's a platform for building, learning, and growing together, powered
+by context, community, and continuous knowledge.
 
 ---
 
 ## Sustainability & Opportunities
 
-Master by Ovasabi is designed for a sustainable digital future. By eliminating the need for blockchain-style global consensus and mining, the platform achieves real-time orchestration and value flows across billions of entities with a fraction of the energy use. This means:
+Inos is designed for a sustainable digital future. By eliminating the need for blockchain-style
+global consensus and mining, the platform achieves real-time orchestration and value flows across
+billions of entities with a fraction of the energy use. This means:
 
-- **Green Digital Infrastructure:** No mining, no global proof-of-work—just efficient, event-driven, sharded knowledge orchestration.
-- **Scalable Digital Societies:** The architecture supports global-scale collaboration, governance, and value creation without the environmental cost of traditional blockchains.
+- **Green Digital Infrastructure:** No mining, no global proof-of-work—just efficient, event-driven,
+  sharded knowledge orchestration.
+- **Scalable Digital Societies:** The architecture supports global-scale collaboration, governance,
+  and value creation without the environmental cost of traditional blockchains.
 - **New Opportunities:**
   - Build eco-friendly, real-time digital economies and communities
   - Enable programmable, auditable value flows for social good, research, and creative projects
   - Foster new forms of digital governance, legacy, and collective intelligence
   - Lower the barrier for global participation in digital innovation
 
-By choosing Ovasabi, you're not just building for scale—you're building for a greener, more inclusive digital world.
+By choosing Inos, you're not just building for scale—you're building for a greener, more inclusive
+digital world.
 
 ---
 
 ## Support & Sponsorship
 
-If you find Master by Ovasabi valuable, consider supporting its creator and ongoing open source work:
+If you find Inos valuable, consider supporting its creator and ongoing open source work:
 
 [![Sponsor nmxmxh on GitHub](https://img.shields.io/badge/Sponsor%20@nmxmxh%20%E2%9D%A4%EF%B8%8F-purple?logo=github)](https://github.com/sponsors/nmxmxh)
 
-Your sponsorship helps keep the project alive, supports new features, and sustains the community. Thank you for being part of the journey!
+Your sponsorship helps keep the project alive, supports new features, and sustains the community.
+Thank you for being part of the journey!

@@ -135,18 +135,21 @@ message HandleOpsResponse {
 }
 
 message EventRequest {
-  string event_type = 1;
-  string entity_id = 2;
-  common.Metadata metadata = 3;
-  int64 campaign_id = 4; // campaign/tenant context
-  common.Payload payload = 5; // Canonical business data (see common/v1/payload.proto)
+  string event_id = 1; // Unique event identifier (new)
+  string event_type = 2;
+  string entity_id = 3;
+  common.Metadata metadata = 4;
+  int64 campaign_id = 5; // campaign/tenant context
+  common.Payload payload = 6; // Canonical business data (see common/v1/payload.proto)
 }
 
 message EventResponse {
   bool success = 1;
-  string message = 2;
-  common.Metadata metadata = 3;
-  common.Payload payload = 4; // Canonical business data (see common/v1/payload.proto)
+  string event_id = 2; // Unique event identifier (new)
+  string event_type = 3; // Canonical event type (new)
+  string message = 4;
+  common.Metadata metadata = 5;
+  common.Payload payload = 6; // Canonical business data (see common/v1/payload.proto)
 }
 
 message SubscribeRequest {

@@ -1,0 +1,39 @@
+# --- Go WASM Build Stage ---
+FROM golang:1.24-alpine AS wasm-builder
+WORKDIR /wasm
+COPY wasm/go.mod wasm/go.sum ./
+RUN go mod download
+COPY wasm/ .
+RUN GOOS=js GOARCH=wasm go build -o /build/main.wasm
+
+# --- Go WebSocket AI Microservice Build Stage ---
+FROM golang:1.24-alpine AS ws-server-builder
+WORKDIR /wasm
+COPY wasm/go.mod wasm/go.sum ./
+RUN go mod download
+COPY wasm/ .
+RUN go build -o /build/ws_server ws_server.go
+
+# --- Frontend Build Stage ---
+FROM node:slim AS frontend-builder
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN yarn
+COPY frontend/ .
+COPY --from=wasm-builder /build/main.wasm ./public/
+RUN yarn build
+
+# --- Production Static Server + WASM AI Microservice ---
+FROM alpine:latest AS prod
+WORKDIR /app
+# Copy static site
+COPY --from=frontend-builder /frontend/dist /usr/share/nginx/html
+# Copy WASM AI microservice
+COPY --from=ws-server-builder /build/ws_server ./ws_server
+# Install nginx for static site
+RUN apk add --no-cache nginx
+COPY deployments/docker/nginx.conf /etc/nginx/nginx.conf
+EXPOSE 80 8081
+# Start both nginx and ws_server (use dumb-init for PID 1 if available)
+CMD ["sh", "-c", "nginx & ./ws_server"]
+# [For production: consider using supervisord or s6 for process management] 

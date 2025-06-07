@@ -3,10 +3,14 @@ package bridge
 import (
 	"context"
 	"fmt"
+
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"go.uber.org/zap"
 )
 
 type Router struct {
 	routingRules []RoutingRule
+	log          *zap.Logger
 }
 
 type RoutingRule struct {
@@ -18,24 +22,36 @@ type RoutingRule struct {
 
 type MetadataMatcher map[string]string
 
+func NewRouter(rules []RoutingRule, log *zap.Logger) *Router {
+	return &Router{
+		routingRules: rules,
+		log:          log,
+	}
+}
+
 // Route routes a message to the correct adapter based on metadata and routing rules.
 func (r *Router) Route(ctx context.Context, msg *Message) error {
-	// Enforce RBAC and log audit
-	if !AuthorizeTransport("send", msg.Destination, msg.Metadata) {
-		LogTransportEvent("unauthorized", msg)
+	log := r.log
+	metaMap := make(map[string]interface{}, len(msg.Metadata))
+	for k, v := range msg.Metadata {
+		metaMap[k] = v
+	}
+	metaProto := metadata.MapToProto(metaMap)
+	if !AuthorizeTransport(ctx, msg.Destination, metaProto) {
+		LogTransportEvent(log, "unauthorized", msg)
 		return fmt.Errorf("unauthorized")
 	}
-	LogTransportEvent("route_attempt", msg)
+	LogTransportEvent(log, "route_attempt", msg)
 
 	for _, rule := range r.routingRules {
 		if rule.Matches(msg.Metadata) {
 			if adapter, ok := GetAdapter(rule.Protocol); ok {
-				LogTransportEvent("route_success", msg)
+				LogTransportEvent(log, "route_success", msg)
 				return adapter.Send(ctx, msg)
 			}
 		}
 	}
-	LogTransportEvent("route_no_adapter", msg)
+	LogTransportEvent(log, "route_no_adapter", msg)
 	return fmt.Errorf("no adapter found for message")
 }
 
@@ -50,14 +66,14 @@ func (r *Router) RouteAsync(ctx context.Context, msg *Message) <-chan error {
 }
 
 // Matches checks if the rule's matcher matches the given metadata.
-func (r RoutingRule) Matches(metadata map[string]string) bool {
-	return r.Match.Matches(metadata)
+func (r RoutingRule) Matches(meta map[string]string) bool {
+	return r.Match.Matches(meta)
 }
 
 // Matches checks if the metadata matches the rule's matcher.
-func (m MetadataMatcher) Matches(metadata map[string]string) bool {
+func (m MetadataMatcher) Matches(meta map[string]string) bool {
 	for k, v := range m {
-		if metadata[k] != v {
+		if meta[k] != v {
 			return false
 		}
 	}

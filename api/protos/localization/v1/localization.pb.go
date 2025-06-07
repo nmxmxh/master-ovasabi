@@ -174,6 +174,7 @@ func (x *BatchTranslateRequest) GetLocale() string {
 type BatchTranslateResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Values        map[string]string      `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -211,6 +212,13 @@ func (*BatchTranslateResponse) Descriptor() ([]byte, []int) {
 func (x *BatchTranslateResponse) GetValues() map[string]string {
 	if x != nil {
 		return x.Values
+	}
+	return nil
+}
+
+func (x *BatchTranslateResponse) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
 	}
 	return nil
 }
@@ -1491,9 +1499,10 @@ const file_localization_v1_localization_proto_rawDesc = "" +
 	"\x05value\x18\x01 \x01(\tR\x05value\"C\n" +
 	"\x15BatchTranslateRequest\x12\x12\n" +
 	"\x04keys\x18\x01 \x03(\tR\x04keys\x12\x16\n" +
-	"\x06locale\x18\x02 \x01(\tR\x06locale\"\xa0\x01\n" +
+	"\x06locale\x18\x02 \x01(\tR\x06locale\"\xce\x01\n" +
 	"\x16BatchTranslateResponse\x12K\n" +
-	"\x06values\x18\x01 \x03(\v23.localization.v1.BatchTranslateResponse.ValuesEntryR\x06values\x1a9\n" +
+	"\x06values\x18\x01 \x03(\v23.localization.v1.BatchTranslateResponse.ValuesEntryR\x06values\x12,\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xad\x01\n" +
@@ -1657,49 +1666,50 @@ var file_localization_v1_localization_proto_goTypes = []any{
 }
 var file_localization_v1_localization_proto_depIdxs = []int32{
 	24, // 0: localization.v1.BatchTranslateResponse.values:type_name -> localization.v1.BatchTranslateResponse.ValuesEntry
-	25, // 1: localization.v1.CreateTranslationRequest.metadata:type_name -> common.Metadata
-	10, // 2: localization.v1.CreateTranslationResponse.translation:type_name -> localization.v1.Translation
-	10, // 3: localization.v1.GetTranslationResponse.translation:type_name -> localization.v1.Translation
-	10, // 4: localization.v1.ListTranslationsResponse.translations:type_name -> localization.v1.Translation
-	25, // 5: localization.v1.Translation.metadata:type_name -> common.Metadata
-	26, // 6: localization.v1.Translation.created_at:type_name -> google.protobuf.Timestamp
-	17, // 7: localization.v1.GetPricingRuleResponse.rule:type_name -> localization.v1.PricingRule
-	17, // 8: localization.v1.SetPricingRuleRequest.rule:type_name -> localization.v1.PricingRule
-	17, // 9: localization.v1.ListPricingRulesResponse.rules:type_name -> localization.v1.PricingRule
-	26, // 10: localization.v1.PricingRule.effective_from:type_name -> google.protobuf.Timestamp
-	26, // 11: localization.v1.PricingRule.effective_to:type_name -> google.protobuf.Timestamp
-	26, // 12: localization.v1.PricingRule.created_at:type_name -> google.protobuf.Timestamp
-	26, // 13: localization.v1.PricingRule.updated_at:type_name -> google.protobuf.Timestamp
-	22, // 14: localization.v1.ListLocalesResponse.locales:type_name -> localization.v1.Locale
-	22, // 15: localization.v1.GetLocaleMetadataResponse.locale:type_name -> localization.v1.Locale
-	25, // 16: localization.v1.Locale.metadata:type_name -> common.Metadata
-	25, // 17: localization.v1.Localization.metadata:type_name -> common.Metadata
-	26, // 18: localization.v1.Localization.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 19: localization.v1.LocalizationService.Translate:input_type -> localization.v1.TranslateRequest
-	2,  // 20: localization.v1.LocalizationService.BatchTranslate:input_type -> localization.v1.BatchTranslateRequest
-	4,  // 21: localization.v1.LocalizationService.CreateTranslation:input_type -> localization.v1.CreateTranslationRequest
-	6,  // 22: localization.v1.LocalizationService.GetTranslation:input_type -> localization.v1.GetTranslationRequest
-	8,  // 23: localization.v1.LocalizationService.ListTranslations:input_type -> localization.v1.ListTranslationsRequest
-	11, // 24: localization.v1.LocalizationService.GetPricingRule:input_type -> localization.v1.GetPricingRuleRequest
-	13, // 25: localization.v1.LocalizationService.SetPricingRule:input_type -> localization.v1.SetPricingRuleRequest
-	15, // 26: localization.v1.LocalizationService.ListPricingRules:input_type -> localization.v1.ListPricingRulesRequest
-	18, // 27: localization.v1.LocalizationService.ListLocales:input_type -> localization.v1.ListLocalesRequest
-	20, // 28: localization.v1.LocalizationService.GetLocaleMetadata:input_type -> localization.v1.GetLocaleMetadataRequest
-	1,  // 29: localization.v1.LocalizationService.Translate:output_type -> localization.v1.TranslateResponse
-	3,  // 30: localization.v1.LocalizationService.BatchTranslate:output_type -> localization.v1.BatchTranslateResponse
-	5,  // 31: localization.v1.LocalizationService.CreateTranslation:output_type -> localization.v1.CreateTranslationResponse
-	7,  // 32: localization.v1.LocalizationService.GetTranslation:output_type -> localization.v1.GetTranslationResponse
-	9,  // 33: localization.v1.LocalizationService.ListTranslations:output_type -> localization.v1.ListTranslationsResponse
-	12, // 34: localization.v1.LocalizationService.GetPricingRule:output_type -> localization.v1.GetPricingRuleResponse
-	14, // 35: localization.v1.LocalizationService.SetPricingRule:output_type -> localization.v1.SetPricingRuleResponse
-	16, // 36: localization.v1.LocalizationService.ListPricingRules:output_type -> localization.v1.ListPricingRulesResponse
-	19, // 37: localization.v1.LocalizationService.ListLocales:output_type -> localization.v1.ListLocalesResponse
-	21, // 38: localization.v1.LocalizationService.GetLocaleMetadata:output_type -> localization.v1.GetLocaleMetadataResponse
-	29, // [29:39] is the sub-list for method output_type
-	19, // [19:29] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	25, // 1: localization.v1.BatchTranslateResponse.metadata:type_name -> common.Metadata
+	25, // 2: localization.v1.CreateTranslationRequest.metadata:type_name -> common.Metadata
+	10, // 3: localization.v1.CreateTranslationResponse.translation:type_name -> localization.v1.Translation
+	10, // 4: localization.v1.GetTranslationResponse.translation:type_name -> localization.v1.Translation
+	10, // 5: localization.v1.ListTranslationsResponse.translations:type_name -> localization.v1.Translation
+	25, // 6: localization.v1.Translation.metadata:type_name -> common.Metadata
+	26, // 7: localization.v1.Translation.created_at:type_name -> google.protobuf.Timestamp
+	17, // 8: localization.v1.GetPricingRuleResponse.rule:type_name -> localization.v1.PricingRule
+	17, // 9: localization.v1.SetPricingRuleRequest.rule:type_name -> localization.v1.PricingRule
+	17, // 10: localization.v1.ListPricingRulesResponse.rules:type_name -> localization.v1.PricingRule
+	26, // 11: localization.v1.PricingRule.effective_from:type_name -> google.protobuf.Timestamp
+	26, // 12: localization.v1.PricingRule.effective_to:type_name -> google.protobuf.Timestamp
+	26, // 13: localization.v1.PricingRule.created_at:type_name -> google.protobuf.Timestamp
+	26, // 14: localization.v1.PricingRule.updated_at:type_name -> google.protobuf.Timestamp
+	22, // 15: localization.v1.ListLocalesResponse.locales:type_name -> localization.v1.Locale
+	22, // 16: localization.v1.GetLocaleMetadataResponse.locale:type_name -> localization.v1.Locale
+	25, // 17: localization.v1.Locale.metadata:type_name -> common.Metadata
+	25, // 18: localization.v1.Localization.metadata:type_name -> common.Metadata
+	26, // 19: localization.v1.Localization.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 20: localization.v1.LocalizationService.Translate:input_type -> localization.v1.TranslateRequest
+	2,  // 21: localization.v1.LocalizationService.BatchTranslate:input_type -> localization.v1.BatchTranslateRequest
+	4,  // 22: localization.v1.LocalizationService.CreateTranslation:input_type -> localization.v1.CreateTranslationRequest
+	6,  // 23: localization.v1.LocalizationService.GetTranslation:input_type -> localization.v1.GetTranslationRequest
+	8,  // 24: localization.v1.LocalizationService.ListTranslations:input_type -> localization.v1.ListTranslationsRequest
+	11, // 25: localization.v1.LocalizationService.GetPricingRule:input_type -> localization.v1.GetPricingRuleRequest
+	13, // 26: localization.v1.LocalizationService.SetPricingRule:input_type -> localization.v1.SetPricingRuleRequest
+	15, // 27: localization.v1.LocalizationService.ListPricingRules:input_type -> localization.v1.ListPricingRulesRequest
+	18, // 28: localization.v1.LocalizationService.ListLocales:input_type -> localization.v1.ListLocalesRequest
+	20, // 29: localization.v1.LocalizationService.GetLocaleMetadata:input_type -> localization.v1.GetLocaleMetadataRequest
+	1,  // 30: localization.v1.LocalizationService.Translate:output_type -> localization.v1.TranslateResponse
+	3,  // 31: localization.v1.LocalizationService.BatchTranslate:output_type -> localization.v1.BatchTranslateResponse
+	5,  // 32: localization.v1.LocalizationService.CreateTranslation:output_type -> localization.v1.CreateTranslationResponse
+	7,  // 33: localization.v1.LocalizationService.GetTranslation:output_type -> localization.v1.GetTranslationResponse
+	9,  // 34: localization.v1.LocalizationService.ListTranslations:output_type -> localization.v1.ListTranslationsResponse
+	12, // 35: localization.v1.LocalizationService.GetPricingRule:output_type -> localization.v1.GetPricingRuleResponse
+	14, // 36: localization.v1.LocalizationService.SetPricingRule:output_type -> localization.v1.SetPricingRuleResponse
+	16, // 37: localization.v1.LocalizationService.ListPricingRules:output_type -> localization.v1.ListPricingRulesResponse
+	19, // 38: localization.v1.LocalizationService.ListLocales:output_type -> localization.v1.ListLocalesResponse
+	21, // 39: localization.v1.LocalizationService.GetLocaleMetadata:output_type -> localization.v1.GetLocaleMetadataResponse
+	30, // [30:40] is the sub-list for method output_type
+	20, // [20:30] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_localization_v1_localization_proto_init() }

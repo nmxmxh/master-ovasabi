@@ -11,15 +11,21 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
 	repo "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"go.uber.org/zap"
 )
 
+// Repository handles talent data persistence.
 type Repository struct {
-	db         *sql.DB
+	*repo.BaseRepository
 	masterRepo repo.MasterRepository
 }
 
-func NewRepository(db *sql.DB, masterRepo repo.MasterRepository) *Repository {
-	return &Repository{db: db, masterRepo: masterRepo}
+// NewRepository creates a new talent repository.
+func NewRepository(db *sql.DB, log *zap.Logger, masterRepo repo.MasterRepository) *Repository {
+	return &Repository{
+		BaseRepository: repo.NewBaseRepository(db, log),
+		masterRepo:     masterRepo,
+	}
 }
 
 type Profile struct {
@@ -46,7 +52,7 @@ func (r *Repository) CreateTalentProfile(ctx context.Context, p *talentpb.Talent
 		return nil, err
 	}
 	var id string
-	err = r.db.QueryRowContext(ctx, `
+	err = r.GetDB().QueryRowContext(ctx, `
 		INSERT INTO service_talent_profile (master_id, master_uuid, user_id, display_name, bio, skills, tags, location, avatar_url, metadata, campaign_id, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW())
 		RETURNING id
@@ -64,7 +70,7 @@ func (r *Repository) UpdateTalentProfile(ctx context.Context, p *talentpb.Talent
 	if err != nil {
 		return nil, err
 	}
-	_, err = r.db.ExecContext(ctx, `
+	_, err = r.GetDB().ExecContext(ctx, `
 		UPDATE service_talent_profile SET display_name=$1, bio=$2, skills=$3, tags=$4, location=$5, avatar_url=$6, metadata=$7, campaign_id=$8, updated_at=NOW() WHERE id=$9
 	`, p.DisplayName, p.Bio, skills, tags, p.Location, p.AvatarUrl, metaJSON, campaignID, p.Id)
 	if err != nil {
@@ -74,7 +80,7 @@ func (r *Repository) UpdateTalentProfile(ctx context.Context, p *talentpb.Talent
 }
 
 func (r *Repository) DeleteTalentProfile(ctx context.Context, id string, campaignID int64) error {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM service_talent_profile WHERE id = $1 AND campaign_id = $2`, id, campaignID)
+	res, err := r.GetDB().ExecContext(ctx, `DELETE FROM service_talent_profile WHERE id = $1 AND campaign_id = $2`, id, campaignID)
 	if err != nil {
 		return err
 	}
@@ -89,7 +95,7 @@ func (r *Repository) DeleteTalentProfile(ctx context.Context, id string, campaig
 }
 
 func (r *Repository) GetTalentProfile(ctx context.Context, id string, campaignID int64) (*talentpb.TalentProfile, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT id, master_id, master_uuid, user_id, display_name, bio, skills, tags, location, avatar_url, metadata, campaign_id, created_at, updated_at FROM service_talent_profile WHERE id = $1 AND campaign_id = $2`, id, campaignID)
+	row := r.GetDB().QueryRowContext(ctx, `SELECT id, master_id, master_uuid, user_id, display_name, bio, skills, tags, location, avatar_url, metadata, campaign_id, created_at, updated_at FROM service_talent_profile WHERE id = $1 AND campaign_id = $2`, id, campaignID)
 	return scanTalentProfile(row)
 }
 
@@ -130,7 +136,7 @@ func (r *Repository) ListTalentProfiles(ctx context.Context, page, pageSize int,
 		baseQuery += " WHERE " + strings.Join(where, " AND ")
 	}
 	baseQuery += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
-	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
+	rows, err := r.GetDB().QueryContext(ctx, baseQuery, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -180,7 +186,7 @@ func (r *Repository) SearchTalentProfiles(ctx context.Context, query string, pag
 		baseQuery += " WHERE " + strings.Join(where, " AND ")
 	}
 	baseQuery += fmt.Sprintf(" ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
-	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
+	rows, err := r.GetDB().QueryContext(ctx, baseQuery, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -202,7 +208,7 @@ func (r *Repository) SearchTalentProfiles(ctx context.Context, query string, pag
 		countQuery += " WHERE " + strings.Join(where, " AND ")
 	}
 	countArgs := args[:len(args)-2]
-	if err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+	if err := r.GetDB().QueryRowContext(ctx, countQuery, countArgs...).Scan(&total); err != nil {
 		total = len(results)
 	}
 	return results, total, nil
@@ -248,7 +254,7 @@ func scanTalentProfile(row interface {
 func (r *Repository) BookTalent(ctx context.Context, talentID, userID string, start, end int64, notes string, campaignID int64) (*talentpb.Booking, error) {
 	// Insert a new booking into the service_talent_booking table
 	var id string
-	err := r.db.QueryRowContext(ctx, `
+	err := r.GetDB().QueryRowContext(ctx, `
 		INSERT INTO service_talent_booking (talent_id, user_id, start_time, end_time, notes, campaign_id, created_at, updated_at)
 		VALUES ($1, $2, to_timestamp($3), to_timestamp($4), $5, $6, NOW(), NOW())
 		RETURNING id
@@ -267,7 +273,7 @@ func (r *Repository) ListBookings(ctx context.Context, talentID string, page, pa
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.GetDB().QueryContext(ctx, `
 		SELECT id, talent_id, user_id, start_time, end_time, notes, campaign_id, created_at, updated_at
 		FROM service_talent_booking
 		WHERE talent_id = $1 AND campaign_id = $2
@@ -295,14 +301,14 @@ func (r *Repository) ListBookings(ctx context.Context, talentID string, page, pa
 	}
 	// Count total
 	var total int
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM service_talent_booking WHERE talent_id = $1 AND campaign_id = $2`, talentID, campaignID).Scan(&total); err != nil {
+	if err := r.GetDB().QueryRowContext(ctx, `SELECT COUNT(*) FROM service_talent_booking WHERE talent_id = $1 AND campaign_id = $2`, talentID, campaignID).Scan(&total); err != nil {
 		total = len(bookings)
 	}
 	return bookings, total, nil
 }
 
 func (r *Repository) GetBooking(ctx context.Context, id string, campaignID int64) (*talentpb.Booking, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT id, talent_id, user_id, start_time, end_time, notes, campaign_id, created_at, updated_at FROM service_talent_booking WHERE id = $1 AND campaign_id = $2`, id, campaignID)
+	row := r.GetDB().QueryRowContext(ctx, `SELECT id, talent_id, user_id, start_time, end_time, notes, campaign_id, created_at, updated_at FROM service_talent_booking WHERE id = $1 AND campaign_id = $2`, id, campaignID)
 	var b talentpb.Booking
 	var startTime, endTime, createdAt, updatedAt time.Time
 	if err := row.Scan(&b.Id, &b.TalentId, &b.UserId, &startTime, &endTime, &b.Notes, &b.CampaignId, &createdAt, &updatedAt); err != nil {

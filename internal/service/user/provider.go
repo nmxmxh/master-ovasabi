@@ -29,23 +29,31 @@ import (
 	"context"
 	"database/sql"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )
 
-// EventEmitter defines the interface for emitting events in the user service.
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-}
-
 // Register registers the user service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repositorypkg.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter events.EventEmitter,
+	db *sql.DB,
+	masterRepo repositorypkg.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{}, // unused, keep for signature consistency
+) error {
 	// Register user service error map for graceful error handling
 	graceful.RegisterErrorMap(map[error]graceful.ErrorMapEntry{
 		ErrInvalidUsername:       {Code: codes.InvalidArgument, Message: "invalid username format"},
@@ -61,20 +69,20 @@ func Register(ctx context.Context, container *di.Container, eventEmitter EventEm
 		ErrPasswordNoDigit:       {Code: codes.InvalidArgument, Message: "password must contain a digit"},
 		ErrPasswordNoSpecial:     {Code: codes.InvalidArgument, Message: "password must contain a special character"},
 	})
-	repository := NewRepository(db, masterRepo)
+	repository := NewRepository(db, log, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "user")
 	if err != nil {
 		log.With(zap.String("service", "user")).Warn("Failed to get user cache", zap.Error(err), zap.String("cache", "user"), zap.String("context", ctxValue(ctx)))
 	}
-	service := NewService(log, repository, cache, eventEmitter, eventEnabled)
+	svc := NewService(log, repository, cache, eventEmitter, eventEnabled)
 	if err := container.Register((*userpb.UserServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return service, nil
+		return svc, nil
 	}); err != nil {
 		log.With(zap.String("service", "user")).Error("Failed to register user service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
 	// Register EventEmitter for handler orchestration
-	if err := container.Register((*EventEmitter)(nil), func(_ *di.Container) (interface{}, error) {
+	if err := container.Register((*events.EventEmitter)(nil), func(_ *di.Container) (interface{}, error) {
 		return eventEmitter, nil
 	}); err != nil {
 		log.With(zap.String("service", "user")).Error("Failed to register user EventEmitter", zap.Error(err), zap.String("context", ctxValue(ctx)))
@@ -86,6 +94,18 @@ func Register(ctx context.Context, container *di.Container, eventEmitter EventEm
 	}); err != nil {
 		log.With(zap.String("service", "user")).Error("Failed to register user cache", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
+	}
+	// Register the concrete *Service type for direct resolution in event handlers
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return svc, nil
+	}); err != nil {
+		log.With(zap.String("service", "user")).Error("Failed to register concrete *user.Service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		return err
+	}
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		StartPaydayTriggeredSubscriber(ctx, prov, log)
+		hello.StartHelloWorldLoop(ctx, prov, log, "user")
 	}
 	return nil
 }

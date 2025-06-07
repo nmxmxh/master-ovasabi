@@ -1,3 +1,9 @@
+// [CANONICAL] All metadata extraction and mutation in the messaging service must use pkg/metadata bridging helpers:
+//   - StructToMap, MapToStruct, SetServiceSpecificField, ExtractServiceVariables
+// Do not add local wrappers for metadata extraction or mutation—use the canonical helpers from pkg/metadata.
+// Only business-specific enrichment logic (e.g., UpdateDeliveryStatus, ValidateMessagingMetadata) should remain here.
+// Reference: docs/services/metadata.md, docs/amadeus/amadeus_context.md
+//
 // Messaging Metadata Helpers and Types
 // -----------------------------------
 //
@@ -26,10 +32,6 @@ package messaging
 import (
 	"fmt"
 	"time"
-
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // MessagingMetadata is the canonical struct for messaging-specific metadata.
@@ -86,68 +88,6 @@ type VersioningMetadata struct {
 	Environment    string   `json:"environment,omitempty"`
 	FeatureFlags   []string `json:"feature_flags,omitempty"`
 	LastMigratedAt string   `json:"last_migrated_at,omitempty"`
-}
-
-// ExtractMessagingMetadata extracts MessagingMetadata from common.Metadata.service_specific.messaging.
-func ExtractMessagingMetadata(meta *commonpb.Metadata) *Metadata {
-	if meta == nil || meta.ServiceSpecific == nil {
-		return &Metadata{}
-	}
-	m := meta.ServiceSpecific.AsMap()
-	messagingRaw, ok := m["messaging"]
-	if !ok {
-		return &Metadata{}
-	}
-	messagingMap, ok := messagingRaw.(map[string]interface{})
-	if !ok {
-		return &Metadata{}
-	}
-	// Unmarshal to MessagingMetadata (manual for now, or use a JSON lib if available)
-	mm := &Metadata{Custom: map[string]interface{}{}}
-	if v, ok := messagingMap["delivery"].(map[string]interface{}); ok {
-		d := &DeliveryMetadata{}
-		if arr, ok := v["delivered_by"].([]interface{}); ok {
-			for _, id := range arr {
-				d.DeliveredBy = append(d.DeliveredBy, fmt.Sprint(id))
-			}
-		}
-		if arr, ok := v["read_by"].([]interface{}); ok {
-			for _, id := range arr {
-				d.ReadBy = append(d.ReadBy, fmt.Sprint(id))
-			}
-		}
-		if arr, ok := v["ack_by"].([]interface{}); ok {
-			for _, id := range arr {
-				d.AckBy = append(d.AckBy, fmt.Sprint(id))
-			}
-		}
-		if ts, ok := v["timestamps"].(map[string]interface{}); ok {
-			d.Timestamps = map[string]string{}
-			for k, t := range ts {
-				d.Timestamps[k] = fmt.Sprint(t)
-			}
-		}
-		mm.Delivery = d
-	}
-	// (Other fields can be parsed similarly as needed)
-	return mm
-}
-
-// ToStruct converts MessagingMetadata to a structpb.Struct for storage in Metadata.service_specific.messaging.
-func (mm *Metadata) ToStruct() (*structpb.Struct, error) {
-	// For brevity, only delivery is handled here. Expand as needed.
-	m := map[string]interface{}{}
-	if mm.Delivery != nil {
-		d := map[string]interface{}{
-			"delivered_by": mm.Delivery.DeliveredBy,
-			"read_by":      mm.Delivery.ReadBy,
-			"ack_by":       mm.Delivery.AckBy,
-			"timestamps":   mm.Delivery.Timestamps,
-		}
-		m["delivery"] = d
-	}
-	// Add other fields (reactions, attachments, audit, compliance, versioning, custom)
-	return metadata.NewStructFromMap(m, nil), nil
 }
 
 // UpdateDeliveryStatus updates the delivery/read/ack status for a user.

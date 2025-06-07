@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -142,12 +145,15 @@ func (r *Repository) Orchestrate(ctx context.Context, req *nexusv1.OrchestrateRe
 	if err != nil {
 		return "", err
 	}
+	var panicErr error
 	defer func() {
 		if p := recover(); p != nil {
 			if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-				panic(fmt.Errorf("rollback failed after panic: %w", err))
+				log.Printf("rollback failed after panic: %v", err)
+				panicErr = fmt.Errorf("rollback failed after panic: %w", err)
 			}
-			panic(p)
+			log.Printf("panic occurred: %v", p)
+			panicErr = fmt.Errorf("panic occurred: %v", p)
 		}
 	}()
 	input, err := json.Marshal(req.Input)
@@ -206,15 +212,25 @@ func (r *Repository) Orchestrate(ctx context.Context, req *nexusv1.OrchestrateRe
 		}
 		return "", err
 	}
+	if panicErr != nil {
+		return "", panicErr
+	}
 	return orchestrationID, nil
 }
 
 // logOrchestrationEvent logs rollback/audit events for orchestration.
-func (r *Repository) logOrchestrationEvent(ctx context.Context, tx *sql.Tx, orchestrationID, eventType, message string, metadata map[string]interface{}) error {
+func (r *Repository) logOrchestrationEvent(ctx context.Context, tx *sql.Tx, orchestrationID, eventType, message string, metaMap map[string]interface{}) error {
+	handler := metadata.Handler{}
+	handler.AppendAudit(metaMap, map[string]interface{}{
+		"orchestration_id": orchestrationID,
+		"event_type":       eventType,
+		"message":          message,
+		"timestamp":        time.Now().UTC().Format(time.RFC3339),
+	})
 	var metaBytes []byte
-	if metadata != nil {
+	if metaMap != nil {
 		var err error
-		metaBytes, err = json.Marshal(metadata)
+		metaBytes, err = json.Marshal(metaMap)
 		if err != nil {
 			return fmt.Errorf("failed to marshal orchestration event metadata: %w", err)
 		}
@@ -287,12 +303,12 @@ func (r *Repository) MineAndStorePatterns(ctx context.Context) error {
 		patternType := "trace_step"
 		definition := map[string]interface{}{"steps": []map[string]string{{"service": service, "action": action}}}
 		confidence := 1.0 // For now, set to 1.0; can be refined with more analytics
-		metadata := map[string]interface{}{"mined_by": "trace_miner"}
+		metaMap := map[string]interface{}{"mined_by": "trace_miner"}
 		defBytes, err := json.Marshal(definition)
 		if err != nil {
 			return fmt.Errorf("failed to marshal mined pattern definition: %w", err)
 		}
-		metaBytes, err := json.Marshal(metadata)
+		metaBytes, err := json.Marshal(metaMap)
 		if err != nil {
 			return fmt.Errorf("failed to marshal mined pattern metadata: %w", err)
 		}
@@ -702,14 +718,17 @@ func (r *Repository) SearchPatternsExplainable(ctx context.Context, keyPath []st
 }
 
 // InsertEvent persists an event to the service_nexus_event table.
-func (r *Repository) InsertEvent(ctx context.Context, eventType, entityID string, metadata *commonpb.Metadata) error {
-	metaJSON, err := json.Marshal(metadata)
+func (r *Repository) InsertEvent(ctx context.Context, eventType, entityID string, metaData *commonpb.Metadata) error {
+	metaJSON, err := json.Marshal(metaData)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO service_nexus_event (event_type, entity_id, metadata) VALUES ($1, $2, $3)`,
-		eventType, entityID, metaJSON,
-	)
-	return err
+	_, err = r.db.ExecContext(ctx, `
+		INSERT INTO service_nexus_event (event_type, entity_id, metadata)
+		VALUES ($1, $2, $3)
+	`, eventType, entityID, metaJSON)
+	if err != nil {
+		return err
+	}
+	return nil
 }

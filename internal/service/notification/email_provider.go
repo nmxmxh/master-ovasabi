@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 )
@@ -47,7 +47,7 @@ func (a *AzureEmailProvider) SendEmail(ctx context.Context, to, subject, body st
 		return err
 	}
 
-	url := fmt.Sprintf("%s/emails:send?api-version=2023-03-31", a.Endpoint)
+	url := a.Endpoint + "/emails:send?api-version=2023-03-31"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func (a *AzureEmailProvider) SendEmail(ctx context.Context, to, subject, body st
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("azure email send failed: %s", resp.Status)
+		return errors.New("azure email send failed: " + resp.Status)
 	}
 	return nil
 }

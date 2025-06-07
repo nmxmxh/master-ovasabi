@@ -5,6 +5,7 @@ import (
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 )
 
@@ -106,7 +107,13 @@ func ExtractAndEnrichProductMetadata(meta *commonpb.Metadata, userID string, isC
 			ReviewCount:   0,
 		}
 	}
-	return BuildProductMetadata(&prodMeta, meta.GetTags())
+	// Build and normalize metadata for persistence/emission
+	// NOTE: Enforce system-wide normalization and calculation before returning.
+	// If you have a product ID, use it for prev/next/related; otherwise, leave as empty.
+	metaMap := metadata.ProtoToMap(meta)
+	// TODO: Replace "" with actual prev/next/related IDs if available
+	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "", "", []string{}, "success", "enrich product metadata")
+	return metadata.MapToProto(normMap), nil
 }
 
 // ExtractProductServiceMetadata extracts product metadata as ServiceMetadata from a Metadata proto.
@@ -129,3 +136,6 @@ func ExtractProductServiceMetadata(meta *commonpb.Metadata) (*ServiceMetadata, e
 	}
 	return &prodMeta, nil
 }
+
+// [CANONICAL] All metadata must be normalized and calculated via metadata.NormalizeAndCalculate before persistence or emission.
+// Ensure required fields (versioning, audit, etc.) are present under the correct namespace.

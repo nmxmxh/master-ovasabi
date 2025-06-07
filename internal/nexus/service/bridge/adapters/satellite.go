@@ -76,11 +76,7 @@ func (a *SatelliteAdapter) Receive(ctx context.Context, handler bridge.MessageHa
 			case <-ticker.C:
 				// Simulate receiving telemetry
 				if a.handler != nil {
-					msg := &bridge.Message{
-						Payload:  []byte("simulated telemetry data"),
-						Metadata: map[string]string{"ground_station": a.groundStation, "protocol": a.protocol},
-					}
-					if err := a.handler(ctx, msg); err != nil {
+					if err := a.handler(ctx, nil); err != nil {
 						log.Printf("[SatelliteAdapter] Handler error: %v", err)
 					}
 				}

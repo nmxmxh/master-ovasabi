@@ -30,32 +30,45 @@ import (
 	"context"
 	"database/sql"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
-// EventEmitter defines the interface for emitting events in the notification service.
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-}
-
 // Register registers the notification service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repositorypkg.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
-	repository := NewRepository(db, masterRepo)
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter events.EventEmitter,
+	db *sql.DB,
+	masterRepo repositorypkg.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{},
+) error {
+	repository := NewRepository(db, masterRepo, log)
 	cache, err := redisProvider.GetCache(ctx, "notification")
 	if err != nil {
 		log.With(zap.String("service", "notification")).Warn("Failed to get notification cache", zap.Error(err), zap.String("cache", "notification"), zap.String("context", ctxValue(ctx)))
 	}
-	service := NewService(log, repository, cache, eventEmitter, eventEnabled)
+	serviceInstance := NewService(log, repository, cache, eventEmitter, eventEnabled)
 	if err := container.Register((*notificationpb.NotificationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return service, nil
+		return serviceInstance, nil
 	}); err != nil {
 		log.With(zap.String("service", "notification")).Error("Failed to register notification service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
+	}
+	// Inos: Register the hello-world event loop for service health and orchestration
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "notification")
 	}
 	return nil
 }

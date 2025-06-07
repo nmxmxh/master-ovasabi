@@ -23,145 +23,110 @@ import (
 	"context"
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 )
 
 // EventHandlerFunc defines the signature for orchestrator event handlers.
-type EventHandlerFunc func(event *nexusv1.EventResponse, log *zap.Logger)
-
-type EventSubscription struct {
-	EventTypes []string
-	Handler    EventHandlerFunc
-}
-
-type EventRegistry []EventSubscription
-
-// CampaignEventRegistry lists all orchestrator event subscriptions.
-var CampaignEventRegistry = EventRegistry{
-	{
-		EventTypes: []string{"campaign.created"},
-		Handler:    handleCampaignCreated,
-	},
-	{
-		EventTypes: []string{"campaign.updated"},
-		Handler:    handleCampaignUpdated,
-	},
-	{
-		EventTypes: []string{"user.joined"},
-		Handler:    handleUserJoined,
-	},
-	{
-		EventTypes: []string{"localization.translated"},
-		Handler:    handleLocalizationTranslated,
-	},
-	// Add more event subscriptions as needed for new features/services
-}
-
-// StartEventSubscribers registers all orchestrator event handlers with the event bus.
-func StartEventSubscribers(ctx context.Context, provider *service.Provider, log *zap.Logger) {
-	for _, sub := range CampaignEventRegistry {
-		sub := sub // capture range var
-		go func() {
-			err := provider.SubscribeEvents(ctx, sub.EventTypes, nil, func(event *nexusv1.EventResponse) {
-				sub.Handler(event, log)
-			})
-			if err != nil {
-				log.Error("Failed to subscribe to events", zap.Strings("eventTypes", sub.EventTypes), zap.Error(err))
-			} else {
-				log.Info("Successfully subscribed to events", zap.Strings("eventTypes", sub.EventTypes))
-			}
-		}()
-	}
-}
+type EventHandlerFunc func(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger)
 
 // --- Example Orchestrator Event Handlers ---
 
 // handleCampaignCreated orchestrates actions when a new campaign is created.
-func handleCampaignCreated(event *nexusv1.EventResponse, log *zap.Logger) {
+func handleCampaignCreated(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger) {
+	log = log.With(zap.String("request_id", contextx.RequestID(ctx)))
 	log.Info("Orchestrator: campaign.created event received", zap.Any("event", event))
 	meta := parseCampaignMetadata(event)
 	if meta == nil {
 		log.Warn("Orchestrator: failed to parse CampaignMetadata from event")
 		return
 	}
-	// Example: trigger scheduling, localization, and feature setup
-	if meta.Scheduling != nil {
-		log.Info("Orchestrator: scheduling jobs for campaign", zap.String("id", meta.ID))
-		// TODO: Call Scheduler service to register jobs
+	// Scheduling integration
+	if scheduling, ok := meta["scheduling"].(map[string]interface{}); ok && scheduling != nil {
+		if id, ok := meta["id"].(string); ok {
+			log.Info("Orchestrator: scheduling jobs for campaign", zap.String("id", id))
+			// TODO: Integrate with Scheduler service (future)
+		}
 	}
-	if meta.Localization != nil {
-		log.Info("Orchestrator: checking localization for campaign", zap.String("id", meta.ID))
-		// TODO: Call Localization service to fill missing translations
+	// Localization integration
+	if localization, ok := meta["localization"].(map[string]interface{}); ok && localization != nil {
+		if id, ok := meta["id"].(string); ok {
+			log.Info("Orchestrator: checking localization for campaign", zap.String("id", id))
+			// TODO: Integrate with Localization service (future)
+		}
 	}
-	if contains(meta.Features, "waitlist") {
-		log.Info("Orchestrator: enabling waitlist feature", zap.String("id", meta.ID))
-		// TODO: Notify User/Notification service to enable waitlist
+	// Feature setup
+	if features, ok := meta["features"].([]string); ok && contains(features, "waitlist") {
+		if id, ok := meta["id"].(string); ok {
+			log.Info("Orchestrator: enabling waitlist feature", zap.String("id", id))
+			// TODO: Notify User/Notification service (future)
+		}
 	}
-	// ... add more orchestration logic as needed
+	// Gracefully handle unimplemented orchestration
+	log.Info("Orchestrator: campaign.created orchestration complete (stub mode)")
 }
 
 // handleCampaignUpdated orchestrates actions when a campaign is updated.
-func handleCampaignUpdated(event *nexusv1.EventResponse, log *zap.Logger) {
+func handleCampaignUpdated(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger) {
+	log = log.With(zap.String("request_id", contextx.RequestID(ctx)))
 	log.Info("Orchestrator: campaign.updated event received", zap.Any("event", event))
 	meta := parseCampaignMetadata(event)
 	if meta == nil {
 		log.Warn("Orchestrator: failed to parse CampaignMetadata from event")
 		return
 	}
-	// Example: re-evaluate features, update services
-	if contains(meta.Features, "leaderboard") {
-		log.Info("Orchestrator: updating leaderboard feature", zap.String("id", meta.ID))
-		// TODO: Notify WebSocket/Analytics service to update leaderboard
+	if features, ok := meta["features"].([]string); ok && contains(features, "leaderboard") {
+		if id, ok := meta["id"].(string); ok {
+			log.Info("Orchestrator: updating leaderboard feature", zap.String("id", id))
+			// TODO: Integrate with WebSocket/Analytics service (future)
+		}
 	}
-	// ... add more orchestration logic as needed
+	log.Info("Orchestrator: campaign.updated orchestration complete (stub mode)")
 }
 
 // handleUserJoined orchestrates actions when a user joins a campaign.
-func handleUserJoined(event *nexusv1.EventResponse, log *zap.Logger) {
+func handleUserJoined(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger) {
+	log = log.With(zap.String("request_id", contextx.RequestID(ctx)))
 	log.Info("Orchestrator: user.joined event received", zap.Any("event", event))
 	meta := parseCampaignMetadata(event)
 	if meta == nil {
 		log.Warn("Orchestrator: failed to parse CampaignMetadata from event")
 		return
 	}
-	if contains(meta.Features, "waitlist") {
-		log.Info("Orchestrator: user added to waitlist", zap.String("id", meta.ID))
-		// TODO: Notify Notification/WebSocket service to broadcast new joiner
+	if features, ok := meta["features"].([]string); ok && contains(features, "waitlist") {
+		if id, ok := meta["id"].(string); ok {
+			log.Info("Orchestrator: user added to waitlist", zap.String("id", id))
+			// TODO: Notify Notification/WebSocket service (future)
+		}
 	}
-	// ... add more orchestration logic as needed
+	log.Info("Orchestrator: user.joined orchestration complete (stub mode)")
 }
 
 // handleLocalizationTranslated orchestrates actions when a new translation is added.
-func handleLocalizationTranslated(event *nexusv1.EventResponse, log *zap.Logger) {
+func handleLocalizationTranslated(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger) {
+	log = log.With(zap.String("request_id", contextx.RequestID(ctx)))
 	log.Info("Orchestrator: localization.translated event received", zap.Any("event", event))
 	meta := parseCampaignMetadata(event)
 	if meta == nil {
 		log.Warn("Orchestrator: failed to parse CampaignMetadata from event")
 		return
 	}
-	log.Info("Orchestrator: updating campaign with new translations", zap.String("id", meta.ID))
-	// TODO: Update campaign metadata, notify UI/content services
+	if id, ok := meta["id"].(string); ok {
+		log.Info("Orchestrator: updating campaign with new translations", zap.String("id", id))
+		// TODO: Update campaign metadata, notify UI/content services (future)
+	}
+	log.Info("Orchestrator: localization.translated orchestration complete (stub mode)")
 }
 
 // --- Helper Functions ---
 
-// parseCampaignMetadata extracts CampaignMetadata from the event payload.
-func parseCampaignMetadata(event *nexusv1.EventResponse) *Metadata {
+// parseCampaignMetadata extracts CampaignMetadata from the event payload using canonical extraction.
+func parseCampaignMetadata(event *nexusv1.EventResponse) map[string]interface{} {
 	if event == nil || event.Metadata == nil {
 		return nil
 	}
-	if ss := event.Metadata.ServiceSpecific; ss != nil {
-		if campaignField, ok := ss.Fields["campaign"]; ok {
-			if metaStruct := campaignField.GetStructValue(); metaStruct != nil {
-				meta, err := FromStruct(metaStruct)
-				if err == nil {
-					return meta
-				}
-			}
-		}
-	}
-	return nil
+	return metadata.ExtractServiceVariables(event.Metadata, "campaign")
 }
 
 // contains checks if a string is in a slice.

@@ -1,0 +1,22 @@
+syntax = "proto3";
+package ai.v1;
+
+import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/ai/v1;aipb";
+
+// ModelUpdate represents a federated learning update with metadata and hash for auditability.
+message ModelUpdate {
+  bytes data = 1;                        // Model update data (weights, gradients, etc.)
+  common.Metadata meta = 2;              // Canonical metadata (versioning, peer info, round, etc.)
+  string hash = 3;                       // Unique, tamper-evident identifier
+}
+
+// Model represents the current AI model state with metadata and hash for auditability.
+message Model {
+  bytes data = 1;                        // Model weights, parameters, or state
+  common.Metadata meta = 2;              // Canonical metadata (versioning, training params, performance, etc.)
+  string hash = 3;                       // Unique, tamper-evident identifier
+  string version = 4;                    // Model version string
+  string parent_hash = 5;                // (Optional) for lineage/ancestry tracking
+} 

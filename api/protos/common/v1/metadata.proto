@@ -21,6 +21,7 @@ message Metadata {
   TieredTax taxation = 8;
   OwnerMetadata owner = 9;
   ReferralMetadata referral = 10;
+  google.protobuf.Struct versioning = 11; // System/service/user/environment versioning and traceability
 }
 
 message TieredTax {

@@ -12,6 +12,7 @@ import (
 	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
@@ -312,76 +313,45 @@ func WithPercentThreshold(threshold float64) StateBuilderOption {
 }
 
 // BuildCampaignUserState builds the minimal, gamified, partial-update-ready state for a campaign/user.
-// If fields is nil or empty, includes all fields. If changed fields exceed threshold, sends full state.
-// Used by both WebSocket and REST endpoints for state hydration and updates.
-func BuildCampaignUserState(campaign *Campaign, user *userpb.User, leaderboard []LeaderboardEntry, mediaState *mediapb.Media, opts ...StateBuilderOption) map[string]interface{} {
-	// Extract metadata-driven fields
-	var status string
-	var features []string
-	var rules string
-	var effectState map[string]interface{}
-	if campaign != nil && campaign.Metadata != nil && campaign.Metadata.ServiceSpecific != nil {
-		ss := campaign.Metadata.ServiceSpecific.AsMap()
-		if cmeta, ok := ss["campaign"].(map[string]interface{}); ok {
-			if s, ok := cmeta["status"].(string); ok {
-				status = s
-			}
-			if f, ok := cmeta["features"].([]interface{}); ok {
-				for _, feat := range f {
-					if fs, ok := feat.(string); ok {
-						features = append(features, fs)
-					}
-				}
-			}
-			if r, ok := cmeta["rules"].(string); ok {
-				rules = r
-			}
-			if es, ok := cmeta["effect_state"].(map[string]interface{}); ok {
-				effectState = es
-			}
-		}
+// Now uses canonical metadata.ExtractServiceVariables for all variable extraction.
+func BuildCampaignUserState(campaign *Campaign, user *userpb.User, _ []LeaderboardEntry, mediaState *mediapb.Media, opts ...StateBuilderOption) map[string]interface{} {
+	// Canonical extraction from metadata
+	var campaignVars, userVars map[string]interface{}
+	if campaign != nil && campaign.Metadata != nil {
+		campaignVars = metadata.ExtractServiceVariables(campaign.Metadata, "campaign")
 	}
-	if status == "" {
-		status = "active" // fallback default
-	}
-	if features == nil {
-		features = []string{}
-	}
-	if rules == "" {
-		rules = "" // fallback default
-	}
-	if effectState == nil {
-		effectState = map[string]interface{}{}
+	if user != nil && user.Metadata != nil {
+		userVars = metadata.ExtractServiceVariables(user.Metadata, "user")
 	}
 	// Compose all fields
 	state := map[string]interface{}{
 		"campaign": map[string]interface{}{
 			"id":          campaign.Slug,
 			"title":       campaign.Title,
-			"status":      status,
-			"features":    features,
-			"trending":    leaderboard, // TODO: top 3 logic if needed
-			"leaderboard": leaderboard,
+			"status":      campaignVars["status"],
+			"features":    campaignVars["features"],
+			"trending":    campaignVars["trending"],
+			"leaderboard": campaignVars["leaderboard"],
 			"focus": map[string]interface{}{
 				"description": campaign.Description,
-				"rules":       rules,
+				"rules":       campaignVars["rules"],
 			},
 		},
 		"user": map[string]interface{}{
-			"id":       user.Id,
-			"username": user.Username,
-			"email":    user.Email,
-			"roles":    user.Roles,
-			"status":   user.Status,
-			"profile":  user.Profile,
-			// TODO: Add gamification, badges, notifications, etc. from metadata or extensions
+			"id":           user.Id,
+			"username":     user.Username,
+			"email":        user.Email,
+			"roles":        user.Roles,
+			"status":       user.Status,
+			"profile":      user.Profile,
+			"gamification": userVars,
 		},
 		"media": mediaState,
 		"catalog": map[string]interface{}{
 			"components": []map[string]interface{}{{"id": "Leaderboard", "props": map[string]interface{}{"top": 3}}},
 			"search":     []map[string]interface{}{{"id": "Leaderboard", "title": "Leaderboard"}},
 		},
-		"effect_state": effectState,
+		"effect_state": campaignVars["effect_state"],
 		"timestamp":    time.Now().UTC(),
 	}
 	// Partial update logic
@@ -390,15 +360,12 @@ func BuildCampaignUserState(campaign *Campaign, user *userpb.User, leaderboard [
 		opt(cfg)
 	}
 	allFields := []string{"campaign", "user", "media", "catalog", "effect_state", "timestamp"}
-	// If fields is nil or empty, include all
 	if len(cfg.Fields) == 0 && len(cfg.Changed) == 0 {
 		return state
 	}
-	// If changed fields exceed threshold, send full state
 	if len(cfg.Changed) > 0 && float64(len(cfg.Changed))/float64(len(allFields)) >= cfg.PercentThreshold {
 		return state
 	}
-	// Otherwise, send only requested/changed fields
 	partial := make(map[string]interface{})
 	if len(cfg.Fields) > 0 {
 		for _, f := range cfg.Fields {
@@ -502,10 +469,26 @@ func (s *Service) OrchestrateActiveCampaignsAdvanced(ctx context.Context, maxWor
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }() // release
-			meta, err := FromStruct(c.Metadata.ServiceSpecific.Fields["campaign"].GetStructValue())
-			if err != nil {
-				s.log.Warn("Invalid campaign metadata, skipping", zap.String("slug", c.Slug), zap.Error(err))
-				return
+			// Use canonical handler to convert structpb.Struct to map
+			metaStruct := c.Metadata.ServiceSpecific.Fields["campaign"].GetStructValue()
+			var meta *Metadata
+			if metaStruct != nil {
+				metaMap := metadata.StructToMap(metaStruct)
+				meta = &Metadata{}
+				if f, ok := metaMap["features"].([]interface{}); ok {
+					for _, feat := range f {
+						if fs, ok := feat.(string); ok {
+							meta.Features = append(meta.Features, fs)
+						}
+					}
+				}
+				if s, ok := metaMap["scheduling"].(map[string]interface{}); ok {
+					meta.Scheduling = mapToSchedulingInfo(s)
+				}
+				if c, ok := metaMap["custom"].(map[string]interface{}); ok {
+					meta.Custom = c
+				}
+				// Add more fields as needed per canonical handler
 			}
 			s.advancedOrchestrateCampaign(ctx, c, meta)
 		}()
@@ -718,4 +701,33 @@ func (s *Service) stopJobs(_ context.Context, slug string, _ *Campaign) {
 		delete(s.scheduledJobs, slug)
 		s.log.Info("Stopped all jobs for campaign", zap.String("slug", slug))
 	}
+}
+
+// Helper to convert map[string]interface{} to *SchedulingInfo.
+func mapToSchedulingInfo(m map[string]interface{}) *SchedulingInfo {
+	if m == nil {
+		return nil
+	}
+	si := &SchedulingInfo{}
+	if start, ok := m["start"].(string); ok {
+		if t, err := time.Parse(time.RFC3339, start); err == nil {
+			si.Start = t
+		}
+	}
+	if end, ok := m["end"].(string); ok {
+		if t, err := time.Parse(time.RFC3339, end); err == nil {
+			si.End = t
+		}
+	}
+	if rec, ok := m["recurrence"].(string); ok {
+		si.Recurrence = rec
+	}
+	if jobs, ok := m["jobs"].([]interface{}); ok {
+		for _, job := range jobs {
+			if jm, ok := job.(map[string]interface{}); ok {
+				si.Jobs = append(si.Jobs, jm)
+			}
+		}
+	}
+	return si
 }

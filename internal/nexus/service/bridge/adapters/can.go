@@ -55,11 +55,7 @@ func (a *CANAdapter) Receive(ctx context.Context, handler bridge.MessageHandler)
 			case <-ticker.C:
 				// Simulate receiving a CAN message
 				if a.handler != nil {
-					msg := &bridge.Message{
-						Payload:  []byte("simulated CAN message"),
-						Metadata: map[string]string{"can": "message"},
-					}
-					if err := a.handler(ctx, msg); err != nil {
+					if err := a.handler(ctx, nil); err != nil {
 						fmt.Printf("[CANAdapter] Handler error: %v\n", err)
 					}
 				}

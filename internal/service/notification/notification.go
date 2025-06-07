@@ -11,8 +11,8 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -33,11 +33,11 @@ type Service struct {
 	log          *zap.Logger
 	repo         *Repository
 	cache        *redis.Cache
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 }
 
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) notificationpb.NotificationServiceServer {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) notificationpb.NotificationServiceServer {
 	return &Service{
 		log:          log,
 		repo:         repo,
@@ -48,7 +48,7 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 }
 
 func (s *Service) GetNotification(ctx context.Context, req *notificationpb.GetNotificationRequest) (*notificationpb.GetNotificationResponse, error) {
-	id := parseInt64(req.NotificationId)
+	id := s.parseInt64(req.NotificationId)
 	notification, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.NotFound, "notification not found", err)
@@ -59,12 +59,12 @@ func (s *Service) GetNotification(ctx context.Context, req *notificationpb.GetNo
 		return nil, graceful.ToStatusError(err)
 	}
 	return &notificationpb.GetNotificationResponse{
-		Notification: mapNotificationToProto(notification),
+		Notification: s.mapNotificationToProto(notification),
 	}, nil
 }
 
 func (s *Service) ListNotifications(ctx context.Context, req *notificationpb.ListNotificationsRequest) (*notificationpb.ListNotificationsResponse, error) {
-	userID := parseInt64(req.UserId)
+	userID := s.parseInt64(req.UserId)
 	notifications, err := s.repo.ListByUserID(ctx, userID, int(req.PageSize), int(req.Page))
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to list notifications", err)
@@ -76,7 +76,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationpb.Lis
 	}
 	protoNotifications := make([]*notificationpb.Notification, 0, len(notifications))
 	for _, n := range notifications {
-		protoNotifications = append(protoNotifications, mapNotificationToProto(n))
+		protoNotifications = append(protoNotifications, s.mapNotificationToProto(n))
 	}
 	var totalCount int32
 	if len(protoNotifications) > math.MaxInt32 {
@@ -84,16 +84,21 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationpb.Lis
 	} else {
 		totalCount = int32(math.Min(float64(len(protoNotifications)), float64(math.MaxInt32)))
 	}
+	// Calculate real total pages
+	totalPages := int32(1)
+	if req.PageSize > 0 {
+		totalPages = int32(math.Ceil(float64(totalCount) / float64(req.PageSize)))
+	}
 	return &notificationpb.ListNotificationsResponse{
 		Notifications: protoNotifications,
 		TotalCount:    totalCount,
 		Page:          req.Page,
-		TotalPages:    1, // TODO: calculate real total pages
+		TotalPages:    totalPages,
 	}, nil
 }
 
 func (s *Service) SendNotification(ctx context.Context, req *notificationpb.SendNotificationRequest) (*notificationpb.SendNotificationResponse, error) {
-	userID := extractAuthContext(ctx, req.Metadata)
+	userID := s.extractAuthContext(ctx, req.Metadata)
 	isGuest := userID == ""
 	if !isGuest && userID == "" {
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id required", nil))
@@ -103,16 +108,8 @@ func (s *Service) SendNotification(ctx context.Context, req *notificationpb.Send
 			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.PermissionDenied, "guests cannot send direct user notifications", nil))
 		}
 	}
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
-	}
 	notification := &Notification{
-		UserID:     parseInt64(req.UserId),
+		UserID:     s.parseInt64(req.UserId),
 		CampaignID: req.CampaignId,
 		Type:       Type(req.Channel),
 		Title:      req.Title,
@@ -146,23 +143,15 @@ func (s *Service) SendNotification(ctx context.Context, req *notificationpb.Send
 		PatternMeta:  created.Metadata,
 	})
 	return &notificationpb.SendNotificationResponse{
-		Notification: mapNotificationToProto(created),
+		Notification: s.mapNotificationToProto(created),
 		Status:       "created",
 	}, nil
 }
 
 func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRequest) (*notificationpb.SendEmailResponse, error) {
-	userID := extractAuthContext(ctx, req.Metadata)
+	userID := s.extractAuthContext(ctx, req.Metadata)
 	if userID == "" {
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id required for email", nil))
-	}
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
 	}
 	notification := &Notification{
 		UserID:     0, // Not mapped directly
@@ -206,17 +195,9 @@ func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRe
 }
 
 func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSRequest) (*notificationpb.SendSMSResponse, error) {
-	userID := extractAuthContext(ctx, req.Metadata)
+	userID := s.extractAuthContext(ctx, req.Metadata)
 	if userID == "" {
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id required for SMS", nil))
-	}
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
 	}
 	notification := &Notification{
 		UserID:     0, // Not mapped directly
@@ -260,20 +241,12 @@ func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSReques
 }
 
 func (s *Service) SendPushNotification(ctx context.Context, req *notificationpb.SendPushNotificationRequest) (*notificationpb.SendPushNotificationResponse, error) {
-	userID := extractAuthContext(ctx, req.Metadata)
+	userID := s.extractAuthContext(ctx, req.Metadata)
 	if userID == "" {
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id required for push notification", nil))
 	}
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
-	}
 	notification := &Notification{
-		UserID:     parseInt64(req.UserId),
+		UserID:     s.parseInt64(req.UserId),
 		CampaignID: req.CampaignId,
 		Type:       TypePush,
 		Title:      req.Title,
@@ -314,21 +287,13 @@ func (s *Service) SendPushNotification(ctx context.Context, req *notificationpb.
 }
 
 func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.BroadcastEventRequest) (*notificationpb.BroadcastEventResponse, error) {
-	userID := extractAuthContext(ctx, req.Payload)
+	userID := s.extractAuthContext(ctx, req.Payload)
 	isGuest := userID == ""
 	if !isGuest && userID == "" {
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id or guest_nickname/device_id required", nil))
 	}
 	if isGuest && req.CampaignId == 0 {
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.PermissionDenied, "guests can only broadcast to campaigns", nil))
-	}
-	if err := metadata.ValidateMetadata(req.Payload); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid payload", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
 	}
 	broadcast := &Notification{
 		UserID:      0,              // system/campaign
@@ -338,7 +303,7 @@ func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.Broadc
 		Content:     req.Message,
 		Status:      StatusPending,
 		Metadata:    req.Payload,
-		ScheduledAt: toTimePtr(req.ScheduledAt),
+		ScheduledAt: s.toTimePtr(req.ScheduledAt),
 	}
 	created, err := s.repo.CreateBroadcast(ctx, broadcast)
 	if err != nil {
@@ -373,7 +338,7 @@ func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.Broadc
 }
 
 func (s *Service) ListNotificationEvents(ctx context.Context, req *notificationpb.ListNotificationEventsRequest) (*notificationpb.ListNotificationEventsResponse, error) {
-	notificationID := parseInt64(req.NotificationId)
+	notificationID := s.parseInt64(req.NotificationId)
 	eventList, err := s.repo.ListNotificationEvents(ctx, notificationID, int(req.PageSize), int(req.Page))
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to list events", err)
@@ -386,9 +351,9 @@ func (s *Service) ListNotificationEvents(ctx context.Context, req *notificationp
 	protoEvents := make([]*notificationpb.NotificationEvent, 0, len(eventList))
 	for _, e := range eventList {
 		protoEvents = append(protoEvents, &notificationpb.NotificationEvent{
-			EventId:        fmt.Sprint(e.ID),
-			NotificationId: fmt.Sprint(e.NotificationID),
-			UserId:         fmt.Sprint(e.UserID),
+			EventId:        e.EventID,
+			NotificationId: e.NotificationID,
+			UserId:         e.UserID,
 			EventType:      e.EventType,
 			// Payload: ... (unmarshal if needed)
 			// CreatedAt: ...
@@ -407,7 +372,7 @@ func (s *Service) ListNotificationEvents(ctx context.Context, req *notificationp
 }
 
 func (s *Service) AcknowledgeNotification(ctx context.Context, req *notificationpb.AcknowledgeNotificationRequest) (*notificationpb.AcknowledgeNotificationResponse, error) {
-	id := parseInt64(req.NotificationId)
+	id := s.parseInt64(req.NotificationId)
 	notification, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.NotFound, "notification not found", err)
@@ -445,12 +410,17 @@ func (s *Service) AcknowledgeNotification(ctx context.Context, req *notification
 	return &notificationpb.AcknowledgeNotificationResponse{Status: "acknowledged"}, nil
 }
 
-func (s *Service) UpdateNotificationPreferences(_ context.Context, _ *notificationpb.UpdateNotificationPreferencesRequest) (*notificationpb.UpdateNotificationPreferencesResponse, error) {
-	// TODO: Implement notification preferences update
-	return nil, errors.New("not implemented")
+func (s *Service) UpdateNotificationPreferences(ctx context.Context, _ *notificationpb.UpdateNotificationPreferencesRequest) (*notificationpb.UpdateNotificationPreferencesResponse, error) {
+	err := graceful.WrapErr(ctx, codes.Unimplemented, "notification preferences update not implemented", errors.New("not implemented"))
+	var ce *graceful.ContextError
+	if errors.As(err, &ce) {
+		ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+	}
+	return nil, graceful.ToStatusError(err)
 }
 
 func (s *Service) SubscribeToEvents(req *notificationpb.SubscribeToEventsRequest, stream notificationpb.NotificationService_SubscribeToEventsServer) error {
+	ctx := stream.Context()
 	// Example: send a single dummy event, then return
 	event := &notificationpb.NotificationEvent{
 		EventId:        "1",
@@ -461,13 +431,18 @@ func (s *Service) SubscribeToEvents(req *notificationpb.SubscribeToEventsRequest
 		CreatedAt:      timestamppb.Now(),
 	}
 	if err := stream.Send(event); err != nil {
-		s.log.Error("Failed to send event in stream", zap.Error(err))
-		return err
+		errWrapped := graceful.WrapErr(ctx, codes.Internal, "Failed to send event in stream", err)
+		var ce *graceful.ContextError
+		if errors.As(errWrapped, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(errWrapped)
 	}
 	return nil // End of stream
 }
 
 func (s *Service) StreamAssetChunks(req *notificationpb.StreamAssetChunksRequest, stream notificationpb.NotificationService_StreamAssetChunksServer) error {
+	ctx := stream.Context()
 	// Example: send a single dummy chunk, then return
 	chunk := &notificationpb.AssetChunk{
 		UploadId: req.AssetId,
@@ -475,24 +450,27 @@ func (s *Service) StreamAssetChunks(req *notificationpb.StreamAssetChunksRequest
 		Sequence: 1,
 	}
 	if err := stream.Send(chunk); err != nil {
-		s.log.Error("Failed to send asset chunk in stream", zap.Error(err))
-		return err
+		errWrapped := graceful.WrapErr(ctx, codes.Internal, "Failed to send asset chunk in stream", err)
+		var ce *graceful.ContextError
+		if errors.As(errWrapped, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return graceful.ToStatusError(errWrapped)
 	}
 	return nil // End of stream
 }
 
 // --- Helpers ---.
-func parseInt64(s string) int64 {
-	id, err := strconv.ParseInt(s, 10, 64)
+func (s *Service) parseInt64(str string) int64 {
+	id, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
-		// Log the error and return 0 as a fallback
-		fmt.Printf("Failed to parse int64 from '%s': %v\n", s, err)
+		s.log.Warn("Failed to parse int64", zap.String("input", str), zap.Error(err))
 		return 0
 	}
 	return id
 }
 
-func toTimePtr(ts *timestamppb.Timestamp) *time.Time {
+func (s *Service) toTimePtr(ts *timestamppb.Timestamp) *time.Time {
 	if ts == nil {
 		return nil
 	}
@@ -500,25 +478,27 @@ func toTimePtr(ts *timestamppb.Timestamp) *time.Time {
 	return &t
 }
 
-func mapNotificationToProto(n *Notification) *notificationpb.Notification {
+func (s *Service) mapNotificationToProto(n *Notification) *notificationpb.Notification {
 	if n == nil {
 		return nil
 	}
+	read := n.Status == StatusSent
+
 	return &notificationpb.Notification{
 		Id:        fmt.Sprint(n.ID),
 		UserId:    fmt.Sprint(n.UserID),
 		Channel:   string(n.Type),
 		Title:     n.Title,
 		Body:      n.Content,
-		Status:    mapStatusToProto(n.Status),
+		Status:    s.mapStatusToProto(n.Status),
 		CreatedAt: timestamppb.New(n.CreatedAt),
 		UpdatedAt: timestamppb.New(n.UpdatedAt),
-		Read:      false, // TODO: map read status
+		Read:      read, // Now mapped from status
 	}
 }
 
-func mapStatusToProto(s Status) notificationpb.NotificationStatus {
-	switch s {
+func (s *Service) mapStatusToProto(status Status) notificationpb.NotificationStatus {
+	switch status {
 	case StatusPending:
 		return notificationpb.NotificationStatus_NOTIFICATION_STATUS_PENDING
 	case StatusSent:
@@ -533,7 +513,7 @@ func mapStatusToProto(s Status) notificationpb.NotificationStatus {
 }
 
 // extractAuthContext extracts user_id from context or metadata.
-func extractAuthContext(ctx context.Context, meta *commonpb.Metadata) (userID string) {
+func (s *Service) extractAuthContext(ctx context.Context, meta *commonpb.Metadata) (userID string) {
 	// Try contextx.Auth first
 	authCtx := contextx.Auth(ctx)
 	if authCtx != nil && authCtx.UserID != "" {

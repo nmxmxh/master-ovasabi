@@ -249,6 +249,98 @@ UnimplementedReferralServiceServer for forward compatibility.
 
 ReferralService manages user referrals and rewards
 
+### RegisterReferralRequest
+
+RegisterReferralRequest for registering a new referral
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RegisterReferralRequest.ProtoReflect.Descriptor instead.
+
+##### GetCampaignId
+
+##### GetDeviceHash
+
+##### GetMetadata
+
+##### GetReferrerMasterId
+
+##### GetReferrerMasterUuid
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### RegisterReferralResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RegisterReferralResponse.ProtoReflect.Descriptor instead.
+
+##### GetReferral
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### RewardReferralRequest
+
+RewardReferralRequest for rewarding a referral
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RewardReferralRequest.ProtoReflect.Descriptor instead.
+
+##### GetMetadata
+
+##### GetReferralCode
+
+##### GetRewardAmount
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
+### RewardReferralResponse
+
+#### Methods
+
+##### Descriptor
+
+Deprecated: Use RewardReferralResponse.ProtoReflect.Descriptor instead.
+
+##### GetReferral
+
+##### GetSuccess
+
+##### ProtoMessage
+
+##### ProtoReflect
+
+##### Reset
+
+##### String
+
 ### UnimplementedReferralServiceServer
 
 UnimplementedReferralServiceServer must be embedded to have forward compatible implementations.
@@ -263,6 +355,10 @@ methods are called.
 ##### GetReferral
 
 ##### GetReferralStats
+
+##### RegisterReferral
+
+##### RewardReferral
 
 ### UnsafeReferralServiceServer
 

@@ -78,7 +78,7 @@ import (
 	goth "github.com/markbates/goth"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	graceful "github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -99,7 +99,7 @@ type Service struct {
 	log          *zap.Logger
 	cache        *redis.Cache
 	repo         *Repository
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 }
 
@@ -107,7 +107,7 @@ type Service struct {
 var _ userpb.UserServiceServer = (*Service)(nil)
 
 // NewUserService creates a new instance of UserService.
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) userpb.UserServiceServer {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) userpb.UserServiceServer {
 	return &Service{
 		log:          log,
 		repo:         repo,
@@ -140,6 +140,16 @@ func protoProfileToRepo(p *userpb.UserProfile) Profile {
 
 // CreateUser creates a new user following the Master-Client-Service-Event pattern.
 func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
+	user := &User{
+		Username:     req.Username,
+		Email:        req.Email,
+		PasswordHash: "", // will be set after hashing
+		Profile:      protoProfileToRepo(req.Profile),
+		Roles:        req.Roles,
+		Status:       int32(userpb.UserStatus_USER_STATUS_ACTIVE),
+		Metadata:     req.Metadata, // TODO: Enrich with creator/referrer if needed
+		Score:        Score{Balance: 0, Pending: 0},
+	}
 	s.log.Info("Creating user", zap.String("email", req.Email), zap.String("username", req.Username))
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isAdmin := utils.IsAdmin(roles)
@@ -158,20 +168,67 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 	if err != nil {
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to hash password", codes.Internal))
 	}
-	user := &User{
-		Username:     req.Username,
-		Email:        req.Email,
-		PasswordHash: string(hashedPassword),
-		Profile:      protoProfileToRepo(req.Profile),
-		Roles:        req.Roles,
-		Status:       int32(userpb.UserStatus_USER_STATUS_ACTIVE),
-		Metadata:     req.Metadata,
-	}
+	user.PasswordHash = string(hashedPassword)
+	user.Profile = protoProfileToRepo(req.Profile)
+	user.Roles = req.Roles
+	user.Status = int32(userpb.UserStatus_USER_STATUS_ACTIVE)
 	created, err := s.repo.Create(ctx, user)
 	if err != nil {
+		if errors.Is(err, ErrUsernameTaken) {
+			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "username already taken", codes.AlreadyExists))
+		}
+		if errors.Is(err, ErrInvalidUsername) {
+			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid username format", codes.InvalidArgument))
+		}
+		if errors.Is(err, ErrUsernameReserved) {
+			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "username is reserved", codes.InvalidArgument))
+		}
+		if errors.Is(err, ErrUsernameBadWord) {
+			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "username contains inappropriate content", codes.InvalidArgument))
+		}
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to create user", codes.Internal))
 	}
+
+	// Initialize metadata if not provided
+	if created.Metadata == nil {
+		created.Metadata = &commonpb.Metadata{
+			ServiceSpecific: &structpb.Struct{
+				Fields: make(map[string]*structpb.Value),
+			},
+		}
+	}
+
+	// Add creation metadata
+	metaPtr, err := metadata.ServiceMetadataFromStruct(created.Metadata.ServiceSpecific)
+	if err != nil {
+		s.log.Error("Failed to extract service metadata", zap.Error(err))
+	} else {
+		meta := *metaPtr
+		meta.DeviceID = "system"
+		if meta.Audit == nil {
+			meta.Audit = &metadata.AuditMetadata{}
+		}
+		meta.Audit.LastModified = time.Now().UTC().Format(time.RFC3339)
+		meta.Audit.History = append(meta.Audit.History, "user_created")
+		metaStruct, err := metadata.ServiceMetadataToStruct(&meta)
+		if err == nil {
+			created.Metadata.ServiceSpecific = metaStruct
+		}
+	}
+
+	// Convert to proto and cache
 	respUser := repoUserToProtoUser(created)
+	if err := s.cache.Set(ctx, created.ID, "profile", respUser, redis.TTLUserProfile); err != nil {
+		s.log.Error("Failed to cache user profile", zap.String("user_id", created.ID), zap.Error(err))
+	}
+
+	// Emit user created event
+	if s.eventEnabled {
+		if _, ok := s.eventEmitter.EmitEventWithLogging(ctx, s, s.log, "user_created", created.ID, created.Metadata); !ok {
+			s.log.Error("Failed to emit user created event", zap.String("user_id", created.ID))
+		}
+	}
+
 	success := graceful.WrapSuccess(ctx, codes.OK, "user created", &userpb.CreateUserResponse{User: respUser}, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
 		Log:          s.log,
@@ -187,21 +244,12 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 		PatternType:  "user",
 		PatternID:    created.ID,
 		PatternMeta:  created.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if created.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", created.ID, created.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if created.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", created.ID, created.Metadata)
-			}
-			return nil
-		},
 	})
+
 	return &userpb.CreateUserResponse{User: respUser}, nil
 }
+
+// ... existing code ...
 
 // GetUser retrieves user information.
 func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.GetUserResponse, error) {
@@ -241,18 +289,6 @@ func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*use
 		PatternType:  "user",
 		PatternID:    repoUser.ID,
 		PatternMeta:  repoUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if respUserPtr.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", req.UserId, respUserPtr.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if respUserPtr.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", req.UserId, respUserPtr.Metadata)
-			}
-			return nil
-		},
 	})
 	return &userpb.GetUserResponse{User: respUser}, nil
 }
@@ -281,18 +317,6 @@ func (s *Service) GetUserByUsername(ctx context.Context, req *userpb.GetUserByUs
 		CacheValue: respUser,
 		CacheTTL:   redis.TTLUserProfile,
 		Metadata:   respUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if respUser.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", respUser.Username, respUser.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if respUser.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", respUser.Username, respUser.Metadata)
-			}
-			return nil
-		},
 	})
 
 	return &userpb.GetUserByUsernameResponse{User: respUser}, nil
@@ -322,18 +346,6 @@ func (s *Service) GetUserByEmail(ctx context.Context, req *userpb.GetUserByEmail
 		CacheValue: respUser,
 		CacheTTL:   redis.TTLUserProfile,
 		Metadata:   respUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if respUser.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", respUser.Email, respUser.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if respUser.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", respUser.Email, respUser.Metadata)
-			}
-			return nil
-		},
 	})
 
 	return &userpb.GetUserByEmailResponse{User: respUser}, nil
@@ -432,18 +444,6 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 		PatternType:  "user",
 		PatternID:    repoUser.ID,
 		PatternMeta:  repoUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if getResp.User.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", getResp.User.Id, getResp.User.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if getResp.User.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", getResp.User.Id, getResp.User.Metadata)
-			}
-			return nil
-		},
 	})
 
 	return &userpb.UpdateUserResponse{User: getResp.User}, nil
@@ -501,18 +501,6 @@ func (s *Service) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequest)
 		PatternType:  "user",
 		PatternID:    repoUser.ID,
 		PatternMeta:  repoUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if repoUser.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", repoUser.ID, repoUser.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if repoUser.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", repoUser.ID, repoUser.Metadata)
-			}
-			return nil
-		},
 	})
 
 	return &userpb.DeleteUserResponse{Success: true}, nil
@@ -741,18 +729,6 @@ func (s *Service) UpdatePassword(ctx context.Context, req *userpb.UpdatePassword
 		PatternType:  "user",
 		PatternID:    repoUser.ID,
 		PatternMeta:  repoUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if repoUser.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", req.UserId, repoUser.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if repoUser.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", req.UserId, repoUser.Metadata)
-			}
-			return nil
-		},
 	})
 
 	return &userpb.UpdatePasswordResponse{
@@ -818,18 +794,6 @@ func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRe
 		PatternType:  "user",
 		PatternID:    repoUser.ID,
 		PatternMeta:  repoUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if getResp.User.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", getResp.User.Id, getResp.User.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if getResp.User.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", getResp.User.Id, getResp.User.Metadata)
-			}
-			return nil
-		},
 	})
 	return &userpb.UpdateProfileResponse{User: getResp.User}, nil
 }
@@ -879,18 +843,6 @@ func (s *Service) AssignRole(ctx context.Context, req *userpb.AssignRoleRequest)
 		PatternType:  "user",
 		PatternID:    repoUser.ID,
 		PatternMeta:  repoUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if repoUser.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", repoUser.ID, repoUser.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if repoUser.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", repoUser.ID, repoUser.Metadata)
-			}
-			return nil
-		},
 	})
 	return &userpb.AssignRoleResponse{}, nil
 }
@@ -930,18 +882,6 @@ func (s *Service) RemoveRole(ctx context.Context, req *userpb.RemoveRoleRequest)
 		PatternType:  "user",
 		PatternID:    repoUser.ID,
 		PatternMeta:  repoUser.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if repoUser.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", repoUser.ID, repoUser.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if repoUser.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", repoUser.ID, repoUser.Metadata)
-			}
-			return nil
-		},
 	})
 	return &userpb.RemoveRoleResponse{}, nil
 }
@@ -988,13 +928,13 @@ func (s *Service) ListPermissions(ctx context.Context, req *userpb.ListPermissio
 func (s *Service) ListUserEvents(ctx context.Context, req *userpb.ListUserEventsRequest) (*userpb.ListUserEventsResponse, error) {
 	page := int(req.Page)
 	pageSize := int(req.PageSize)
-	events, total, err := s.repo.ListUserEvents(ctx, req.UserId, page, pageSize)
+	userEvents, total, err := s.repo.ListUserEvents(ctx, req.UserId, page, pageSize)
 	if err != nil {
 		s.log.Error("failed to list user events", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to list user events: %v", err)
 	}
 	return &userpb.ListUserEventsResponse{
-		Events:     events,
+		Events:     userEvents,
 		TotalCount: utils.ToInt32(total),
 	}, nil
 }
@@ -1119,7 +1059,18 @@ func (s *Service) CreateSession(ctx context.Context, req *userpb.CreateSessionRe
 	if user.Metadata.ServiceSpecific != nil {
 		serviceMetaMap = user.Metadata.ServiceSpecific.AsMap()
 	}
-	metadata.UpdateJWTIssueMetadata(serviceMetaMap, jwtID, audience, scopes)
+	// Update JWT metadata
+	if serviceMetaMap == nil {
+		serviceMetaMap = make(map[string]interface{})
+	}
+	jwtMeta := map[string]interface{}{
+		"jwt_id":     jwtID,
+		"audience":   audience,
+		"scopes":     scopes,
+		"issued_at":  time.Now().UTC().Format(time.RFC3339),
+		"expires_at": time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339),
+	}
+	serviceMetaMap["jwt"] = jwtMeta
 	metaStruct, err := metadata.ServiceMetadataToStruct(&meta)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert service metadata to struct: %w", err)
@@ -1168,18 +1119,6 @@ func (s *Service) CreateSession(ctx context.Context, req *userpb.CreateSessionRe
 		PatternType:  "user",
 		PatternID:    user.ID,
 		PatternMeta:  user.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if user.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", user.ID, user.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if user.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", user.ID, user.Metadata)
-			}
-			return nil
-		},
 	})
 	return &userpb.CreateSessionResponse{Session: session}, nil
 }
@@ -1355,18 +1294,6 @@ func (s *Service) CreateReferral(ctx context.Context, req *userpb.CreateReferral
 		PatternType:  "user",
 		PatternID:    user.ID,
 		PatternMeta:  user.Metadata,
-		KnowledgeGraphHook: func(ctx context.Context) error {
-			if user.Metadata != nil {
-				return pattern.EnrichKnowledgeGraph(ctx, s.log, "user", user.ID, user.Metadata)
-			}
-			return nil
-		},
-		SchedulerHook: func(ctx context.Context) error {
-			if user.Metadata != nil {
-				return pattern.RegisterSchedule(ctx, s.log, "user", user.ID, user.Metadata)
-			}
-			return nil
-		},
 	})
 	return &userpb.CreateReferralResponse{ReferralCode: code, Success: true}, nil
 }
@@ -1662,9 +1589,7 @@ func (s *Service) AddFriend(ctx context.Context, req *userpb.AddFriendRequest) (
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to add friend", codes.Internal))
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "friend added", &userpb.AddFriendResponse{Friendship: friendship}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log: s.log,
-	})
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
 	return &userpb.AddFriendResponse{Friendship: friendship}, nil
 }
 

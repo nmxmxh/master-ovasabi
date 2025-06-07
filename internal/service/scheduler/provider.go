@@ -25,11 +25,14 @@ package scheduler
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -40,18 +43,44 @@ type EventEmitter interface {
 }
 
 // Register registers the scheduler service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repository.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled, provider.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter EventEmitter,
+	db *sql.DB,
+	masterRepo repository.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{},
+) error {
 	repo := NewRepository(db, masterRepo, "")
 	cache, err := redisProvider.GetCache(ctx, "scheduler")
 	if err != nil {
 		log.With(zap.String("service", "scheduler")).Warn("Failed to get scheduler cache", zap.Error(err), zap.String("cache", "scheduler"), zap.String("context", ctxValue(ctx)))
 	}
-	schedulerService := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	svcProvider, ok := provider.(*service.Provider)
+	if !ok {
+		log.Error("Failed to assert provider as *service.Provider")
+		return errors.New("provider is not *service.Provider")
+	}
+	schedulerService := NewService(ctx, log, repo, cache, eventEmitter, eventEnabled, svcProvider)
 	if err := container.Register((*schedulerpb.SchedulerServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return schedulerService, nil
 	}); err != nil {
 		log.With(zap.String("service", "scheduler")).Error("Failed to register scheduler service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
+	}
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return schedulerService, nil
+	}); err != nil {
+		log.With(zap.String("service", "scheduler")).Error("Failed to register concrete *scheduler.Service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		return err
+	}
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "scheduler")
 	}
 	return nil
 }
@@ -67,4 +96,40 @@ func ctxValue(ctx context.Context) string {
 		}
 	}
 	return ""
+}
+
+// RegisterSchedulerService registers the scheduler service with the DI container.
+func RegisterSchedulerService(container *di.Container, provider, eventEmitter interface{}, log *zap.Logger) string {
+	repo, ok := provider.(RepositoryItf)
+	if !ok {
+		log.Error("failed to cast provider to RepositoryItf")
+		return ""
+	}
+
+	cache, ok := provider.(*redis.Cache)
+	if !ok {
+		log.Error("failed to cast provider to redis.Cache")
+		return ""
+	}
+
+	emitter, ok := eventEmitter.(EventEmitter)
+	if !ok {
+		log.Error("failed to cast eventEmitter to EventEmitter")
+		return ""
+	}
+
+	svcProvider, ok := provider.(*service.Provider)
+	if !ok {
+		log.Error("failed to cast provider to service.Provider")
+		return ""
+	}
+
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return NewService(context.Background(), log, repo, cache, emitter, true, svcProvider), nil
+	}); err != nil {
+		log.Error("failed to register scheduler service", zap.Error(err))
+		return ""
+	}
+
+	return "scheduler"
 }

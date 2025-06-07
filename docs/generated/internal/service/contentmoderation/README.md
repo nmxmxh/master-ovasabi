@@ -18,7 +18,10 @@ EventEmitter defines the interface for emitting events in the content moderation
 
 ### Metadata
 
-ContentModerationMetadata for robust, extensible moderation metadata.
+Metadata defines the canonical, extensible metadata structure for content moderation entities. This
+struct documents all fields expected under metadata.service_specific["contentmoderation"] in the
+common.Metadata proto. Reference: docs/services/metadata.md, docs/amadeus/amadeus_context.md All
+extraction and mutation must use canonical helpers from pkg/metadata.
 
 ### Moderation
 
@@ -42,6 +45,8 @@ ContentModerationMetadata for robust, extensible moderation metadata.
 
 ### ReviewerMetadata
 
+ReviewerMetadata documents reviewer information for moderation actions.
+
 ### Service
 
 #### Methods
@@ -57,10 +62,6 @@ ContentModerationMetadata for robust, extensible moderation metadata.
 ##### SubmitContentForModeration
 
 ## Functions
-
-### ExtractAndEnrichContentModerationMetadata
-
-ExtractAndEnrichContentModerationMetadata extracts, validates, and enriches moderation metadata.
 
 ### NewContentModerationService
 

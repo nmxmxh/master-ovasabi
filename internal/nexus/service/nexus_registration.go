@@ -45,9 +45,11 @@ func (s *NexusService) SubscribeEvents(_ *nexuspkg.SubscribeRequest, stream nexu
 	// Example: stream a dummy event every second, 3 times, then end
 	for i := 0; i < 3; i++ {
 		resp := &nexuspkg.EventResponse{
-			Success:  true,
-			Message:  "example_event",
-			Metadata: nil, // Fill with real data as needed
+			Success:   true,
+			EventId:   fmt.Sprintf("event-%d", i),
+			EventType: "example_event",
+			Message:   "example_event",
+			Metadata:  nil, // Fill with real data as needed
 		}
 		if err := stream.Send(resp); err != nil {
 			return status.Errorf(codes.Internal, "failed to send event: %v", err)

@@ -25,11 +25,14 @@ package search
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -37,21 +40,51 @@ import (
 // EventEmitter defines the interface for emitting events (canonical platform interface).
 type EventEmitter interface {
 	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
+	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool)
 }
 
-// Register registers the search service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repository.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+// Register registers the search service with the DI container and event bus support (canonical pattern).
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled, provider.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter EventEmitter,
+	db *sql.DB,
+	masterRepo repository.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{},
+) error {
+	svcProvider, ok := provider.(*service.Provider)
+	if !ok {
+		log.Error("Failed to assert provider as *service.Provider")
+		return errors.New("provider is not *service.Provider")
+	}
 	repo := NewRepository(db, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "search")
 	if err != nil {
 		log.Warn("failed to get search cache", zap.Error(err))
 	}
-	searchService := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	searchService := NewService(log, repo, cache, eventEmitter, eventEnabled, svcProvider)
+	// Register gRPC server interface
 	if err := container.Register((*searchpb.SearchServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return searchService, nil
 	}); err != nil {
 		log.Error("Failed to register search service", zap.Error(err))
 		return err
 	}
+	// Register concrete *Service for event handler/DI resolution
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return searchService, nil
+	}); err != nil {
+		log.Error("Failed to register concrete *search.SearchService", zap.Error(err))
+		return err
+	}
+	// Register event-driven search handlers (see Amadeus context: Event-Driven Orchestration Standard)
+	if svc, ok := searchService.(*Service); ok {
+		svc.RegisterEventHandlers(ctx)
+	}
+	hello.StartHelloWorldLoop(ctx, svcProvider, log, "search")
 	return nil
 }

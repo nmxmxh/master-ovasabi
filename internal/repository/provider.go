@@ -27,3 +27,8 @@ func NewProvider(db *sql.DB, log *zap.Logger) *Provider {
 func (p *Provider) GetMasterRepository() MasterRepository {
 	return p.masterRepo
 }
+
+// NewRepository creates a new repository instance.
+func NewRepository(db *sql.DB, log *zap.Logger) MasterRepository {
+	return NewMasterRepository(db, log)
+}

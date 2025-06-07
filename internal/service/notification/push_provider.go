@@ -9,7 +9,7 @@ package notification
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 )
@@ -31,7 +31,7 @@ func NewAzurePushProviderFromEnv() *AzurePushProvider {
 }
 
 func (a *AzurePushProvider) SendPush(ctx context.Context, deviceToken, payload string) error {
-	url := fmt.Sprintf("%s/?api-version=2015-01", a.HubEndpoint)
+	url := a.HubEndpoint + "/?api-version=2015-01"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(payload))
 	if err != nil {
 		return err
@@ -46,7 +46,7 @@ func (a *AzurePushProvider) SendPush(ctx context.Context, deviceToken, payload s
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("azure push send failed: %s", resp.Status)
+		return errors.New("azure push send failed: " + resp.Status)
 	}
 	return nil
 }

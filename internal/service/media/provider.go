@@ -32,7 +32,9 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -41,23 +43,41 @@ import (
 
 // EventEmitter defines the interface for emitting events (canonical platform interface).
 type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
+	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventID, eventType string, meta *commonpb.Metadata) (string, bool)
+	// EmitRawEventWithLogging emits a raw JSON event (e.g., canonical orchestration envelope) to the event bus or broker.
+	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool)
 }
 
 // Register registers the media service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+// Parameters used: ctx, container, eventEmitter, db, redisProvider, log, eventEnabled. masterRepo and provider are unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter EventEmitter,
+	db *sql.DB,
+	masterRepo interface{}, // unused, keep for signature consistency
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{}, // unused, keep for signature consistency
+) error {
 	repo := InitRepository(db, log)
 	cache, err := redisProvider.GetCache(ctx, "media")
 	if err != nil {
 		log.With(zap.String("service", "media")).Warn("Failed to get media cache", zap.Error(err), zap.String("cache", "media"), zap.String("context", ctxValue(ctx)))
 	}
-	service := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	mediaService := NewService(log, repo, cache, eventEmitter, eventEnabled)
 	if err := container.Register((*mediapb.MediaServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return service, nil
+		return mediaService, nil
 	}); err != nil {
 		log.With(zap.String("service", "media")).Error("Failed to register media service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "media")
+	}
+	_ = masterRepo // used for signature consistency and future extensibility
 	return nil
 }
 
@@ -75,9 +95,10 @@ func ctxValue(ctx context.Context) string {
 }
 
 // NewMediaClient creates a new gRPC client connection and returns a MediaServiceClient and a cleanup function.
+// Replace grpc.Dial with the modern NewClient pattern if available.
+// TODO: Replace with mediapb.NewClient when available in generated code.
 func NewMediaClient(target string) (mediapb.MediaServiceClient, func() error, error) {
-	//nolint:staticcheck // grpc.Dial is required until generated client supports NewClient API
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, err
 	}

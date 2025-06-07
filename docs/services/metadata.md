@@ -1,10 +1,18 @@
-# Master by Ovasabi: Metadata Standard & Patterns
+> **Context:** This is the metadata standard for the Inos Internet-Native OS — powering
+> extensibility, orchestration, and system currency. See the [README](../../README.md) for the big
+> picture.
+>
+> **🚧 Work in Progress (WIP):** This standard evolves with the system and community.
+
+# Inos: Metadata Standard & Patterns
 
 version: 2025-06-01
 
 ## Overview
 
-This document defines the canonical metadata pattern for the Master by Ovasabi platform. All services, entities, and communication patterns (REST, gRPC, WebSocket, orchestration, analytics, audit) must follow this standard for extensibility, traceability, and future-proofing.
+This document defines the canonical metadata pattern for the Inos platform. All services, entities,
+and communication patterns (REST, gRPC, WebSocket, orchestration, analytics, audit) must follow this
+standard for extensibility, traceability, and future-proofing.
 
 ---
 
@@ -317,11 +325,15 @@ transparency, and digital DNA tracking across forks and contributions.
 
 ## Overview
 
-The Master by Ovasabi platform implements a unique, metadata-driven "system currency" pattern. This pattern tracks value, rewards, and contributions for every user, service, and entity in a way that is:
+The Inos platform implements a unique, metadata-driven "system currency" pattern. This pattern
+tracks value, rewards, and contributions for every user, service, and entity in a way that is:
 
-- **Suspenseful:** Users only see their usable balance, which is updated in a weekly "reveal" event, building anticipation and engagement.
-- **Auditable:** All changes are logged in an append-only history, and a hidden, internal-only `pending` field allows for fraud analysis and intervention before balances are revealed.
-- **Fair and Anti-Gaming:** By batching updates and hiding pending rewards, the system prevents real-time gaming and enables robust anti-abuse checks.
+- **Suspenseful:** Users only see their usable balance, which is updated in a weekly "reveal" event,
+  building anticipation and engagement.
+- **Auditable:** All changes are logged in an append-only history, and a hidden, internal-only
+  `pending` field allows for fraud analysis and intervention before balances are revealed.
+- **Fair and Anti-Gaming:** By batching updates and hiding pending rewards, the system prevents
+  real-time gaming and enables robust anti-abuse checks.
 
 ## Metadata Schema Example
 
@@ -329,12 +341,12 @@ The Master by Ovasabi platform implements a unique, metadata-driven "system curr
 {
   "metadata": {
     "currency": {
-      "usable": 100.0,                // User-visible, spendable balance
-      "pending": 15.0,                // Internal only, not exposed to user
+      "usable": 100.0, // User-visible, spendable balance
+      "pending": 15.0, // Internal only, not exposed to user
       "last_reveal": "2025-06-02T08:00:00Z",
       "history": [
-        {"delta": +10, "reason": "referral", "at": "2025-05-29T10:00:00Z"},
-        {"delta": +5, "reason": "content", "at": "2025-05-30T12:00:00Z"}
+        { "delta": +10, "reason": "referral", "at": "2025-05-29T10:00:00Z" },
+        { "delta": +5, "reason": "content", "at": "2025-05-30T12:00:00Z" }
       ]
     }
   }
@@ -342,7 +354,8 @@ The Master by Ovasabi platform implements a unique, metadata-driven "system curr
 ```
 
 - **usable:** The balance the user can spend, updated only at the scheduled reveal.
-- **pending:** Internal field for new earnings, not visible to users. Used for audit, fraud analysis, and suspense.
+- **pending:** Internal field for new earnings, not visible to users. Used for audit, fraud
+  analysis, and suspense.
 - **last_reveal:** Timestamp of the last balance update.
 - **history:** Full audit trail of all changes, including deltas, reasons, and timestamps.
 
@@ -353,8 +366,10 @@ The Master by Ovasabi platform implements a unique, metadata-driven "system curr
   - The event is logged in `history`.
   - `pending` is reset to zero.
   - Users are notified of their new balance (the "payday" moment).
-- **Pending is never exposed to users**—only `usable` and `history` are returned in user-facing APIs.
-- This creates a sense of anticipation and prevents users from gaming the system by tracking real-time increments.
+- **Pending is never exposed to users**—only `usable` and `history` are returned in user-facing
+  APIs.
+- This creates a sense of anticipation and prevents users from gaming the system by tracking
+  real-time increments.
 
 ## Audit & Fraud Protection
 
@@ -362,38 +377,49 @@ The Master by Ovasabi platform implements a unique, metadata-driven "system curr
   - **Audit all new rewards** before they become usable.
   - **Run fraud detection and anomaly analysis** on pending balances.
   - **Flag, freeze, or adjust** suspicious accounts before the reveal.
-  - **Roll back or correct** pending amounts if abuse is detected, without affecting user-visible balances.
-- All changes are append-only in `history`, ensuring a full audit trail for compliance and dispute resolution.
+  - **Roll back or correct** pending amounts if abuse is detected, without affecting user-visible
+    balances.
+- All changes are append-only in `history`, ensuring a full audit trail for compliance and dispute
+  resolution.
 
 ## Connection to Referrals and Digital Will
 
 - **Referrals:**
-  - When a user earns a reward via a referral, the amount is added to their `pending` balance with a `reason` of `referral` in `history`.
-  - The actual reward becomes usable only after the next scheduled reveal, allowing for fraud checks (e.g., fake accounts, circular referrals) before payout.
+  - When a user earns a reward via a referral, the amount is added to their `pending` balance with a
+    `reason` of `referral` in `history`.
+  - The actual reward becomes usable only after the next scheduled reveal, allowing for fraud checks
+    (e.g., fake accounts, circular referrals) before payout.
 - **Digital Will:**
-  - The system currency is part of the user's digital legacy. Upon certain triggers (e.g., account closure, digital will execution), the final `usable` balance and full `history` are used to determine allocations, inheritance, or legacy actions.
+  - The system currency is part of the user's digital legacy. Upon certain triggers (e.g., account
+    closure, digital will execution), the final `usable` balance and full `history` are used to
+    determine allocations, inheritance, or legacy actions.
 
 ## Separation of Transactional Concurrency and Metadata Calculation
 
 - **Transactional Concurrency:**
-  - All actions that generate rewards (e.g., referrals, content creation) are processed in real time, with atomic, transactional updates to the `pending` field.
+  - All actions that generate rewards (e.g., referrals, content creation) are processed in real
+    time, with atomic, transactional updates to the `pending` field.
   - This ensures no double-spending or race conditions at the event level.
 - **Metadata Count Calculation:**
   - The actual, user-visible balance (`usable`) is only updated during the scheduled reveal.
-  - This separation allows for robust, scalable, and auditable value flows, while maintaining suspense and anti-abuse guarantees.
+  - This separation allows for robust, scalable, and auditable value flows, while maintaining
+    suspense and anti-abuse guarantees.
 
 ## Best Practices
 
 - Never expose `pending` in user-facing APIs or UIs.
 - Always log all changes in `history` for auditability.
 - Run fraud and anomaly detection on `pending` before each reveal.
-- Use the scheduled "accounts get checked" moment to batch updates, notify users, and create a sense of anticipation.
+- Use the scheduled "accounts get checked" moment to batch updates, notify users, and create a sense
+  of anticipation.
 - Integrate with the knowledge graph for analytics, reporting, and digital will execution.
 
 ---
 
-**This pattern ensures that the system currency is fair, suspenseful, and robust—supporting both user engagement and platform integrity.**
+**This pattern ensures that the system currency is fair, suspenseful, and robust—supporting both
+user engagement and platform integrity.**
 
 ---
 
-**This file is the authoritative reference for all metadata actions, patterns, and extensions. Update as new standards or service-specific actions are added.**
+**This file is the authoritative reference for all metadata actions, patterns, and extensions.
+Update as new standards or service-specific actions are added.**

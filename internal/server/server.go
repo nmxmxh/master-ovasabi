@@ -18,14 +18,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net"
 	"net/http"
-	"os"
-	"os/signal"
-	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/config"
@@ -36,40 +32,23 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 
 	"github.com/google/uuid"
-	"github.com/markbates/goth"
-	"github.com/markbates/goth/providers/google"
-	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
-	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
-	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
-	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
-	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
-	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
-	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
-	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
-	notificationpb "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1"
-	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
-	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
-	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
-	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
+	ai "github.com/nmxmxh/master-ovasabi/internal/ai"
 	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"
 	restserver "github.com/nmxmxh/master-ovasabi/internal/server/rest"
 	campaignsvc "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	redisv9 "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/reflection"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -210,6 +189,7 @@ func extractServiceAndMethod(fullMethod string) (serviceName, methodName string)
 // 9. Add clear comments for future extensibility and best practices.
 func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		log.Info("gRPC method called", zap.String("method", info.FullMethod))
 		// Extract service and method names
 		svcName, methodName := extractServiceAndMethod(info.FullMethod)
 
@@ -264,7 +244,7 @@ func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger)
 			log.Warn("Failed to build audit metadata struct", zap.Error(errMeta))
 			return resp, err
 		}
-		metadata := &commonpb.Metadata{ServiceSpecific: metaStruct}
+		meta := &commonpb.Metadata{ServiceSpecific: metaStruct}
 
 		var securitySvc securitypb.SecurityServiceServer
 		if err := provider.Container.Resolve(&securitySvc); err != nil {
@@ -276,7 +256,7 @@ func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger)
 				PrincipalId: principal,
 				Resource:    resource,
 				Action:      methodName,
-				Metadata:    metadata,
+				Metadata:    meta,
 			})
 			if auditErr != nil {
 				log.Warn("Failed to record audit event", zap.String("service", svcName), zap.String("method", methodName), zap.Error(auditErr))
@@ -296,24 +276,79 @@ func resolveCampaignService(container *di.Container) (*campaignsvc.Service, erro
 	return campaignService, err
 }
 
-// Run starts the main server, including gRPC, health, and metrics endpoints.
-func Run() {
-	// TODO: Modularize config loading and dependency injection
-	// Validate required environment variables
-	requiredEnvVars := []string{
-		"APP_ENV", "APP_NAME", "DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "REDIS_HOST", "REDIS_PASSWORD",
+func setupDIContainer(cfg *config.Config, log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, redisGoClient *redisv9.Client) *di.Container {
+	container := di.New()
+	// Register KGService
+	if err := container.Register((*kgserver.KGService)(nil), func(_ *di.Container) (interface{}, error) {
+		return kgserver.NewKGService(redisGoClient, log), nil
+	}); err != nil {
+		log.Error("Failed to register KGService in DI container", zap.Error(err))
 	}
-	for _, env := range requiredEnvVars {
-		if v := getEnv(env); v == "" {
-			panic("Missing required env: " + env)
+	// Register Provider
+	provider, err := service.NewProvider(log, db, redisProvider, cfg.NexusGRPCAddr, container, cfg.JWTSecret)
+	if err != nil {
+		log.Error("Failed to initialize service provider", zap.Error(err))
+	}
+	if err := container.Register((*service.Provider)(nil), func(_ *di.Container) (interface{}, error) {
+		return provider, nil
+	}); err != nil {
+		log.Error("Failed to register service.Provider in DI container", zap.Error(err))
+	}
+	// Register SchedulerServiceClient
+	if err := container.Register((*schedulerpb.SchedulerServiceClient)(nil), func(_ *di.Container) (interface{}, error) {
+		conn, err := grpc.NewClient(cfg.SchedulerGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return nil, err
 		}
+		return schedulerpb.NewSchedulerServiceClient(conn), nil
+	}); err != nil {
+		log.Error("Failed to register SchedulerServiceClient in DI container", zap.Error(err))
+	}
+	return container
+}
+
+// --- AI Observer Orchestrator Registration ---
+// Move NexusBusAdapter to package scope
+
+type NexusBusAdapter struct {
+	Provider *service.Provider
+	Log      *zap.Logger
+}
+
+func (nba *NexusBusAdapter) Subscribe(event string, handler func(ai.NexusEvent)) {
+	ctx := context.Background()
+	eventTypes := []string{event}
+	nba.Log.Info("AI observer subscribing to Nexus event", zap.Strings("eventTypes", eventTypes))
+	err := nba.Provider.SubscribeEvents(ctx, eventTypes, nil, func(_ context.Context, eventResp *nexusv1.EventResponse) {
+		// Marshal the payload (if present) to []byte
+		payload, err := proto.Marshal(eventResp.Payload)
+		if err != nil {
+			nba.Log.Error("AI observer failed to marshal event payload", zap.Error(err), zap.Strings("eventTypes", eventTypes))
+			return
+		}
+		handler(ai.NexusEvent{
+			ID:      eventResp.GetEventId(),
+			Type:    eventResp.GetEventType(),
+			Payload: payload,
+		})
+	})
+	if err != nil {
+		nba.Log.Error("AI observer failed to subscribe to Nexus events", zap.Error(err), zap.Strings("eventTypes", eventTypes))
+	}
+}
+
+// --- End AI Observer Orchestrator Registration ---
+
+func Run() {
+	cfg, err := config.Load()
+	if err != nil {
+		panic("Failed to load config: " + err.Error())
 	}
 
-	// Initialize logger
 	loggerInstance, err := logger.New(logger.Config{
-		Environment: getEnv("APP_ENV"),
-		LogLevel:    getEnv("LOG_LEVEL"),
-		ServiceName: getEnv("APP_NAME"),
+		Environment: cfg.AppEnv,
+		LogLevel:    cfg.LogLevel,
+		ServiceName: cfg.AppName,
 	})
 	if err != nil {
 		panic("Failed to initialize logger: " + err.Error())
@@ -327,23 +362,15 @@ func Run() {
 
 	log.Info("Logger initialized (from server.Run)")
 
-	// Start aggregated logger for periodic metrics
 	startAggregatedLogger(log)
 
+	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Setup signal handling
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		sig := <-sigChan
-		log.Warn("Shutdown signal received", zap.String("signal", sig.String()))
-		cancel()
-	}()
+	WaitForShutdown(cancel)
 
-	// Connect to database
-	db, err := connectToDatabase(ctx, log)
+	db, err := connectToDatabase(ctx, log, cfg)
 	if err != nil {
 		log.Error("Failed to connect to database", zap.Error(err))
 		return
@@ -354,72 +381,37 @@ func Run() {
 		}
 	}()
 
-	// Initialize Redis provider
 	redisConfig := &redis.Config{
-		Host:         getEnvOrDefault("REDIS_HOST", "redis"),
-		Port:         getEnvOrDefault("REDIS_PORT", "6379"),
-		Password:     getEnv("REDIS_PASSWORD"),
-		DB:           getEnvOrDefaultInt("REDIS_DB", 0),
-		PoolSize:     getEnvOrDefaultInt("REDIS_POOL_SIZE", 10),
-		MinIdleConns: getEnvOrDefaultInt("REDIS_MIN_IDLE_CONNS", 2),
-		MaxRetries:   getEnvOrDefaultInt("REDIS_MAX_RETRIES", 3),
+		Host:         cfg.RedisHost,
+		Port:         cfg.RedisPort,
+		Password:     cfg.RedisPassword,
+		DB:           cfg.RedisDB,
+		PoolSize:     cfg.RedisPoolSize,
+		MinIdleConns: cfg.RedisMinIdleConns,
+		MaxRetries:   cfg.RedisMaxRetries,
 	}
-
 	redisProvider, redisClient, err := service.NewRedisProvider(log, *redisConfig)
 	if err != nil {
 		log.Error("Failed to initialize Redis provider", zap.Error(err))
 		return
 	}
 
-	// Initialize DI container
-	container := di.New()
+	container := setupDIContainer(cfg, log, db, redisProvider, redisClient.Client)
 
-	// Register KGService in DI container (before any service that needs it)
-	if err := container.Register((*kgserver.KGService)(nil), func(_ *di.Container) (interface{}, error) {
-		return kgserver.NewKGService(redisClient.Client, log), nil
-	}); err != nil {
-		log.Error("Failed to register KGService in DI container", zap.Error(err))
-	}
-
-	// Initialize master repository
 	masterRepo := repository.NewRepository(db, log)
 
-	// Get Nexus event bus address from env/config (example: NEXUS_GRPC_ADDR)
-	nexusAddr := getEnvOrDefault("NEXUS_GRPC_ADDR", "nexus:50052")
-
-	// Load config (with JWTSecret)
-	cfg, err := config.Load()
-	if err != nil {
-		log.Error("Failed to load config", zap.Error(err))
+	var provider *service.Provider
+	if err := container.Resolve(&provider); err != nil {
+		log.Error("Failed to resolve service.Provider from DI container", zap.Error(err))
 		return
 	}
 
-	// Initialize provider (minimal pattern)
-	provider, err := service.NewProvider(log, db, redisProvider, nexusAddr, container, cfg.JWTSecret)
-	if err != nil {
-		log.Error("Failed to initialize service provider", zap.Error(err))
-		return
-	}
-	// Register provider instance in DI container for global resolution
-	if err := container.Register((*service.Provider)(nil), func(_ *di.Container) (interface{}, error) {
-		return provider, nil
-	}); err != nil {
-		log.Error("Failed to register service.Provider in DI container", zap.Error(err))
-	}
+	// --- AI Observer Orchestrator Registration ---
+	nexusBus := &NexusBusAdapter{Provider: provider, Log: log}
+	ai.Register(ctx, log, nexusBus)
+	log.Info("AI observer orchestrator registered and wired to Nexus event bus")
+	// --- End AI Observer Orchestrator Registration ---
 
-	// Register SchedulerServiceClient in DI container for orchestration helpers
-	if err := container.Register((*schedulerpb.SchedulerServiceClient)(nil), func(_ *di.Container) (interface{}, error) {
-		addr := getEnvOrDefault("SCHEDULER_GRPC_ADDR", "localhost:50053")
-		conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			return nil, err
-		}
-		return schedulerpb.NewSchedulerServiceClient(conn), nil
-	}); err != nil {
-		log.Error("Failed to register SchedulerServiceClient in DI container", zap.Error(err))
-	}
-
-	// Register all services using the ServiceBootstrapper
 	bootstrapper := &bootstrap.ServiceBootstrapper{
 		Container:     container,
 		DB:            db,
@@ -428,17 +420,16 @@ func Run() {
 		EventEmitter:  provider,
 		Logger:        log,
 		EventEnabled:  true, // or from config
+		Provider:      provider,
 	}
 	if err := bootstrapper.RegisterAll(); err != nil {
 		log.Error("Failed to register services", zap.Error(err))
 		return
 	}
 
-	// Start all event subscribers for all services
-	bootstrap.StartAllEventSubscribers(ctx, provider, log)
-
-	// Periodic campaign orchestration background job
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		campaignService, err := resolveCampaignService(container)
 		if err != nil {
 			log.Error("Failed to resolve CampaignService for orchestration", zap.Error(err))
@@ -453,123 +444,44 @@ func Run() {
 				return
 			case <-ticker.C:
 				log.Info("Triggering campaign orchestration scan")
-				err := campaignService.OrchestrateActiveCampaignsAdvanced(ctx, 4)
-				if err != nil {
+				if err := campaignService.OrchestrateActiveCampaignsAdvanced(ctx, 4); err != nil {
 					log.Error("Campaign orchestration failed", zap.Error(err))
 				}
 			}
 		}
 	}()
 
-	// Initialize gRPC server
-	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			diContainerUnaryInterceptor(container, log),
-			SecurityUnaryServerInterceptor(provider, log),
-		),
-	)
+	httpServer := restserver.StartHTTPServer(log, container)
 
-	// Health server
-	healthServer := health.NewServer()
-	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
-	reflection.Register(grpcServer)
+	server := NewServer(container, log, httpServer)
 
-	// Set health status for all services
-	services := []string{
-		"user.UserService",
-		"notification.NotificationService",
-		"commerce.CommerceService",
-		"content.ContentService",
-		"search.SearchService",
-		"admin.AdminService",
-		"analytics.AnalyticsService",
-		"contentmoderation.ContentModerationService",
-		"talent.TalentService",
-		"security.SecurityService",
-		"localization.LocalizationService",
-		"nexus.NexusService",
-		"referral.ReferralService",
-		"messaging.MessagingService",
-		"scheduler.SchedulerService",
-	}
-	for _, svc := range services {
-		healthServer.SetServingStatus(svc, grpc_health_v1.HealthCheckResponse_SERVING)
-	}
-	log.Info("All gRPC health statuses set to SERVING")
-
-	// Register all gRPC services using DI container
-	registerGRPCServices(grpcServer, container, log)
-
-	// Metrics server
-	metricsServer := createMetricsServer()
-	go func() {
-		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("Metrics server failed", zap.Error(err))
-		}
-	}()
-
-	// Start HTTP server for REST and WebSocket endpoints
-	log.Info("About to start HTTP server for REST/WebSocket")
-	restserver.StartHTTPServer(log, container)
-	log.Info("StartHTTPServer call returned (HTTP server goroutine launched)")
-
-	// Start gRPC server
-	port := getEnvOrDefault("APP_PORT", "8080")
-	lis, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		log.Error("Failed to create listener", zap.Error(err))
+	if err := server.Start(); err != nil {
+		log.Error("Server failed to start", zap.Error(err))
 		return
 	}
-	log.Info("Starting gRPC server", zap.String("address", lis.Addr().String()))
-	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Error("gRPC server failed", zap.Error(err))
-			return
-		}
-	}()
-	// Wait briefly to ensure server is listening (optional: can use sync/ready signal)
-	time.Sleep(500 * time.Millisecond)
-	log.Info("Running post-startup health checks for all services...")
-	bootstrapper.RunHealthChecks()
-	log.Info("All post-startup health checks complete.")
-	// Block main goroutine (simulate server running)
-	select {}
+
+	<-ctx.Done()
+	log.Warn("Shutdown signal received")
+
+	if err := server.Stop(context.Background()); err != nil {
+		log.Error("Server failed to stop gracefully", zap.Error(err))
+	}
 }
 
 // Helper functions (copied or adapted from old main.go).
-func getEnv(key string) string {
-	return os.Getenv(key)
-}
-
-func getEnvOrDefault(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func getEnvOrDefaultInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if i, err := strconv.Atoi(v); err == nil {
-			return i
-		}
-	}
-	return def
-}
-
-func connectToDatabase(ctx context.Context, log *zap.Logger) (*sql.DB, error) {
+func connectToDatabase(ctx context.Context, log *zap.Logger, cfg *config.Config) (*sql.DB, error) {
 	maxRetries := 5
 	var db *sql.DB
 	var err error
 	for i := 1; i <= maxRetries; i++ {
 		dsn := fmt.Sprintf(
 			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			getEnvOrDefault("DB_HOST", "postgres"),
-			getEnvOrDefault("DB_PORT", "5432"),
-			getEnv("DB_USER"),
-			getEnv("DB_PASSWORD"),
-			getEnv("DB_NAME"),
-			getEnvOrDefault("DB_SSL_MODE", "disable"),
+			cfg.DBHost,
+			cfg.DBPort,
+			cfg.DBUser,
+			cfg.DBPassword,
+			cfg.DBName,
+			cfg.DBSSLMode,
 		)
 		log.Info("Attempting database connection", zap.Int("attempt", i))
 		db, err = sql.Open("postgres", dsn)
@@ -595,155 +507,6 @@ func connectToDatabase(ctx context.Context, log *zap.Logger) (*sql.DB, error) {
 	return nil, fmt.Errorf("failed to connect to database after %d retries: %w", maxRetries, err)
 }
 
-// createMetricsServer returns a basic HTTP server for Prometheus metrics (stub for now).
-func createMetricsServer() *http.Server {
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
-	metricsPort := getEnvOrDefault("METRICS_PORT", ":9090")
-	return &http.Server{
-		Addr:         metricsPort,
-		Handler:      mux,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  15 * time.Second,
-	}
-}
-
-func init() {
-	goth.UseProviders(
-		google.New(
-			os.Getenv("GOOGLE_CLIENT_ID"),
-			os.Getenv("GOOGLE_CLIENT_SECRET"),
-			"http://localhost:8080/auth/google/callback",
-			"email", "profile",
-		),
-		// Add more providers as needed
-	)
-}
-
-// registerGRPCServices resolves and registers all gRPC services from the DI container.
-func registerGRPCServices(grpcServer *grpc.Server, container *di.Container, log *zap.Logger) {
-	// User Service
-	var userService userpb.UserServiceServer
-	if err := container.Resolve(&userService); err == nil {
-		userpb.RegisterUserServiceServer(grpcServer, userService)
-	} else {
-		log.Error("Failed to resolve UserService", zap.Error(err))
-	}
-	// Notification Service
-	var notificationService notificationpb.NotificationServiceServer
-	if err := container.Resolve(&notificationService); err == nil {
-		notificationpb.RegisterNotificationServiceServer(grpcServer, notificationService)
-	} else {
-		log.Error("Failed to resolve NotificationService", zap.Error(err))
-	}
-	// Referral Service
-	var referralService referralpb.ReferralServiceServer
-	if err := container.Resolve(&referralService); err == nil {
-		referralpb.RegisterReferralServiceServer(grpcServer, referralService)
-	} else {
-		log.Error("Failed to resolve ReferralService", zap.Error(err))
-	}
-	// Nexus Service
-	var nexusService nexuspb.NexusServiceServer
-	if err := container.Resolve(&nexusService); err == nil {
-		nexuspb.RegisterNexusServiceServer(grpcServer, nexusService)
-	} else {
-		log.Error("Failed to resolve NexusService", zap.Error(err))
-	}
-	// Localization Service
-	var localizationService localizationpb.LocalizationServiceServer
-	if err := container.Resolve(&localizationService); err == nil {
-		localizationpb.RegisterLocalizationServiceServer(grpcServer, localizationService)
-	} else {
-		log.Error("Failed to resolve LocalizationService", zap.Error(err))
-	}
-	// Search Service
-	var searchService searchpb.SearchServiceServer
-	if err := container.Resolve(&searchService); err == nil {
-		searchpb.RegisterSearchServiceServer(grpcServer, searchService)
-	} else {
-		log.Error("Failed to resolve SearchService", zap.Error(err))
-	}
-	// Commerce Service
-	var commerceService commercepb.CommerceServiceServer
-	if err := container.Resolve(&commerceService); err == nil {
-		commercepb.RegisterCommerceServiceServer(grpcServer, commerceService)
-	} else {
-		log.Error("Failed to resolve CommerceService", zap.Error(err))
-	}
-	// Media Service
-	var mediaService mediapb.MediaServiceServer
-	if err := container.Resolve(&mediaService); err == nil {
-		mediapb.RegisterMediaServiceServer(grpcServer, mediaService)
-	} else {
-		log.Error("Failed to resolve MediaService", zap.Error(err))
-	}
-	// Product Service
-	var productService productpb.ProductServiceServer
-	if err := container.Resolve(&productService); err == nil {
-		productpb.RegisterProductServiceServer(grpcServer, productService)
-	} else {
-		log.Error("Failed to resolve ProductService", zap.Error(err))
-	}
-	// Talent Service
-	var talentService talentpb.TalentServiceServer
-	if err := container.Resolve(&talentService); err == nil {
-		talentpb.RegisterTalentServiceServer(grpcServer, talentService)
-	} else {
-		log.Error("Failed to resolve TalentService", zap.Error(err))
-	}
-	// Scheduler Service
-	var schedulerService schedulerpb.SchedulerServiceServer
-	if err := container.Resolve(&schedulerService); err == nil {
-		schedulerpb.RegisterSchedulerServiceServer(grpcServer, schedulerService)
-	} else {
-		log.Error("Failed to resolve SchedulerService", zap.Error(err))
-	}
-	// Content Service
-	var contentService contentpb.ContentServiceServer
-	if err := container.Resolve(&contentService); err == nil {
-		contentpb.RegisterContentServiceServer(grpcServer, contentService)
-	} else {
-		log.Error("Failed to resolve ContentService", zap.Error(err))
-	}
-	// Analytics Service
-	var analyticsService analyticspb.AnalyticsServiceServer
-	if err := container.Resolve(&analyticsService); err == nil {
-		analyticspb.RegisterAnalyticsServiceServer(grpcServer, analyticsService)
-	} else {
-		log.Error("Failed to resolve AnalyticsService", zap.Error(err))
-	}
-	// Content Moderation Service
-	var contentModerationService contentmoderationpb.ContentModerationServiceServer
-	if err := container.Resolve(&contentModerationService); err == nil {
-		contentmoderationpb.RegisterContentModerationServiceServer(grpcServer, contentModerationService)
-	} else {
-		log.Error("Failed to resolve ContentModerationService", zap.Error(err))
-	}
-	// Messaging Service
-	var messagingService messagingpb.MessagingServiceServer
-	if err := container.Resolve(&messagingService); err == nil {
-		messagingpb.RegisterMessagingServiceServer(grpcServer, messagingService)
-	} else {
-		log.Error("Failed to resolve MessagingService", zap.Error(err))
-	}
-	// Security Service
-	var securityService securitypb.SecurityServiceServer
-	if err := container.Resolve(&securityService); err == nil {
-		securitypb.RegisterSecurityServiceServer(grpcServer, securityService)
-	} else {
-		log.Error("Failed to resolve SecurityService", zap.Error(err))
-	}
-	// Admin Service
-	var adminService adminpb.AdminServiceServer
-	if err := container.Resolve(&adminService); err == nil {
-		adminpb.RegisterAdminServiceServer(grpcServer, adminService)
-	} else {
-		log.Error("Failed to resolve AdminService", zap.Error(err))
-	}
-}
-
 // Add this function to start the aggregated logger.
 func startAggregatedLogger(log *zap.Logger) {
 	go func() {
@@ -761,17 +524,7 @@ func startAggregatedLogger(log *zap.Logger) {
 	}()
 }
 
-// Update diContainerUnaryInterceptor to accept a logger and log the gRPC method name.
-func diContainerUnaryInterceptor(container *di.Container, log *zap.Logger) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		log.Debug("gRPC method called", zap.String("method", info.FullMethod))
-		ctx = contextx.WithDI(ctx, container)
-		rv, err := handler(ctx, req)
-		return rv, err
-	}
-}
-
-// HTTP middleware to inject request ID, trace ID, and feature flags into context
+// HTTP middleware to inject request ID, trace ID, and feature flags into context.
 func ContextInjectionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqID := r.Header.Get("X-Request-ID")
@@ -795,28 +548,27 @@ func ContextInjectionMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// gRPC interceptor to inject request ID, trace ID, and feature flags into context
+// gRPC interceptor to inject request ID, trace ID, and feature flags into context.
 func ContextInjectionUnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		// Log the gRPC method name and service/method split for context
+		serviceName, methodName := extractServiceAndMethod(info.FullMethod)
+		fmt.Printf("ContextInjectionUnaryInterceptor: gRPC method called: %s (service: %s, method: %s)\n", info.FullMethod, serviceName, methodName)
 		md, _ := metadata.FromIncomingContext(ctx)
-		reqID := ""
 		if vals := md.Get("x-request-id"); len(vals) > 0 {
-			reqID = vals[0]
+			ctx = contextx.WithRequestID(ctx, vals[0])
 		} else {
-			reqID = uuid.NewString()
+			ctx = contextx.WithRequestID(ctx, uuid.NewString())
 		}
-		traceID := ""
 		if vals := md.Get("x-trace-id"); len(vals) > 0 {
-			traceID = vals[0]
+			ctx = contextx.WithTraceID(ctx, vals[0])
 		} else {
-			traceID = uuid.NewString()
+			ctx = contextx.WithTraceID(ctx, uuid.NewString())
 		}
 		flags := []string{}
 		if vals := md.Get("x-feature-flags"); len(vals) > 0 {
 			flags = strings.Split(vals[0], ",")
 		}
-		ctx = contextx.WithRequestID(ctx, reqID)
-		ctx = contextx.WithTraceID(ctx, traceID)
 		ctx = contextx.WithFeatureFlags(ctx, flags)
 		return handler(ctx, req)
 	}

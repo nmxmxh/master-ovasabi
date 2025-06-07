@@ -5,31 +5,44 @@ import (
 	"database/sql"
 
 	analytics "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	masterrepo "github.com/nmxmxh/master-ovasabi/internal/repository"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
-// EventEmitter defines the interface for emitting events.
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-}
-
 // Register registers the analytics service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo masterrepo.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter events.EventEmitter,
+	db *sql.DB,
+	masterRepo masterrepo.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{},
+) error {
 	repo := NewRepository(db, masterRepo, log)
 	cache, err := redisProvider.GetCache(ctx, "analytics")
 	if err != nil {
 		log.With(zap.String("service", "analytics")).Warn("Failed to get analytics cache", zap.Error(err), zap.String("cache", "analytics"), zap.String("context", ctxValue(ctx)))
 	}
-	service := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	serviceInstance := NewService(log, repo, cache, eventEmitter, eventEnabled)
 	if err := container.Register((*analytics.AnalyticsServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return service, nil
+		return serviceInstance, nil
 	}); err != nil {
 		log.With(zap.String("service", "analytics")).Error("Failed to register analytics service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
+	}
+	// Inos: Register the hello-world event loop for service health and orchestration
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "analytics")
 	}
 	return nil
 }

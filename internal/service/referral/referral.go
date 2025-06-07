@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -19,18 +19,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// EventEmitter defines the interface for emitting events in the referral service.
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-}
-
 // Service struct implements the ReferralService interface.
 type Service struct {
 	referralpb.UnimplementedReferralServiceServer
 	log          *zap.Logger
 	cache        *redis.Cache
 	repo         *Repository
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 }
 
@@ -38,7 +33,7 @@ type Service struct {
 var _ referralpb.ReferralServiceServer = (*Service)(nil)
 
 // NewService creates a new instance of ReferralService.
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) referralpb.ReferralServiceServer {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) referralpb.ReferralServiceServer {
 	return &Service{
 		log:          log,
 		repo:         repo,
@@ -50,29 +45,14 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 
 // CreateReferral creates a new referral code following the Master-Client-Service-Event pattern.
 func (s *Service) CreateReferral(ctx context.Context, req *referralpb.CreateReferralRequest) (*referralpb.CreateReferralResponse, error) {
-	fraudSignals := map[string]interface{}{"device_hash": req.DeviceHash}
-	audit := map[string]interface{}{"created_by": req.ReferrerMasterId, "created_at": time.Now().Format(time.RFC3339)}
-	meta, err := metadata.BuildReferralMetadata(fraudSignals, nil, audit, nil, nil)
-	if err == nil {
-		req.Metadata = meta
-	}
+	metadata.MigrateMetadata(req.Metadata)
 	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid referral metadata", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.InvalidArgument))
 	}
 	referralCode := generateReferralCode()
 	referrerMasterID, err := strconv.ParseInt(req.ReferrerMasterId, 10, 64)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid ReferrerMasterId", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.InvalidArgument))
 	}
 	record := &Referral{
 		ReferrerMasterID: referrerMasterID,
@@ -86,12 +66,7 @@ func (s *Service) CreateReferral(ctx context.Context, req *referralpb.CreateRefe
 		Metadata:         req.Metadata,
 	}
 	if err := s.repo.Create(record); err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to create referral", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.Internal))
 	}
 	idStr := fmt.Sprint(record.ID)
 	success := graceful.WrapSuccess(ctx, codes.OK, "referral created", record, nil)
@@ -105,21 +80,11 @@ func (s *Service) CreateReferral(ctx context.Context, req *referralpb.CreateRefe
 // GetReferralStats retrieves referral statistics.
 func (s *Service) GetReferralStats(ctx context.Context, req *referralpb.GetReferralStatsRequest) (*referralpb.GetReferralStatsResponse, error) {
 	if req == nil || req.MasterId == 0 {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "MasterId is required", nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, nil, "context", codes.InvalidArgument))
 	}
 	stats, err := s.repo.GetStats(req.MasterId)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to get referral stats", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.Internal))
 	}
 	resp := &referralpb.GetReferralStatsResponse{
 		TotalReferrals:  utils.ToInt32(int(stats.TotalReferrals)),
@@ -132,39 +97,107 @@ func (s *Service) GetReferralStats(ctx context.Context, req *referralpb.GetRefer
 // GetReferral retrieves a specific referral by code.
 func (s *Service) GetReferral(ctx context.Context, req *referralpb.GetReferralRequest) (*referralpb.GetReferralResponse, error) {
 	if req.ReferralCode == "" {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "referral_code is required", nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, nil, "context", codes.InvalidArgument))
 	}
 	s.log.Debug("GetReferral called", zap.String("referral_code", req.ReferralCode))
 	referral, err := s.repo.GetByCode(req.ReferralCode)
 	if err != nil {
 		if errors.Is(err, ErrReferralNotFound) {
-			err = graceful.WrapErr(ctx, codes.NotFound, "referral not found", err)
-			var ce *graceful.ContextError
-			if errors.As(err, &ce) {
-				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			}
-			return nil, graceful.ToStatusError(err)
+			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.NotFound))
 		}
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to get referral", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.Internal))
 	}
 	return &referralpb.GetReferralResponse{
 		Referral: toProtoReferral(referral),
 	}, nil
 }
 
-// TODO (Amadeus Context): Implement RegisterReferral and RewardReferral following the canonical metadata pattern when the proto definitions are available.
-// Reference: docs/amadeus/amadeus_context.md, section 'Canonical Metadata Integration Pattern (System-Wide)'.
-// Steps: Validate, store, notify, and log in Nexus as described in the Amadeus context.
+// RegisterReferral registers a new referral and emits an event.
+func (s *Service) RegisterReferral(ctx context.Context, req *referralpb.RegisterReferralRequest) (*referralpb.RegisterReferralResponse, error) {
+	metadata.MigrateMetadata(req.Metadata)
+	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument))
+	}
+	referrerMasterID, err := strconv.ParseInt(req.ReferrerMasterId, 10, 64)
+	if err != nil {
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid referrer_master_id", codes.InvalidArgument))
+	}
+	record := &Referral{
+		ReferrerMasterID: referrerMasterID,
+		ReferredMasterID: 0,
+		CampaignID:       sqlNullInt64(req.CampaignId),
+		DeviceHash:       sqlNullString(req.DeviceHash),
+		ReferralCode:     generateReferralCode(),
+		Successful:       false,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+		Metadata:         req.Metadata,
+	}
+	if err := s.repo.Create(record); err != nil {
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to register referral", codes.Internal))
+	}
+	idStr := fmt.Sprint(record.ID)
+	success := graceful.WrapSuccess(ctx, codes.OK, "referral registered", record, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:          s.log,
+		Cache:        s.cache,
+		CacheKey:     idStr,
+		CacheValue:   record,
+		CacheTTL:     10 * time.Minute,
+		Metadata:     record.Metadata,
+		EventEmitter: s.eventEmitter,
+		EventEnabled: s.eventEnabled,
+		EventType:    "referral.registered",
+		EventID:      idStr,
+		PatternType:  "referral",
+		PatternID:    idStr,
+		PatternMeta:  record.Metadata,
+	})
+	return &referralpb.RegisterReferralResponse{
+		Referral: toProtoReferral(record),
+		Success:  true,
+	}, nil
+}
+
+// RewardReferral rewards a referral and emits an event.
+func (s *Service) RewardReferral(ctx context.Context, req *referralpb.RewardReferralRequest) (*referralpb.RewardReferralResponse, error) {
+	metadata.MigrateMetadata(req.Metadata)
+	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument))
+	}
+	referral, err := s.repo.GetByCode(req.ReferralCode)
+	if err != nil {
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "referral not found", codes.NotFound))
+	}
+	// Mark as successful and update metadata with reward info
+	referral.Successful = true
+	referral.UpdatedAt = time.Now()
+	referral.Metadata = req.Metadata
+	if err := s.repo.Update(referral); err != nil {
+		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to reward referral", codes.Internal))
+	}
+	idStr := fmt.Sprint(referral.ID)
+	success := graceful.WrapSuccess(ctx, codes.OK, "referral rewarded", referral, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:          s.log,
+		Cache:        s.cache,
+		CacheKey:     idStr,
+		CacheValue:   referral,
+		CacheTTL:     10 * time.Minute,
+		Metadata:     referral.Metadata,
+		EventEmitter: s.eventEmitter,
+		EventEnabled: s.eventEnabled,
+		EventType:    "referral.rewarded",
+		EventID:      idStr,
+		PatternType:  "referral",
+		PatternID:    idStr,
+		PatternMeta:  referral.Metadata,
+	})
+	return &referralpb.RewardReferralResponse{
+		Referral: toProtoReferral(referral),
+		Success:  true,
+	}, nil
+}
 
 // Helper: map repository Referral to proto Referral.
 func toProtoReferral(r *Referral) *referralpb.Referral {
@@ -202,33 +235,18 @@ func generateReferralCode() string {
 // UpdateReferredMasterID updates the referred master ID for a referral.
 func (s *Service) UpdateReferredMasterID(ctx context.Context, referralCode, referredMasterID string) error {
 	if referralCode == "" {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "referral_code is required", nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return graceful.ToStatusError(err)
+		return graceful.ToStatusError(graceful.MapAndWrapErr(ctx, nil, "context", codes.InvalidArgument))
 	}
 	var referredMasterIDInt int64
 	if referredMasterID != "" {
 		var err error
 		referredMasterIDInt, err = strconv.ParseInt(referredMasterID, 10, 64)
 		if err != nil {
-			err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid referredMasterID", err)
-			var ce *graceful.ContextError
-			if errors.As(err, &ce) {
-				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			}
-			return graceful.ToStatusError(err)
+			return graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.InvalidArgument))
 		}
 	}
 	if err := s.repo.UpdateReferredMasterID(referralCode, referredMasterIDInt); err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to update referred master id", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return graceful.ToStatusError(err)
+		return graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.Internal))
 	}
 	return nil
 }

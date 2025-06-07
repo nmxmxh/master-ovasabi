@@ -8,49 +8,108 @@ import (
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/pkg/json"
+	"go.uber.org/zap"
 )
 
 // BaseRepository provides common database functionality.
 type BaseRepository struct {
-	db *sql.DB
+	db  *sql.DB
+	log *zap.Logger
 }
 
 // NewBaseRepository creates a new base repository instance.
-func NewBaseRepository(db *sql.DB) *BaseRepository {
+func NewBaseRepository(db *sql.DB, log *zap.Logger) *BaseRepository {
 	return &BaseRepository{
-		db: db,
+		db:  db,
+		log: log,
 	}
 }
 
-// GetDB returns the database connection.
+// GetDB returns the underlying database connection.
 func (r *BaseRepository) GetDB() *sql.DB {
 	return r.db
 }
 
-// BeginTx starts a new transaction.
+// GetLogger returns the logger instance.
+func (r *BaseRepository) GetLogger() *zap.Logger {
+	return r.log
+}
+
+// BeginTx starts a new transaction with context.
 func (r *BaseRepository) BeginTx(ctx context.Context) (*sql.Tx, error) {
-	return r.db.BeginTx(ctx, nil)
+	if requestID, ok := ctx.Value("request_id").(string); ok {
+		r.log = r.log.With(zap.String("request_id", requestID))
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		if r.log != nil {
+			if requestID, ok := ctx.Value("request_id").(string); ok {
+				r.log.Error("Failed to begin transaction",
+					zap.Error(err),
+					zap.String("request_id", requestID),
+				)
+			} else {
+				r.log.Error("Failed to begin transaction",
+					zap.Error(err),
+				)
+			}
+		}
+		return nil, err
+	}
+	return tx, nil
 }
 
-// CommitTx commits a transaction.
-func (r *BaseRepository) CommitTx(tx *sql.Tx) error {
-	return tx.Commit()
+// CommitTx commits a transaction with context.
+func (r *BaseRepository) CommitTx(ctx context.Context, tx *sql.Tx) error {
+	if err := tx.Commit(); err != nil {
+		if r.log != nil {
+			if requestID, ok := ctx.Value("request_id").(string); ok {
+				r.log.Error("Failed to commit transaction",
+					zap.Error(err),
+					zap.String("request_id", requestID),
+				)
+			} else {
+				r.log.Error("Failed to commit transaction",
+					zap.Error(err),
+				)
+			}
+		}
+		return err
+	}
+	return nil
 }
 
-// RollbackTx rolls back a transaction.
-func (r *BaseRepository) RollbackTx(tx *sql.Tx) error {
-	return tx.Rollback()
+// RollbackTx rolls back a transaction with context.
+func (r *BaseRepository) RollbackTx(ctx context.Context, tx *sql.Tx) error {
+	if err := tx.Rollback(); err != nil {
+		if r.log != nil {
+			if requestID, ok := ctx.Value("request_id").(string); ok {
+				r.log.Error("Failed to rollback transaction",
+					zap.Error(err),
+					zap.String("request_id", requestID),
+				)
+			} else {
+				r.log.Error("Failed to rollback transaction",
+					zap.Error(err),
+				)
+			}
+		}
+		return err
+	}
+	return nil
 }
 
-// GetContext returns the context, possibly with transaction.
+// GetContext returns the context with transaction if present.
 func (r *BaseRepository) GetContext(ctx context.Context) context.Context {
 	return ctx
 }
 
+// WithTx returns a new repository instance with the given transaction.
 // WithTx returns a new repository with transaction.
 func (r *BaseRepository) WithTx(_ *sql.Tx) Repository {
 	return &BaseRepository{
-		db: r.db,
+		db:  r.db,
+		log: r.log,
 	}
 }
 

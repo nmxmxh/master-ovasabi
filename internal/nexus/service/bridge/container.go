@@ -8,7 +8,12 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"go.uber.org/zap"
 )
+
+// Canonical Event Bus Pattern: All orchestration uses eventBusImpl for event emission and logging.
 
 // Container provides the bridge container orchestration and health endpoints.
 type Container struct {
@@ -21,11 +26,13 @@ type Container struct {
 }
 
 // NewBridgeContainer creates and initializes the bridge container.
-func NewBridgeContainer(rules []RoutingRule, eventBus EventBus, adapters []Adapter) *Container {
+func NewBridgeContainer(rules []RoutingRule, adapters []Adapter, logger *zap.Logger, redisCache *redis.Cache) *Container {
+	// Instantiate canonical event bus with logger and redis
+	eventBus := NewEventBusWithRedis(logger, redisCache)
 	for _, adapter := range adapters {
 		RegisterAdapter(adapter)
 	}
-	bridgeService := NewBridgeService(rules, eventBus)
+	bridgeService := NewBridgeService(rules, eventBus, logger)
 	return &Container{
 		bridgeService: bridgeService,
 		adapters:      adapters,
@@ -49,7 +56,9 @@ func (c *Container) Start() {
 	close(c.shutdown)
 	c.wg.Wait()
 	for _, adapter := range c.adapters {
-		_ = adapter.Close()
+		if err := adapter.Close(); err != nil {
+			zap.L().Warn("Failed to close adapter in container", zap.Error(err))
+		}
 	}
 	log.Println("BridgeContainer stopped.")
 }

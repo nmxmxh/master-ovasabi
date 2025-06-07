@@ -1093,11 +1093,12 @@ func (x *HandleOpsResponse) GetMetadata() *v1.Metadata {
 
 type EventRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	EventType     string                 `protobuf:"bytes,1,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
-	EntityId      string                 `protobuf:"bytes,2,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
-	Payload       *v1.Payload            `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`                          // Canonical business data (see common/v1/payload.proto)
+	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"` // Unique event identifier (new)
+	EventType     string                 `protobuf:"bytes,2,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	EntityId      string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	Payload       *v1.Payload            `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`                          // Canonical business data (see common/v1/payload.proto)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1130,6 +1131,13 @@ func (x *EventRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use EventRequest.ProtoReflect.Descriptor instead.
 func (*EventRequest) Descriptor() ([]byte, []int) {
 	return file_nexus_v1_nexus_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *EventRequest) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
 }
 
 func (x *EventRequest) GetEventType() string {
@@ -1170,9 +1178,11 @@ func (x *EventRequest) GetPayload() *v1.Payload {
 type EventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Payload       *v1.Payload            `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"` // Canonical business data (see common/v1/payload.proto)
+	EventId       string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`       // Unique event identifier (new)
+	EventType     string                 `protobuf:"bytes,3,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"` // Canonical event type (new)
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Payload       *v1.Payload            `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"` // Canonical business data (see common/v1/payload.proto)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1212,6 +1222,20 @@ func (x *EventResponse) GetSuccess() bool {
 		return x.Success
 	}
 	return false
+}
+
+func (x *EventResponse) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *EventResponse) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
 }
 
 func (x *EventResponse) GetMessage() string {
@@ -1440,20 +1464,24 @@ const file_nexus_v1_nexus_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12+\n" +
 	"\x04data\x18\x03 \x01(\v2\x17.google.protobuf.StructR\x04data\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xc4\x01\n" +
-	"\fEventRequest\x12\x1d\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xdf\x01\n" +
+	"\fEventRequest\x12\x19\n" +
+	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12\x1d\n" +
 	"\n" +
-	"event_type\x18\x01 \x01(\tR\teventType\x12\x1b\n" +
-	"\tentity_id\x18\x02 \x01(\tR\bentityId\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
-	"\vcampaign_id\x18\x04 \x01(\x03R\n" +
+	"event_type\x18\x02 \x01(\tR\teventType\x12\x1b\n" +
+	"\tentity_id\x18\x03 \x01(\tR\bentityId\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
 	"campaignId\x12)\n" +
-	"\apayload\x18\x05 \x01(\v2\x0f.common.PayloadR\apayload\"\x9c\x01\n" +
+	"\apayload\x18\x06 \x01(\v2\x0f.common.PayloadR\apayload\"\xd6\x01\n" +
 	"\rEventResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12,\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12)\n" +
-	"\apayload\x18\x04 \x01(\v2\x0f.common.PayloadR\apayload\"\x82\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x19\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x03 \x01(\tR\teventType\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12)\n" +
+	"\apayload\x18\x06 \x01(\v2\x0f.common.PayloadR\apayload\"\x82\x01\n" +
 	"\x10SubscribeRequest\x12\x1f\n" +
 	"\vevent_types\x18\x01 \x03(\tR\n" +
 	"eventTypes\x12,\n" +

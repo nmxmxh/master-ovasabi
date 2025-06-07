@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"encoding/json"
 	"sync"
 )
 
@@ -58,4 +59,9 @@ func PutByteSlice(b []byte) {
 	if b != nil {
 		ByteSlicePool.Put(&b)
 	}
+}
+
+// MarshalJSON marshals a value to JSON using encoding/json.
+func MarshalJSON(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
 }

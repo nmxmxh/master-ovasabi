@@ -100,11 +100,6 @@ ServiceMetadata holds all product service-specific metadata fields (Amazon-style
 
 ## Functions
 
-### BuildProductMetadata
-
-BuildProductMetadata builds a canonical product metadata struct for storage, analytics, and
-extensibility.
-
 ### ExtractAndEnrichProductMetadata
 
 ExtractAndEnrichProductMetadata extracts, validates, and enriches product metadata.
@@ -112,9 +107,5 @@ ExtractAndEnrichProductMetadata extracts, validates, and enriches product metada
 ### Register
 
 Register registers the product service with the DI container and event bus support.
-
-### ServiceMetadataToStruct
-
-ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
 
 ### StartEventSubscribers

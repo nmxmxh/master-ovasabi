@@ -130,3 +130,11 @@ func GetContextFields(ctx context.Context) map[string]interface{} {
 	}
 	return fields
 }
+
+// GetStringFromContext retrieves a string value from the context by key, or returns an empty string if not found.
+func GetStringFromContext(ctx context.Context, key string) string {
+	if v, ok := ctx.Value(key).(string); ok {
+		return v
+	}
+	return ""
+}

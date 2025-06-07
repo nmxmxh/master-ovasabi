@@ -90,6 +90,10 @@ UpdateJob implements the gRPC UpdateJob endpoint.
 
 EnrichSchedulerMetadata adds/updates scheduler-specific fields in commonpb.Metadata.
 
+### HandlePaydayJob
+
+Handler for payday job execution: emits a payday.triggered event for the user.
+
 ### Register
 
 Register registers the scheduler service with the DI container and event bus support.

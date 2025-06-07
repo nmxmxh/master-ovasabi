@@ -1,0 +1,31 @@
+@font-face {
+  font-family: "geist";
+  src: url("/fonts/Geist[wght].woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "geist-mono";
+  src: url("/fonts/GeistMono[wght].woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "gordita";
+  src: url("/fonts/Gordita-Medium.otf") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "gordita";
+  src: url("/fonts/Gordita-Bold.otf") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+}

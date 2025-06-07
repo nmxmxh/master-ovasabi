@@ -29,6 +29,7 @@ type RepositoryItf interface {
 	ListJobRuns(ctx context.Context, jobID string, page, pageSize int, campaignID int64) ([]*schedulerpb.JobRun, int, error)
 	// CDC event subscription (for event-driven jobs)
 	SubscribeToCDCEvents(ctx context.Context, trigger *schedulerpb.CDCTrigger, handler func(event interface{}) error) error
+	ArchiveJob(ctx context.Context, jobID string) error // Archive a job (set status = DISABLED, canonical soft-archive state)
 }
 
 type Repository struct {
@@ -445,6 +446,12 @@ func (r *Repository) SubscribeToCDCEvents(ctx context.Context, trigger *schedule
 		}
 	}()
 	return nil
+}
+
+// ArchiveJob marks a job as archived (status = DISABLED, canonical soft-archive state).
+func (r *Repository) ArchiveJob(ctx context.Context, jobID string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE service_scheduler_job SET status = $1, updated_at = NOW() WHERE id = $2`, int16(schedulerpb.JobStatus_JOB_STATUS_DISABLED), jobID)
+	return err
 }
 
 // --- Helpers ---

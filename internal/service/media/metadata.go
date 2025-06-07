@@ -24,13 +24,6 @@
 
 package media
 
-import (
-	"encoding/json"
-
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
-	structpb "google.golang.org/protobuf/types/known/structpb"
-)
-
 type Metadata struct {
 	Versioning    map[string]interface{} `json:"versioning"` // Required versioning field
 	Captions      []CaptionTrack         `json:"captions,omitempty"`
@@ -100,38 +93,4 @@ type ThumbnailInfo struct {
 	Height      int     `json:"height,omitempty"`
 	TimeOffset  float64 `json:"time_offset,omitempty"` // seconds
 	Description string  `json:"description,omitempty"`
-}
-
-// MediaMetadataFromStruct converts a structpb.Struct to MediaMetadata.
-func MetadataFromStruct(s *structpb.Struct) (*Metadata, error) {
-	if s == nil {
-		return &Metadata{}, nil
-	}
-	b, err := json.Marshal(s.AsMap())
-	if err != nil {
-		return nil, err
-	}
-	var meta Metadata
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-	return &meta, nil
-}
-
-// MediaMetadataToStruct converts MediaMetadata to structpb.Struct.
-func MetadataToStruct(meta *Metadata) (*structpb.Struct, error) {
-	if meta == nil {
-		return metadata.NewStructFromMap(map[string]interface{}{}, nil), nil
-	}
-	b, err := json.Marshal(meta)
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]interface{}
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return nil, err
-	}
-	return metadata.NewStructFromMap(m, nil), nil
 }

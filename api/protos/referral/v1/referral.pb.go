@@ -615,6 +615,248 @@ func (x *ReferralDetail) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+// RegisterReferralRequest for registering a new referral
+type RegisterReferralRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ReferrerMasterId   string                 `protobuf:"bytes,1,opt,name=referrer_master_id,json=referrerMasterId,proto3" json:"referrer_master_id,omitempty"`
+	ReferrerMasterUuid string                 `protobuf:"bytes,2,opt,name=referrer_master_uuid,json=referrerMasterUuid,proto3" json:"referrer_master_uuid,omitempty"`
+	CampaignId         int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	DeviceHash         string                 `protobuf:"bytes,4,opt,name=device_hash,json=deviceHash,proto3" json:"device_hash,omitempty"`
+	Metadata           *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *RegisterReferralRequest) Reset() {
+	*x = RegisterReferralRequest{}
+	mi := &file_referral_v1_referral_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterReferralRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterReferralRequest) ProtoMessage() {}
+
+func (x *RegisterReferralRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_referral_v1_referral_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterReferralRequest.ProtoReflect.Descriptor instead.
+func (*RegisterReferralRequest) Descriptor() ([]byte, []int) {
+	return file_referral_v1_referral_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RegisterReferralRequest) GetReferrerMasterId() string {
+	if x != nil {
+		return x.ReferrerMasterId
+	}
+	return ""
+}
+
+func (x *RegisterReferralRequest) GetReferrerMasterUuid() string {
+	if x != nil {
+		return x.ReferrerMasterUuid
+	}
+	return ""
+}
+
+func (x *RegisterReferralRequest) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
+func (x *RegisterReferralRequest) GetDeviceHash() string {
+	if x != nil {
+		return x.DeviceHash
+	}
+	return ""
+}
+
+func (x *RegisterReferralRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type RegisterReferralResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Referral      *Referral              `protobuf:"bytes,1,opt,name=referral,proto3" json:"referral,omitempty"`
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterReferralResponse) Reset() {
+	*x = RegisterReferralResponse{}
+	mi := &file_referral_v1_referral_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterReferralResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterReferralResponse) ProtoMessage() {}
+
+func (x *RegisterReferralResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_referral_v1_referral_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterReferralResponse.ProtoReflect.Descriptor instead.
+func (*RegisterReferralResponse) Descriptor() ([]byte, []int) {
+	return file_referral_v1_referral_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RegisterReferralResponse) GetReferral() *Referral {
+	if x != nil {
+		return x.Referral
+	}
+	return nil
+}
+
+func (x *RegisterReferralResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+// RewardReferralRequest for rewarding a referral
+type RewardReferralRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ReferralCode  string                 `protobuf:"bytes,1,opt,name=referral_code,json=referralCode,proto3" json:"referral_code,omitempty"`
+	RewardAmount  int64                  `protobuf:"varint,2,opt,name=reward_amount,json=rewardAmount,proto3" json:"reward_amount,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RewardReferralRequest) Reset() {
+	*x = RewardReferralRequest{}
+	mi := &file_referral_v1_referral_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RewardReferralRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RewardReferralRequest) ProtoMessage() {}
+
+func (x *RewardReferralRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_referral_v1_referral_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RewardReferralRequest.ProtoReflect.Descriptor instead.
+func (*RewardReferralRequest) Descriptor() ([]byte, []int) {
+	return file_referral_v1_referral_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RewardReferralRequest) GetReferralCode() string {
+	if x != nil {
+		return x.ReferralCode
+	}
+	return ""
+}
+
+func (x *RewardReferralRequest) GetRewardAmount() int64 {
+	if x != nil {
+		return x.RewardAmount
+	}
+	return 0
+}
+
+func (x *RewardReferralRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type RewardReferralResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Referral      *Referral              `protobuf:"bytes,1,opt,name=referral,proto3" json:"referral,omitempty"`
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RewardReferralResponse) Reset() {
+	*x = RewardReferralResponse{}
+	mi := &file_referral_v1_referral_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RewardReferralResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RewardReferralResponse) ProtoMessage() {}
+
+func (x *RewardReferralResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_referral_v1_referral_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RewardReferralResponse.ProtoReflect.Descriptor instead.
+func (*RewardReferralResponse) Descriptor() ([]byte, []int) {
+	return file_referral_v1_referral_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RewardReferralResponse) GetReferral() *Referral {
+	if x != nil {
+		return x.Referral
+	}
+	return nil
+}
+
+func (x *RewardReferralResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
 var File_referral_v1_referral_proto protoreflect.FileDescriptor
 
 const file_referral_v1_referral_proto_rawDesc = "" +
@@ -676,11 +918,31 @@ const file_referral_v1_referral_proto_rawDesc = "" +
 	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1b\n" +
 	"\tis_active\x18\x04 \x01(\bR\bisActive\x12#\n" +
 	"\rreward_points\x18\x05 \x01(\x05R\frewardPoints\x12,\n" +
-	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata2\xa5\x02\n" +
+	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata\"\xe9\x01\n" +
+	"\x17RegisterReferralRequest\x12,\n" +
+	"\x12referrer_master_id\x18\x01 \x01(\tR\x10referrerMasterId\x120\n" +
+	"\x14referrer_master_uuid\x18\x02 \x01(\tR\x12referrerMasterUuid\x12\x1f\n" +
+	"\vcampaign_id\x18\x03 \x01(\x03R\n" +
+	"campaignId\x12\x1f\n" +
+	"\vdevice_hash\x18\x04 \x01(\tR\n" +
+	"deviceHash\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"g\n" +
+	"\x18RegisterReferralResponse\x121\n" +
+	"\breferral\x18\x01 \x01(\v2\x15.referral.v1.ReferralR\breferral\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\"\x8f\x01\n" +
+	"\x15RewardReferralRequest\x12#\n" +
+	"\rreferral_code\x18\x01 \x01(\tR\freferralCode\x12#\n" +
+	"\rreward_amount\x18\x02 \x01(\x03R\frewardAmount\x12,\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\"e\n" +
+	"\x16RewardReferralResponse\x121\n" +
+	"\breferral\x18\x01 \x01(\v2\x15.referral.v1.ReferralR\breferral\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess2\xe5\x03\n" +
 	"\x0fReferralService\x12[\n" +
 	"\x0eCreateReferral\x12\".referral.v1.CreateReferralRequest\x1a#.referral.v1.CreateReferralResponse\"\x00\x12R\n" +
 	"\vGetReferral\x12\x1f.referral.v1.GetReferralRequest\x1a .referral.v1.GetReferralResponse\"\x00\x12a\n" +
-	"\x10GetReferralStats\x12$.referral.v1.GetReferralStatsRequest\x1a%.referral.v1.GetReferralStatsResponse\"\x00B6Z4github.com/nmxmxh/master-ovasabi/api/protos/referralb\x06proto3"
+	"\x10GetReferralStats\x12$.referral.v1.GetReferralStatsRequest\x1a%.referral.v1.GetReferralStatsResponse\"\x00\x12a\n" +
+	"\x10RegisterReferral\x12$.referral.v1.RegisterReferralRequest\x1a%.referral.v1.RegisterReferralResponse\"\x00\x12[\n" +
+	"\x0eRewardReferral\x12\".referral.v1.RewardReferralRequest\x1a#.referral.v1.RewardReferralResponse\"\x00B6Z4github.com/nmxmxh/master-ovasabi/api/protos/referralb\x06proto3"
 
 var (
 	file_referral_v1_referral_proto_rawDescOnce sync.Once
@@ -694,7 +956,7 @@ func file_referral_v1_referral_proto_rawDescGZIP() []byte {
 	return file_referral_v1_referral_proto_rawDescData
 }
 
-var file_referral_v1_referral_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_referral_v1_referral_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_referral_v1_referral_proto_goTypes = []any{
 	(*Referral)(nil),                 // 0: referral.v1.Referral
 	(*CreateReferralRequest)(nil),    // 1: referral.v1.CreateReferralRequest
@@ -704,31 +966,43 @@ var file_referral_v1_referral_proto_goTypes = []any{
 	(*GetReferralStatsRequest)(nil),  // 5: referral.v1.GetReferralStatsRequest
 	(*GetReferralStatsResponse)(nil), // 6: referral.v1.GetReferralStatsResponse
 	(*ReferralDetail)(nil),           // 7: referral.v1.ReferralDetail
-	(*timestamppb.Timestamp)(nil),    // 8: google.protobuf.Timestamp
-	(*v1.Metadata)(nil),              // 9: common.Metadata
+	(*RegisterReferralRequest)(nil),  // 8: referral.v1.RegisterReferralRequest
+	(*RegisterReferralResponse)(nil), // 9: referral.v1.RegisterReferralResponse
+	(*RewardReferralRequest)(nil),    // 10: referral.v1.RewardReferralRequest
+	(*RewardReferralResponse)(nil),   // 11: referral.v1.RewardReferralResponse
+	(*timestamppb.Timestamp)(nil),    // 12: google.protobuf.Timestamp
+	(*v1.Metadata)(nil),              // 13: common.Metadata
 }
 var file_referral_v1_referral_proto_depIdxs = []int32{
-	8,  // 0: referral.v1.Referral.created_at:type_name -> google.protobuf.Timestamp
-	8,  // 1: referral.v1.Referral.updated_at:type_name -> google.protobuf.Timestamp
-	9,  // 2: referral.v1.Referral.metadata:type_name -> common.Metadata
-	9,  // 3: referral.v1.CreateReferralRequest.metadata:type_name -> common.Metadata
+	12, // 0: referral.v1.Referral.created_at:type_name -> google.protobuf.Timestamp
+	12, // 1: referral.v1.Referral.updated_at:type_name -> google.protobuf.Timestamp
+	13, // 2: referral.v1.Referral.metadata:type_name -> common.Metadata
+	13, // 3: referral.v1.CreateReferralRequest.metadata:type_name -> common.Metadata
 	0,  // 4: referral.v1.CreateReferralResponse.referral:type_name -> referral.v1.Referral
 	0,  // 5: referral.v1.GetReferralResponse.referral:type_name -> referral.v1.Referral
 	7,  // 6: referral.v1.GetReferralStatsResponse.referrals:type_name -> referral.v1.ReferralDetail
-	8,  // 7: referral.v1.GetReferralStatsResponse.generated_at:type_name -> google.protobuf.Timestamp
-	8,  // 8: referral.v1.ReferralDetail.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 9: referral.v1.ReferralDetail.metadata:type_name -> common.Metadata
-	1,  // 10: referral.v1.ReferralService.CreateReferral:input_type -> referral.v1.CreateReferralRequest
-	3,  // 11: referral.v1.ReferralService.GetReferral:input_type -> referral.v1.GetReferralRequest
-	5,  // 12: referral.v1.ReferralService.GetReferralStats:input_type -> referral.v1.GetReferralStatsRequest
-	2,  // 13: referral.v1.ReferralService.CreateReferral:output_type -> referral.v1.CreateReferralResponse
-	4,  // 14: referral.v1.ReferralService.GetReferral:output_type -> referral.v1.GetReferralResponse
-	6,  // 15: referral.v1.ReferralService.GetReferralStats:output_type -> referral.v1.GetReferralStatsResponse
-	13, // [13:16] is the sub-list for method output_type
-	10, // [10:13] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	12, // 7: referral.v1.GetReferralStatsResponse.generated_at:type_name -> google.protobuf.Timestamp
+	12, // 8: referral.v1.ReferralDetail.created_at:type_name -> google.protobuf.Timestamp
+	13, // 9: referral.v1.ReferralDetail.metadata:type_name -> common.Metadata
+	13, // 10: referral.v1.RegisterReferralRequest.metadata:type_name -> common.Metadata
+	0,  // 11: referral.v1.RegisterReferralResponse.referral:type_name -> referral.v1.Referral
+	13, // 12: referral.v1.RewardReferralRequest.metadata:type_name -> common.Metadata
+	0,  // 13: referral.v1.RewardReferralResponse.referral:type_name -> referral.v1.Referral
+	1,  // 14: referral.v1.ReferralService.CreateReferral:input_type -> referral.v1.CreateReferralRequest
+	3,  // 15: referral.v1.ReferralService.GetReferral:input_type -> referral.v1.GetReferralRequest
+	5,  // 16: referral.v1.ReferralService.GetReferralStats:input_type -> referral.v1.GetReferralStatsRequest
+	8,  // 17: referral.v1.ReferralService.RegisterReferral:input_type -> referral.v1.RegisterReferralRequest
+	10, // 18: referral.v1.ReferralService.RewardReferral:input_type -> referral.v1.RewardReferralRequest
+	2,  // 19: referral.v1.ReferralService.CreateReferral:output_type -> referral.v1.CreateReferralResponse
+	4,  // 20: referral.v1.ReferralService.GetReferral:output_type -> referral.v1.GetReferralResponse
+	6,  // 21: referral.v1.ReferralService.GetReferralStats:output_type -> referral.v1.GetReferralStatsResponse
+	9,  // 22: referral.v1.ReferralService.RegisterReferral:output_type -> referral.v1.RegisterReferralResponse
+	11, // 23: referral.v1.ReferralService.RewardReferral:output_type -> referral.v1.RewardReferralResponse
+	19, // [19:24] is the sub-list for method output_type
+	14, // [14:19] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_referral_v1_referral_proto_init() }
@@ -742,7 +1016,7 @@ func file_referral_v1_referral_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_referral_v1_referral_proto_rawDesc), len(file_referral_v1_referral_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

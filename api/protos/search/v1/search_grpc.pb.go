@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,8 +20,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SearchService_Search_FullMethodName  = "/search.v1.SearchService/Search"
-	SearchService_Suggest_FullMethodName = "/search.v1.SearchService/Suggest"
+	SearchService_Search_FullMethodName               = "/search.v1.SearchService/Search"
+	SearchService_Suggest_FullMethodName              = "/search.v1.SearchService/Suggest"
+	SearchService_ListSearchableFields_FullMethodName = "/search.v1.SearchService/ListSearchableFields"
 )
 
 // SearchServiceClient is the client API for SearchService service.
@@ -33,6 +35,8 @@ type SearchServiceClient interface {
 	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
 	// Suggest/autocomplete endpoint
 	Suggest(ctx context.Context, in *SuggestRequest, opts ...grpc.CallOption) (*SuggestResponse, error)
+	// List all searchable fields for all entities
+	ListSearchableFields(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListSearchableFieldsResponse, error)
 }
 
 type searchServiceClient struct {
@@ -63,6 +67,16 @@ func (c *searchServiceClient) Suggest(ctx context.Context, in *SuggestRequest, o
 	return out, nil
 }
 
+func (c *searchServiceClient) ListSearchableFields(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListSearchableFieldsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSearchableFieldsResponse)
+	err := c.cc.Invoke(ctx, SearchService_ListSearchableFields_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SearchServiceServer is the server API for SearchService service.
 // All implementations must embed UnimplementedSearchServiceServer
 // for forward compatibility.
@@ -73,6 +87,8 @@ type SearchServiceServer interface {
 	Search(context.Context, *SearchRequest) (*SearchResponse, error)
 	// Suggest/autocomplete endpoint
 	Suggest(context.Context, *SuggestRequest) (*SuggestResponse, error)
+	// List all searchable fields for all entities
+	ListSearchableFields(context.Context, *emptypb.Empty) (*ListSearchableFieldsResponse, error)
 	mustEmbedUnimplementedSearchServiceServer()
 }
 
@@ -88,6 +104,9 @@ func (UnimplementedSearchServiceServer) Search(context.Context, *SearchRequest) 
 }
 func (UnimplementedSearchServiceServer) Suggest(context.Context, *SuggestRequest) (*SuggestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Suggest not implemented")
+}
+func (UnimplementedSearchServiceServer) ListSearchableFields(context.Context, *emptypb.Empty) (*ListSearchableFieldsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSearchableFields not implemented")
 }
 func (UnimplementedSearchServiceServer) mustEmbedUnimplementedSearchServiceServer() {}
 func (UnimplementedSearchServiceServer) testEmbeddedByValue()                       {}
@@ -146,6 +165,24 @@ func _SearchService_Suggest_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SearchService_ListSearchableFields_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SearchServiceServer).ListSearchableFields(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SearchService_ListSearchableFields_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SearchServiceServer).ListSearchableFields(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SearchService_ServiceDesc is the grpc.ServiceDesc for SearchService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -160,6 +197,10 @@ var SearchService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Suggest",
 			Handler:    _SearchService_Suggest_Handler,
+		},
+		{
+			MethodName: "ListSearchableFields",
+			Handler:    _SearchService_ListSearchableFields_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

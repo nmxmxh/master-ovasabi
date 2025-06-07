@@ -9,10 +9,6 @@ services:
         BUILDKIT_INLINE_CACHE: 1
       cache_from:
         - ovasabi/master-ovasabi:latest
-    ports:
-      - '8080:8080'
-      - '8090:8090'
-      - '50051:50051'
     environment:
       APP_ENV: '${APP_ENV:-development}'
       APP_NAME: '${APP_NAME:-master-ovasabi}'
@@ -29,7 +25,7 @@ services:
       ADMIN_USER: 'nmxmxh'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
       NEXUS_GRPC_ADDR: 'nexus:50052'
-      HTTP_PORT: ':8090'
+      HTTP_PORT: ':8080'
       METRICS_PORT: ':9090'
     volumes:
       - ./config:/app/config:ro
@@ -54,6 +50,21 @@ services:
       - ovasabi-network
     env_file:
       - ../../.env
+    ports:
+      - '8080:8080'
+
+  wasm-frontend:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.wasm
+      target: prod
+    networks:
+      - ovasabi-network
+    depends_on:
+      - app
+    restart: unless-stopped
+    ports:
+      - '8081:8081'
 
   redis:
     image: redis:8
@@ -64,7 +75,8 @@ services:
     volumes:
       - ../../redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis_data:/data
-    command: ['redis-server', '/usr/local/etc/redis/redis.conf', '--requirepass', '${REDIS_PASSWORD}']
+    command:
+      ['redis-server', '/usr/local/etc/redis/redis.conf', '--requirepass', '${REDIS_PASSWORD}']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -126,7 +138,7 @@ services:
       DB_PASSWORD: '${DB_PASSWORD:-postgres}'
       DB_NAME: '${DB_NAME:-master_ovasabi}'
       ADMIN_USER: '${ADMIN_USER:-nmxmxh}'
-      ADMIN_PASSWORD: '${ADMIN_PASSWORD:-@Osiano1995}'
+      ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
     entrypoint:
       [
         '/bin/sh',
@@ -203,10 +215,26 @@ services:
     env_file:
       - ../../.env
 
+  nginx:
+    image: nginx:1.25
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./deployments/docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/public:/usr/share/nginx/html:ro
+      # - ./deployments/docker/certs:/etc/nginx/certs:ro  # Uncomment and set path if using SSL certs
+    depends_on:
+      - app
+      - wasm-frontend
+    networks:
+      - ovasabi-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
 
 networks:
   ovasabi-network:
-    driver: bridge
+    external: true

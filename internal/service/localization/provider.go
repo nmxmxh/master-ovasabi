@@ -25,33 +25,65 @@ package localization
 import (
 	"context"
 	"database/sql"
+	"time"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
-// EventEmitter defines the interface for emitting events in the localization service.
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-}
-
 // Register registers the localization service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repositorypkg.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter EventEmitter,
+	db *sql.DB,
+	masterRepo repositorypkg.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{}, // unused, keep for signature consistency
+) error {
 	repo := NewRepository(db, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "localization")
 	if err != nil {
 		log.With(zap.String("service", "localization")).Warn("Failed to get localization cache", zap.Error(err), zap.String("cache", "localization"), zap.String("context", ctxValue(ctx)))
 	}
-	service := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	// Get LibreTranslate config from DI container or config struct
+	ltEndpoint, _ := container.GetString("libretranslate_endpoint")
+	ltTimeoutStr, _ := container.GetString("libretranslate_timeout")
+	if ltEndpoint == "" {
+		ltEndpoint = "http://localhost:5002"
+	}
+	if ltTimeoutStr == "" {
+		ltTimeoutStr = "10s"
+	}
+	dur, err := time.ParseDuration(ltTimeoutStr)
+	if err != nil {
+		dur = 10 * time.Second
+	}
+	ltCfg := LibreTranslateConfig{
+		Endpoint: ltEndpoint,
+		Timeout:  dur,
+	}
+	// Only use the 6-argument NewService constructor
+	serviceInstance := NewService(log, repo, cache, eventEmitter, eventEnabled, ltCfg)
 	if err := container.Register((*localizationpb.LocalizationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return service, nil
+		return serviceInstance, nil
 	}); err != nil {
 		log.With(zap.String("service", "localization")).Error("Failed to register localization service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
+	}
+	prov, ok := provider.(*service.Provider)
+	// Start campaign.created event subscription (local only)
+	if ok && prov != nil {
+		StartCampaignCreatedSubscriber(ctx, prov, log)
+		hello.StartHelloWorldLoop(ctx, prov, log, "localization")
 	}
 	return nil
 }

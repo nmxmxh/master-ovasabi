@@ -10,11 +10,13 @@ package messaging
 
 import (
 	context "context"
+	"encoding/json"
 	"errors"
 	"strconv"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -30,12 +32,12 @@ type Service struct {
 	log          *zap.Logger
 	repo         *Repository
 	cache        *redis.Cache
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 }
 
 // NewService creates a new MessagingService instance with event bus support.
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) messagingpb.MessagingServiceServer {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) messagingpb.MessagingServiceServer {
 	return &Service{
 		log:          log,
 		repo:         repo,
@@ -137,10 +139,24 @@ func mapRepoMessageEventToProto(event *MessageEvent) *messagingpb.MessageEvent {
 
 // --- MessagingService RPCs ---
 
+// [CANONICAL] All service methods must hydrate and return canonical metadata.
+// All orchestration (success/error) must use the graceful pattern.
 func (s *Service) SendMessage(ctx context.Context, req *messagingpb.SendMessageRequest) (*messagingpb.SendMessageResponse, error) {
 	if req.Metadata == nil {
 		req.Metadata = &commonpb.Metadata{}
 	}
+	// Canonical: Ensure versioning and business fields are set in service_specific.messaging
+	if err := metadata.SetServiceSpecificField(req.Metadata, "messaging", "versioning", map[string]interface{}{
+		"system_version":  "1.0.0",
+		"service_version": "1.0.0",
+		"environment":     "prod",
+	}); err != nil {
+		s.log.Warn("Failed to set service-specific metadata field (versioning)", zap.Error(err))
+	}
+	// Normalize metadata before sending to repo
+	metaMap := metadata.ProtoToMap(req.Metadata)
+	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "messaging", req.Content, nil, "success", "enrich messaging metadata")
+	req.Metadata = metadata.MapToProto(normMap)
 	msg, err := s.repo.SendMessage(ctx, req)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to send message", err)
@@ -150,11 +166,7 @@ func (s *Service) SendMessage(ctx context.Context, req *messagingpb.SendMessageR
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	meta := &commonpb.Metadata{
-		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
-			"message_id": msg.ID,
-		}, nil),
-	}
+	meta := msg.Metadata
 	resp := &messagingpb.SendMessageResponse{Message: mapRepoMessageToProto(msg)}
 	success := graceful.WrapSuccess(ctx, codes.OK, "message sent", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
@@ -284,19 +296,36 @@ func (s *Service) ListMessages(ctx context.Context, req *messagingpb.ListMessage
 	protoMsgs := make([]*messagingpb.Message, 0, len(msgs))
 	for _, m := range msgs {
 		pm := mapRepoMessageToProto(m)
-		// Enrich metadata using canonical helpers
-		if pm.Metadata != nil {
-			meta := ExtractMessagingMetadata(pm.Metadata)
-			if meta.Versioning == nil {
-				meta.Versioning = &VersioningMetadata{SystemVersion: "1.0.0"}
-			}
-			structMeta, err := meta.ToStruct()
-			if err != nil {
-				s.log.Warn("failed to convert metadata to struct", zap.Error(err))
-			} else if pm.Metadata.ServiceSpecific == nil {
-				pm.Metadata.ServiceSpecific = structMeta
-			}
-			if pm.Metadata.ServiceSpecific == nil {
+		// Canonical: hydrate messaging.Metadata from ServiceSpecific
+		if pm.Metadata != nil && pm.Metadata.ServiceSpecific != nil {
+			metaMap := metadata.StructToMap(pm.Metadata.ServiceSpecific)
+			var msgMeta Metadata
+			if raw, ok := metaMap["messaging"]; ok {
+				metaBytes, err := json.Marshal(raw)
+				if err != nil {
+					s.log.Error("failed to marshal msgMeta", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal msgMeta", err))
+				}
+				err = json.Unmarshal(metaBytes, &msgMeta)
+				if err != nil {
+					s.log.Error("failed to unmarshal metaBytes", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal metaBytes", err))
+				}
+				if msgMeta.Versioning == nil {
+					msgMeta.Versioning = &VersioningMetadata{SystemVersion: "1.0.0"}
+				}
+				metaMapOut := make(map[string]interface{})
+				metaBytesOut, err := json.Marshal(msgMeta)
+				if err != nil {
+					s.log.Error("failed to marshal msgMeta", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal msgMeta", err))
+				}
+				err = json.Unmarshal(metaBytesOut, &metaMapOut)
+				if err != nil {
+					s.log.Error("failed to unmarshal metaBytes", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal metaBytes", err))
+				}
+				structMeta := metadata.MapToStruct(map[string]interface{}{"messaging": metaMapOut})
 				pm.Metadata.ServiceSpecific = structMeta
 			}
 		}
@@ -341,18 +370,35 @@ func (s *Service) ListThreads(ctx context.Context, req *messagingpb.ListThreadsR
 	protoThreads := make([]*messagingpb.Thread, 0, len(threads))
 	for _, t := range threads {
 		pt := mapRepoThreadToProto(t)
-		if pt.Metadata != nil {
-			meta := ExtractMessagingMetadata(pt.Metadata)
-			if meta.Versioning == nil {
-				meta.Versioning = &VersioningMetadata{SystemVersion: "1.0.0"}
-			}
-			structMeta, err := meta.ToStruct()
-			if err != nil {
-				s.log.Warn("failed to convert metadata to struct", zap.Error(err))
-			} else if pt.Metadata.ServiceSpecific == nil {
-				pt.Metadata.ServiceSpecific = structMeta
-			}
-			if pt.Metadata.ServiceSpecific == nil {
+		if pt.Metadata != nil && pt.Metadata.ServiceSpecific != nil {
+			metaMap := metadata.StructToMap(pt.Metadata.ServiceSpecific)
+			var threadMeta Metadata
+			if raw, ok := metaMap["messaging"]; ok {
+				metaBytes, err := json.Marshal(raw)
+				if err != nil {
+					s.log.Error("failed to marshal msgMeta", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal msgMeta", err))
+				}
+				err = json.Unmarshal(metaBytes, &threadMeta)
+				if err != nil {
+					s.log.Error("failed to unmarshal metaBytes", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal metaBytes", err))
+				}
+				if threadMeta.Versioning == nil {
+					threadMeta.Versioning = &VersioningMetadata{SystemVersion: "1.0.0"}
+				}
+				metaMapOut := make(map[string]interface{})
+				metaBytesOut, err := json.Marshal(threadMeta)
+				if err != nil {
+					s.log.Error("failed to marshal msgMeta", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal msgMeta", err))
+				}
+				err = json.Unmarshal(metaBytesOut, &metaMapOut)
+				if err != nil {
+					s.log.Error("failed to unmarshal metaBytes", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal metaBytes", err))
+				}
+				structMeta := metadata.MapToStruct(map[string]interface{}{"messaging": metaMapOut})
 				pt.Metadata.ServiceSpecific = structMeta
 			}
 		}
@@ -397,18 +443,35 @@ func (s *Service) ListConversations(ctx context.Context, req *messagingpb.ListCo
 	protoConvs := make([]*messagingpb.Conversation, 0, len(convs))
 	for _, c := range convs {
 		pc := mapRepoConversationToProto(c)
-		if pc.Metadata != nil {
-			meta := ExtractMessagingMetadata(pc.Metadata)
-			if meta.Versioning == nil {
-				meta.Versioning = &VersioningMetadata{SystemVersion: "1.0.0"}
-			}
-			structMeta, err := meta.ToStruct()
-			if err != nil {
-				s.log.Warn("failed to convert metadata to struct", zap.Error(err))
-			} else if pc.Metadata.ServiceSpecific == nil {
-				pc.Metadata.ServiceSpecific = structMeta
-			}
-			if pc.Metadata.ServiceSpecific == nil {
+		if pc.Metadata != nil && pc.Metadata.ServiceSpecific != nil {
+			metaMap := metadata.StructToMap(pc.Metadata.ServiceSpecific)
+			var convMeta Metadata
+			if raw, ok := metaMap["messaging"]; ok {
+				metaBytes, err := json.Marshal(raw)
+				if err != nil {
+					s.log.Error("failed to marshal msgMeta", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal msgMeta", err))
+				}
+				err = json.Unmarshal(metaBytes, &convMeta)
+				if err != nil {
+					s.log.Error("failed to unmarshal metaBytes", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal metaBytes", err))
+				}
+				if convMeta.Versioning == nil {
+					convMeta.Versioning = &VersioningMetadata{SystemVersion: "1.0.0"}
+				}
+				metaMapOut := make(map[string]interface{})
+				metaBytesOut, err := json.Marshal(convMeta)
+				if err != nil {
+					s.log.Error("failed to marshal msgMeta", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal msgMeta", err))
+				}
+				err = json.Unmarshal(metaBytesOut, &metaMapOut)
+				if err != nil {
+					s.log.Error("failed to unmarshal metaBytes", zap.Error(err))
+					return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal metaBytes", err))
+				}
+				structMeta := metadata.MapToStruct(map[string]interface{}{"messaging": metaMapOut})
 				pc.Metadata.ServiceSpecific = structMeta
 			}
 		}
@@ -487,6 +550,11 @@ func (s *Service) StreamMessages(req *messagingpb.StreamMessagesRequest, srv mes
 		if err == nil {
 			for i := len(msgs) - 1; i >= 0; i-- { // send oldest first
 				msg := msgs[i]
+				// Fix: convert int64 CampaignID to string for proto
+				campaignIDStr := ""
+				if msg.CampaignID != 0 {
+					campaignIDStr = strconv.FormatInt(msg.CampaignID, 10)
+				}
 				event := &messagingpb.MessageEvent{
 					EventId:        "history-" + msg.ID,
 					MessageId:      msg.ID,
@@ -496,7 +564,7 @@ func (s *Service) StreamMessages(req *messagingpb.StreamMessagesRequest, srv mes
 					EventType:      "history",
 					Payload:        nil, // Optionally marshal msg.Content/metadata
 					CreatedAt:      timestamppb.New(msg.CreatedAt),
-					CampaignId:     msg.CampaignID,
+					CampaignId:     campaignIDStr,
 				}
 				if err := srv.Send(event); err != nil {
 					err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during history send", err)
@@ -624,8 +692,17 @@ func (s *Service) StreamPresence(req *messagingpb.StreamPresenceRequest, srv mes
 	switch {
 	case req.UserId != "":
 		channel = "messaging:events:presence:user:" + req.UserId
-	case req.CampaignId != 0:
-		channel = "messaging:events:presence:campaign:" + strconv.FormatInt(req.CampaignId, 10)
+	case req.CampaignId != "":
+		campaignIDInt, err := strconv.ParseInt(req.CampaignId, 10, 64)
+		if err != nil {
+			err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid campaign_id format", err)
+			var ce *graceful.ContextError
+			if errors.As(err, &ce) {
+				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			}
+			return graceful.ToStatusError(err)
+		}
+		channel = "messaging:events:presence:campaign:" + strconv.FormatInt(campaignIDInt, 10)
 	default:
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "user_id or campaign_id required", nil)
 		var ce *graceful.ContextError
@@ -915,7 +992,7 @@ func (s *Service) ListMessageEvents(ctx context.Context, req *messagingpb.ListMe
 		page = 1
 	}
 	offset := (page - 1) * pageSize
-	events, total, err := s.repo.ListMessageEventsByUser(ctx, req.UserId, pageSize, offset)
+	msgEvents, total, err := s.repo.ListMessageEventsByUser(ctx, req.UserId, pageSize, offset)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to list message events", err)
 		s.log.Warn("failed to list message events", zap.Error(err))
@@ -925,8 +1002,8 @@ func (s *Service) ListMessageEvents(ctx context.Context, req *messagingpb.ListMe
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	protoEvents := make([]*messagingpb.MessageEvent, 0, len(events))
-	for _, e := range events {
+	protoEvents := make([]*messagingpb.MessageEvent, 0, len(msgEvents))
+	for _, e := range msgEvents {
 		protoEvents = append(protoEvents, mapRepoMessageEventToProto(e))
 	}
 	totalPages := 1

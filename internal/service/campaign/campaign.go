@@ -14,6 +14,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"github.com/robfig/cron/v3"
@@ -37,6 +38,25 @@ func isCampaignActive(meta *commonpb.Metadata) bool {
 		}
 	}
 	return false
+}
+
+// EventEmitter defines the interface for emitting events.
+type EventEmitter interface {
+	EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
+	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool)
+}
+
+// Adapter to bridge event emission to the required orchestration EventEmitter interface.
+type EventEmitterAdapter struct {
+	Emitter EventEmitter
+}
+
+func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
+	return a.Emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
+}
+
+func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
+	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
 }
 
 // Service implements the CampaignService gRPC interface.
@@ -96,24 +116,21 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		})
 		return nil, graceful.ToStatusError(err)
 	}
-	// Parse and validate campaign metadata
-	var campaignMeta *Metadata
-	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
-		if campaignField, ok := req.Metadata.ServiceSpecific.Fields["campaign"]; ok {
-			metaStruct := campaignField.GetStructValue()
-			var err error
-			campaignMeta, err = FromStruct(metaStruct)
-			if err != nil {
-				err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid campaign metadata", err)
-				err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-				return nil, graceful.ToStatusError(err)
-			}
-			if err := campaignMeta.Validate(); err != nil {
-				err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid campaign metadata", err)
-				err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-				return nil, graceful.ToStatusError(err)
-			}
-		}
+	// Parse and validate campaign metadata using canonical extraction
+	var campaignVars map[string]interface{}
+	if req.Metadata != nil {
+		campaignVars = metadata.ExtractServiceVariables(req.Metadata, "campaign")
+	}
+	// Validate required fields
+	if t, ok := campaignVars["type"].(string); !ok || t == "" {
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "campaign type is required", nil)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(err)
+	}
+	if s, ok := campaignVars["status"].(string); !ok || s == "" {
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "campaign status is required", nil)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(err)
 	}
 	// Start transaction
 	tx, err := s.repo.BeginTx(ctx)

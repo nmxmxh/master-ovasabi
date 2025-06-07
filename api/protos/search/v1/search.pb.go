@@ -10,6 +10,7 @@ import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
@@ -392,11 +393,152 @@ func (x *SuggestResponse) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+// Searchable field registry endpoint
+type SearchableField struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchableField) Reset() {
+	*x = SearchableField{}
+	mi := &file_search_v1_search_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchableField) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchableField) ProtoMessage() {}
+
+func (x *SearchableField) ProtoReflect() protoreflect.Message {
+	mi := &file_search_v1_search_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchableField.ProtoReflect.Descriptor instead.
+func (*SearchableField) Descriptor() ([]byte, []int) {
+	return file_search_v1_search_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SearchableField) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SearchableField) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+type SearchableFields struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fields        []*SearchableField     `protobuf:"bytes,1,rep,name=fields,proto3" json:"fields,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchableFields) Reset() {
+	*x = SearchableFields{}
+	mi := &file_search_v1_search_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchableFields) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchableFields) ProtoMessage() {}
+
+func (x *SearchableFields) ProtoReflect() protoreflect.Message {
+	mi := &file_search_v1_search_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchableFields.ProtoReflect.Descriptor instead.
+func (*SearchableFields) Descriptor() ([]byte, []int) {
+	return file_search_v1_search_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *SearchableFields) GetFields() []*SearchableField {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+type ListSearchableFieldsResponse struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Entities      map[string]*SearchableFields `protobuf:"bytes,1,rep,name=entities,proto3" json:"entities,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSearchableFieldsResponse) Reset() {
+	*x = ListSearchableFieldsResponse{}
+	mi := &file_search_v1_search_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSearchableFieldsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSearchableFieldsResponse) ProtoMessage() {}
+
+func (x *ListSearchableFieldsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_search_v1_search_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSearchableFieldsResponse.ProtoReflect.Descriptor instead.
+func (*ListSearchableFieldsResponse) Descriptor() ([]byte, []int) {
+	return file_search_v1_search_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListSearchableFieldsResponse) GetEntities() map[string]*SearchableFields {
+	if x != nil {
+		return x.Entities
+	}
+	return nil
+}
+
 var File_search_v1_search_proto protoreflect.FileDescriptor
 
 const file_search_v1_search_proto_rawDesc = "" +
 	"\n" +
-	"\x16search/v1/search.proto\x12\tsearch.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xc8\x01\n" +
+	"\x16search/v1/search.proto\x12\tsearch.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\x1a\x1bgoogle/protobuf/empty.proto\"\xc8\x01\n" +
 	"\rSearchRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
 	"\x05types\x18\x02 \x03(\tR\x05types\x12\x1b\n" +
@@ -429,10 +571,21 @@ const file_search_v1_search_proto_rawDesc = "" +
 	"campaignId\"a\n" +
 	"\x0fSuggestResponse\x12 \n" +
 	"\vsuggestions\x18\x01 \x03(\tR\vsuggestions\x12,\n" +
-	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata2\x90\x01\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata\"9\n" +
+	"\x0fSearchableField\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\"F\n" +
+	"\x10SearchableFields\x122\n" +
+	"\x06fields\x18\x01 \x03(\v2\x1a.search.v1.SearchableFieldR\x06fields\"\xcb\x01\n" +
+	"\x1cListSearchableFieldsResponse\x12Q\n" +
+	"\bentities\x18\x01 \x03(\v25.search.v1.ListSearchableFieldsResponse.EntitiesEntryR\bentities\x1aX\n" +
+	"\rEntitiesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
+	"\x05value\x18\x02 \x01(\v2\x1b.search.v1.SearchableFieldsR\x05value:\x028\x012\xe9\x01\n" +
 	"\rSearchService\x12=\n" +
 	"\x06Search\x12\x18.search.v1.SearchRequest\x1a\x19.search.v1.SearchResponse\x12@\n" +
-	"\aSuggest\x12\x19.search.v1.SuggestRequest\x1a\x1a.search.v1.SuggestResponseB4Z2github.com/nmxmxh/master-ovasabi/api/protos/searchb\x06proto3"
+	"\aSuggest\x12\x19.search.v1.SuggestRequest\x1a\x1a.search.v1.SuggestResponse\x12W\n" +
+	"\x14ListSearchableFields\x12\x16.google.protobuf.Empty\x1a'.search.v1.ListSearchableFieldsResponseB4Z2github.com/nmxmxh/master-ovasabi/api/protos/searchb\x06proto3"
 
 var (
 	file_search_v1_search_proto_rawDescOnce sync.Once
@@ -446,33 +599,43 @@ func file_search_v1_search_proto_rawDescGZIP() []byte {
 	return file_search_v1_search_proto_rawDescData
 }
 
-var file_search_v1_search_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_search_v1_search_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_search_v1_search_proto_goTypes = []any{
-	(*SearchRequest)(nil),   // 0: search.v1.SearchRequest
-	(*SearchResult)(nil),    // 1: search.v1.SearchResult
-	(*SearchResponse)(nil),  // 2: search.v1.SearchResponse
-	(*SuggestRequest)(nil),  // 3: search.v1.SuggestRequest
-	(*SuggestResponse)(nil), // 4: search.v1.SuggestResponse
-	(*v1.Metadata)(nil),     // 5: common.Metadata
-	(*structpb.Struct)(nil), // 6: google.protobuf.Struct
+	(*SearchRequest)(nil),                // 0: search.v1.SearchRequest
+	(*SearchResult)(nil),                 // 1: search.v1.SearchResult
+	(*SearchResponse)(nil),               // 2: search.v1.SearchResponse
+	(*SuggestRequest)(nil),               // 3: search.v1.SuggestRequest
+	(*SuggestResponse)(nil),              // 4: search.v1.SuggestResponse
+	(*SearchableField)(nil),              // 5: search.v1.SearchableField
+	(*SearchableFields)(nil),             // 6: search.v1.SearchableFields
+	(*ListSearchableFieldsResponse)(nil), // 7: search.v1.ListSearchableFieldsResponse
+	nil,                                  // 8: search.v1.ListSearchableFieldsResponse.EntitiesEntry
+	(*v1.Metadata)(nil),                  // 9: common.Metadata
+	(*structpb.Struct)(nil),              // 10: google.protobuf.Struct
+	(*emptypb.Empty)(nil),                // 11: google.protobuf.Empty
 }
 var file_search_v1_search_proto_depIdxs = []int32{
-	5, // 0: search.v1.SearchRequest.metadata:type_name -> common.Metadata
-	6, // 1: search.v1.SearchResult.fields:type_name -> google.protobuf.Struct
-	5, // 2: search.v1.SearchResult.metadata:type_name -> common.Metadata
-	1, // 3: search.v1.SearchResponse.results:type_name -> search.v1.SearchResult
-	5, // 4: search.v1.SearchResponse.metadata:type_name -> common.Metadata
-	5, // 5: search.v1.SuggestRequest.metadata:type_name -> common.Metadata
-	5, // 6: search.v1.SuggestResponse.metadata:type_name -> common.Metadata
-	0, // 7: search.v1.SearchService.Search:input_type -> search.v1.SearchRequest
-	3, // 8: search.v1.SearchService.Suggest:input_type -> search.v1.SuggestRequest
-	2, // 9: search.v1.SearchService.Search:output_type -> search.v1.SearchResponse
-	4, // 10: search.v1.SearchService.Suggest:output_type -> search.v1.SuggestResponse
-	9, // [9:11] is the sub-list for method output_type
-	7, // [7:9] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	9,  // 0: search.v1.SearchRequest.metadata:type_name -> common.Metadata
+	10, // 1: search.v1.SearchResult.fields:type_name -> google.protobuf.Struct
+	9,  // 2: search.v1.SearchResult.metadata:type_name -> common.Metadata
+	1,  // 3: search.v1.SearchResponse.results:type_name -> search.v1.SearchResult
+	9,  // 4: search.v1.SearchResponse.metadata:type_name -> common.Metadata
+	9,  // 5: search.v1.SuggestRequest.metadata:type_name -> common.Metadata
+	9,  // 6: search.v1.SuggestResponse.metadata:type_name -> common.Metadata
+	5,  // 7: search.v1.SearchableFields.fields:type_name -> search.v1.SearchableField
+	8,  // 8: search.v1.ListSearchableFieldsResponse.entities:type_name -> search.v1.ListSearchableFieldsResponse.EntitiesEntry
+	6,  // 9: search.v1.ListSearchableFieldsResponse.EntitiesEntry.value:type_name -> search.v1.SearchableFields
+	0,  // 10: search.v1.SearchService.Search:input_type -> search.v1.SearchRequest
+	3,  // 11: search.v1.SearchService.Suggest:input_type -> search.v1.SuggestRequest
+	11, // 12: search.v1.SearchService.ListSearchableFields:input_type -> google.protobuf.Empty
+	2,  // 13: search.v1.SearchService.Search:output_type -> search.v1.SearchResponse
+	4,  // 14: search.v1.SearchService.Suggest:output_type -> search.v1.SuggestResponse
+	7,  // 15: search.v1.SearchService.ListSearchableFields:output_type -> search.v1.ListSearchableFieldsResponse
+	13, // [13:16] is the sub-list for method output_type
+	10, // [10:13] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_search_v1_search_proto_init() }
@@ -486,7 +649,7 @@ func file_search_v1_search_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_search_v1_search_proto_rawDesc), len(file_search_v1_search_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

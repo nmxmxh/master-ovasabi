@@ -22,6 +22,8 @@ const (
 	ReferralService_CreateReferral_FullMethodName   = "/referral.v1.ReferralService/CreateReferral"
 	ReferralService_GetReferral_FullMethodName      = "/referral.v1.ReferralService/GetReferral"
 	ReferralService_GetReferralStats_FullMethodName = "/referral.v1.ReferralService/GetReferralStats"
+	ReferralService_RegisterReferral_FullMethodName = "/referral.v1.ReferralService/RegisterReferral"
+	ReferralService_RewardReferral_FullMethodName   = "/referral.v1.ReferralService/RewardReferral"
 )
 
 // ReferralServiceClient is the client API for ReferralService service.
@@ -36,6 +38,10 @@ type ReferralServiceClient interface {
 	GetReferral(ctx context.Context, in *GetReferralRequest, opts ...grpc.CallOption) (*GetReferralResponse, error)
 	// GetReferralStats retrieves referral statistics
 	GetReferralStats(ctx context.Context, in *GetReferralStatsRequest, opts ...grpc.CallOption) (*GetReferralStatsResponse, error)
+	// RegisterReferral registers a new referral
+	RegisterReferral(ctx context.Context, in *RegisterReferralRequest, opts ...grpc.CallOption) (*RegisterReferralResponse, error)
+	// RewardReferral rewards a referral
+	RewardReferral(ctx context.Context, in *RewardReferralRequest, opts ...grpc.CallOption) (*RewardReferralResponse, error)
 }
 
 type referralServiceClient struct {
@@ -76,6 +82,26 @@ func (c *referralServiceClient) GetReferralStats(ctx context.Context, in *GetRef
 	return out, nil
 }
 
+func (c *referralServiceClient) RegisterReferral(ctx context.Context, in *RegisterReferralRequest, opts ...grpc.CallOption) (*RegisterReferralResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterReferralResponse)
+	err := c.cc.Invoke(ctx, ReferralService_RegisterReferral_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *referralServiceClient) RewardReferral(ctx context.Context, in *RewardReferralRequest, opts ...grpc.CallOption) (*RewardReferralResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RewardReferralResponse)
+	err := c.cc.Invoke(ctx, ReferralService_RewardReferral_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReferralServiceServer is the server API for ReferralService service.
 // All implementations must embed UnimplementedReferralServiceServer
 // for forward compatibility.
@@ -88,6 +114,10 @@ type ReferralServiceServer interface {
 	GetReferral(context.Context, *GetReferralRequest) (*GetReferralResponse, error)
 	// GetReferralStats retrieves referral statistics
 	GetReferralStats(context.Context, *GetReferralStatsRequest) (*GetReferralStatsResponse, error)
+	// RegisterReferral registers a new referral
+	RegisterReferral(context.Context, *RegisterReferralRequest) (*RegisterReferralResponse, error)
+	// RewardReferral rewards a referral
+	RewardReferral(context.Context, *RewardReferralRequest) (*RewardReferralResponse, error)
 	mustEmbedUnimplementedReferralServiceServer()
 }
 
@@ -106,6 +136,12 @@ func (UnimplementedReferralServiceServer) GetReferral(context.Context, *GetRefer
 }
 func (UnimplementedReferralServiceServer) GetReferralStats(context.Context, *GetReferralStatsRequest) (*GetReferralStatsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetReferralStats not implemented")
+}
+func (UnimplementedReferralServiceServer) RegisterReferral(context.Context, *RegisterReferralRequest) (*RegisterReferralResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterReferral not implemented")
+}
+func (UnimplementedReferralServiceServer) RewardReferral(context.Context, *RewardReferralRequest) (*RewardReferralResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RewardReferral not implemented")
 }
 func (UnimplementedReferralServiceServer) mustEmbedUnimplementedReferralServiceServer() {}
 func (UnimplementedReferralServiceServer) testEmbeddedByValue()                         {}
@@ -182,6 +218,42 @@ func _ReferralService_GetReferralStats_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReferralService_RegisterReferral_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterReferralRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReferralServiceServer).RegisterReferral(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReferralService_RegisterReferral_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReferralServiceServer).RegisterReferral(ctx, req.(*RegisterReferralRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReferralService_RewardReferral_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RewardReferralRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReferralServiceServer).RewardReferral(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReferralService_RewardReferral_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReferralServiceServer).RewardReferral(ctx, req.(*RewardReferralRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ReferralService_ServiceDesc is the grpc.ServiceDesc for ReferralService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -200,6 +272,14 @@ var ReferralService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetReferralStats",
 			Handler:    _ReferralService_GetReferralStats_Handler,
+		},
+		{
+			MethodName: "RegisterReferral",
+			Handler:    _ReferralService_RegisterReferral_Handler,
+		},
+		{
+			MethodName: "RewardReferral",
+			Handler:    _ReferralService_RewardReferral_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

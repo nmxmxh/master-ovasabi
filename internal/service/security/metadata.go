@@ -25,12 +25,6 @@
 
 package security
 
-import (
-	"encoding/json"
-
-	structpb "google.golang.org/protobuf/types/known/structpb"
-)
-
 // ServiceMetadata holds all security service-specific metadata fields.
 type ServiceMetadata struct {
 	RiskScore       float64             `json:"risk_score,omitempty"`        // Calculated risk score (0-1)
@@ -105,58 +99,4 @@ type LocationMetadata struct {
 	IP      string `json:"ip,omitempty"`
 	City    string `json:"city,omitempty"`
 	Country string `json:"country,omitempty"`
-}
-
-// ServiceMetadataFromStruct converts a structpb.Struct to ServiceMetadata.
-func ServiceMetadataFromStruct(s *structpb.Struct) (*ServiceMetadata, error) {
-	if s == nil {
-		return &ServiceMetadata{}, nil
-	}
-	b, err := json.Marshal(s.AsMap())
-	if err != nil {
-		return nil, err
-	}
-	var meta ServiceMetadata
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-	return &meta, nil
-}
-
-// ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
-func ServiceMetadataToStruct(meta *ServiceMetadata) (*structpb.Struct, error) {
-	if meta == nil {
-		return structpb.NewStruct(map[string]interface{}{})
-	}
-	b, err := json.Marshal(meta)
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]interface{}
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return nil, err
-	}
-	return structpb.NewStruct(m)
-}
-
-// NewSecurityMetadata creates a canonical security metadata struct with reasonable defaults.
-func NewSecurityMetadata() *ServiceMetadata {
-	return &ServiceMetadata{
-		RiskScore:       0.0,
-		RiskFactors:     []string{},
-		LastAudit:       "",
-		AuditHistory:    []AuditEntry{},
-		Compliance:      nil,
-		BadActor:        nil,
-		LinkedAccounts:  []string{},
-		DeviceIDs:       []string{},
-		Locations:       []LocationMetadata{},
-		EscalationLevel: "info",
-		LastEscalatedAt: "",
-		UserID:          "",
-		ContentID:       "",
-		LocalizationID:  "",
-	}
 }

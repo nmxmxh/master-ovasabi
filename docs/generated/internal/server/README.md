@@ -35,11 +35,11 @@ enforcement and auditability across the platform.
 
 ### ContextInjectionMiddleware
 
-HTTP middleware to inject request ID, trace ID, and feature flags into context
+HTTP middleware to inject request ID, trace ID, and feature flags into context.
 
 ### ContextInjectionUnaryInterceptor
 
-gRPC interceptor to inject request ID, trace ID, and feature flags into context
+gRPC interceptor to inject request ID, trace ID, and feature flags into context.
 
 ### RegisterAllServices
 

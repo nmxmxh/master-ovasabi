@@ -25,7 +25,6 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Supported campaign type and status constants.
@@ -238,118 +237,6 @@ type GamificationInfo struct {
 // Gamification *GamificationInfo `json:"gamification"`
 */
 
-// ToStruct converts Metadata to a structpb.Struct for proto usage.
-func (m *Metadata) ToStruct() (*structpb.Struct, error) {
-	fields := map[string]interface{}{
-		"type":   m.Type,
-		"status": m.Status,
-	}
-	if m.Versioning != nil {
-		fields["versioning"] = map[string]interface{}{
-			"system_version":   m.Versioning.SystemVersion,
-			"service_version":  m.Versioning.ServiceVersion,
-			"environment":      m.Versioning.Environment,
-			"last_migrated_at": m.Versioning.LastMigratedAt.Format(time.RFC3339),
-		}
-	}
-	if len(m.Features) > 0 {
-		fields["features"] = m.Features
-	}
-	if m.Localization != nil {
-		fields["localization"] = m.Localization
-	}
-	if m.Content != nil {
-		fields["content"] = m.Content
-	}
-	if m.Community != nil {
-		fields["community"] = m.Community
-	}
-	if m.Onboarding != nil {
-		fields["onboarding"] = m.Onboarding
-	}
-	if m.Referral != nil {
-		fields["referral"] = m.Referral
-	}
-	if m.Commerce != nil {
-		fields["commerce"] = m.Commerce
-	}
-	if m.Analytics != nil {
-		fields["analytics"] = m.Analytics
-	}
-	if m.Compliance != nil {
-		fields["compliance"] = m.Compliance
-	}
-	if m.Custom != nil {
-		fields["custom"] = m.Custom
-	}
-	return metadata.NewStructFromMap(fields, nil), nil
-}
-
-// FromStruct parses a structpb.Struct into Metadata.
-func FromStruct(s *structpb.Struct) (*Metadata, error) {
-	m := &Metadata{}
-	if v, ok := s.Fields["type"]; ok {
-		m.Type = v.GetStringValue()
-	} else {
-		return nil, fmt.Errorf("missing required field: type")
-	}
-	if v, ok := s.Fields["status"]; ok {
-		m.Status = v.GetStringValue()
-	} else {
-		return nil, fmt.Errorf("missing required field: status")
-	}
-	if v, ok := s.Fields["versioning"]; ok {
-		if verMap := v.GetStructValue().AsMap(); verMap != nil {
-			m.Versioning = &VersioningInfo{}
-			if sv, ok := verMap["system_version"].(string); ok {
-				m.Versioning.SystemVersion = sv
-			}
-			if sv, ok := verMap["service_version"].(string); ok {
-				m.Versioning.ServiceVersion = sv
-			}
-			if env, ok := verMap["environment"].(string); ok {
-				m.Versioning.Environment = env
-			}
-			if lm, ok := verMap["last_migrated_at"].(string); ok {
-				if t, err := time.Parse(time.RFC3339, lm); err == nil {
-					m.Versioning.LastMigratedAt = t
-				}
-			}
-		}
-	}
-	if v, ok := s.Fields["features"]; ok {
-		m.Features = toStringSlice(v)
-	}
-	if v, ok := s.Fields["localization"]; ok {
-		m.Localization = toLocalizationInfo(v)
-	}
-	if v, ok := s.Fields["content"]; ok {
-		m.Content = toContentInfo(v)
-	}
-	if v, ok := s.Fields["community"]; ok {
-		m.Community = toCommunityInfo(v)
-	}
-	if v, ok := s.Fields["onboarding"]; ok {
-		m.Onboarding = toOnboardingInfo(v)
-	}
-	if v, ok := s.Fields["referral"]; ok {
-		m.Referral = toReferralInfo(v)
-	}
-	if v, ok := s.Fields["commerce"]; ok {
-		m.Commerce = toCommerceInfo(v)
-	}
-	if v, ok := s.Fields["analytics"]; ok {
-		m.Analytics = toAnalyticsInfo(v)
-	}
-	if v, ok := s.Fields["compliance"]; ok {
-		m.Compliance = toComplianceInfo(v)
-	}
-	if v, ok := s.Fields["custom"]; ok {
-		m.Custom = v.GetStructValue().AsMap()
-	}
-	return m, nil
-}
-
 // Validate checks required fields and logical consistency for campaign metadata.
 func (m *Metadata) Validate() error {
 	if m.Type == "" {
@@ -379,211 +266,6 @@ func (m *Metadata) Validate() error {
 	}
 	if m.Scheduling != nil && !m.Scheduling.Start.IsZero() && !m.Scheduling.End.IsZero() && m.Scheduling.Start.After(m.Scheduling.End) {
 		return fmt.Errorf("scheduling start must be before end")
-	}
-	return nil
-}
-
-// Helper: convert a structpb.Value to []string.
-func toStringSlice(v *structpb.Value) []string {
-	if lv := v.GetListValue(); lv != nil {
-		out := make([]string, 0, len(lv.Values))
-		for _, item := range lv.Values {
-			if s := item.GetStringValue(); s != "" {
-				out = append(out, s)
-			}
-		}
-		return out
-	}
-	return nil
-}
-
-// Helper: convert structpb.Value to LocalizationInfo.
-func toLocalizationInfo(v *structpb.Value) *LocalizationInfo {
-	if s := v.GetStructValue(); s != nil {
-		m := s.AsMap()
-		li := &LocalizationInfo{}
-		if sl, ok := m["supported_locales"].([]interface{}); ok {
-			for _, item := range sl {
-				if s, ok := item.(string); ok {
-					li.SupportedLocales = append(li.SupportedLocales, s)
-				}
-			}
-		}
-		if dl, ok := m["default_locale"].(string); ok {
-			li.DefaultLocale = dl
-		}
-		if tr, ok := m["translations"].(map[string]interface{}); ok {
-			li.Translations = make(map[string]map[string]string)
-			for k, v := range tr {
-				if tm, ok := v.(map[string]interface{}); ok {
-					li.Translations[k] = make(map[string]string)
-					for key, text := range tm {
-						if s, ok := text.(string); ok {
-							li.Translations[k][key] = s
-						}
-					}
-				}
-			}
-		}
-		return li
-	}
-	return nil
-}
-
-// Helper: convert structpb.Value to ContentInfo.
-func toContentInfo(v *structpb.Value) *ContentInfo {
-	if s := v.GetStructValue(); s != nil {
-		m := s.AsMap()
-		ci := &ContentInfo{}
-		if lv, ok := m["types"].([]interface{}); ok {
-			for _, item := range lv {
-				if s, ok := item.(string); ok {
-					ci.Types = append(ci.Types, s)
-				}
-			}
-		}
-		if tm, ok := m["templates"].(map[string]interface{}); ok {
-			ci.Templates = tm
-		}
-		if mod, ok := m["moderation"].(string); ok {
-			ci.Moderation = mod
-		}
-		return ci
-	}
-	return nil
-}
-
-// Helper: convert structpb.Value to CommunityInfo.
-func toCommunityInfo(v *structpb.Value) *CommunityInfo {
-	if s := v.GetStructValue(); s != nil {
-		m := s.AsMap()
-		ci := &CommunityInfo{}
-		if lv, ok := m["sections"].([]interface{}); ok {
-			for _, item := range lv {
-				if s, ok := item.(string); ok {
-					ci.Sections = append(ci.Sections, s)
-				}
-			}
-		}
-		if lb, ok := m["leaderboard"].(map[string]interface{}); ok {
-			ci.Leaderboard = lb
-		}
-		if ch, ok := m["chat"].(map[string]interface{}); ok {
-			ci.Chat = ch
-		}
-		return ci
-	}
-	return nil
-}
-
-// Helper: convert structpb.Value to OnboardingInfo.
-func toOnboardingInfo(v *structpb.Value) *OnboardingInfo {
-	if s := v.GetStructValue(); s != nil {
-		m := s.AsMap()
-		oi := &OnboardingInfo{}
-		if it, ok := m["interest_types"].([]interface{}); ok {
-			for _, item := range it {
-				if s, ok := item.(string); ok {
-					oi.InterestTypes = append(oi.InterestTypes, s)
-				}
-			}
-		}
-		if q, ok := m["questionnaire"].(map[string]interface{}); ok {
-			// interest_type -> list of questions (id, text, type)
-			// Each question is map[string]map[string]interface{}
-			// So we need to build: map[string][]map[string]map[string]interface{}
-			result := make(map[string][]map[string]map[string]interface{})
-			for k, v := range q {
-				if arr, ok := v.([]interface{}); ok {
-					for _, qitem := range arr {
-						if qm, ok := qitem.(map[string]interface{}); ok {
-							// Convert map[string]interface{} to map[string]map[string]interface{} if possible
-							question := make(map[string]map[string]interface{})
-							for qk, qv := range qm {
-								if qvm, ok := qv.(map[string]interface{}); ok {
-									question[qk] = qvm
-								}
-							}
-							result[k] = append(result[k], question)
-						}
-					}
-				}
-			}
-			oi.Questionnaire = result
-		}
-		return oi
-	}
-	return nil
-}
-
-// Helper: convert structpb.Value to ReferralInfo.
-func toReferralInfo(v *structpb.Value) *ReferralInfo {
-	if s := v.GetStructValue(); s != nil {
-		m := s.AsMap()
-		ri := &ReferralInfo{}
-		if en, ok := m["enabled"].(bool); ok {
-			ri.Enabled = en
-		}
-		if r, ok := m["reward"].(map[string]interface{}); ok {
-			ri.Reward = r
-		}
-		return ri
-	}
-	return nil
-}
-
-// Helper: convert structpb.Value to CommerceInfo.
-func toCommerceInfo(v *structpb.Value) *CommerceInfo {
-	if s := v.GetStructValue(); s != nil {
-		m := s.AsMap()
-		ci := &CommerceInfo{}
-		if pm, ok := m["payment_methods"].([]interface{}); ok {
-			for _, item := range pm {
-				if s, ok := item.(string); ok {
-					ci.PaymentMethods = append(ci.PaymentMethods, s)
-				}
-			}
-		}
-		if b, ok := m["booking"].(map[string]interface{}); ok {
-			ci.Booking = b
-		}
-		return ci
-	}
-	return nil
-}
-
-// Helper: convert structpb.Value to AnalyticsInfo.
-func toAnalyticsInfo(v *structpb.Value) *AnalyticsInfo {
-	if s := v.GetStructValue(); s != nil {
-		m := s.AsMap()
-		ai := &AnalyticsInfo{}
-		if te, ok := m["track_events"].([]interface{}); ok {
-			for _, item := range te {
-				if s, ok := item.(string); ok {
-					ai.TrackEvents = append(ai.TrackEvents, s)
-				}
-			}
-		}
-		if g, ok := m["goals"].(map[string]interface{}); ok {
-			ai.Goals = g
-		}
-		return ai
-	}
-	return nil
-}
-
-// Helper: convert structpb.Value to ComplianceInfo.
-func toComplianceInfo(v *structpb.Value) *ComplianceInfo {
-	if s := v.GetStructValue(); s != nil {
-		m := s.AsMap()
-		ci := &ComplianceInfo{}
-		if acc, ok := m["accessibility"].(map[string]interface{}); ok {
-			ci.Accessibility = acc
-		}
-		if leg, ok := m["legal"].(map[string]interface{}); ok {
-			ci.Legal = leg
-		}
-		return ci
 	}
 	return nil
 }
@@ -652,4 +334,139 @@ func GetSubscriptionInfo(meta *commonpb.Metadata) (typ string, price float64, cu
 		}
 	}
 	return typ, price, currency, info
+}
+
+// [CANONICAL] All metadata must be normalized and calculated via metadata.NormalizeAndCalculate before persistence or emission.
+// Ensure required fields (versioning, audit, etc.) are present under the correct namespace.
+
+// CanonicalizeFromProto extracts, fills, and validates a canonical Metadata struct from *commonpb.Metadata.
+func CanonicalizeFromProto(meta *commonpb.Metadata, fallbackID string) (*Metadata, error) {
+	m := &Metadata{}
+	// Set defaults
+	m.ID = fallbackID
+	m.Type = CampaignTypeScheduled
+	m.Status = CampaignStatusInactive
+	m.Versioning = &VersioningInfo{
+		SystemVersion:  "1.0.0",
+		ServiceVersion: "1.0.0",
+		Environment:    "production",
+		LastMigratedAt: time.Now(),
+	}
+	m.Scheduling = &SchedulingInfo{}
+	m.Features = []string{}
+	m.Localization = &LocalizationInfo{}
+	m.Content = &ContentInfo{}
+	m.Community = &CommunityInfo{}
+	m.Onboarding = &OnboardingInfo{}
+	m.Referral = &ReferralInfo{}
+	m.Commerce = &CommerceInfo{}
+	m.Analytics = &AnalyticsInfo{}
+	m.Compliance = &ComplianceInfo{}
+	m.Custom = CustomInfo{}
+
+	if meta != nil && meta.ServiceSpecific != nil {
+		ss := meta.ServiceSpecific.AsMap()
+		if cmeta, ok := ss["campaign"].(map[string]interface{}); ok {
+			if id, ok := cmeta["id"].(string); ok && id != "" {
+				m.ID = id
+			}
+			if typ, ok := cmeta["type"].(string); ok && typ != "" {
+				m.Type = typ
+			}
+			if status, ok := cmeta["status"].(string); ok && status != "" {
+				m.Status = status
+			}
+			if v, ok := cmeta["versioning"].(map[string]interface{}); ok {
+				if m.Versioning == nil {
+					m.Versioning = &VersioningInfo{}
+				}
+				if sv, ok := v["system_version"].(string); ok {
+					m.Versioning.SystemVersion = sv
+				}
+				if sv, ok := v["service_version"].(string); ok {
+					m.Versioning.ServiceVersion = sv
+				}
+				if env, ok := v["environment"].(string); ok {
+					m.Versioning.Environment = env
+				}
+				if lm, ok := v["last_migrated_at"].(string); ok {
+					if t, err := time.Parse(time.RFC3339, lm); err == nil {
+						m.Versioning.LastMigratedAt = t
+					}
+				}
+			}
+			if sched, ok := cmeta["scheduling"].(map[string]interface{}); ok {
+				if m.Scheduling == nil {
+					m.Scheduling = &SchedulingInfo{}
+				}
+				if start, ok := sched["start"].(string); ok {
+					if t, err := time.Parse(time.RFC3339, start); err == nil {
+						m.Scheduling.Start = t
+					}
+				}
+				if end, ok := sched["end"].(string); ok {
+					if t, err := time.Parse(time.RFC3339, end); err == nil {
+						m.Scheduling.End = t
+					}
+				}
+				if rec, ok := sched["recurrence"].(string); ok {
+					m.Scheduling.Recurrence = rec
+				}
+				if jobs, ok := sched["jobs"].([]interface{}); ok {
+					for _, job := range jobs {
+						if jm, ok := job.(map[string]interface{}); ok {
+							m.Scheduling.Jobs = append(m.Scheduling.Jobs, jm)
+						}
+					}
+				}
+			}
+			if feats, ok := cmeta["features"].([]interface{}); ok {
+				m.Features = []string{}
+				for _, f := range feats {
+					if fs, ok := f.(string); ok {
+						m.Features = append(m.Features, fs)
+					}
+				}
+			}
+			// TODO: Add parsing for all other fields (localization, content, community, onboarding, referral, commerce, analytics, compliance, custom)
+		}
+	}
+	// Validate before returning
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// ToProto converts a canonical Metadata struct to *commonpb.Metadata under service_specific.campaign.
+func ToProto(m *Metadata) *commonpb.Metadata {
+	campaignMap := map[string]interface{}{
+		"id":     m.ID,
+		"type":   m.Type,
+		"status": m.Status,
+	}
+	if m.Versioning != nil {
+		campaignMap["versioning"] = map[string]interface{}{
+			"system_version":   m.Versioning.SystemVersion,
+			"service_version":  m.Versioning.ServiceVersion,
+			"environment":      m.Versioning.Environment,
+			"last_migrated_at": m.Versioning.LastMigratedAt.Format(time.RFC3339),
+		}
+	}
+	if m.Scheduling != nil {
+		campaignMap["scheduling"] = map[string]interface{}{
+			"start":      m.Scheduling.Start.Format(time.RFC3339),
+			"end":        m.Scheduling.End.Format(time.RFC3339),
+			"recurrence": m.Scheduling.Recurrence,
+			"jobs":       m.Scheduling.Jobs,
+		}
+	}
+	if len(m.Features) > 0 {
+		campaignMap["features"] = m.Features
+	}
+	// TODO: Add serialization for all other fields (localization, content, community, onboarding, referral, commerce, analytics, compliance, custom)
+	ss := map[string]interface{}{"campaign": campaignMap}
+	return &commonpb.Metadata{
+		ServiceSpecific: metadata.NewStructFromMap(ss, nil),
+	}
 }

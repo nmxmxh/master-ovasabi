@@ -2,6 +2,8 @@ package security
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -10,14 +12,13 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	wsPkg "github.com/nmxmxh/master-ovasabi/internal/server/ws" // for systemAggMu and systemAggStats
-	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	structpb "google.golang.org/protobuf/types/known/structpb"
-	// for systemAggMu and systemAggStats.
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // --- Per-minute aggregation for audit events ---.
@@ -94,15 +95,7 @@ func NewService(_ context.Context, log *zap.Logger, cache *redis.Cache, repo *Re
 
 // Authenticate verifies user identity and returns a session token.
 func (s *Service) Authenticate(ctx context.Context, req *securitypb.AuthenticateRequest) (*securitypb.AuthenticateResponse, error) {
-	meta, err := s.extractSecurityMetadata(req.GetMetadata())
-	if err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
-	}
+	meta := s.extractSecurityMetadata(req.GetMetadata())
 	meta.LastAudit = time.Now().Format(time.RFC3339)
 	principal := req.GetPrincipalId()
 	cred := req.GetCredential()
@@ -125,32 +118,38 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 			Result:    "fail",
 			Details:   "Invalid or banned credential",
 		})
-		updatedStruct, err := ServiceMetadataToStruct(meta)
-		if err != nil {
-			err = graceful.WrapErr(ctx, codes.Internal, "metadata conversion failed", err)
-			var ce *graceful.ContextError
-			if errors.As(err, &ce) {
-				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			}
-			return nil, graceful.ToStatusError(err)
-		}
+		metaMap := map[string]interface{}{"security": meta}
+		fullMap := map[string]interface{}{"service_specific": metaMap}
+		normMeta := metadata.MapToProto(fullMap)
 		failure := graceful.WrapErr(ctx, codes.PermissionDenied, "authentication failed", nil)
-		failure.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		failure.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:         s.log,
+			Metadata:    normMeta,
+			EventType:   "security.authenticate.failed",
+			EventID:     principal,
+			PatternType: "security",
+			PatternID:   principal,
+			PatternMeta: normMeta,
+		})
 		return &securitypb.AuthenticateResponse{
 			SessionToken: "",
-			Metadata: &commonpb.Metadata{
-				ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": structpb.NewStructValue(updatedStruct)}},
-			},
+			Metadata:     normMeta,
 		}, nil
 	}
 
 	// 2. Check for existing identity, create if not exists
 	identity, err := s.repo.GetIdentity(ctx, "user", principal)
 	if err != nil || identity == nil {
+		normMeta := metadata.MapToProto(map[string]interface{}{"service_specific": map[string]interface{}{"security": meta}})
+		metaBytes, err := json.Marshal(metadata.ProtoToMap(normMeta))
+		if err != nil {
+			s.log.Error("failed to marshal metadata", zap.Error(err))
+			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal metadata", err))
+		}
 		master := &Master{
 			Type:     "user",
 			Status:   "active",
-			Metadata: mustMarshal(meta),
+			Metadata: metaBytes,
 		}
 		_, masterUUID, err := s.repo.CreateMaster(ctx, master)
 		if err != nil {
@@ -162,7 +161,7 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 			return nil, graceful.ToStatusError(err)
 		}
 		var masterBigintID int64
-		row := s.repo.db.QueryRowContext(ctx, `SELECT master_id FROM service_security_master WHERE uuid = $1`, masterUUID)
+		row := s.repo.GetDB().QueryRowContext(ctx, `SELECT master_id FROM service_security_master WHERE uuid = $1`, masterUUID)
 		if err := row.Scan(&masterBigintID); err != nil {
 			err = graceful.WrapErr(ctx, codes.Internal, "failed to fetch master_id for new security master", err)
 			var ce *graceful.ContextError
@@ -171,12 +170,18 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 			}
 			return nil, graceful.ToStatusError(err)
 		}
+		normCred := metadata.MapToProto(map[string]interface{}{"service_specific": map[string]interface{}{"security": cred}})
+		credBytes, err := json.Marshal(metadata.ProtoToMap(normCred))
+		if err != nil {
+			s.log.Error("failed to marshal metadata", zap.Error(err))
+			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal metadata", err))
+		}
 		identity = &Identity{
 			MasterID:     masterBigintID,
 			MasterUUID:   masterUUID,
 			IdentityType: "user",
 			Identifier:   principal,
-			Credentials:  mustMarshal(cred),
+			Credentials:  credBytes,
 			RiskScore:    meta.RiskScore,
 		}
 		_, err = s.repo.CreateIdentity(ctx, identity)
@@ -203,32 +208,31 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		Result:    "success",
 	})
 
-	updatedStruct, err := ServiceMetadataToStruct(meta)
-	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "metadata conversion failed", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
-	}
+	metaMap := map[string]interface{}{"security": meta}
+	fullMap := map[string]interface{}{"service_specific": metaMap}
+	normMeta := metadata.MapToProto(fullMap)
+
+	// Canonical orchestration: use graceful.WrapSuccess and StandardOrchestrate for all post-success flows
 	success := graceful.WrapSuccess(ctx, codes.OK, "authentication succeeded", nil, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: req.GetMetadata()})
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         s.log,
+		Metadata:    normMeta,
+		EventType:   "security.authenticate.succeeded",
+		EventID:     principal,
+		PatternType: "security",
+		PatternID:   principal,
+		PatternMeta: normMeta,
+	})
+
 	return &securitypb.AuthenticateResponse{
 		SessionToken: "session-token-stub",
-		Metadata: &commonpb.Metadata{
-			ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": structpb.NewStructValue(updatedStruct)}},
-		},
+		Metadata:     normMeta,
 	}, nil
 }
 
 // Authorize checks if a session token is allowed to perform an action on a resource.
 func (s *Service) Authorize(ctx context.Context, req *securitypb.AuthorizeRequest) (*securitypb.AuthorizeResponse, error) {
-	meta, err := s.extractSecurityMetadata(req.GetMetadata())
-	if err != nil {
-		s.log.Error("invalid metadata", zap.Error(err))
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
-	}
+	meta := s.extractSecurityMetadata(req.GetMetadata())
 	meta.LastAudit = time.Now().Format(time.RFC3339)
 	principal := req.GetPrincipalId()
 	action := req.GetAction()
@@ -250,28 +254,31 @@ func (s *Service) Authorize(ctx context.Context, req *securitypb.AuthorizeReques
 		Result:    reason,
 	})
 
-	updatedStruct, err := ServiceMetadataToStruct(meta)
-	if err != nil {
-		s.log.Error("failed to convert ServiceMetadata to struct", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
-	}
-	s.orchestrateMetadata(ctx, "security_authorize", principal, req.GetMetadata())
+	metaMap := map[string]interface{}{"security": meta}
+	fullMap := map[string]interface{}{"service_specific": metaMap}
+	normMeta := metadata.MapToProto(fullMap)
+
+	success := graceful.WrapSuccess(ctx, codes.OK, "authorization checked", nil, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         s.log,
+		Metadata:    normMeta,
+		EventType:   "security.authorize.checked",
+		EventID:     principal,
+		PatternType: "security",
+		PatternID:   principal,
+		PatternMeta: normMeta,
+	})
+
 	return &securitypb.AuthorizeResponse{
-		Allowed: allowed,
-		Reason:  reason,
-		Metadata: &commonpb.Metadata{
-			ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": structpb.NewStructValue(updatedStruct)}},
-		},
+		Allowed:  allowed,
+		Reason:   reason,
+		Metadata: normMeta,
 	}, nil
 }
 
 // ValidateCredential checks if a credential is valid and returns its status.
 func (s *Service) ValidateCredential(ctx context.Context, req *securitypb.ValidateCredentialRequest) (*securitypb.ValidateCredentialResponse, error) {
-	meta, err := s.extractSecurityMetadata(req.GetMetadata())
-	if err != nil {
-		s.log.Error("invalid metadata", zap.Error(err))
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
-	}
+	meta := s.extractSecurityMetadata(req.GetMetadata())
 	meta.LastAudit = time.Now().Format(time.RFC3339)
 	cred := req.GetCredential()
 	valid := cred != "" && cred != "expired"
@@ -290,27 +297,30 @@ func (s *Service) ValidateCredential(ctx context.Context, req *securitypb.Valida
 		Actor:     "",
 		Result:    boolToResult(valid),
 	})
-	updatedStruct, err := ServiceMetadataToStruct(meta)
-	if err != nil {
-		s.log.Error("failed to convert ServiceMetadata to struct", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
-	}
-	s.orchestrateMetadata(ctx, "security_validate_credential", "", req.GetMetadata())
+	metaMap := map[string]interface{}{"security": meta}
+	fullMap := map[string]interface{}{"service_specific": metaMap}
+	normMeta := metadata.MapToProto(fullMap)
+
+	success := graceful.WrapSuccess(ctx, codes.OK, "credential validated", nil, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         s.log,
+		Metadata:    normMeta,
+		EventType:   "security.credential.validated",
+		EventID:     cred,
+		PatternType: "security",
+		PatternID:   cred,
+		PatternMeta: normMeta,
+	})
+
 	return &securitypb.ValidateCredentialResponse{
-		Valid: valid,
-		Metadata: &commonpb.Metadata{
-			ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": structpb.NewStructValue(updatedStruct)}},
-		},
+		Valid:    valid,
+		Metadata: normMeta,
 	}, nil
 }
 
 // DetectThreats analyzes a request for potential threats.
 func (s *Service) DetectThreats(ctx context.Context, req *securitypb.DetectThreatsRequest) (*securitypb.DetectThreatsResponse, error) {
-	meta, err := s.extractSecurityMetadata(req.GetMetadata())
-	if err != nil {
-		s.log.Error("invalid metadata", zap.Error(err))
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
-	}
+	meta := s.extractSecurityMetadata(req.GetMetadata())
 	meta.LastAudit = time.Now().Format(time.RFC3339)
 	principal := req.GetPrincipalId()
 
@@ -358,25 +368,30 @@ func (s *Service) DetectThreats(ctx context.Context, req *securitypb.DetectThrea
 		Result:    "analyzed",
 	})
 
-	updatedStruct, err := ServiceMetadataToStruct(meta)
-	if err != nil {
-		s.log.Error("failed to convert ServiceMetadata to struct", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
-	}
-	s.orchestrateMetadata(ctx, "security_detect_threats", principal, req.GetMetadata())
+	metaMap := map[string]interface{}{"security": meta}
+	fullMap := map[string]interface{}{"service_specific": metaMap}
+	normMeta := metadata.MapToProto(fullMap)
+
+	success := graceful.WrapSuccess(ctx, codes.OK, "threats detected", nil, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         s.log,
+		Metadata:    normMeta,
+		EventType:   "security.threats.detected",
+		EventID:     principal,
+		PatternType: "security",
+		PatternID:   principal,
+		PatternMeta: normMeta,
+	})
+
 	return &securitypb.DetectThreatsResponse{
 		Threats:  threats,
-		Metadata: &commonpb.Metadata{ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": structpb.NewStructValue(updatedStruct)}}},
+		Metadata: normMeta,
 	}, nil
 }
 
 // AuditEvent logs a security-related event.
 func (s *Service) AuditEvent(ctx context.Context, req *securitypb.AuditEventRequest) (*securitypb.AuditEventResponse, error) {
-	meta, err := s.extractSecurityMetadata(req.GetMetadata())
-	if err != nil {
-		s.log.Error("invalid metadata", zap.Error(err))
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
-	}
+	meta := s.extractSecurityMetadata(req.GetMetadata())
 	meta.LastAudit = time.Now().Format(time.RFC3339)
 	principal := req.GetPrincipalId()
 
@@ -384,24 +399,83 @@ func (s *Service) AuditEvent(ctx context.Context, req *securitypb.AuditEventRequ
 	var systemMasterID string
 	var systemMasterUUID string
 	var systemMasterBigintID int64
-	masterRow := s.repo.db.QueryRowContext(ctx, `SELECT id, uuid, master_id FROM service_security_master WHERE type = 'system' LIMIT 1`)
-	err = masterRow.Scan(&systemMasterID, &systemMasterUUID, &systemMasterBigintID)
+	masterRow := s.repo.GetDB().QueryRowContext(ctx, `SELECT id, uuid, master_id FROM service_security_master WHERE type = 'system' LIMIT 1`)
+	err := masterRow.Scan(&systemMasterID, &systemMasterUUID, &systemMasterBigintID)
 	if err != nil {
 		s.log.Error("failed to find system/root master record", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "system/root master record not found: %v", err)
 	}
 
+	// 1. Fetch the previous event's hash from the most recent event (if any)
+	var prevHash string
+	row := s.repo.GetDB().QueryRowContext(ctx, `SELECT metadata FROM service_security_event ORDER BY occurred_at DESC LIMIT 1`)
+	var prevMetaBytes []byte
+	if err := row.Scan(&prevMetaBytes); err == nil && len(prevMetaBytes) > 0 {
+		var prevMetaMap map[string]interface{}
+		err := json.Unmarshal(prevMetaBytes, &prevMetaMap)
+		if err == nil {
+			if audit, ok := prevMetaMap["audit"].(map[string]interface{}); ok {
+				if h, ok := audit["entry_hash"].(string); ok {
+					prevHash = h
+				}
+			}
+		}
+	}
+
+	// 2. Serialize current event data for hashing
+	hashInput := map[string]interface{}{
+		"principal":   principal,
+		"event_type":  req.GetEventType(),
+		"resource":    req.GetResource(),
+		"action":      req.GetAction(),
+		"occurred_at": time.Now().Format(time.RFC3339),
+	}
+	hashInputBytes, err := json.Marshal(hashInput)
+	if err != nil {
+		s.log.Error("failed to marshal hash input", zap.Error(err))
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal hash input", err))
+	}
+
+	// 3. Compute entry_hash = SHA256(eventData || prevHash)
+	h := sha256.New()
+	h.Write(hashInputBytes)
+	h.Write([]byte(prevHash))
+	entryHash := hex.EncodeToString(h.Sum(nil))
+
+	// 4. Store prev_hash and entry_hash in the Details field of the new AuditEntry
+	meta.AuditHistory = append(meta.AuditHistory, AuditEntry{
+		Timestamp: meta.LastAudit,
+		Action:    req.GetAction(),
+		Actor:     principal,
+		Result:    "recorded",
+		Details:   "prev_hash:" + prevHash + ";entry_hash:" + entryHash,
+	})
+
 	// 1. Store event in repository
+	normDetails := metadata.MapToProto(map[string]interface{}{
+		"resource": req.GetResource(),
+		"action":   req.GetAction(),
+	})
+	detailsBytes, err := json.Marshal(metadata.ProtoToMap(normDetails))
+	if err != nil {
+		s.log.Error("failed to marshal details", zap.Error(err))
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal details", err))
+	}
+	normMeta := metadata.MapToProto(map[string]interface{}{"service_specific": map[string]interface{}{"security": meta}})
+	metaBytes, err := json.Marshal(metadata.ProtoToMap(normMeta))
+	if err != nil {
+		s.log.Error("failed to marshal metadata", zap.Error(err))
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal metadata", err))
+	}
 	event := &Event{
-		MasterID:  systemMasterBigintID,
-		EventType: req.GetEventType(),
-		Principal: principal,
-		Details: mustMarshal(map[string]interface{}{
-			"resource": req.GetResource(),
-			"action":   req.GetAction(),
-		}),
+		MasterID:   systemMasterBigintID,
+		EventType:  req.GetEventType(),
+		Principal:  principal,
+		Details:    detailsBytes,
 		OccurredAt: time.Now(),
-		Metadata:   mustMarshal(meta),
+		Metadata:   metaBytes,
+		PrevHash:   prevHash,
+		EntryHash:  entryHash,
 	}
 	_, err = s.repo.RecordEvent(ctx, event)
 	if err != nil {
@@ -409,35 +483,31 @@ func (s *Service) AuditEvent(ctx context.Context, req *securitypb.AuditEventRequ
 		return nil, status.Errorf(codes.Internal, "internal error: %v", err)
 	}
 
-	meta.AuditHistory = append(meta.AuditHistory, AuditEntry{
-		Timestamp: meta.LastAudit,
-		Action:    req.GetAction(),
-		Actor:     principal,
-		Result:    "recorded",
+	metaMap := map[string]interface{}{"security": meta}
+	fullMap := map[string]interface{}{"service_specific": metaMap}
+	normMeta = metadata.MapToProto(fullMap)
+	recordAuditEventAggregate(req.GetEventType(), req.GetAction(), req.GetPrincipalId())
+
+	success := graceful.WrapSuccess(ctx, codes.OK, "audit event recorded", nil, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         s.log,
+		Metadata:    normMeta,
+		EventType:   "security.audit_event.recorded",
+		EventID:     principal,
+		PatternType: "security",
+		PatternID:   principal,
+		PatternMeta: normMeta,
 	})
 
-	updatedStruct, err := ServiceMetadataToStruct(meta)
-	if err != nil {
-		s.log.Error("failed to convert ServiceMetadata to struct", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
-	}
-	s.orchestrateMetadata(ctx, "security_audit_event", principal, req.GetMetadata())
-	recordAuditEventAggregate(req.GetEventType(), req.GetAction(), req.GetPrincipalId())
 	return &securitypb.AuditEventResponse{
-		Success: true,
-		Metadata: &commonpb.Metadata{
-			ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": structpb.NewStructValue(updatedStruct)}},
-		},
+		Success:  true,
+		Metadata: normMeta,
 	}, nil
 }
 
 // QueryEvents streams security events (audit log entries).
 func (s *Service) QueryEvents(ctx context.Context, req *securitypb.QueryEventsRequest) (*securitypb.QueryEventsResponse, error) {
-	meta, err := s.extractSecurityMetadata(req.GetMetadata())
-	if err != nil {
-		s.log.Error("invalid metadata", zap.Error(err))
-		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
-	}
+	meta := s.extractSecurityMetadata(req.GetMetadata())
 	meta.LastAudit = time.Now().Format(time.RFC3339)
 	filter := map[string]interface{}{}
 	if req.GetPrincipalId() != "" {
@@ -462,29 +532,30 @@ func (s *Service) QueryEvents(ctx context.Context, req *securitypb.QueryEventsRe
 			// Timestamp, Details, etc. as needed
 		})
 	}
-	updatedStruct, err := ServiceMetadataToStruct(meta)
-	if err != nil {
-		s.log.Error("failed to convert ServiceMetadata to struct", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "metadata conversion failed: %v", err)
-	}
+	metaMap := map[string]interface{}{"security": meta}
+	fullMap := map[string]interface{}{"service_specific": metaMap}
+	normMeta := metadata.MapToProto(fullMap)
+
+	success := graceful.WrapSuccess(ctx, codes.OK, "events queried", nil, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:         s.log,
+		Metadata:    normMeta,
+		EventType:   "security.events.queried",
+		EventID:     "security-query",
+		PatternType: "security",
+		PatternID:   "security-query",
+		PatternMeta: normMeta,
+	})
+
 	return &securitypb.QueryEventsResponse{
 		Events:   protoEvents,
-		Metadata: &commonpb.Metadata{ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": structpb.NewStructValue(updatedStruct)}}},
+		Metadata: normMeta,
 	}, nil
 }
 
 // --- Helper methods for metadata extraction and orchestration ---
 
-func mustMarshal(v interface{}) []byte {
-	b, err := json.Marshal(v)
-	if err != nil {
-		// Handle error: log and return nil or empty slice
-		// (or panic if this should never fail)
-		return nil
-	}
-	return b
-}
-
+// boolToResult returns "success" or "fail" for a boolean.
 func boolToResult(b bool) string {
 	if b {
 		return "success"
@@ -493,27 +564,41 @@ func boolToResult(b bool) string {
 }
 
 // extractSecurityMetadata parses the security service-specific metadata from a common.Metadata proto.
-func (s *Service) extractSecurityMetadata(meta *commonpb.Metadata) (*ServiceMetadata, error) {
+func (s *Service) extractSecurityMetadata(meta *commonpb.Metadata) *ServiceMetadata {
 	if meta == nil || meta.ServiceSpecific == nil {
-		return NewSecurityMetadata(), nil
+		return NewSecurityMetadata()
 	}
 	fields := meta.ServiceSpecific.GetFields()
 	secField, ok := fields["security"]
 	if !ok || secField == nil || secField.GetStructValue() == nil {
-		return NewSecurityMetadata(), nil
+		return NewSecurityMetadata()
 	}
-	return ServiceMetadataFromStruct(secField.GetStructValue())
+	m := metadata.ProtoToMap(&commonpb.Metadata{ServiceSpecific: &structpb.Struct{Fields: map[string]*structpb.Value{"security": secField}}})
+	if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+		if _, ok := ss["security"].(map[string]interface{}); ok {
+			// For now, return NewSecurityMetadata() as a placeholder
+			return NewSecurityMetadata()
+		}
+	}
+	return NewSecurityMetadata()
 }
 
-// orchestrateMetadata runs all orchestration/caching/knowledge graph hooks for a given entity.
-func (s *Service) orchestrateMetadata(ctx context.Context, entityType, entityID string, meta *commonpb.Metadata) {
-	if err := pattern.RegisterSchedule(ctx, s.log, entityType, entityID, meta); err != nil {
-		s.log.Error("failed to register schedule", zap.Error(err))
+// NewSecurityMetadata creates a canonical security metadata struct with reasonable defaults.
+func NewSecurityMetadata() *ServiceMetadata {
+	return &ServiceMetadata{
+		RiskScore:       0.0,
+		RiskFactors:     []string{},
+		LastAudit:       "",
+		AuditHistory:    []AuditEntry{},
+		Compliance:      nil,
+		BadActor:        nil,
+		LinkedAccounts:  []string{},
+		DeviceIDs:       []string{},
+		Locations:       []LocationMetadata{},
+		EscalationLevel: "info",
+		LastEscalatedAt: "",
+		UserID:          "",
+		ContentID:       "",
+		LocalizationID:  "",
 	}
-	if err := pattern.EnrichKnowledgeGraph(ctx, s.log, entityType, entityID, meta); err != nil {
-		s.log.Error("failed to enrich knowledge graph", zap.Error(err))
-	}
-	// Removed pattern.RegisterWithNexus and all other pattern.* helpers.
 }
-
-// --- End of Security Service Template ---

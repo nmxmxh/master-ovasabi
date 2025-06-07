@@ -8,6 +8,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
@@ -18,6 +19,7 @@ import (
 // EventEmitter defines the interface for emitting events (canonical platform interface).
 type EventEmitter interface {
 	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
+	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool)
 }
 
 type Service struct {
@@ -61,16 +63,35 @@ func (s *Service) CreateTalentProfile(ctx context.Context, req *talentpb.CreateT
 		return nil, graceful.ToStatusError(err)
 	}
 	req.Profile.UserId = authUserID
-	meta, err := ExtractAndEnrichTalentMetadata(req.Profile.Metadata, authUserID, true)
-	if err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+	metaStruct := &Metadata{
+		Skills:         req.Profile.Skills,
+		Languages:      nil,
+		Diversity:      nil,
+		Certifications: nil,
+		Industry:       "",
+		Accessibility:  nil,
+		Compliance:     nil,
+		Audit:          nil,
+		Versioning:     nil,
+		Custom:         nil,
+		Gamified:       nil,
 	}
-	req.Profile.Metadata = meta
+	metaMap := map[string]interface{}{
+		"skills":         metaStruct.Skills,
+		"languages":      metaStruct.Languages,
+		"diversity":      metaStruct.Diversity,
+		"certifications": metaStruct.Certifications,
+		"industry":       metaStruct.Industry,
+		"accessibility":  metaStruct.Accessibility,
+		"compliance":     metaStruct.Compliance,
+		"audit":          metaStruct.Audit,
+		"versioning":     metaStruct.Versioning,
+		"custom":         metaStruct.Custom,
+		"gamified":       metaStruct.Gamified,
+	}
+	fullMap := map[string]interface{}{"service_specific": map[string]interface{}{"talent": metaMap}}
+	normMeta := metadata.MapToProto(fullMap)
+	req.Profile.Metadata = normMeta
 	created, err := s.repo.CreateTalentProfile(ctx, req.Profile, req.CampaignId)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to create talent profile", err)
@@ -122,16 +143,35 @@ func (s *Service) UpdateTalentProfile(ctx context.Context, req *talentpb.UpdateT
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichTalentMetadata(req.Profile.Metadata, authUserID, false)
-	if err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+	metaStruct := &Metadata{
+		Skills:         req.Profile.Skills,
+		Languages:      nil,
+		Diversity:      nil,
+		Certifications: nil,
+		Industry:       "",
+		Accessibility:  nil,
+		Compliance:     nil,
+		Audit:          nil,
+		Versioning:     nil,
+		Custom:         nil,
+		Gamified:       nil,
 	}
-	req.Profile.Metadata = meta
+	metaMap := map[string]interface{}{
+		"skills":         metaStruct.Skills,
+		"languages":      metaStruct.Languages,
+		"diversity":      metaStruct.Diversity,
+		"certifications": metaStruct.Certifications,
+		"industry":       metaStruct.Industry,
+		"accessibility":  metaStruct.Accessibility,
+		"compliance":     metaStruct.Compliance,
+		"audit":          metaStruct.Audit,
+		"versioning":     metaStruct.Versioning,
+		"custom":         metaStruct.Custom,
+		"gamified":       metaStruct.Gamified,
+	}
+	fullMap := map[string]interface{}{"service_specific": map[string]interface{}{"talent": metaMap}}
+	normMeta := metadata.MapToProto(fullMap)
+	req.Profile.Metadata = normMeta
 	updated, err := s.repo.UpdateTalentProfile(ctx, req.Profile, req.CampaignId)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to update talent profile", err)

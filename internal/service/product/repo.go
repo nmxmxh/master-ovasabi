@@ -11,8 +11,6 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type RepositoryItf interface {
@@ -61,7 +59,7 @@ type Model struct {
 	Type        int32
 	Status      int32
 	Tags        string
-	Metadata    []byte
+	Metadata    *commonpb.Metadata
 	CampaignID  int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -96,14 +94,6 @@ func (r *Repository) GetDB() *sql.DB {
 }
 
 func (r *Repository) CreateProduct(ctx context.Context, p *productpb.Product) (*productpb.Product, error) {
-	err := metadatautil.ValidateMetadata(p.Metadata)
-	if err != nil {
-		return nil, err
-	}
-	meta, err := metadatautil.MarshalCanonical(p.Metadata)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
-	}
 	tags := strings.Join(p.Tags, ",")
 	var id string
 	model := Model{
@@ -114,10 +104,10 @@ func (r *Repository) CreateProduct(ctx context.Context, p *productpb.Product) (*
 		Type:        int32(p.Type),
 		Status:      int32(p.Status),
 		Tags:        tags,
-		Metadata:    meta,
+		Metadata:    p.Metadata,
 		CampaignID:  p.CampaignId,
 	}
-	err = r.GetDB().QueryRowContext(ctx, `
+	err := r.GetDB().QueryRowContext(ctx, `
 		INSERT INTO service_product_main (master_id, master_uuid, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW())
 		RETURNING id
@@ -134,18 +124,10 @@ func (r *Repository) GetProduct(ctx context.Context, id string) (*productpb.Prod
 }
 
 func (r *Repository) UpdateProduct(ctx context.Context, p *productpb.Product) (*productpb.Product, error) {
-	err := metadatautil.ValidateMetadata(p.Metadata)
-	if err != nil {
-		return nil, err
-	}
-	meta, err := metadatautil.MarshalCanonical(p.Metadata)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
-	}
 	tags := strings.Join(p.Tags, ",")
-	_, err = r.GetDB().ExecContext(ctx, `
+	_, err := r.GetDB().ExecContext(ctx, `
 		UPDATE service_product_main SET name=$1, description=$2, type=$3, status=$4, tags=$5, metadata=$6, campaign_id=$7, updated_at=NOW() WHERE id=$8
-	`, p.Name, p.Description, p.Type, p.Status, tags, meta, p.CampaignId, p.Id)
+	`, p.Name, p.Description, p.Type, p.Status, tags, p.Metadata, p.CampaignId, p.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -299,10 +281,6 @@ func scanProduct(row interface {
 	if err := row.Scan(&model.ID, &model.MasterID, &model.MasterUUID, &model.Name, &model.Description, &model.Type, &model.Status, &model.Tags, &model.Metadata, &model.CampaignID, &model.CreatedAt, &model.UpdatedAt); err != nil {
 		return nil, err
 	}
-	metadata := &commonpb.Metadata{}
-	if err := protojson.Unmarshal(model.Metadata, metadata); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-	}
 	var tagList []string
 	if model.Tags != "" {
 		tagList = strings.Split(model.Tags, ",")
@@ -316,7 +294,7 @@ func scanProduct(row interface {
 		Type:        productpb.ProductType(model.Type),
 		Status:      productpb.ProductStatus(model.Status),
 		Tags:        tagList,
-		Metadata:    metadata,
+		Metadata:    model.Metadata,
 		CampaignId:  model.CampaignID,
 		CreatedAt:   model.CreatedAt.Unix(),
 		UpdatedAt:   model.UpdatedAt.Unix(),

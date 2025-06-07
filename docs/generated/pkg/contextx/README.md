@@ -26,7 +26,7 @@ DI helpers.
 
 ### WithFeatureFlags
 
-Feature flags helpers
+Feature flags helpers.
 
 ### WithLogger
 
@@ -42,4 +42,4 @@ Request ID helpers.
 
 ### WithTraceID
 
-Trace ID helpers
+Trace ID helpers.

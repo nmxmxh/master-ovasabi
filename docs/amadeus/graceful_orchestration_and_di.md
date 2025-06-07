@@ -1,4 +1,4 @@
-# Graceful Orchestration & DI Container Pattern (Master by Ovasabi)
+# Graceful Orchestration & DI Container Pattern (Inos)
 
 Version: 2025-06-01
 
@@ -14,7 +14,7 @@ This document defines the canonical, platform-wide standards for:
 - Handler-layer orchestration and error handling
 - Best practices, onboarding, and compliance checklist
 
-These patterns are required for all new and refactored services in Master by Ovasabi. They ensure modularity, testability, extensibility, and robust, DRY orchestration across the platform.
+These patterns are required for all new and refactored services in Inos. They ensure modularity, testability, extensibility, and robust, DRY orchestration across the platform.
 
 ---
 

@@ -2,6 +2,8 @@
 
 ## Types
 
+### ErrorResponse
+
 ### MediaState
 
 ### NexusOpsHandler

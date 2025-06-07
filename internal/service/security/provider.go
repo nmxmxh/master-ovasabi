@@ -32,24 +32,56 @@ import (
 
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
 // Register registers the security service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, db *sql.DB, masterRepo repositorypkg.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
-	repository := NewRepository(db, masterRepo)
+// Parameters used: ctx, container, db, masterRepo, redisProvider, log, eventEnabled. eventEmitter and provider are unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	_ events.EventEmitter,
+	db *sql.DB,
+	masterRepo repositorypkg.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{},
+) error {
+	repository := NewRepository(db, masterRepo, log)
 	cache, err := redisProvider.GetCache(ctx, "security")
 	if err != nil {
-		log.Warn("failed to get security cache", zap.Error(err))
+		log.With(zap.String("service", "security")).Warn("Failed to get security cache", zap.Error(err), zap.String("cache", "security"), zap.String("context", ctxValue(ctx)))
 	}
-	service := NewService(ctx, log, cache, repository, eventEnabled)
+	serviceInstance := NewService(ctx, log, cache, repository, eventEnabled)
 	if err := container.Register((*securitypb.SecurityServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return service, nil
+		return serviceInstance, nil
 	}); err != nil {
-		log.Error("Failed to register security service", zap.Error(err))
+		log.With(zap.String("service", "security")).Error("Failed to register security service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
+	// Inos: Register the hello-world event loop for service health and orchestration
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "security")
+	}
 	return nil
+}
+
+// ctxValue extracts a string for logging from context (e.g., request ID or trace ID).
+func ctxValue(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v := ctx.Value("request_id"); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }

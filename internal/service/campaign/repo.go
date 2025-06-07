@@ -4,14 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -23,16 +21,6 @@ var (
 	ErrCampaignExists   = errors.New("campaign already exists")
 )
 
-var logInstance logger.Logger
-
-func init() {
-	var err error
-	logInstance, err = logger.NewDefault()
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize logger: %v", err))
-	}
-}
-
 // Repository handles database operations for campaigns.
 type Repository struct {
 	*repository.BaseRepository
@@ -40,9 +28,9 @@ type Repository struct {
 }
 
 // NewRepository creates a new campaign repository instance.
-func NewRepository(db *sql.DB, master repository.MasterRepository) *Repository {
+func NewRepository(db *sql.DB, log *zap.Logger, master repository.MasterRepository) *Repository {
 	return &Repository{
-		BaseRepository: repository.NewBaseRepository(db),
+		BaseRepository: repository.NewBaseRepository(db, log),
 		master:         master,
 	}
 }
@@ -52,7 +40,11 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 	var metadataJSON []byte
 	var err error
 	if campaign.Metadata != nil {
-		metadataJSON, err = metadata.MarshalCanonical(campaign.Metadata)
+		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
+		if err != nil {
+			return nil, err
+		}
+		metadataJSON, err = protojson.Marshal(ToProto(canonicalMeta))
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +117,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		&campaign.OwnerID,
 	)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCampaignNotFound
 	}
 
@@ -143,10 +135,17 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 	if metadataStr != "" {
 		err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 		if err != nil {
-			logInstance.Warn("failed to unmarshal campaign metadata", zap.Error(err))
+			r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err))
 			return nil, err
 		}
 	}
+	// Canonicalize and validate metadata
+	canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
+	if err != nil {
+		r.GetLogger().Warn("campaign metadata is invalid", zap.Error(err))
+		return nil, err
+	}
+	campaign.Metadata = ToProto(canonicalMeta)
 
 	return campaign, nil
 }
@@ -156,7 +155,11 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 	var metadataJSON []byte
 	var err error
 	if campaign.Metadata != nil {
-		metadataJSON, err = metadata.MarshalCanonical(campaign.Metadata)
+		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
+		if err != nil {
+			return err
+		}
+		metadataJSON, err = protojson.Marshal(ToProto(canonicalMeta))
 		if err != nil {
 			return err
 		}
@@ -239,7 +242,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			fmt.Printf("error closing rows: %v\n", err)
+			r.GetLogger().Warn("error closing rows", zap.Error(err))
 		}
 	}()
 
@@ -275,10 +278,17 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal campaign metadata", zap.Error(err))
+				r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err))
 				return nil, err
 			}
 		}
+		// Canonicalize and validate metadata
+		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
+		if err != nil {
+			r.GetLogger().Warn("campaign metadata is invalid", zap.Error(err))
+			return nil, err
+		}
+		campaign.Metadata = ToProto(canonicalMeta)
 		campaigns = append(campaigns, campaign)
 	}
 
@@ -303,7 +313,7 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			fmt.Printf("error closing rows: %v\n", err)
+			r.GetLogger().Warn("error closing rows", zap.Error(err))
 		}
 	}()
 
@@ -338,10 +348,17 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal campaign metadata", zap.Error(err))
+				r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err))
 				return nil, err
 			}
 		}
+		// Canonicalize and validate metadata
+		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
+		if err != nil {
+			r.GetLogger().Warn("campaign metadata is invalid", zap.Error(err))
+			return nil, err
+		}
+		campaign.Metadata = ToProto(canonicalMeta)
 		campaigns = append(campaigns, campaign)
 	}
 
@@ -485,7 +502,7 @@ func (r *Repository) GetLeaderboard(ctx context.Context, campaignSlug, rankingFo
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			fmt.Printf("error closing rows: %v\n", err)
+			r.GetLogger().Warn("error closing rows", zap.Error(err))
 		}
 	}()
 

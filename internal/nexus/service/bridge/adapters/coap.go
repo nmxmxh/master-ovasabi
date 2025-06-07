@@ -12,6 +12,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/message"
 	udp "github.com/plgd-dev/go-coap/v3/udp"
 	client "github.com/plgd-dev/go-coap/v3/udp/client"
+	"go.uber.org/zap"
 )
 
 // CoAPAdapter implements a production-grade CoAP protocol adapter for the Nexus bridge.
@@ -51,7 +52,7 @@ func (a *CoAPAdapter) Connect(_ context.Context, _ bridge.AdapterConfig) error {
 		return fmt.Errorf("CoAP connect error: %w", err)
 	}
 	a.client = conn
-	fmt.Printf("[CoAPAdapter] Connected to %s\n", a.config.Addr)
+	zap.L().Info("CoAPAdapter connected", zap.String("addr", a.config.Addr))
 	return nil
 }
 
@@ -66,7 +67,7 @@ func (a *CoAPAdapter) Send(ctx context.Context, msg *bridge.Message) error {
 	}
 	_, err := a.client.Post(ctx, path, message.TextPlain, bytes.NewReader(msg.Payload))
 	if err != nil {
-		fmt.Printf("[CoAPAdapter] Send error: %v\n", err)
+		zap.L().Error("CoAPAdapter send error", zap.Error(err))
 	}
 	return err
 }
@@ -84,7 +85,7 @@ func (a *CoAPAdapter) Receive(ctx context.Context, handler bridge.MessageHandler
 		<-ctx.Done()
 		// In production, implement resource observation or server push handling here.
 		// Example: log disconnect
-		fmt.Printf("[CoAPAdapter] Receive goroutine stopped\n")
+		zap.L().Info("CoAPAdapter receive goroutine stopped")
 	}()
 	return nil
 }
@@ -108,10 +109,10 @@ func (a *CoAPAdapter) Close() error {
 	if a.client != nil {
 		err := a.client.Close()
 		if err != nil {
-			fmt.Printf("[CoAPAdapter] Close error: %v\n", err)
+			zap.L().Error("CoAPAdapter close error", zap.Error(err))
 		}
 		a.client = nil
-		fmt.Printf("[CoAPAdapter] Connection closed.\n")
+		zap.L().Info("CoAPAdapter connection closed")
 	}
 	return nil
 }

@@ -192,7 +192,8 @@ EmitEvent handles event emission to the Nexus event bus with structured logging 
 
 ##### SubscribeEvents
 
-SubscribeEvents handles event subscriptions with structured logging.
+SubscribeEvents handles event subscriptions with structured logging and frame dropping for slow
+clients.
 
 ##### TracePattern
 

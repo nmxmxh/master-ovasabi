@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -13,8 +14,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// Result matches the proto definition.
-type Result struct {
+// IndexResult represents a search result from the search index table.
+type IndexResult struct {
 	ID         string             // id
 	MasterID   int64              // master_id
 	MasterUUID string             // master_uuid
@@ -37,13 +38,25 @@ type Index struct {
 	UpdatedAt  time.Time          `db:"updated_at"`
 }
 
+// Repository handles search operations against the database.
 type Repository struct {
 	db         *sql.DB
 	masterRepo repo.MasterRepository
+	mu         sync.RWMutex // Protects concurrent access to db
 }
 
+// NewRepository creates a new Repository instance.
 func NewRepository(db *sql.DB, masterRepo repo.MasterRepository) *Repository {
-	return &Repository{db: db, masterRepo: masterRepo}
+	if db == nil {
+		panic("db cannot be nil")
+	}
+	if masterRepo == nil {
+		panic("masterRepo cannot be nil")
+	}
+	return &Repository{
+		db:         db,
+		masterRepo: masterRepo,
+	}
 }
 
 // SearchEntities performs advanced full-text and fuzzy search on the master table.
@@ -56,7 +69,16 @@ func (r *Repository) SearchEntities(
 	page, pageSize int,
 	fuzzy bool,
 	language string,
-) ([]*Result, int, error) {
+) ([]*IndexResult, int, error) {
+	// Validate input parameters
+	if page < 0 {
+		page = 0
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+
+	// Build query conditions
 	args := []interface{}{}
 	where := []string{"is_active = TRUE"}
 	argIdx := 1
@@ -66,6 +88,7 @@ func (r *Repository) SearchEntities(
 		args = append(args, entityType)
 		argIdx++
 	}
+
 	if query != "" {
 		if fuzzy {
 			// Use ILIKE for fuzzy search on title/snippet
@@ -83,16 +106,19 @@ func (r *Repository) SearchEntities(
 			argIdx++
 		}
 	}
+
 	if masterID != "" {
 		where = append(where, fmt.Sprintf("master_id = $%d", argIdx))
 		args = append(args, masterID)
 		argIdx++
 	}
+
 	if masterUUID != "" {
 		where = append(where, fmt.Sprintf("master_uuid = $%d", argIdx))
 		args = append(args, masterUUID)
 		argIdx++
 	}
+
 	if metadata != nil && metadata.ServiceSpecific != nil {
 		for k, v := range metadata.ServiceSpecific.Fields {
 			where = append(where, fmt.Sprintf("metadata->'service_specific'->>'%s' = $%d", k, argIdx))
@@ -100,10 +126,20 @@ func (r *Repository) SearchEntities(
 			argIdx++
 		}
 	}
-	// Filter by fields (if specified, restrict columns returned)
+
+	// Build select columns
 	selectCols := "id, master_id, master_uuid, entity_type, title, snippet, metadata, score"
 	if len(fields) > 0 {
-		allowed := map[string]bool{"id": true, "master_id": true, "master_uuid": true, "entity_type": true, "title": true, "snippet": true, "metadata": true, "score": true}
+		allowed := map[string]bool{
+			"id":          true,
+			"master_id":   true,
+			"master_uuid": true,
+			"entity_type": true,
+			"title":       true,
+			"snippet":     true,
+			"metadata":    true,
+			"score":       true,
+		}
 		cols := []string{}
 		for _, f := range fields {
 			if allowed[f] {
@@ -114,113 +150,147 @@ func (r *Repository) SearchEntities(
 			selectCols = strings.Join(cols, ", ")
 		}
 	}
-	if page < 0 {
-		page = 0
-	}
-	if pageSize <= 0 {
-		pageSize = 20
-	}
+
+	// Add pagination parameters
 	offset := page * pageSize
 	args = append(args, pageSize, offset)
-	//nolint:gosec // selectCols is a controlled variable, not user input, so this is safe
-	baseQuery := fmt.Sprintf("SELECT %s FROM service_search_index", selectCols)
+
+	// Build and execute query
+	// G202: SQL string concatenation (gosec)
+	// Safe here because selectCols and where are strictly whitelisted from allowed fields only.
+	baseQuery := "SELECT " + selectCols + " FROM service_search_index" // #nosec G202
 	if len(where) > 0 {
 		baseQuery += " WHERE " + strings.Join(where, " AND ")
 	}
 	baseQuery += fmt.Sprintf(" ORDER BY score DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+
+	r.mu.RLock()
 	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
+	r.mu.RUnlock()
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to execute search query: %w", err)
 	}
 	defer rows.Close()
-	results := make([]*Result, 0, pageSize)
+
+	// Process results
+	results := make([]*IndexResult, 0, pageSize)
 	for rows.Next() {
-		// Always declare all possible fields
-		var (
-			id, masterID, masterUUID, entityType, title, snippet string
-			metaRaw                                              []byte
-			score                                                float64
-		)
-		meta := &commonpb.Metadata{}
-		// Ensure all variables are initialized, even if not selected
-		scanTargets := []interface{}{}
-		colNames := strings.Split(selectCols, ",")
-		for _, col := range colNames {
-			col = strings.TrimSpace(col)
-			switch col {
-			case "id":
-				scanTargets = append(scanTargets, &id)
-			case "master_id":
-				scanTargets = append(scanTargets, &masterID)
-			case "master_uuid":
-				scanTargets = append(scanTargets, &masterUUID)
-			case "entity_type":
-				scanTargets = append(scanTargets, &entityType)
-			case "title":
-				scanTargets = append(scanTargets, &title)
-			case "snippet":
-				scanTargets = append(scanTargets, &snippet)
-			case "metadata":
-				scanTargets = append(scanTargets, &metaRaw)
-			case "score":
-				scanTargets = append(scanTargets, &score)
-			}
+		result, err := r.scanRow(rows, selectCols)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan row: %w", err)
 		}
-		if err := rows.Scan(scanTargets...); err != nil {
-			return nil, 0, err
-		}
-		if len(metaRaw) > 0 {
-			if err := protojson.Unmarshal(metaRaw, meta); err != nil {
-				return nil, 0, fmt.Errorf("failed to unmarshal metadata: %w", err)
-			}
-		}
-		var masterIDInt int64
-		if masterID != "" {
-			var err error
-			masterIDInt, err = strconv.ParseInt(masterID, 10, 64)
-			if err != nil {
-				return nil, 0, fmt.Errorf("invalid master_id: %w", err)
-			}
-		}
-		results = append(results, &Result{
-			ID:         id,
-			MasterID:   masterIDInt,
-			MasterUUID: masterUUID,
-			EntityType: entityType,
-			Title:      title,
-			Snippet:    snippet,
-			Metadata:   meta,
-			Score:      score,
-		})
+		results = append(results, result)
 	}
+
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("error iterating rows: %w", err)
 	}
-	var total int
+
+	// Get total count
+	total, err := r.getTotalCount(ctx, where, args[:len(args)-2])
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get total count: %w", err)
+	}
+
+	return results, total, nil
+}
+
+// scanRow scans a single row into an IndexResult struct.
+func (r *Repository) scanRow(rows *sql.Rows, selectCols string) (*IndexResult, error) {
+	var (
+		id, masterID, masterUUID, entityType, title, snippet string
+		metaRaw                                              []byte
+		score                                                float64
+	)
+	meta := &commonpb.Metadata{}
+
+	// Build scan targets based on selected columns
+	scanTargets := []interface{}{}
+	colNames := strings.Split(selectCols, ",")
+	for _, col := range colNames {
+		col = strings.TrimSpace(col)
+		switch col {
+		case "id":
+			scanTargets = append(scanTargets, &id)
+		case "master_id":
+			scanTargets = append(scanTargets, &masterID)
+		case "master_uuid":
+			scanTargets = append(scanTargets, &masterUUID)
+		case "entity_type":
+			scanTargets = append(scanTargets, &entityType)
+		case "title":
+			scanTargets = append(scanTargets, &title)
+		case "snippet":
+			scanTargets = append(scanTargets, &snippet)
+		case "metadata":
+			scanTargets = append(scanTargets, &metaRaw)
+		case "score":
+			scanTargets = append(scanTargets, &score)
+		}
+	}
+
+	if err := rows.Scan(scanTargets...); err != nil {
+		return nil, err
+	}
+
+	if len(metaRaw) > 0 {
+		if err := protojson.Unmarshal(metaRaw, meta); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		}
+	}
+
+	var masterIDInt int64
+	if masterID != "" {
+		var err error
+		masterIDInt, err = strconv.ParseInt(masterID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid master_id: %w", err)
+		}
+	}
+
+	return &IndexResult{
+		ID:         id,
+		MasterID:   masterIDInt,
+		MasterUUID: masterUUID,
+		EntityType: entityType,
+		Title:      title,
+		Snippet:    snippet,
+		Metadata:   meta,
+		Score:      score,
+	}, nil
+}
+
+// getTotalCount returns the total number of matching records.
+func (r *Repository) getTotalCount(ctx context.Context, where []string, args []interface{}) (int, error) {
 	countQuery := "SELECT COUNT(*) FROM service_search_index"
 	if len(where) > 0 {
 		countQuery += " WHERE " + strings.Join(where, " AND ")
 	}
-	countArgs := args[:len(args)-2]
-	if err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total); err != nil {
-		total = len(results)
+
+	var total int
+	r.mu.RLock()
+	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	r.mu.RUnlock()
+	if err != nil {
+		return 0, err
 	}
-	return results, total, nil
+
+	return total, nil
 }
 
-// helper for entity search with FTS and metadata filtering.
+// searchEntity performs a search for a specific entity type.
 func (r *Repository) searchEntity(
 	ctx context.Context,
 	_ string, // entity is unused
 	sqlStr string,
 	args []interface{},
-) ([]*Result, error) {
+) ([]*IndexResult, error) {
 	rows, err := r.db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var results []*Result
+	var results []*IndexResult
 	for rows.Next() {
 		var (
 			id, masterID, masterUUID, entityType, title, snippet string
@@ -244,7 +314,7 @@ func (r *Repository) searchEntity(
 				return nil, err
 			}
 		}
-		results = append(results, &Result{
+		results = append(results, &IndexResult{
 			ID:         id,
 			MasterID:   masterIDInt,
 			MasterUUID: masterUUID,
@@ -261,8 +331,7 @@ func (r *Repository) searchEntity(
 	return results, nil
 }
 
-// SearchAllEntities performs FTS and metadata filtering across multiple entity tables (content, campaign, user, talent).
-// It merges and returns results in a unified format. The 'types' argument specifies which entity types to search.
+// SearchAllEntities performs a search across multiple entity types.
 func (r *Repository) SearchAllEntities(
 	ctx context.Context,
 	types []string,
@@ -270,8 +339,8 @@ func (r *Repository) SearchAllEntities(
 	metadata *commonpb.Metadata,
 	campaignID int64,
 	page, pageSize int,
-) ([]*Result, int, error) {
-	var allResults []*Result
+) ([]*IndexResult, int, error) {
+	var allResults []*IndexResult
 
 	for _, entityType := range types {
 		var (

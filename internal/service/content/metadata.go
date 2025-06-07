@@ -10,52 +10,23 @@
 
 package content
 
-import (
-	"fmt"
+// [CANONICAL] All state hydration, analytics, and orchestration must use metadata.ExtractServiceVariables(meta, "content") and metadata.SetServiceSpecificField(meta, "content", key, value) directly.
+// Do not add local wrappers for metadata extraction or mutation—use the canonical helpers from pkg/metadata.
+// Only business-specific enrichment logic should remain here.
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	"google.golang.org/protobuf/types/known/structpb"
-)
-
-// BuildContentMetadata builds a canonical content metadata struct for storage, analytics, and extensibility.
-func BuildContentMetadata(
-	accessibility, localization, moderation, aiEnrichment, audit, compliance map[string]interface{},
-	tags []string,
-	serviceSpecific map[string]interface{},
-) (*commonpb.Metadata, error) {
-	contentMap := map[string]interface{}{}
-	if accessibility != nil {
-		contentMap["accessibility"] = accessibility
-	}
-	if localization != nil {
-		contentMap["localization"] = localization
-	}
-	if moderation != nil {
-		contentMap["moderation"] = moderation
-	}
-	if aiEnrichment != nil {
-		contentMap["ai_enrichment"] = aiEnrichment
-	}
-	if audit != nil {
-		contentMap["audit"] = audit
-	}
-	if compliance != nil {
-		contentMap["compliance"] = compliance
-	}
-	for k, v := range serviceSpecific {
-		contentMap[k] = v
-	}
-	// Always require versioning for compliance
-	if _, ok := contentMap["versioning"]; !ok {
-		contentMap["versioning"] = map[string]interface{}{"system_version": "1.0.0"}
-	}
-	ss := map[string]interface{}{"content": contentMap}
-	ssStruct, err := structpb.NewStruct(ss)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build service_specific struct: %w", err)
-	}
-	return &commonpb.Metadata{
-		ServiceSpecific: ssStruct,
-		Tags:            tags,
-	}, nil
+// ServiceMetadata defines the canonical, extensible metadata structure for content entities.
+// This struct documents all fields expected under metadata.service_specific["content"] in the common.Metadata proto.
+// Reference: docs/services/metadata.md, docs/amadeus/amadeus_context.md
+// All extraction and mutation must use canonical helpers from pkg/metadata.
+type ServiceMetadata struct {
+	Accessibility map[string]interface{}       `json:"accessibility,omitempty"`
+	Localization  map[string]interface{}       `json:"localization,omitempty"`
+	Moderation    map[string]interface{}       `json:"moderation,omitempty"`
+	AIEnrichment  map[string]interface{}       `json:"ai_enrichment,omitempty"`
+	Audit         map[string]interface{}       `json:"audit,omitempty"`
+	Compliance    map[string]interface{}       `json:"compliance,omitempty"`
+	Translations  map[string]map[string]string `json:"translations,omitempty"`
+	Versioning    map[string]interface{}       `json:"versioning,omitempty"`
+	Custom        map[string]interface{}       `json:"custom,omitempty"`
+	// Add other content-specific fields as needed
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/nexus/service/bridge"
+	"go.uber.org/zap"
 )
 
 type HTTPAdapter struct {
@@ -43,15 +44,15 @@ func (a *HTTPAdapter) Send(ctx context.Context, msg *bridge.Message) error {
 	}
 	resp, err := a.client.Do(req)
 	if err != nil {
-		fmt.Printf("[HTTPAdapter] Request error: %v\n", err)
+		zap.L().Warn("Request error", zap.String("method", method), zap.String("url", url), zap.Error(err))
 		return err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("[HTTPAdapter] ReadAll error: %v\n", err)
+		zap.L().Warn("ReadAll error", zap.String("method", method), zap.String("url", url), zap.Error(err))
 	}
-	fmt.Printf("[HTTPAdapter] %s %s -> %d\n", method, url, resp.StatusCode)
+	zap.L().Info("Request completed", zap.String("method", method), zap.String("url", url), zap.Int("status_code", resp.StatusCode))
 	// Optionally log response body for debugging (caution: may contain sensitive data)
 	// fmt.Printf("[HTTPAdapter] Response body: %s\n", string(body))
 	if resp.StatusCode >= 400 {

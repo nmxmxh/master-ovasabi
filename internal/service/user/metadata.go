@@ -24,12 +24,6 @@
 
 package user
 
-import (
-	"encoding/json"
-
-	structpb "google.golang.org/protobuf/types/known/structpb"
-)
-
 // ServiceMetadata holds all user service-specific metadata fields.
 type Metadata struct {
 	BadActor      *BadActorMetadata      `json:"bad_actor,omitempty"`
@@ -149,40 +143,6 @@ type WebAuthnCredential struct {
 	CreatedAt    string   `json:"created_at"`
 }
 
-// ServiceMetadataFromStruct converts a structpb.Struct to ServiceMetadata.
-func MetadataFromStruct(s *structpb.Struct) (*Metadata, error) {
-	if s == nil {
-		return &Metadata{}, nil
-	}
-	b, err := json.Marshal(s.AsMap())
-	if err != nil {
-		return nil, err
-	}
-	var meta Metadata
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-	return &meta, nil
-}
-
-// ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
-func MetadataToStruct(meta *Metadata) (*structpb.Struct, error) {
-	if meta == nil {
-		return structpb.NewStruct(map[string]interface{}{})
-	}
-	b, err := json.Marshal(meta)
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]interface{}
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return nil, err
-	}
-	return structpb.NewStruct(m)
-}
-
 // --- External Provider Placeholders/Mocks ---
 
 // EmailProvider defines the interface for sending emails (verification, password reset, etc.).
@@ -247,3 +207,6 @@ func (m *MockBiometricProvider) IsBiometricEnabled(_ string) (bool, error) {
 func (m *MockBiometricProvider) MarkBiometricUsed(_ string) error {
 	return nil
 }
+
+// [CANONICAL] All metadata must be normalized and calculated via metadata.NormalizeAndCalculate before persistence or emission.
+// Ensure required fields (versioning, audit, etc.) are present under the correct namespace.

@@ -145,7 +145,9 @@ message SendMessageRequest {
   MessageType type = 7;
   repeated Attachment attachments = 8;
   common.Metadata metadata = 9;
-  int64 campaign_id = 10; // campaign/tenant context
+  string product_id = 10; // optional
+  string campaign_id = 11; // optional
+  string talent_id = 12; // optional
 }
 message SendMessageResponse { Message message = 1; }
 
@@ -156,7 +158,9 @@ message SendGroupMessageRequest {
   MessageType type = 4;
   repeated Attachment attachments = 5;
   common.Metadata metadata = 6;
-  int64 campaign_id = 7; // campaign/tenant context
+  string product_id = 7; // optional
+  string campaign_id = 8; // optional
+  string talent_id = 9; // optional
 }
 message SendGroupMessageResponse { Message message = 1; }
 
@@ -166,7 +170,9 @@ message EditMessageRequest {
   string new_content = 3;
   repeated Attachment new_attachments = 4;
   common.Metadata metadata = 5;
-  int64 campaign_id = 6; // campaign/tenant context
+  string product_id = 6; // optional
+  string campaign_id = 7; // optional
+  string talent_id = 8; // optional
 }
 message EditMessageResponse { Message message = 1; }
 
@@ -174,7 +180,9 @@ message DeleteMessageRequest {
   string message_id = 1;
   string requester_id = 2;
   common.Metadata metadata = 3;
-  int64 campaign_id = 4; // campaign/tenant context
+  string product_id = 4; // optional
+  string campaign_id = 5; // optional
+  string talent_id = 6; // optional
 }
 message DeleteMessageResponse { bool success = 1; }
 
@@ -183,7 +191,9 @@ message ReactToMessageRequest {
   string user_id = 2;
   string emoji = 3;
   common.Metadata metadata = 4;
-  int64 campaign_id = 5; // campaign/tenant context
+  string product_id = 5; // optional
+  string campaign_id = 6; // optional
+  string talent_id = 7; // optional
 }
 message ReactToMessageResponse { Message message = 1; }
 
@@ -198,7 +208,9 @@ message ListMessagesRequest {
   int32 page_size = 5;
   common.Metadata filters = 6;
   common.Metadata metadata = 7;
-  int64 campaign_id = 8; // campaign/tenant context
+  string product_id = 8; // optional
+  string campaign_id = 9; // optional
+  string talent_id = 10; // optional
 }
 message ListMessagesResponse {
   repeated Message messages = 1;
@@ -213,7 +225,9 @@ message ListThreadsRequest {
   int32 page_size = 3;
   common.Metadata filters = 4;
   common.Metadata metadata = 5;
-  int64 campaign_id = 6; // campaign/tenant context
+  string product_id = 6; // optional
+  string campaign_id = 7; // optional
+  string talent_id = 8; // optional
 }
 message ListThreadsResponse {
   repeated Thread threads = 1;
@@ -228,7 +242,9 @@ message ListConversationsRequest {
   int32 page_size = 3;
   common.Metadata filters = 4;
   common.Metadata metadata = 5;
-  int64 campaign_id = 6; // campaign/tenant context
+  string product_id = 6; // optional
+  string campaign_id = 7; // optional
+  string talent_id = 8; // optional
 }
 message ListConversationsResponse {
   repeated Conversation conversations = 1;
@@ -244,7 +260,9 @@ message StreamMessagesRequest {
   repeated string chat_group_ids = 3;
   common.Metadata filters = 4;
   common.Metadata metadata = 5;
-  int64 campaign_id = 6; // campaign/tenant context
+  string product_id = 10; // optional
+  string campaign_id = 11; // optional
+  string talent_id = 12; // optional
 }
 message MessageEvent {
   string event_id = 1;
@@ -255,7 +273,9 @@ message MessageEvent {
   string event_type = 6; // sent, delivered, read, edited, deleted, reaction, etc.
   google.protobuf.Struct payload = 7;
   google.protobuf.Timestamp created_at = 8;
-  int64 campaign_id = 9; // campaign/tenant context
+  string product_id = 9; // optional
+  string campaign_id = 10; // optional
+  string talent_id = 11; // optional
 }
 
 message StreamTypingRequest {
@@ -263,7 +283,9 @@ message StreamTypingRequest {
   string conversation_id = 2;
   string chat_group_id = 3;
   common.Metadata metadata = 4;
-  int64 campaign_id = 5; // campaign/tenant context
+  string product_id = 5; // optional
+  string campaign_id = 6; // optional
+  string talent_id = 7; // optional
 }
 message TypingEvent {
   string user_id = 1;
@@ -271,19 +293,25 @@ message TypingEvent {
   string chat_group_id = 3;
   bool is_typing = 4;
   google.protobuf.Timestamp timestamp = 5;
-  int64 campaign_id = 6; // campaign/tenant context
+  string product_id = 6; // optional
+  string campaign_id = 7; // optional
+  string talent_id = 8; // optional
 }
 
 message StreamPresenceRequest {
   string user_id = 1;
   common.Metadata metadata = 2;
-  int64 campaign_id = 3; // campaign/tenant context
+  string product_id = 3; // optional
+  string campaign_id = 4; // optional
+  string talent_id = 5; // optional
 }
 message PresenceEvent {
   string user_id = 1;
   string status = 2; // online, offline, away, dnd
   google.protobuf.Timestamp timestamp = 3;
-  int64 campaign_id = 4; // campaign/tenant context
+  string product_id = 4; // optional
+  string campaign_id = 5; // optional
+  string talent_id = 6; // optional
 }
 
 // --- Read/Delivery/Ack ---
@@ -291,7 +319,9 @@ message MarkAsReadRequest {
   string message_id = 1;
   string user_id = 2;
   common.Metadata metadata = 3;
-  int64 campaign_id = 4; // campaign/tenant context
+  string product_id = 4; // optional
+  string campaign_id = 5; // optional
+  string talent_id = 6; // optional
 }
 message MarkAsReadResponse { bool success = 1; }
 
@@ -299,7 +329,9 @@ message MarkAsDeliveredRequest {
   string message_id = 1;
   string user_id = 2;
   common.Metadata metadata = 3;
-  int64 campaign_id = 4; // campaign/tenant context
+  string product_id = 4; // optional
+  string campaign_id = 5; // optional
+  string talent_id = 6; // optional
 }
 message MarkAsDeliveredResponse { bool success = 1; }
 
@@ -307,7 +339,9 @@ message AcknowledgeMessageRequest {
   string message_id = 1;
   string user_id = 2;
   common.Metadata metadata = 3;
-  int64 campaign_id = 4; // campaign/tenant context
+  string product_id = 4; // optional
+  string campaign_id = 5; // optional
+  string talent_id = 6; // optional
 }
 message AcknowledgeMessageResponse { bool success = 1; }
 
@@ -318,7 +352,9 @@ message CreateChatGroupRequest {
   repeated string member_ids = 3;
   map<string, string> roles = 4;
   common.Metadata metadata = 5;
-  int64 campaign_id = 6; // campaign/tenant context
+  string product_id = 10; // optional
+  string campaign_id = 11; // optional
+  string talent_id = 12; // optional
 }
 message CreateChatGroupResponse { ChatGroup chat_group = 1; }
 message AddChatGroupMemberRequest {
@@ -326,14 +362,18 @@ message AddChatGroupMemberRequest {
   string user_id = 2;
   string role = 3;
   common.Metadata metadata = 4;
-  int64 campaign_id = 5; // campaign/tenant context
+  string product_id = 5; // optional
+  string campaign_id = 6; // optional
+  string talent_id = 7; // optional
 }
 message AddChatGroupMemberResponse { ChatGroup chat_group = 1; }
 message RemoveChatGroupMemberRequest {
   string chat_group_id = 1;
   string user_id = 2;
   common.Metadata metadata = 3;
-  int64 campaign_id = 4; // campaign/tenant context
+  string product_id = 4; // optional
+  string campaign_id = 5; // optional
+  string talent_id = 6; // optional
 }
 message RemoveChatGroupMemberResponse { ChatGroup chat_group = 1; }
 message ListChatGroupMembersRequest {
@@ -341,7 +381,9 @@ message ListChatGroupMembersRequest {
   int32 page = 2;
   int32 page_size = 3;
   common.Metadata metadata = 4;
-  int64 campaign_id = 5; // campaign/tenant context
+  string product_id = 5; // optional
+  string campaign_id = 6; // optional
+  string talent_id = 7; // optional
 }
 message ListChatGroupMembersResponse {
   repeated string member_ids = 1;
@@ -358,12 +400,16 @@ message MessagingPreferences {
   repeated string quiet_hours = 4;
   string timezone = 5;
   common.Metadata metadata = 6;
-  int64 campaign_id = 7; // campaign/tenant context
+  string product_id = 7; // optional
+  string campaign_id = 8; // optional
+  string talent_id = 9; // optional
 }
 message UpdateMessagingPreferencesRequest {
   string user_id = 1;
   MessagingPreferences preferences = 2;
-  int64 campaign_id = 3; // campaign/tenant context
+  string product_id = 3; // optional
+  string campaign_id = 4; // optional
+  string talent_id = 5; // optional
 }
 message UpdateMessagingPreferencesResponse {
   MessagingPreferences preferences = 1;
@@ -377,7 +423,9 @@ message ListMessageEventsRequest {
   int32 page_size = 3;
   common.Metadata filters = 4;
   common.Metadata metadata = 5;
-  int64 campaign_id = 6; // campaign/tenant context
+  string product_id = 6; // optional
+  string campaign_id = 7; // optional
+  string talent_id = 8; // optional
 }
 message ListMessageEventsResponse {
   repeated MessageEvent events = 1;

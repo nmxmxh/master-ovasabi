@@ -39,6 +39,7 @@ type Metadata struct {
 	Taxation        *TieredTax             `protobuf:"bytes,8,opt,name=taxation,proto3" json:"taxation,omitempty"`
 	Owner           *OwnerMetadata         `protobuf:"bytes,9,opt,name=owner,proto3" json:"owner,omitempty"`
 	Referral        *ReferralMetadata      `protobuf:"bytes,10,opt,name=referral,proto3" json:"referral,omitempty"`
+	Versioning      *structpb.Struct       `protobuf:"bytes,11,opt,name=versioning,proto3" json:"versioning,omitempty"` // System/service/user/environment versioning and traceability
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -139,6 +140,13 @@ func (x *Metadata) GetOwner() *OwnerMetadata {
 func (x *Metadata) GetReferral() *ReferralMetadata {
 	if x != nil {
 		return x.Referral
+	}
+	return nil
+}
+
+func (x *Metadata) GetVersioning() *structpb.Struct {
+	if x != nil {
+		return x.Versioning
 	}
 	return nil
 }
@@ -487,7 +495,7 @@ var File_common_v1_metadata_proto protoreflect.FileDescriptor
 
 const file_common_v1_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x18common/v1/metadata.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\"\xf6\x03\n" +
+	"\x18common/v1/metadata.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\"\xaf\x04\n" +
 	"\bMetadata\x127\n" +
 	"\n" +
 	"scheduling\x18\x01 \x01(\v2\x17.google.protobuf.StructR\n" +
@@ -501,7 +509,10 @@ const file_common_v1_metadata_proto_rawDesc = "" +
 	"\btaxation\x18\b \x01(\v2\x11.common.TieredTaxR\btaxation\x12+\n" +
 	"\x05owner\x18\t \x01(\v2\x15.common.OwnerMetadataR\x05owner\x124\n" +
 	"\breferral\x18\n" +
-	" \x01(\v2\x18.common.ReferralMetadataR\breferral\"q\n" +
+	" \x01(\v2\x18.common.ReferralMetadataR\breferral\x127\n" +
+	"\n" +
+	"versioning\x18\v \x01(\v2\x17.google.protobuf.StructR\n" +
+	"versioning\"q\n" +
 	"\tTieredTax\x12!\n" +
 	"\fmin_projects\x18\x01 \x01(\x05R\vminProjects\x12!\n" +
 	"\fmax_projects\x18\x02 \x01(\x05R\vmaxProjects\x12\x1e\n" +
@@ -567,13 +578,14 @@ var file_common_v1_metadata_proto_depIdxs = []int32{
 	1,  // 5: common.Metadata.taxation:type_name -> common.TieredTax
 	4,  // 6: common.Metadata.owner:type_name -> common.OwnerMetadata
 	5,  // 7: common.Metadata.referral:type_name -> common.ReferralMetadata
-	1,  // 8: common.TaxationConnector.tiered:type_name -> common.TieredTax
-	2,  // 9: common.Taxation.connectors:type_name -> common.TaxationConnector
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	6,  // 8: common.Metadata.versioning:type_name -> google.protobuf.Struct
+	1,  // 9: common.TaxationConnector.tiered:type_name -> common.TieredTax
+	2,  // 10: common.Taxation.connectors:type_name -> common.TaxationConnector
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_common_v1_metadata_proto_init() }

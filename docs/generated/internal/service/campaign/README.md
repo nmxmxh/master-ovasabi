@@ -79,10 +79,6 @@ type, purpose, and relation to other services.
 
 #### Methods
 
-##### ToStruct
-
-ToStruct converts Metadata to a structpb.Struct for proto usage.
-
 ##### Validate
 
 Validate checks required fields and logical consistency for campaign metadata.
@@ -220,8 +216,7 @@ migration, compliance).
 ### BuildCampaignUserState
 
 BuildCampaignUserState builds the minimal, gamified, partial-update-ready state for a campaign/user.
-If fields is nil or empty, includes all fields. If changed fields exceed threshold, sends full
-state. Used by both WebSocket and REST endpoints for state hydration and updates.
+Now uses canonical metadata.ExtractServiceVariables for all variable extraction.
 
 ### FlattenMetadataToVars
 
@@ -249,3 +244,7 @@ Register registers the Campaign service with the DI container and event bus supp
 ### StartEventSubscribers
 
 StartEventSubscribers registers all orchestrator event handlers with the event bus.
+
+### ToProto
+
+ToProto converts a canonical Metadata struct to \*commonpb.Metadata under service_specific.campaign.

@@ -8,7 +8,9 @@ import (
 	"time"
 
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
@@ -28,11 +30,11 @@ type Service struct {
 	log          *zap.Logger
 	repo         Repository
 	Cache        *redis.Cache
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 }
 
-func NewService(log *zap.Logger, repo Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) commercepb.CommerceServiceServer {
+func NewService(log *zap.Logger, repo Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) commercepb.CommerceServiceServer {
 	graceful.RegisterErrorMap(map[error]graceful.ErrorMapEntry{
 		sql.ErrNoRows: {Code: codes.NotFound, Message: "not found"},
 		// Add more domain-specific errors here as needed
@@ -120,12 +122,7 @@ func (s *Service) CreateQuote(ctx context.Context, req *commercepb.CreateQuoteRe
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.UserId, true)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-		return nil, graceful.ToStatusError(err)
-	}
+	meta := req.Metadata
 	quote := &Quote{
 		QuoteID:    generateQuoteID(req.UserId, req.ProductId),
 		UserID:     req.UserId,
@@ -280,12 +277,7 @@ func (s *Service) CreateOrder(ctx context.Context, req *commercepb.CreateOrderRe
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.UserId, true)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-		return nil, graceful.ToStatusError(err)
-	}
+	meta := req.Metadata
 	orderID := req.UserId + ":order:" + time.Now().Format("20060102150405.000")
 	order := &Order{
 		OrderID:   orderID,
@@ -300,8 +292,8 @@ func (s *Service) CreateOrder(ctx context.Context, req *commercepb.CreateOrderRe
 	for _, item := range req.Items {
 		order.Total += item.Price * float64(item.Quantity)
 	}
-	err = s.repo.CreateOrder(ctx, order, nil)
-	if err != nil {
+	if err := s.repo.CreateOrder(ctx, order, nil); err != nil {
+		s.log.Error("failed to create order", zap.Error(err))
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to create order", err)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
@@ -494,12 +486,7 @@ func (s *Service) InitiatePayment(ctx context.Context, req *commercepb.InitiateP
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.UserId, true)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-		return nil, graceful.ToStatusError(err)
-	}
+	meta := req.Metadata
 	payment := &Payment{
 		PaymentID: req.OrderId + ":payment:" + time.Now().Format("20060102150405.000"),
 		OrderID:   req.OrderId,
@@ -562,13 +549,7 @@ func (s *Service) ConfirmPayment(ctx context.Context, req *commercepb.ConfirmPay
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	if req.Metadata != nil {
-		if _, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.UserId, false); err != nil {
-			err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-			err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-			return nil, graceful.ToStatusError(err)
-		}
-	}
+	_ = metadata.ExtractServiceVariables(req.Metadata, "commerce")
 	err := s.repo.UpdatePaymentStatus(ctx, req.PaymentId, "SUCCEEDED")
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to update payment status", err)
@@ -626,13 +607,7 @@ func (s *Service) RefundPayment(ctx context.Context, req *commercepb.RefundPayme
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	if req.Metadata != nil {
-		if _, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.UserId, false); err != nil {
-			err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-			err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-			return nil, graceful.ToStatusError(err)
-		}
-	}
+	_ = metadata.ExtractServiceVariables(req.Metadata, "commerce")
 	err := s.repo.UpdatePaymentStatus(ctx, req.PaymentId, "REFUNDED")
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to update payment status", err)
@@ -946,12 +921,7 @@ func (s *Service) CreateInvestmentAccount(ctx context.Context, req *commercepb.C
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.OwnerId, true)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-		return nil, graceful.ToStatusError(err)
-	}
+	meta := req.Metadata
 	accountID := req.OwnerId + ":investment_account:" + time.Now().Format("20060102150405.000")
 	account := &InvestmentAccount{
 		AccountID: accountID,
@@ -1009,12 +979,7 @@ func (s *Service) PlaceInvestmentOrder(ctx context.Context, req *commercepb.Plac
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.AccountId, true)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-		return nil, graceful.ToStatusError(err)
-	}
+	meta := req.Metadata
 	orderID := req.AccountId + ":investment_order:" + time.Now().Format("20060102150405.000")
 	order := &InvestmentOrder{
 		OrderID:   orderID,
@@ -1221,12 +1186,7 @@ func (s *Service) CreateExchangePair(ctx context.Context, req *commercepb.Create
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichCommerceMetadata(s.log, req.Metadata, req.PairId, true)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-		return nil, graceful.ToStatusError(err)
-	}
+	meta := req.Metadata
 	pair := &ExchangePair{
 		PairID:     req.PairId,
 		MasterID:   0,

@@ -11,7 +11,6 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -19,16 +18,6 @@ var (
 	ErrNotificationNotFound = errors.New("notification not found")
 	ErrNotificationExists   = errors.New("notification already exists")
 )
-
-var logInstance logger.Logger
-
-func init() {
-	var err error
-	logInstance, err = logger.NewDefault()
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize logger: %v", err))
-	}
-}
 
 // NotificationType represents the type of notification.
 type Type string
@@ -74,10 +63,10 @@ type Repository struct {
 	masterRepo repository.MasterRepository
 }
 
-// NewNotificationRepository creates a new notification repository instance.
-func NewRepository(db *sql.DB, masterRepo repository.MasterRepository) *Repository {
+// NewRepository creates a new notification repository instance.
+func NewRepository(db *sql.DB, masterRepo repository.MasterRepository, log *zap.Logger) *Repository {
 	return &Repository{
-		BaseRepository: repository.NewBaseRepository(db),
+		BaseRepository: repository.NewBaseRepository(db, log),
 		masterRepo:     masterRepo,
 	}
 }
@@ -125,9 +114,7 @@ func (r *Repository) Create(ctx context.Context, notification *Notification) (*N
 	).Scan(&notification.ID, &notification.CreatedAt, &notification.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
-			if logInstance != nil {
-				logInstance.Error("service not implemented", zap.Error(err))
-			}
+			r.GetLogger().Error("failed to delete master record after notification creation failure", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -166,7 +153,7 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*Notification, erro
 	if metadataStr != "" {
 		err := protojson.Unmarshal([]byte(metadataStr), notification.Metadata)
 		if err != nil {
-			logInstance.Warn("failed to unmarshal notification metadata", zap.Error(err))
+			r.GetLogger().Warn("failed to unmarshal notification metadata", zap.Error(err))
 			return nil, err
 		}
 	}
@@ -242,9 +229,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Notificati
 	}
 	defer func() {
 		if cerr := rows.Close(); cerr != nil {
-			if logInstance != nil {
-				logInstance.Error("error closing rows", zap.Error(cerr))
-			}
+			r.GetLogger().Error("error closing rows", zap.Error(cerr))
 		}
 	}()
 
@@ -268,7 +253,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Notificati
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), notification.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal notification metadata", zap.Error(err))
+				r.GetLogger().Warn("failed to unmarshal notification metadata", zap.Error(err))
 				return nil, err
 			}
 		}
@@ -295,9 +280,7 @@ func (r *Repository) ListByUserID(ctx context.Context, userID int64, limit, offs
 	}
 	defer func() {
 		if cerr := rows.Close(); cerr != nil {
-			if logInstance != nil {
-				logInstance.Error("error closing rows", zap.Error(cerr))
-			}
+			r.GetLogger().Error("error closing rows", zap.Error(cerr))
 		}
 	}()
 
@@ -321,7 +304,7 @@ func (r *Repository) ListByUserID(ctx context.Context, userID int64, limit, offs
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), notification.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal notification metadata", zap.Error(err))
+				r.GetLogger().Warn("failed to unmarshal notification metadata", zap.Error(err))
 				return nil, err
 			}
 		}
@@ -348,9 +331,7 @@ func (r *Repository) ListPendingScheduled(ctx context.Context) ([]*Notification,
 	}
 	defer func() {
 		if cerr := rows.Close(); cerr != nil {
-			if logInstance != nil {
-				logInstance.Error("error closing rows", zap.Error(cerr))
-			}
+			r.GetLogger().Error("error closing rows", zap.Error(cerr))
 		}
 	}()
 
@@ -374,7 +355,7 @@ func (r *Repository) ListPendingScheduled(ctx context.Context) ([]*Notification,
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), notification.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal notification metadata", zap.Error(err))
+				r.GetLogger().Warn("failed to unmarshal notification metadata", zap.Error(err))
 				return nil, err
 			}
 		}
@@ -411,9 +392,7 @@ func (r *Repository) ListBroadcasts(ctx context.Context, limit, offset int) ([]*
 	}
 	defer func() {
 		if cerr := rows.Close(); cerr != nil {
-			if logInstance != nil {
-				logInstance.Error("error closing rows", zap.Error(cerr))
-			}
+			r.GetLogger().Error("error closing rows", zap.Error(cerr))
 		}
 	}()
 
@@ -437,7 +416,7 @@ func (r *Repository) ListBroadcasts(ctx context.Context, limit, offset int) ([]*
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), broadcast.Metadata)
 			if err != nil {
-				logInstance.Warn("failed to unmarshal broadcast metadata", zap.Error(err))
+				r.GetLogger().Warn("failed to unmarshal broadcast metadata", zap.Error(err))
 				return nil, err
 			}
 		}
@@ -448,11 +427,11 @@ func (r *Repository) ListBroadcasts(ctx context.Context, limit, offset int) ([]*
 
 // --- Notification Event Analytics/Audit ---.
 type Event struct {
-	ID             int64     `db:"id"`
-	NotificationID int64     `db:"notification_id"`
-	UserID         int64     `db:"user_id"`
+	EventID        string    `db:"event_id"`
+	NotificationID string    `db:"notification_id"`
+	UserID         string    `db:"user_id"`
 	EventType      string    `db:"event_type"`
-	Payload        string    `db:"payload"`
+	Payload        []byte    `db:"payload"`
 	CreatedAt      time.Time `db:"created_at"`
 }
 
@@ -480,9 +459,7 @@ func (r *Repository) ListNotificationEvents(ctx context.Context, notificationID 
 	}
 	defer func() {
 		if cerr := rows.Close(); cerr != nil {
-			if logInstance != nil {
-				logInstance.Error("error closing rows", zap.Error(cerr))
-			}
+			r.GetLogger().Error("error closing rows", zap.Error(cerr))
 		}
 	}()
 
@@ -490,7 +467,7 @@ func (r *Repository) ListNotificationEvents(ctx context.Context, notificationID 
 	for rows.Next() {
 		event := &Event{}
 		err := rows.Scan(
-			&event.ID, &event.NotificationID, &event.UserID,
+			&event.EventID, &event.NotificationID, &event.UserID,
 			&event.EventType, &event.Payload, &event.CreatedAt,
 		)
 		if err != nil {
@@ -499,21 +476,4 @@ func (r *Repository) ListNotificationEvents(ctx context.Context, notificationID 
 		events = append(events, event)
 	}
 	return events, rows.Err()
-}
-
-// --- Asset Chunk Storage (Optional, stub) ---.
-type AssetChunk struct {
-	UploadID string
-	Data     []byte
-	Sequence uint32
-}
-
-func (r *Repository) StoreAssetChunk(_ context.Context, _ *AssetChunk) error {
-	// TODO: implement StoreAssetChunk logic
-	return errors.New("not implemented")
-}
-
-func (r *Repository) GetAssetChunks(_ context.Context, _ string) ([]*AssetChunk, error) {
-	// TODO: implement GetAssetChunks logic
-	return nil, errors.New("not implemented")
 }

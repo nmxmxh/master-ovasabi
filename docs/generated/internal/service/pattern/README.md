@@ -51,32 +51,10 @@ UpdateStateMachine updates the UI state machine section in service-specific meta
 
 ## Functions
 
-### DenormalizeMetadata
-
-DenormalizeMetadata hydrates metadata for API/gRPC/UI responses. Optionally expands references, adds
-computed fields, etc.
-
-### EnrichKnowledgeGraph
-
-EnrichKnowledgeGraph connects to the KGService and publishes an update using DI.
-
-### MergeMetadataFields
-
-MergeMetadataFields merges fields from src into dst for partial updates.
-
-### NormalizeMetadata
-
-NormalizeMetadata ensures required fields, applies defaults, and strips hydration-only fields. If
-partialUpdate is true, only updates provided fields (for PATCH/partial update semantics).
-
 ### RecordOrchestrationEvent
 
 RecordOrchestrationEvent appends an event to the orchestration trace in
 metadata.service_specific[svc].trace.
-
-### RegisterSchedule
-
-RegisterSchedule connects to the SchedulerService and registers a job using DI.
 
 ### UpdateOrchestrationState
 

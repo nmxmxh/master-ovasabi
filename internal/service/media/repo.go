@@ -68,7 +68,8 @@ func init() {
 	var err error
 	logInstance, err = logger.NewDefault()
 	if err != nil {
-		panic(fmt.Sprintf("failed to initialize logger: %v", err))
+		logInstance.Error("failed to initialize logger", zap.Error(err))
+		return
 	}
 }
 

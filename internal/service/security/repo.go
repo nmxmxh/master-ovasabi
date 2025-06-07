@@ -8,6 +8,7 @@ import (
 	"time"
 
 	repo "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"go.uber.org/zap"
 )
 
 type Master struct {
@@ -66,6 +67,8 @@ type Event struct {
 	Details    json.RawMessage `json:"details"`
 	OccurredAt time.Time       `json:"occurred_at"`
 	Metadata   json.RawMessage `json:"metadata"`
+	PrevHash   string          `json:"prev_hash,omitempty"`
+	EntryHash  string          `json:"entry_hash,omitempty"`
 }
 
 type RepositoryItf interface {
@@ -100,15 +103,18 @@ type RepositoryItf interface {
 }
 
 type Repository struct {
-	db         *sql.DB
+	*repo.BaseRepository
 	masterRepo repo.MasterRepository
 }
 
 // Compile-time check.
 var _ RepositoryItf = (*Repository)(nil)
 
-func NewRepository(db *sql.DB, masterRepo repo.MasterRepository) *Repository {
-	return &Repository{db: db, masterRepo: masterRepo}
+func NewRepository(db *sql.DB, masterRepo repo.MasterRepository, log *zap.Logger) *Repository {
+	return &Repository{
+		BaseRepository: repo.NewBaseRepository(db, log),
+		masterRepo:     masterRepo,
+	}
 }
 
 // Master.
@@ -117,7 +123,7 @@ func (r *Repository) CreateMaster(ctx context.Context, master *Master) (id, uuid
 	if err != nil {
 		return "", "", fmt.Errorf("marshal metadata: %w", err)
 	}
-	err = r.db.QueryRowContext(ctx, `
+	err = r.GetDB().QueryRowContext(ctx, `
 		INSERT INTO service_security_master (type, status, metadata, created_at, updated_at)
 		VALUES ($1, $2, $3, NOW(), NOW())
 		RETURNING id, uuid
@@ -126,7 +132,7 @@ func (r *Repository) CreateMaster(ctx context.Context, master *Master) (id, uuid
 }
 
 func (r *Repository) GetMaster(ctx context.Context, id string) (*Master, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.GetDB().QueryRowContext(ctx, `
 		SELECT id, uuid, type, status, created_at, updated_at, deleted_at, metadata
 		FROM service_security_master WHERE id = $1
 	`, id)
@@ -145,7 +151,7 @@ func (r *Repository) UpdateMaster(ctx context.Context, master *Master) error {
 	if err != nil {
 		return fmt.Errorf("marshal metadata: %w", err)
 	}
-	_, err = r.db.ExecContext(ctx, `
+	_, err = r.GetDB().ExecContext(ctx, `
 		UPDATE service_security_master SET type=$1, status=$2, metadata=$3, updated_at=NOW()
 		WHERE id=$4
 	`, master.Type, master.Status, data, master.ID)
@@ -163,7 +169,7 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *Identity) (in
 		return 0, fmt.Errorf("marshal attributes: %w", err)
 	}
 	var id int64
-	err = r.db.QueryRowContext(ctx, `
+	err = r.GetDB().QueryRowContext(ctx, `
 		INSERT INTO service_security_identity (master_id, master_uuid, identity_type, identifier, credentials, attributes, risk_score)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
@@ -172,7 +178,7 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *Identity) (in
 }
 
 func (r *Repository) GetIdentity(ctx context.Context, identityType, identifier string) (*Identity, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.GetDB().QueryRowContext(ctx, `
 		SELECT id, master_id, master_uuid, identity_type, identifier, credentials, attributes, last_authentication, risk_score
 		FROM service_security_identity WHERE identity_type = $1 AND identifier = $2
 	`, identityType, identifier)
@@ -188,7 +194,7 @@ func (r *Repository) GetIdentity(ctx context.Context, identityType, identifier s
 }
 
 func (r *Repository) UpdateIdentityRiskScore(ctx context.Context, id int64, score float64) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := r.GetDB().ExecContext(ctx, `
 		UPDATE service_security_identity SET risk_score = $1 WHERE id = $2
 	`, score, id)
 	return err
@@ -213,7 +219,7 @@ func (r *Repository) RegisterPattern(ctx context.Context, pattern *Pattern) (int
 		return 0, fmt.Errorf("marshal risk: %w", err)
 	}
 	var id int64
-	err = r.db.QueryRowContext(ctx, `
+	err = r.GetDB().QueryRowContext(ctx, `
 		INSERT INTO service_security_pattern (master_id, master_uuid, pattern_name, description, vertices, edges, constraints, risk_assessment)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
@@ -222,7 +228,7 @@ func (r *Repository) RegisterPattern(ctx context.Context, pattern *Pattern) (int
 }
 
 func (r *Repository) GetPattern(ctx context.Context, patternName string) (*Pattern, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.GetDB().QueryRowContext(ctx, `
 		SELECT id, master_id, master_uuid, pattern_name, description, vertices, edges, constraints, risk_assessment
 		FROM service_security_pattern WHERE pattern_name = $1
 	`, patternName)
@@ -246,7 +252,7 @@ func (r *Repository) ListPatterns(ctx context.Context, filter map[string]interfa
 		q += " AND pattern_name = $1"
 		args = append(args, v)
 	}
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := r.GetDB().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +288,7 @@ func (r *Repository) RecordIncident(ctx context.Context, incident *Incident) (in
 		return 0, fmt.Errorf("marshal risk: %w", err)
 	}
 	var id int64
-	err = r.db.QueryRowContext(ctx, `
+	err = r.GetDB().QueryRowContext(ctx, `
 		INSERT INTO service_security_incident (master_id, master_uuid, incident_type, severity, description, detection_time, resolution_time, context, risk_assessment)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id
@@ -291,7 +297,7 @@ func (r *Repository) RecordIncident(ctx context.Context, incident *Incident) (in
 }
 
 func (r *Repository) GetIncident(ctx context.Context, id int64) (*Incident, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.GetDB().QueryRowContext(ctx, `
 		SELECT id, master_id, master_uuid, incident_type, severity, description, detection_time, resolution_time, context, risk_assessment
 		FROM service_security_incident WHERE id = $1
 	`, id)
@@ -313,7 +319,7 @@ func (r *Repository) ListIncidents(ctx context.Context, filter map[string]interf
 		q += " AND incident_type = $1"
 		args = append(args, v)
 	}
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := r.GetDB().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +343,7 @@ func (r *Repository) ListIncidents(ctx context.Context, filter map[string]interf
 }
 
 func (r *Repository) UpdateIncidentResolution(ctx context.Context, id int64, resolutionTime *time.Time) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := r.GetDB().ExecContext(ctx, `
 		UPDATE service_security_incident SET resolution_time = $1 WHERE id = $2
 	`, resolutionTime, id)
 	return err
@@ -352,22 +358,22 @@ func (r *Repository) RecordEvent(ctx context.Context, event *Event) (string, err
 		event.Metadata = []byte("{}")
 	}
 	var id string
-	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO service_security_event (master_id, event_type, principal, details, occurred_at, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6)
+	err := r.GetDB().QueryRowContext(ctx, `
+		INSERT INTO service_security_event (master_id, event_type, principal, details, occurred_at, metadata, prev_hash, entry_hash)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
-	`, event.MasterID, event.EventType, event.Principal, event.Details, event.OccurredAt, event.Metadata).Scan(&id)
+	`, event.MasterID, event.EventType, event.Principal, event.Details, event.OccurredAt, event.Metadata, event.PrevHash, event.EntryHash).Scan(&id)
 	return id, err
 }
 
 func (r *Repository) GetEvents(ctx context.Context, filter map[string]interface{}) ([]*Event, error) {
-	q := `SELECT id, master_id, event_type, principal, details, occurred_at, metadata FROM service_security_event WHERE 1=1`
+	q := `SELECT id, master_id, event_type, principal, details, occurred_at, metadata, prev_hash, entry_hash FROM service_security_event WHERE 1=1`
 	args := []interface{}{}
 	if v, ok := filter["event_type"]; ok {
 		q += " AND event_type = $1"
 		args = append(args, v)
 	}
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := r.GetDB().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +382,7 @@ func (r *Repository) GetEvents(ctx context.Context, filter map[string]interface{
 	for rows.Next() {
 		var e Event
 		var detailsRaw, metaRaw []byte
-		err := rows.Scan(&e.ID, &e.MasterID, &e.EventType, &e.Principal, &detailsRaw, &e.OccurredAt, &metaRaw)
+		err := rows.Scan(&e.ID, &e.MasterID, &e.EventType, &e.Principal, &detailsRaw, &e.OccurredAt, &metaRaw, &e.PrevHash, &e.EntryHash)
 		if err != nil {
 			return nil, err
 		}
@@ -392,7 +398,7 @@ func (r *Repository) GetEvents(ctx context.Context, filter map[string]interface{
 
 // Analytics.
 func (r *Repository) GetSecurityMetrics(ctx context.Context, _ map[string]interface{}) (map[string]interface{}, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.GetDB().QueryContext(ctx, `
 		SELECT event_type, COUNT(*) FROM service_security_event GROUP BY event_type
 	`)
 	if err != nil {
@@ -415,7 +421,7 @@ func (r *Repository) GetSecurityMetrics(ctx context.Context, _ map[string]interf
 }
 
 func (r *Repository) GetRiskAssessment(ctx context.Context, resourceID string) (map[string]interface{}, error) {
-	row := r.db.QueryRowContext(ctx, `
+	row := r.GetDB().QueryRowContext(ctx, `
 		SELECT risk_score FROM service_security_identity WHERE identifier = $1
 	`, resourceID)
 	var score float64

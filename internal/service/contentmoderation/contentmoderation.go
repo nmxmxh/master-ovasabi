@@ -3,9 +3,13 @@ package contentmoderation
 import (
 	"context"
 	"encoding/json"
+	"time"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
@@ -25,11 +29,11 @@ type Service struct {
 	log          *zap.Logger
 	repo         Repository
 	cache        *redis.Cache
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 }
 
-func NewContentModerationService(log *zap.Logger, repo Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) contentmoderationpb.ContentModerationServiceServer {
+func NewContentModerationService(log *zap.Logger, repo Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) contentmoderationpb.ContentModerationServiceServer {
 	return &Service{
 		log:          log,
 		repo:         repo,
@@ -41,18 +45,71 @@ func NewContentModerationService(log *zap.Logger, repo Repository, cache *redis.
 
 var _ contentmoderationpb.ContentModerationServiceServer = (*Service)(nil)
 
+// Provider/DI Registration Pattern (Modern, Extensible, DRY)
+// ---------------------------------------------------------
+// This file implements the centralized Provider pattern for service registration and dependency injection (DI) across the platform.
+// It also implements the Graceful Orchestration Standard for error and success handling, as required by the OVASABI platform.
+// All orchestration (caching, event emission, knowledge graph enrichment, scheduling, audit, etc.) is handled via the graceful package's orchestration config.
+// See docs/amadeus/amadeus_context.md for details and compliance checklists.
+//
+// Canonical Metadata Pattern: All moderation entities use common.Metadata, with service-specific fields under metadata.service_specific.contentmoderation.
+// Bad Actor Pattern: All moderation events increment bad_actor.flag_count and update last_flagged_at.
+// Accessibility & Compliance: Add accessibility field if moderation includes accessibility checks.
+//
+// For onboarding and extensibility, see docs/services/metadata.md and docs/services/versioning.md.
 func (s *Service) SubmitContentForModeration(ctx context.Context, req *contentmoderationpb.SubmitContentForModerationRequest) (*contentmoderationpb.SubmitContentForModerationResponse, error) {
 	if req == nil || req.ContentId == "" || req.UserId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "content_id and user_id are required", nil)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichContentModerationMetadata(req.GetMetadata(), req.UserId, true)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to extract and enrich content moderation metadata", err)
+	meta := req.GetMetadata()
+	if meta == nil {
+		meta = &commonpb.Metadata{}
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "audit", map[string]interface{}{"created_by": req.UserId, "history": []string{"created"}}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set audit in content moderation metadata", err)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return nil, graceful.ToStatusError(err)
 	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "versioning", map[string]interface{}{"system_version": "1.0.0", "service_version": "1.0.0", "moderation_version": "1.0.0", "environment": "prod"}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set versioning in content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "compliance", map[string]interface{}{"policy": "platform_default"}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set compliance in content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
+	}
+	// Bad Actor: increment flag_count and update last_flagged_at
+	metaMap := metadata.ProtoToMap(meta)
+	flagCount := 0
+	if ss, ok := metaMap["service_specific"].(map[string]interface{}); ok {
+		if cmMeta, ok := ss["contentmoderation"].(map[string]interface{}); ok {
+			if badActor, ok := cmMeta["bad_actor"].(map[string]interface{}); ok {
+				if v, ok := badActor["flag_count"].(float64); ok {
+					flagCount = int(v)
+				}
+			}
+		}
+	}
+	flagCount++
+	badActorMeta := map[string]interface{}{
+		"flag_count":      flagCount,
+		"last_flagged_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "bad_actor", badActorMeta); err != nil {
+		s.log.Warn("Failed to set service-specific metadata field (bad_actor)", zap.Error(err))
+	}
+	// Accessibility (stub): add if moderation includes accessibility checks
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "accessibility", map[string]interface{}{"checked": false}); err != nil {
+		s.log.Warn("Failed to set service-specific metadata field (accessibility)", zap.Error(err))
+	}
+	// Normalize metadata before persistence/emission
+	metaMap = metadata.ProtoToMap(meta)
+	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
+	meta = metadata.MapToProto(normMap)
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)
@@ -60,16 +117,12 @@ func (s *Service) SubmitContentForModeration(ctx context.Context, req *contentmo
 		return nil, graceful.ToStatusError(err)
 	}
 	var masterID, masterUUID string
-	if meta != nil && meta.ServiceSpecific != nil {
-		ssMap := meta.ServiceSpecific.AsMap()
-		if cm, ok := ssMap["contentmoderation"].(map[string]interface{}); ok {
-			if v, ok := cm["masterID"].(string); ok {
-				masterID = v
-			}
-			if v, ok := cm["masterUUID"].(string); ok {
-				masterUUID = v
-			}
-		}
+	modVars := metadata.ExtractServiceVariables(meta, "contentmoderation")
+	if v, ok := modVars["masterID"].(string); ok {
+		masterID = v
+	}
+	if v, ok := modVars["masterUUID"].(string); ok {
+		masterUUID = v
 	}
 	result, err := s.repo.SubmitContentForModeration(ctx, req.ContentId, masterID, masterUUID, req.UserId, req.ContentType, req.Content, metaJSON, req.CampaignId)
 	if err != nil {
@@ -138,12 +191,53 @@ func (s *Service) ApproveContent(ctx context.Context, req *contentmoderationpb.A
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichContentModerationMetadata(req.GetMetadata(), "moderator", false)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to extract and enrich content moderation metadata", err)
+	meta := req.GetMetadata()
+	if meta == nil {
+		meta = &commonpb.Metadata{}
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "audit", map[string]interface{}{"created_by": "moderator", "history": []string{"approved"}}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set audit in content moderation metadata", err)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return nil, graceful.ToStatusError(err)
 	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "versioning", map[string]interface{}{"system_version": "1.0.0", "service_version": "1.0.0", "moderation_version": "1.0.0", "environment": "prod"}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set versioning in content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "compliance", map[string]interface{}{"policy": "platform_default"}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set compliance in content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
+	}
+	// Bad Actor: increment flag_count and update last_flagged_at
+	metaMap := metadata.ProtoToMap(meta)
+	flagCount := 0
+	if ss, ok := metaMap["service_specific"].(map[string]interface{}); ok {
+		if cmMeta, ok := ss["contentmoderation"].(map[string]interface{}); ok {
+			if badActor, ok := cmMeta["bad_actor"].(map[string]interface{}); ok {
+				if v, ok := badActor["flag_count"].(float64); ok {
+					flagCount = int(v)
+				}
+			}
+		}
+	}
+	flagCount++
+	badActorMeta := map[string]interface{}{
+		"flag_count":      flagCount,
+		"last_flagged_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "bad_actor", badActorMeta); err != nil {
+		s.log.Warn("Failed to set service-specific metadata field (bad_actor)", zap.Error(err))
+	}
+	// Accessibility (stub): add if moderation includes accessibility checks
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "accessibility", map[string]interface{}{"checked": false}); err != nil {
+		s.log.Warn("Failed to set service-specific metadata field (accessibility)", zap.Error(err))
+	}
+	// Normalize metadata before persistence/emission
+	metaMap = metadata.ProtoToMap(meta)
+	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
+	meta = metadata.MapToProto(normMap)
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)
@@ -151,16 +245,12 @@ func (s *Service) ApproveContent(ctx context.Context, req *contentmoderationpb.A
 		return nil, graceful.ToStatusError(err)
 	}
 	var masterID, masterUUID string
-	if meta != nil && meta.ServiceSpecific != nil {
-		ssMap := meta.ServiceSpecific.AsMap()
-		if cm, ok := ssMap["contentmoderation"].(map[string]interface{}); ok {
-			if v, ok := cm["masterID"].(string); ok {
-				masterID = v
-			}
-			if v, ok := cm["masterUUID"].(string); ok {
-				masterUUID = v
-			}
-		}
+	modVars := metadata.ExtractServiceVariables(meta, "contentmoderation")
+	if v, ok := modVars["masterID"].(string); ok {
+		masterID = v
+	}
+	if v, ok := modVars["masterUUID"].(string); ok {
+		masterUUID = v
 	}
 	result, err := s.repo.ApproveContent(ctx, req.ContentId, masterID, masterUUID, metaJSON, req.CampaignId)
 	if err != nil {
@@ -189,12 +279,53 @@ func (s *Service) RejectContent(ctx context.Context, req *contentmoderationpb.Re
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return nil, graceful.ToStatusError(err)
 	}
-	meta, err := ExtractAndEnrichContentModerationMetadata(req.GetMetadata(), "moderator", false)
-	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to extract and enrich content moderation metadata", err)
+	meta := req.GetMetadata()
+	if meta == nil {
+		meta = &commonpb.Metadata{}
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "audit", map[string]interface{}{"created_by": "moderator", "history": []string{"rejected"}, "reason": req.Reason}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set audit in content moderation metadata", err)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return nil, graceful.ToStatusError(err)
 	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "versioning", map[string]interface{}{"system_version": "1.0.0", "service_version": "1.0.0", "moderation_version": "1.0.0", "environment": "prod"}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set versioning in content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "compliance", map[string]interface{}{"policy": "platform_default"}); err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to set compliance in content moderation metadata", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(err)
+	}
+	// Bad Actor: increment flag_count and update last_flagged_at
+	metaMap := metadata.ProtoToMap(meta)
+	flagCount := 0
+	if ss, ok := metaMap["service_specific"].(map[string]interface{}); ok {
+		if cmMeta, ok := ss["contentmoderation"].(map[string]interface{}); ok {
+			if badActor, ok := cmMeta["bad_actor"].(map[string]interface{}); ok {
+				if v, ok := badActor["flag_count"].(float64); ok {
+					flagCount = int(v)
+				}
+			}
+		}
+	}
+	flagCount++
+	badActorMeta := map[string]interface{}{
+		"flag_count":      flagCount,
+		"last_flagged_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "bad_actor", badActorMeta); err != nil {
+		s.log.Warn("Failed to set service-specific metadata field (bad_actor)", zap.Error(err))
+	}
+	// Accessibility (stub): add if moderation includes accessibility checks
+	if err := metadata.SetServiceSpecificField(meta, "contentmoderation", "accessibility", map[string]interface{}{"checked": false}); err != nil {
+		s.log.Warn("Failed to set service-specific metadata field (accessibility)", zap.Error(err))
+	}
+	// Normalize metadata before persistence/emission
+	metaMap = metadata.ProtoToMap(meta)
+	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
+	meta = metadata.MapToProto(normMap)
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)
@@ -202,16 +333,12 @@ func (s *Service) RejectContent(ctx context.Context, req *contentmoderationpb.Re
 		return nil, graceful.ToStatusError(err)
 	}
 	var masterID, masterUUID string
-	if meta != nil && meta.ServiceSpecific != nil {
-		ssMap := meta.ServiceSpecific.AsMap()
-		if cm, ok := ssMap["contentmoderation"].(map[string]interface{}); ok {
-			if v, ok := cm["masterID"].(string); ok {
-				masterID = v
-			}
-			if v, ok := cm["masterUUID"].(string); ok {
-				masterUUID = v
-			}
-		}
+	modVars := metadata.ExtractServiceVariables(meta, "contentmoderation")
+	if v, ok := modVars["masterID"].(string); ok {
+		masterID = v
+	}
+	if v, ok := modVars["masterUUID"].(string); ok {
+		masterUUID = v
 	}
 	result, err := s.repo.RejectContent(ctx, req.ContentId, masterID, masterUUID, req.Reason, metaJSON, req.CampaignId)
 	if err != nil {

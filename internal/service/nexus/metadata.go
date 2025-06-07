@@ -95,3 +95,41 @@ func ComposeNexusMetadata(tags []string, serviceSpecific, audit, kg, customRules
 // _ = ParseNexusMetadata(data)
 
 // Extend this file with more helpers as new metadata fields and query patterns emerge.
+
+// [CANONICAL] All metadata must be normalized and calculated via metadata.NormalizeAndCalculate before persistence or emission.
+// Ensure required fields (versioning, audit, etc.) are present under the correct namespace.
+
+// NormalizeAndCalculate ensures required fields (versioning, audit, etc.) are present under the correct namespace.
+func NormalizeAndCalculate(meta *Metadata) *Metadata {
+	if meta == nil {
+		meta = &Metadata{}
+	}
+	if meta.ServiceSpecific == nil {
+		meta.ServiceSpecific = make(map[string]interface{})
+	}
+	// Ensure versioning field exists under service_specific.nexus.versioning
+	if _, ok := meta.ServiceSpecific["nexus"]; !ok {
+		meta.ServiceSpecific["nexus"] = make(map[string]interface{})
+	}
+	nexusMap, ok := meta.ServiceSpecific["nexus"].(map[string]interface{})
+	if !ok {
+		// If it's not a map, replace it
+		nexusMap = make(map[string]interface{})
+		meta.ServiceSpecific["nexus"] = nexusMap
+	}
+	if _, ok := nexusMap["versioning"]; !ok {
+		nexusMap["versioning"] = map[string]interface{}{
+			"system_version":   "2025-06-01", // update as needed
+			"service_version":  "1.0.0",      // update as needed
+			"environment":      "production", // or from env/config
+			"last_migrated_at": "2025-06-01T00:00:00Z",
+		}
+	}
+	// Optionally, ensure audit field exists
+	if meta.Audit == nil {
+		meta.Audit = map[string]interface{}{
+			"created_at": "2025-06-01T00:00:00Z", // or time.Now().UTC().Format(time.RFC3339)
+		}
+	}
+	return meta
+}

@@ -11,6 +11,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	repo "github.com/nmxmxh/master-ovasabi/internal/repository"
 	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"go.uber.org/zap"
 )
 
 var (
@@ -23,6 +24,7 @@ var (
 type Repository struct {
 	db         *sql.DB
 	masterRepo repo.MasterRepository
+	log        *zap.Logger
 }
 
 func NewRepository(db *sql.DB, masterRepo repo.MasterRepository) *Repository {
@@ -46,28 +48,50 @@ func (r *Repository) Translate(ctx context.Context, key, locale string) (string,
 }
 
 // BatchTranslate returns translations for multiple keys in a given locale.
-func (r *Repository) BatchTranslate(ctx context.Context, keys []string, locale string) (map[string]string, error) {
+// Returns:
+//   - result: map of key to value for found translations
+//   - missing: slice of keys that were not found
+//   - firstErr: the first error encountered (if any), or nil if all succeeded
+func (r *Repository) BatchTranslate(ctx context.Context, keys []string, locale string) (result map[string]string, missing []string, firstErr error) {
 	if len(keys) == 0 {
-		return map[string]string{}, nil
+		return map[string]string{}, nil, nil
 	}
 	query := `SELECT key, value FROM service_i18n WHERE locale = $1 AND key = ANY($2)`
 	rows, err := r.db.QueryContext(ctx, query, locale, pq.Array(keys))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
-	result := make(map[string]string)
+	result = make(map[string]string)
+	found := make(map[string]struct{})
 	for rows.Next() {
 		var k, v string
 		if err := rows.Scan(&k, &v); err != nil {
-			return nil, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			if r.log != nil {
+				r.log.Warn("Failed to scan translation in batch", zap.String("key", k), zap.Error(err))
+			}
+			continue
 		}
 		result[k] = v
+		found[k] = struct{}{}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		if firstErr == nil {
+			firstErr = err
+		}
+		if r.log != nil {
+			r.log.Warn("Error after iterating translation rows", zap.Error(err))
+		}
 	}
-	return result, nil
+	for _, k := range keys {
+		if _, ok := found[k]; !ok {
+			missing = append(missing, k)
+		}
+	}
+	return result, missing, firstErr
 }
 
 // CreateTranslation creates a new translation entry.

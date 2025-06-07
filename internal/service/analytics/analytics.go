@@ -17,17 +17,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	analytics "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 type Event struct {
@@ -43,27 +45,25 @@ type RepositoryItf interface {
 	GetProductEvents(ctx context.Context, productID string, campaignID string, page, pageSize int) ([]*analytics.Event, int, error)
 	GetReport(ctx context.Context, reportID string) (*analytics.Report, error)
 	ListReports(ctx context.Context, page, pageSize int) ([]*analytics.Report, int, error)
+	CountEventsByType(ctx context.Context, eventType string) (int, error)
 }
 
 type Service struct {
 	analytics.UnimplementedAnalyticsServiceServer
-	log             *zap.Logger
-	repo            *Repository
-	Cache           *redis.Cache
-	mu              sync.Mutex
-	analyticsEvents map[string]*Event // in-memory event store (replace with DB)
-	eventEmitter    EventEmitter
-	eventEnabled    bool
+	log          *zap.Logger
+	repo         *Repository
+	Cache        *redis.Cache
+	eventEmitter events.EventEmitter
+	eventEnabled bool
 }
 
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) analytics.AnalyticsServiceServer {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) analytics.AnalyticsServiceServer {
 	return &Service{
-		log:             log,
-		repo:            repo,
-		Cache:           cache,
-		analyticsEvents: make(map[string]*Event),
-		eventEmitter:    eventEmitter,
-		eventEnabled:    eventEnabled,
+		log:          log,
+		repo:         repo,
+		Cache:        cache,
+		eventEmitter: eventEmitter,
+		eventEnabled: eventEnabled,
 	}
 }
 
@@ -71,6 +71,41 @@ var _ analytics.AnalyticsServiceServer = (*Service)(nil)
 
 // Define a package-level error for event not found.
 var ErrEventNotFound = status.Error(codes.NotFound, "analytics event not found")
+
+// Helper: Convert *structpb.Struct to map[string]string.
+func structToStringMap(s *structpb.Struct) map[string]string {
+	m := make(map[string]string)
+	if s == nil {
+		return m
+	}
+	for k, v := range s.Fields {
+		if str, ok := v.Kind.(*structpb.Value_StringValue); ok {
+			m[k] = str.StringValue
+		}
+	}
+	return m
+}
+
+// Adapter to bridge s.eventEmitter to the required orchestration EventEmitter interface.
+type EventEmitterAdapter struct {
+	Emitter events.EventEmitter
+}
+
+func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
+	if a.Emitter == nil {
+		log.Warn("Event emitter not configured", zap.String("event_type", eventType))
+		return "", false
+	}
+	return a.Emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
+}
+
+func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
+	if a.Emitter == nil {
+		log.Warn("Event emitter not configured", zap.String("event_type", eventType))
+		return "", false
+	}
+	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
+}
 
 // CaptureEvent ingests a new analytics event with robust, GDPR-compliant metadata.
 func (s *Service) CaptureEvent(ctx context.Context, req *analytics.CaptureEventRequest) (*analytics.CaptureEventResponse, error) {
@@ -85,7 +120,8 @@ func (s *Service) CaptureEvent(ctx context.Context, req *analytics.CaptureEventR
 		req.Groups.AsMap(),
 		req.Context.AsMap(),
 		req.GdprObscure,
-		nil, // serviceSpecific extensions
+		map[string]interface{}{}, // serviceSpecific
+		s.log,                    // logger
 	)
 	if err != nil {
 		s.log.Error("Failed to build analytics metadata", zap.Error(err))
@@ -94,14 +130,21 @@ func (s *Service) CaptureEvent(ctx context.Context, req *analytics.CaptureEventR
 		return nil, err
 	}
 	eventID := generateEventID()
-	event := &Event{
-		ID:        eventID,
-		Timestamp: time.Now(),
-		Metadata:  meta,
+	event := &analytics.Event{
+		Id:         eventID,
+		UserId:     req.UserId,
+		EventType:  req.EventType,
+		Properties: structToStringMap(req.Properties),
+		Metadata:   meta,
+		Timestamp:  time.Now().Unix(),
+		CampaignId: req.CampaignId,
 	}
-	s.mu.Lock()
-	s.analyticsEvents[eventID] = event
-	s.mu.Unlock()
+	if err := s.repo.TrackEvent(ctx, event); err != nil {
+		s.log.Error("Failed to track analytics event", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to track analytics event", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
+		return nil, err
+	}
 	s.log.Info("Captured analytics event", zap.String("event_id", eventID), zap.String("event_type", req.EventType))
 	success := graceful.WrapSuccess(ctx, codes.OK, "analytics event captured", &analytics.CaptureEventResponse{EventId: eventID}, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
@@ -111,7 +154,7 @@ func (s *Service) CaptureEvent(ctx context.Context, req *analytics.CaptureEventR
 		CacheValue:   event,
 		CacheTTL:     10 * time.Minute,
 		Metadata:     event.Metadata,
-		EventEmitter: s.eventEmitter,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		EventEnabled: s.eventEnabled,
 		EventType:    "analytics.event_tracked",
 		EventID:      eventID,
@@ -124,23 +167,27 @@ func (s *Service) CaptureEvent(ctx context.Context, req *analytics.CaptureEventR
 
 // ListEvents returns all captured analytics events (paginated in production).
 func (s *Service) ListEvents(ctx context.Context, req *analytics.ListEventsRequest) (*analytics.ListEventsResponse, error) {
+	s.log.Info("ListEvents called", zap.Any("request", req))
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	// ListEventsRequest has no fields; fetch all events for demo (userId/campaignId empty, page 1, pageSize 100)
+	userEvents, _, err := s.repo.GetUserEvents(ctx, "", 0, 1, 100)
+	if err != nil {
+		s.log.Error("failed to list analytics events", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to list analytics events", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
+		return nil, err
 	}
-	// In the future, use req for pagination/filtering.
-	s.mu.Lock()
-	analyticsEvents := make([]*analytics.AnalyticsEvent, 0, len(s.analyticsEvents))
-	for _, e := range s.analyticsEvents {
+	analyticsEvents := make([]*analytics.AnalyticsEvent, 0, len(userEvents))
+	for _, e := range userEvents {
 		analyticsEvents = append(analyticsEvents, &analytics.AnalyticsEvent{
-			EventId:   e.ID,
-			Timestamp: e.Timestamp.Unix(),
-			Metadata:  e.Metadata,
+			EventId:    e.Id,
+			Timestamp:  e.Timestamp,
+			Metadata:   e.Metadata,
+			CampaignId: e.CampaignId,
 		})
 	}
-	s.mu.Unlock()
 	return &analytics.ListEventsResponse{Events: analyticsEvents}, nil
 }
 
@@ -149,20 +196,41 @@ func (s *Service) EnrichEventMetadata(ctx context.Context, req *analytics.Enrich
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	s.mu.Lock()
-	event, ok := s.analyticsEvents[req.EventId]
-	s.mu.Unlock()
-	if !ok {
+	// Fetch all events (for demo, should optimize by event ID)
+	userEvents, _, err := s.repo.GetUserEvents(ctx, "", 0, 1, 10000)
+	if err != nil {
+		s.log.Error("failed to fetch events for enrichment", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to fetch events for enrichment", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
+		return nil, err
+	}
+	var eventToUpdate *analytics.Event
+	for _, e := range userEvents {
+		if e.Id == req.EventId {
+			eventToUpdate = e
+			break
+		}
+	}
+	if eventToUpdate == nil {
 		s.log.Error("Event not found for enrichment", zap.String("event_id", req.EventId))
 		errCtx := graceful.WrapErr(ctx, codes.NotFound, "event not found for enrichment", ErrEventNotFound)
 		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
 		return nil, ErrEventNotFound
 	}
-	// Merge new fields into existing metadata (simple merge for demo)
-	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil && req.NewFields != nil {
+	// Merge new fields into existing metadata using canonical helper
+	if eventToUpdate.Metadata != nil && req.NewFields != nil {
 		for k, v := range req.NewFields.Fields {
-			event.Metadata.ServiceSpecific.Fields[k] = v
+			if err := metadata.SetServiceSpecificField(eventToUpdate.Metadata, "analytics", k, v.AsInterface()); err != nil {
+				s.log.Warn("Failed to set analytics field", zap.String("field", k), zap.Error(err))
+			}
 		}
+	}
+	// Persist updated event
+	if err := s.repo.TrackEvent(ctx, eventToUpdate); err != nil {
+		s.log.Error("failed to update analytics event", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to update analytics event", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
+		return nil, err
 	}
 	s.log.Info("Enriched analytics event metadata", zap.String("event_id", req.EventId))
 	success := graceful.WrapSuccess(ctx, codes.OK, "analytics event enriched", &analytics.EnrichEventMetadataResponse{Success: true}, nil)
@@ -170,23 +238,23 @@ func (s *Service) EnrichEventMetadata(ctx context.Context, req *analytics.Enrich
 		Log:          s.log,
 		Cache:        s.Cache,
 		CacheKey:     req.EventId,
-		CacheValue:   event.Metadata,
+		CacheValue:   eventToUpdate.Metadata,
 		CacheTTL:     10 * time.Minute,
-		Metadata:     event.Metadata,
-		EventEmitter: s.eventEmitter,
+		Metadata:     eventToUpdate.Metadata,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		EventEnabled: s.eventEnabled,
 		EventType:    "analytics.event_enriched",
 		EventID:      req.EventId,
 		PatternType:  "analytics_event",
 		PatternID:    req.EventId,
-		PatternMeta:  event.Metadata,
+		PatternMeta:  eventToUpdate.Metadata,
 	})
 	return &analytics.EnrichEventMetadataResponse{Success: true}, nil
 }
 
-// generateEventID generates a unique event ID (replace with UUID in production).
+// generateEventID generates a unique event ID using UUIDv7 (canonical pattern).
 func generateEventID() string {
-	return time.Now().Format("20060102T150405.000000000")
+	return utils.NewUUIDOrDefault()
 }
 
 func (s *Service) TrackEvent(ctx context.Context, req *analytics.TrackEventRequest) (*analytics.TrackEventResponse, error) {
@@ -208,7 +276,7 @@ func (s *Service) TrackEvent(ctx context.Context, req *analytics.TrackEventReque
 		CacheValue:   event.Metadata,
 		CacheTTL:     10 * time.Minute,
 		Metadata:     event.Metadata,
-		EventEmitter: s.eventEmitter,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		EventEnabled: s.eventEnabled,
 		EventType:    "analytics.event_tracked",
 		EventID:      event.Id,
@@ -225,12 +293,16 @@ func (s *Service) BatchTrackEvents(ctx context.Context, req *analytics.BatchTrac
 			return nil, status.Error(codes.InvalidArgument, "all events must have master_id")
 		}
 	}
-	successCount, failCount, err := s.repo.BatchTrackEvents(ctx, req.GetEvents())
-	if err != nil {
-		s.log.Error("failed to batch track events", zap.Error(err))
-		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to batch track events", err)
+	successCount, failCount, firstErr := s.repo.BatchTrackEvents(ctx, req.GetEvents())
+	if firstErr != nil {
+		s.log.Error("failed to batch track events", zap.Error(firstErr))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to batch track events", firstErr)
 		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
 		return nil, status.Error(codes.Internal, "failed to batch track events")
+	}
+	if failCount > 0 {
+		s.log.Warn("Partial failure in batch track events", zap.Int("success", successCount), zap.Int("fail", failCount))
+		// Optionally, include a warning in the response metadata or orchestrate a warning event
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "analytics batch tracked", &analytics.BatchTrackEventsResponse{
 		SuccessCount: utils.ToInt32(successCount),
@@ -243,7 +315,7 @@ func (s *Service) BatchTrackEvents(ctx context.Context, req *analytics.BatchTrac
 		CacheValue:   nil,
 		CacheTTL:     10 * time.Minute,
 		Metadata:     nil,
-		EventEmitter: s.eventEmitter,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		EventEnabled: s.eventEnabled,
 		EventType:    "analytics.batch_tracked",
 		EventID:      "",
@@ -311,23 +383,13 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 				eventType = v
 			}
 		}
-		s.mu.Lock()
-		count := 0
-		for _, e := range s.analyticsEvents {
-			if e.Metadata != nil && e.Metadata.ServiceSpecific != nil {
-				if analyticsFields, ok := e.Metadata.ServiceSpecific.Fields["analytics"]; ok {
-					analyticsStruct := analyticsFields.GetStructValue()
-					if analyticsStruct != nil {
-						if v, ok := analyticsStruct.Fields["event_type"]; ok {
-							if eventType == "" || v.GetStringValue() == eventType {
-								count++
-							}
-						}
-					}
-				}
-			}
+		// DB-backed event counting by type
+		count, err := s.repo.CountEventsByType(ctx, eventType)
+		if err != nil {
+			errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to count events by type", err)
+			errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
+			return nil, err
 		}
-		s.mu.Unlock()
 		// Build metadata-like result
 		result := map[string]interface{}{
 			"report_id":  req.ReportId,
@@ -343,6 +405,7 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 		}
 		data, err := json.Marshal(result)
 		if err != nil {
+			s.log.Error("Failed to marshal report result", zap.Error(err))
 			errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to marshal result", err)
 			errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
 			return nil, fmt.Errorf("failed to marshal result: %w", err)
@@ -363,7 +426,7 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 			CacheValue:   report.Data,
 			CacheTTL:     10 * time.Minute,
 			Metadata:     nil,
-			EventEmitter: s.eventEmitter,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 			EventEnabled: s.eventEnabled,
 			EventType:    "analytics.report_generated",
 			EventID:      req.ReportId,
@@ -374,12 +437,23 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 		return &analytics.GetReportResponse{Report: report}, nil
 	}
 	// Default dummy report
+	dummyData, err := json.Marshal(map[string]interface{}{
+		"report_id":  req.ReportId,
+		"parameters": map[string]string{"example": "value"},
+		"data":       "dummy data",
+	})
+	if err != nil {
+		s.log.Error("Failed to marshal dummy report data", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to marshal dummy report data", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
+		return nil, fmt.Errorf("failed to marshal dummy report data: %w", err)
+	}
 	report := &analytics.Report{
 		Id:          req.ReportId,
 		Name:        "Dummy Report",
 		Description: "This is a dummy analytics report.",
 		Parameters:  map[string]string{"example": "value"},
-		Data:        []byte("dummy data"),
+		Data:        dummyData,
 		CreatedAt:   time.Now().Unix(),
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "analytics report generated", &analytics.GetReportResponse{Report: report}, nil)
@@ -390,7 +464,7 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 		CacheValue:   report.Data,
 		CacheTTL:     10 * time.Minute,
 		Metadata:     nil,
-		EventEmitter: s.eventEmitter,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		EventEnabled: s.eventEnabled,
 		EventType:    "analytics.report_generated",
 		EventID:      req.ReportId,
@@ -441,11 +515,31 @@ func (s *Service) ListReports(ctx context.Context, req *analytics.ListReportsReq
 		end = total
 	}
 	paged := reports[start:end]
-	totalPages := (total + pageSize - 1) / pageSize
+	success := graceful.WrapSuccess(ctx, codes.OK, "analytics reports listed", &analytics.ListReportsResponse{
+		Reports:    paged,
+		TotalCount: utils.ToInt32(total),
+		Page:       utils.ToInt32(page),
+		TotalPages: utils.ToInt32((total + pageSize - 1) / pageSize),
+	}, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:          s.log,
+		Cache:        s.Cache,
+		CacheKey:     fmt.Sprintf("reports_list_%d_%d", page, pageSize),
+		CacheValue:   paged,
+		CacheTTL:     10 * time.Minute,
+		Metadata:     nil,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+		EventEnabled: s.eventEnabled,
+		EventType:    "analytics.reports_listed",
+		EventID:      "",
+		PatternType:  "analytics_event",
+		PatternID:    "",
+		PatternMeta:  nil,
+	})
 	return &analytics.ListReportsResponse{
 		Reports:    paged,
 		TotalCount: utils.ToInt32(total),
 		Page:       utils.ToInt32(page),
-		TotalPages: utils.ToInt32(totalPages),
+		TotalPages: utils.ToInt32((total + pageSize - 1) / pageSize),
 	}, nil
 }

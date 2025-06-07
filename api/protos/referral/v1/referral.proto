@@ -17,6 +17,10 @@ service ReferralService {
   rpc GetReferral(GetReferralRequest) returns (GetReferralResponse) {}
   // GetReferralStats retrieves referral statistics
   rpc GetReferralStats(GetReferralStatsRequest) returns (GetReferralStatsResponse) {}
+  // RegisterReferral registers a new referral
+  rpc RegisterReferral(RegisterReferralRequest) returns (RegisterReferralResponse) {}
+  // RewardReferral rewards a referral
+  rpc RewardReferral(RewardReferralRequest) returns (RewardReferralResponse) {}
 }
 
 // Referral contains information about a referral
@@ -86,4 +90,30 @@ message ReferralDetail {
   bool is_active = 4;
   int32 reward_points = 5;
   common.Metadata metadata = 8; // Extensible metadata
+}
+
+// RegisterReferralRequest for registering a new referral
+message RegisterReferralRequest {
+  string referrer_master_id = 1;
+  string referrer_master_uuid = 2;
+  int64 campaign_id = 3;
+  string device_hash = 4;
+  common.Metadata metadata = 5;
+}
+
+message RegisterReferralResponse {
+  Referral referral = 1;
+  bool success = 2;
+}
+
+// RewardReferralRequest for rewarding a referral
+message RewardReferralRequest {
+  string referral_code = 1;
+  int64 reward_amount = 2;
+  common.Metadata metadata = 3;
+}
+
+message RewardReferralResponse {
+  Referral referral = 1;
+  bool success = 2;
 } 

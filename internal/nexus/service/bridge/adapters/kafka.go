@@ -66,17 +66,16 @@ func (a *KafkaAdapter) Receive(ctx context.Context, handler bridge.MessageHandle
 			case <-a.shutdown:
 				return
 			default:
-				m, err := a.reader.ReadMessage(ctx)
+				kafkaMsg, err := a.reader.ReadMessage(ctx)
 				if err != nil {
 					fmt.Printf("[KafkaAdapter] Read error: %v\n", err)
 					continue
 				}
 				if a.handler != nil {
-					msg := &bridge.Message{
-						Payload:  m.Value,
-						Metadata: map[string]string{"kafka_topic": m.Topic, "partition": fmt.Sprint(m.Partition)},
-					}
-					if err := a.handler(ctx, msg); err != nil {
+					if err := a.handler(ctx, &bridge.Message{
+						Payload:  kafkaMsg.Value,
+						Metadata: map[string]string{"kafka_topic": kafkaMsg.Topic, "partition": fmt.Sprint(kafkaMsg.Partition)},
+					}); err != nil {
 						fmt.Printf("[KafkaAdapter] Handler error: %v\n", err)
 					}
 				}

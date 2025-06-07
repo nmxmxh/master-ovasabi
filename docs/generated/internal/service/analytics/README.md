@@ -30,6 +30,10 @@ PostgresRepository provides analytics event storage.
 
 ##### BatchTrackEvents
 
+##### CountEventsByType
+
+CountEventsByType returns the number of analytics events with the given event_type.
+
 ##### GetProductEvents
 
 ##### GetReport
@@ -74,8 +78,11 @@ ListEvents returns all captured analytics events (paginated in production).
 
 ### BuildAnalyticsMetadata
 
-BuildAnalyticsMetadata builds robust, GDPR-compliant analytics event metadata. If gdprObscure is
-true, user/sensitive info is omitted or obscured.
+BuildAnalyticsMetadata builds robust, GDPR-compliant analytics event metadata. User information
+(userID, userEmail) is always obscured unless gdprObscure is explicitly false. If user info is
+provided but gdprObscure is true, a warning is logged using the provided logger. [CANONICAL] All
+metadata must be normalized and calculated via metadata.NormalizeAndCalculate before persistence or
+emission. Ensure required fields (versioning, audit, etc.) are present under the correct namespace.
 
 ### NewService
 

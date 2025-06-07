@@ -1,0 +1,15 @@
+apiVersion: v2
+name: ovasabi
+version: 0.1.0
+description: Production-grade, distributed OVASABI platform
+keywords:
+  - ovasabi
+  - distributed
+  - ai
+  - orchestration
+  - wasm
+  - microservices
+home: https://ovasabi.studio
+maintainers:
+  - name: OVASABI Team
+    email: engineering@ovasabi.studio

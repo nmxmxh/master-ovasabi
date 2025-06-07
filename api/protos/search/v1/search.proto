@@ -6,6 +6,7 @@ option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/search";
 
 import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
+import "google/protobuf/empty.proto";
 
 // SearchService provides unified, metadata-driven search across all major entities.
 service SearchService {
@@ -14,6 +15,9 @@ service SearchService {
 
   // Suggest/autocomplete endpoint
   rpc Suggest (SuggestRequest) returns (SuggestResponse);
+
+  // List all searchable fields for all entities
+  rpc ListSearchableFields(google.protobuf.Empty) returns (ListSearchableFieldsResponse);
 }
 
 // Request for a search query.
@@ -57,4 +61,18 @@ message SuggestRequest {
 message SuggestResponse {
   repeated string suggestions = 1;
   common.Metadata metadata = 2;
+}
+
+// Searchable field registry endpoint
+message SearchableField {
+  string name = 1;
+  string type = 2;
+}
+
+message SearchableFields {
+  repeated SearchableField fields = 1;
+}
+
+message ListSearchableFieldsResponse {
+  map<string, SearchableFields> entities = 1;
 } 

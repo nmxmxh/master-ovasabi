@@ -39,6 +39,7 @@ message BatchTranslateRequest {
 }
 message BatchTranslateResponse {
   map<string, string> values = 1;
+  common.Metadata metadata = 2;
 }
 
 message CreateTranslationRequest {

@@ -3,10 +3,14 @@ package talent
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
 	repo "github.com/nmxmxh/master-ovasabi/internal/repository"
+	service "github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -34,8 +38,24 @@ import (
 // For more, see the Amadeus context: docs/amadeus/amadeus_context.md (Provider/DI Registration Pattern)
 
 // Register registers the talent service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repo.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
-	repository := NewRepository(db, masterRepo)
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter events.EventEmitter,
+	db *sql.DB,
+	masterRepo repo.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{},
+) error {
+	// Create repository
+	repository := NewRepository(db, log, masterRepo)
+	if repository == nil {
+		return fmt.Errorf("failed to create talent repository")
+	}
+
 	cache, err := redisProvider.GetCache(ctx, "talent")
 	if err != nil {
 		log.Warn("failed to get talent cache", zap.Error(err))
@@ -46,6 +66,11 @@ func Register(ctx context.Context, container *di.Container, eventEmitter EventEm
 	}); err != nil {
 		log.Error("Failed to register talent service", zap.Error(err))
 		return err
+	}
+	// Inos: Register the hello-world event loop for service health and orchestration
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "talent")
 	}
 	return nil
 }

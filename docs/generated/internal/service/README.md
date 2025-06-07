@@ -16,6 +16,10 @@ CacheConfig defines the configuration for a service cache.
 
 #### Methods
 
+##### EmitEchoEvent
+
+EmitEchoEvent emits a canonical 'echo' event to Nexus for testing and onboarding.
+
 ##### EmitEvent
 
 EmitEvent emits an event to the Nexus event bus.
@@ -24,6 +28,10 @@ EmitEvent emits an event to the Nexus event bus.
 
 EmitEventWithLogging emits an event to Nexus and logs the outcome, orchestrating errors with
 graceful.
+
+##### StartEchoLoop
+
+StartEchoLoop starts a background goroutine that emits an echo event every 15 seconds.
 
 ##### SubscribeEvents
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -259,7 +260,7 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 				Content:        content,
 				Type:           msgType,
 				Metadata:       meta,
-				CampaignId:     campaignID,
+				CampaignId:     strconv.FormatInt(campaignID, 10),
 			}
 			resp, err := messagingSvc.SendMessage(ctx, protoReq)
 			if err != nil {
@@ -317,7 +318,7 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 				Page:           page,
 				PageSize:       pageSize,
 				Metadata:       meta,
-				CampaignId:     campaignID,
+				CampaignId:     strconv.FormatInt(campaignID, 10),
 			}
 			resp, err := messagingSvc.ListMessages(ctx, protoReq)
 			if err != nil {
@@ -410,7 +411,7 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 				UserId:     userID,
 				Page:       page,
 				PageSize:   pageSize,
-				CampaignId: campaignID,
+				CampaignId: strconv.FormatInt(campaignID, 10),
 			}
 			resp, err := messagingSvc.ListThreads(ctx, protoReq)
 			if err != nil {
@@ -452,7 +453,7 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 				ChatGroupId: chatGroupID,
 				UserId:      userID,
 				Role:        role,
-				CampaignId:  campaignID,
+				CampaignId:  strconv.FormatInt(campaignID, 10),
 			}
 			resp, err := messagingSvc.AddChatGroupMember(ctx, protoReq)
 			if err != nil {
@@ -485,7 +486,7 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 			protoReq := &messagingpb.RemoveChatGroupMemberRequest{
 				ChatGroupId: chatGroupID,
 				UserId:      userID,
-				CampaignId:  campaignID,
+				CampaignId:  strconv.FormatInt(campaignID, 10),
 			}
 			resp, err := messagingSvc.RemoveChatGroupMember(ctx, protoReq)
 			if err != nil {
@@ -520,7 +521,7 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 				ChatGroupId: chatGroupID,
 				Page:        page,
 				PageSize:    pageSize,
-				CampaignId:  campaignID,
+				CampaignId:  strconv.FormatInt(campaignID, 10),
 			}
 			resp, err := messagingSvc.ListChatGroupMembers(ctx, protoReq)
 			if err != nil {

@@ -30,6 +30,11 @@ type NexusOpsHandler struct {
 	Log       *zap.Logger
 }
 
+type ErrorResponse struct {
+	Error string `json:"error"`
+	Code  int    `json:"code,omitempty"`
+}
+
 func NewNexusOpsHandler(container *di.Container, log *zap.Logger) *NexusOpsHandler {
 	return &NexusOpsHandler{Container: container, Log: log}
 }
@@ -39,13 +44,21 @@ func (h *NexusOpsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var nexusClient nexusv1.NexusServiceClient
 	if err := h.Container.Resolve(&nexusClient); err != nil {
 		h.Log.Error("Failed to resolve NexusServiceClient", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		if err := json.NewEncoder(w).Encode(ErrorResponse{Error: "internal error", Code: 500}); err != nil {
+			h.Log.Error("failed to encode response", zap.Error(err))
+		}
 		return
 	}
 	var req nexusv1.HandleOpsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.Log.Warn("Failed to decode HandleOpsRequest", zap.Error(err))
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		if err := json.NewEncoder(w).Encode(ErrorResponse{Error: "invalid request", Code: 400}); err != nil {
+			h.Log.Error("failed to encode response", zap.Error(err))
+		}
 		return
 	}
 
@@ -61,7 +74,11 @@ func (h *NexusOpsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := nexusClient.HandleOps(ctx, &req)
 	if err != nil {
 		h.Log.Error("HandleOps gRPC call failed", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		if err := json.NewEncoder(w).Encode(ErrorResponse{Error: "internal error", Code: 500}); err != nil {
+			h.Log.Error("failed to encode response", zap.Error(err))
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -70,7 +87,11 @@ func (h *NexusOpsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := enc.Marshal(resp)
 	if err != nil {
 		h.Log.Error("Failed to marshal HandleOpsResponse", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		if err := json.NewEncoder(w).Encode(ErrorResponse{Error: "internal error", Code: 500}); err != nil {
+			h.Log.Error("failed to encode response", zap.Error(err))
+		}
 		return
 	}
 	if _, err := w.Write(data); err != nil {

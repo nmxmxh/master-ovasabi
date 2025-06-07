@@ -83,11 +83,10 @@ func (a *SerialAdapter) Receive(ctx context.Context, handler bridge.MessageHandl
 					continue
 				}
 				if n > 0 && a.handler != nil {
-					msg := &bridge.Message{
+					if err := a.handler(ctx, &bridge.Message{
 						Payload:  append([]byte{}, buf[:n]...),
 						Metadata: map[string]string{"serial_port": a.cfg.PortName},
-					}
-					if err := a.handler(ctx, msg); err != nil {
+					}); err != nil {
 						fmt.Printf("[SerialAdapter] Handler error: %v\n", err)
 					}
 				}

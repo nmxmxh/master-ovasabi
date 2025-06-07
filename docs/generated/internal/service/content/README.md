@@ -104,12 +104,14 @@ SearchContent with flexible filters.
 
 ##### UpdateContent
 
+### ServiceMetadata
+
+ServiceMetadata defines the canonical, extensible metadata structure for content entities. This
+struct documents all fields expected under metadata.service_specific["content"] in the
+common.Metadata proto. Reference: docs/services/metadata.md, docs/amadeus/amadeus_context.md All
+extraction and mutation must use canonical helpers from pkg/metadata.
+
 ## Functions
-
-### BuildContentMetadata
-
-BuildContentMetadata builds a canonical content metadata struct for storage, analytics, and
-extensibility.
 
 ### NewService
 

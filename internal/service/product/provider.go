@@ -28,24 +28,56 @@ import (
 
 	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
 	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
 
 // Register registers the product service with the DI container and event bus support.
-func Register(ctx context.Context, container *di.Container, eventEmitter EventEmitter, db *sql.DB, masterRepo repository.MasterRepository, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool) error {
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter events.EventEmitter,
+	db *sql.DB,
+	masterRepo repository.MasterRepository,
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{},
+) error {
 	repo := NewRepository(db, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "product")
 	if err != nil {
-		log.Warn("failed to get product cache", zap.Error(err))
+		log.With(zap.String("service", "product")).Warn("Failed to get product cache", zap.Error(err), zap.String("cache", "product"), zap.String("context", ctxValue(ctx)))
 	}
 	productService := NewProductService(repo, log, cache, eventEmitter, eventEnabled)
 	if err := container.Register((*productpb.ProductServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return productService, nil
 	}); err != nil {
-		log.Error("Failed to register product service", zap.Error(err))
+		log.With(zap.String("service", "product")).Error("Failed to register product service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
+	// Inos: Register the hello-world event loop for service health and orchestration
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		hello.StartHelloWorldLoop(ctx, prov, log, "product")
+	}
 	return nil
+}
+
+// ctxValue extracts a string for logging from context (e.g., request ID or trace ID).
+func ctxValue(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v := ctx.Value("request_id"); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }

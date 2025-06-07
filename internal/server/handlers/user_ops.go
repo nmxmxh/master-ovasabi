@@ -148,6 +148,7 @@ func UserOpsHandler(container *di.Container) http.HandlerFunc {
 			// Resolve EventEmitter and Cache for orchestration
 			var eventEmitter interface {
 				EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType string, eventID string, meta *commonpb.Metadata) (string, bool)
+				EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType string, eventID string, payload []byte) (string, bool)
 			}
 			if err := container.Resolve(&eventEmitter); err != nil {
 				log.Error("Failed to resolve EventEmitter", zap.Error(err))
@@ -765,7 +766,7 @@ func isAdmin(roles []string) bool {
 	return false
 }
 
-// Adapter for graceful orchestration cache interface
+// Adapter for graceful orchestration cache interface.
 type cacheAdapter struct {
 	c *redis.Cache
 }

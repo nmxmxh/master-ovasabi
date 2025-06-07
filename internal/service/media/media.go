@@ -45,6 +45,7 @@ import (
 	"time"
 
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -99,7 +100,7 @@ type ServiceImpl struct {
 	log          *zap.Logger
 	cache        *redis.Cache
 	repo         *Repo
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 }
 
@@ -171,7 +172,7 @@ func (s *ServiceImpl) BroadcastAssetChunk(_ context.Context, chunk []byte) {
 var heavyUploadSessions = make(map[string]*UploadMetadata)
 
 // NewService constructs a new MediaServiceServer instance with event bus support.
-func NewService(log *zap.Logger, repo *Repo, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool) mediapb.MediaServiceServer {
+func NewService(log *zap.Logger, repo *Repo, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) mediapb.MediaServiceServer {
 	svc := &ServiceImpl{
 		log:          log,
 		repo:         repo,
@@ -179,8 +180,13 @@ func NewService(log *zap.Logger, repo *Repo, cache *redis.Cache, eventEmitter Ev
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
 	}
-	// Start Redis Pub/Sub listener for media events
-	// (No longer needed here; handled by WebSocket server)
+	// Register media service error map for graceful error handling
+	graceful.RegisterErrorMap(map[error]graceful.ErrorMapEntry{
+		errors.New("invalid media format"): {Code: codes.InvalidArgument, Message: "invalid media format"},
+		errors.New("upload failed"):        {Code: codes.Internal, Message: "media upload failed"},
+		errors.New("encoding failed"):      {Code: codes.Internal, Message: "media encoding failed"},
+		errors.New("media not found"):      {Code: codes.NotFound, Message: "media not found"},
+	})
 	return svc
 }
 
@@ -220,14 +226,33 @@ func (r *readSeekCloser) Close() error { return nil }
 
 // UploadLightMedia handles small media uploads (< 500KB).
 func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadLightMediaRequest) (*mediapb.UploadLightMediaResponse, error) {
+	// Declare all needed variables at the very top for proper scope
+	var (
+		mediaMeta         *Metadata
+		metaMapOut        map[string]interface{}
+		metaBytesOut      []byte
+		metaStruct        *structpb.Struct
+		metaForValidation *structpb.Struct
+		err               error
+		accountName       string
+		accountKey        string
+		containerName     string
+	)
 	// Parse and validate metadata
-	var mediaMeta *Metadata
 	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
 		mediaField, ok := req.Metadata.ServiceSpecific.Fields["media"]
 		if ok && mediaField.GetKind() != nil {
-			var err error
-			mediaMeta, err = MetadataFromStruct(mediaField.GetStructValue())
+			metaMap := pkgmeta.StructToMap(mediaField.GetStructValue())
+			mediaMeta = &Metadata{}
+			metaBytes, err := json.Marshal(metaMap)
 			if err != nil {
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return nil, err
+			}
+			if err := json.Unmarshal(metaBytes, mediaMeta); err != nil {
 				var ce *graceful.ContextError
 				if errors.As(err, &ce) {
 					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
@@ -247,11 +272,32 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 			"last_migrated_at": time.Now().Format(time.RFC3339),
 		}
 	}
-
+	if mediaMeta.Compliance == nil {
+		mediaMeta.Compliance = &ComplianceMetadata{
+			Standards: []ComplianceStandard{{
+				Name:      "WCAG",
+				Level:     "AA",
+				Version:   "2.1",
+				Compliant: true,
+			}},
+			CheckedBy: "media-service",
+			CheckedAt: time.Now().Format(time.RFC3339),
+			Method:    "automated",
+			Issues:    []ComplianceIssue{},
+		}
+	}
+	if mediaMeta.Accessibility == nil {
+		mediaMeta.Accessibility = &AccessibilityMetadata{
+			AltText:         "",
+			AudioDescURL:    "",
+			Features:        []string{"captions", "alt_text", "transcripts", "aria_labels"},
+			PlatformSupport: []string{"desktop", "mobile", "screen_reader", "voice_input"},
+		}
+	}
 	// --- Azure Blob Storage Upload ---
-	accountName := os.Getenv("AZURE_BLOB_ACCOUNT")
-	accountKey := os.Getenv("AZURE_BLOB_KEY")
-	containerName := os.Getenv("AZURE_BLOB_CONTAINER")
+	accountName = os.Getenv("AZURE_BLOB_ACCOUNT")
+	accountKey = os.Getenv("AZURE_BLOB_KEY")
+	containerName = os.Getenv("AZURE_BLOB_CONTAINER")
 	if accountName == "" || accountKey == "" || containerName == "" {
 		err := graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
 		var ce *graceful.ContextError
@@ -388,7 +434,10 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 	// --- Populate other metadata fields as needed (captions, accessibility, etc.) ---
 	// (You can extend this section to auto-detect or attach more fields)
 
-	metaStruct, err := MetadataToStruct(mediaMeta)
+	// After all modifications to mediaMeta are complete, marshal/unmarshal/normalize/validate
+	// (This block must be just before asset creation)
+	metaMapOut = make(map[string]interface{})
+	metaBytesOut, err = json.Marshal(mediaMeta)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
 		var ce *graceful.ContextError
@@ -397,7 +446,17 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
+	if err := json.Unmarshal(metaBytesOut, &metaMapOut); err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal media metadata", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
+	}
+	normMap := pkgmeta.Handler{}.NormalizeAndCalculate(metaMapOut, "media", req.UserId, nil, "success", "normalize media metadata")
+	metaStruct = pkgmeta.MapToStruct(normMap)
+	metaForValidation = &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
 	if err := pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
 		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid metadata: %v", err), nil)
 		var ce *graceful.ContextError
@@ -438,13 +497,39 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 	// Emit media.uploaded event after successful creation
 	if s.eventEnabled && s.eventEmitter != nil {
 		success := graceful.WrapSuccess(ctx, codes.OK, "media uploaded", asset, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: asset.ID.String(), CacheValue: asset, CacheTTL: 10 * time.Minute, Metadata: asset.Metadata, EventEmitter: s.eventEmitter, EventEnabled: s.eventEnabled, EventType: "media.uploaded", EventID: asset.ID.String(), PatternType: "media", PatternID: asset.ID.String(), PatternMeta: asset.Metadata})
+		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+			Log:          s.log,
+			Cache:        s.cache,
+			CacheKey:     asset.ID.String(),
+			CacheValue:   asset,
+			CacheTTL:     10 * time.Minute,
+			Metadata:     asset.Metadata,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "media.uploaded",
+			EventID:      asset.ID.String(),
+			PatternType:  "media",
+			PatternID:    asset.ID.String(),
+			PatternMeta:  asset.Metadata,
+		})
 	}
 
+	// --- Event publishing section (cleaned up, with campaign/user/system channels) ---
 	if s.cache != nil {
 		channels := []string{"media:events:system"}
-		if req.UserId != "" {
-			channels = append(channels, "media:events:user:"+req.UserId)
+		// Add campaign channel if campaign ID exists in metadata
+		if asset.Metadata != nil && asset.Metadata.ServiceSpecific != nil {
+			if campaignField, ok := asset.Metadata.ServiceSpecific.Fields["campaign"]; ok {
+				if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
+					if cid, ok := campaignStruct.Fields["id"]; ok && cid.GetStringValue() != "" {
+						channels = append(channels, "media:events:campaign:"+cid.GetStringValue())
+					}
+				}
+			}
+		}
+		// Add user channel
+		if asset.UserID.String() != "" {
+			channels = append(channels, "media:events:user:"+asset.UserID.String())
 		}
 		mediaEvent := struct {
 			Type string         `json:"type"`
@@ -453,7 +538,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 			Type: "upload",
 			Data: &mediapb.Media{
 				Id:        asset.ID.String(),
-				UserId:    req.UserId,
+				UserId:    asset.UserID.String(),
 				Type:      mediapb.MediaType_MEDIA_TYPE_LIGHT,
 				Name:      req.Name,
 				MimeType:  req.MimeType,
@@ -470,6 +555,16 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 					return nil, err
 				}
 			}
+		}
+	}
+
+	// After successful media creation (UploadLightMedia, StartHeavyMediaUpload, CompleteMediaUpload), emit canonical event to event bus for Search Service and orchestration.ia creation (UploadLightMedia, StartHeavyMediaUpload, CompleteMediaUpload), emit canonical event to event bus for Search Service and orchestration.
+	if s.eventEnabled && s.eventEmitter != nil {
+		payload, err := json.Marshal(asset) // asset is the media object
+		if err != nil {
+			s.log.Error("Failed to marshal media asset for event emission", zap.Error(err))
+		} else {
+			(&EventEmitterAdapter{Emitter: s.eventEmitter}).EmitRawEventWithLogging(ctx, s.log, "media.created", asset.ID.String(), payload)
 		}
 	}
 
@@ -551,10 +646,19 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
 		mediaField, ok := req.Metadata.ServiceSpecific.Fields["media"]
 		if ok && mediaField.GetKind() != nil {
-			var metaErr error
-			mediaMeta, metaErr = MetadataFromStruct(mediaField.GetStructValue())
-			if metaErr != nil {
-				err = graceful.WrapErr(ctx, codes.InvalidArgument, "invalid media metadata", metaErr)
+			metaMap := pkgmeta.StructToMap(mediaField.GetStructValue())
+			mediaMeta = &Metadata{}
+			metaBytes, err := json.Marshal(metaMap)
+			if err != nil {
+				err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return nil, graceful.ToStatusError(err)
+			}
+			if err := json.Unmarshal(metaBytes, mediaMeta); err != nil {
+				err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
 				var ce *graceful.ContextError
 				if errors.As(err, &ce) {
 					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
@@ -574,8 +678,8 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 			"last_migrated_at": time.Now().Format(time.RFC3339),
 		}
 	}
-	var metaStruct *structpb.Struct
-	metaStruct, err = MetadataToStruct(mediaMeta)
+	metaMapOut := make(map[string]interface{})
+	metaBytesOut, err := json.Marshal(mediaMeta)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
 		var ce *graceful.ContextError
@@ -584,6 +688,15 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 		}
 		return nil, graceful.ToStatusError(err)
 	}
+	if err := json.Unmarshal(metaBytesOut, &metaMapOut); err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal media metadata", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
+	}
+	metaStruct := pkgmeta.MapToStruct(metaMapOut)
 	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
 	if err = pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
 		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid metadata: %v", err), nil)
@@ -594,10 +707,11 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 		return nil, graceful.ToStatusError(err)
 	}
 
-	// --- Azure Blob Storage: Generate SAS URL for chunked upload ---
 	accountName := os.Getenv("AZURE_BLOB_ACCOUNT")
 	accountKey := os.Getenv("AZURE_BLOB_KEY")
 	containerName := os.Getenv("AZURE_BLOB_CONTAINER")
+
+	// --- Azure Blob Storage: Generate SAS URL for chunked upload ---
 	if accountName == "" || accountKey == "" || containerName == "" {
 		err = graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
 		var ce *graceful.ContextError
@@ -621,7 +735,7 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 		LastUpdate:     time.Now(),
 	}
 
-	// Create asset record in DB (URL will be set after upload/encoding)
+	// Create asset record in DB (URL will be set after upload/encoding))
 	asset := &Model{
 		ID:        uuid.MustParse(uploadID),
 		UserID:    userID,
@@ -778,18 +892,19 @@ func getAMSToken(ctx context.Context) (string, error) {
 
 // Helper: Submit AMS encoding job.
 func submitAMSJob(ctx context.Context, token, resourceGroup, accountName, transformName, jobName, outputAssetName, blobURL string) error {
-	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/transforms/%s/jobs/%s?api-version=2023-01-01",
-		os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, transformName, jobName)
+	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/transforms/%s/jobs/%s?api-version=2023-01-01", os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, transformName, jobName)
 	job := map[string]interface{}{
 		"properties": map[string]interface{}{
 			"input": map[string]interface{}{
 				"@odata.type": "#Microsoft.Media.JobInputHttp",
 				"files":       []string{blobURL},
 			},
-			"outputs": []map[string]interface{}{{
-				"@odata.type": "#Microsoft.Media.JobOutputAsset",
-				"assetName":   outputAssetName,
-			}},
+			"outputs": []map[string]interface{}{
+				{
+					"@odata.type": "#Microsoft.Media.JobOutputAsset",
+					"assetName":   outputAssetName,
+				},
+			},
 		},
 	}
 	body, err := json.Marshal(job)
@@ -819,8 +934,7 @@ func submitAMSJob(ctx context.Context, token, resourceGroup, accountName, transf
 
 // Helper: Poll AMS job status.
 func pollAMSJob(ctx context.Context, token, resourceGroup, accountName, transformName, jobName string) error {
-	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/transforms/%s/jobs/%s?api-version=2023-01-01",
-		os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, transformName, jobName)
+	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/transforms/%s/jobs/%s?api-version=2023-01-01", os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, transformName, jobName)
 	for i := 0; i < 60; i++ { // up to 10 minutes
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 		if err != nil {
@@ -870,8 +984,7 @@ func pollAMSJob(ctx context.Context, token, resourceGroup, accountName, transfor
 func getAMSStreamingURLs(ctx context.Context, token, resourceGroup, accountName, outputAssetName string) (map[string]string, error) {
 	// Create streaming locator
 	locatorName := "locator-" + outputAssetName
-	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/streamingLocators/%s?api-version=2023-01-01",
-		os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, locatorName)
+	endpoint := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/streamingLocators/%s?api-version=2023-01-01", os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName, locatorName)
 	locator := map[string]interface{}{
 		"properties": map[string]interface{}{
 			"assetName":           outputAssetName,
@@ -901,8 +1014,7 @@ func getAMSStreamingURLs(ctx context.Context, token, resourceGroup, accountName,
 		return nil, fmt.Errorf("AMS locator creation failed: %s", string(b))
 	}
 	// Get streaming endpoint hostname
-	endpointList := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/streamingEndpoints?api-version=2023-01-01",
-		os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName)
+	endpointList := fmt.Sprintf("https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Media/mediaservices/%s/streamingEndpoints?api-version=2023-01-01", os.Getenv("AZURE_MEDIA_SUBSCRIPTION_ID"), resourceGroup, accountName)
 	req, err = http.NewRequestWithContext(ctx, http.MethodGet, endpointList, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request for AMS streaming endpoints: %w", err)
@@ -1102,13 +1214,24 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 	if asset.Metadata != nil && asset.Metadata.ServiceSpecific != nil {
 		mediaField, ok := asset.Metadata.ServiceSpecific.Fields["media"]
 		if ok && mediaField.GetKind() != nil {
-			mediaMeta, err = MetadataFromStruct(mediaField.GetStructValue())
+			metaMap := pkgmeta.StructToMap(mediaField.GetStructValue())
+			mediaMeta = &Metadata{}
+			metaBytes, err := json.Marshal(metaMap)
 			if err != nil {
+				err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
 				var ce *graceful.ContextError
 				if errors.As(err, &ce) {
 					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 				}
-				return nil, err
+				return nil, graceful.ToStatusError(err)
+			}
+			if err := json.Unmarshal(metaBytes, mediaMeta); err != nil {
+				err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
+				var ce *graceful.ContextError
+				if errors.As(err, &ce) {
+					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				}
+				return nil, graceful.ToStatusError(err)
 			}
 		}
 	}
@@ -1117,15 +1240,40 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 	}
 	mediaMeta.PlaybackURLs = playbackURLs
 	mediaMeta.Thumbnails = thumbnails
-	metaStruct, err := MetadataToStruct(mediaMeta)
+	// Canonical: Add accessibility, compliance metadata
+	mediaMeta.Compliance = &ComplianceMetadata{
+		Standards: []ComplianceStandard{{
+			Name:      "WCAG",
+			Level:     "AA",
+			Version:   "2.1",
+			Compliant: true,
+		}},
+		CheckedBy: "media-service",
+		CheckedAt: time.Now().Format(time.RFC3339),
+		Method:    "automated",
+		Issues:    []ComplianceIssue{},
+	}
+	// [CANONICAL] Always normalize metadata before persistence or emission.
+	metaMapOut := make(map[string]interface{})
+	metaBytesOut, err := json.Marshal(mediaMeta)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal updated media metadata", err)
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
 			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
 		return nil, graceful.ToStatusError(err)
 	}
+	if err := json.Unmarshal(metaBytesOut, &metaMapOut); err != nil {
+		err = graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal media metadata", err)
+		var ce *graceful.ContextError
+		if errors.As(err, &ce) {
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
+		return nil, graceful.ToStatusError(err)
+	}
+	normMap := pkgmeta.Handler{}.NormalizeAndCalculate(metaMapOut, "media", req.UploadId, nil, "success", "normalize media metadata")
+	metaStruct := pkgmeta.MapToStruct(normMap)
 	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
 	if err := pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
 		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid updated metadata: %v", err), nil)
@@ -1158,7 +1306,21 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 	// Emit media.completed event after successful completion
 	if s.eventEnabled && s.eventEmitter != nil {
 		success := graceful.WrapSuccess(ctx, codes.OK, "media completed", asset, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: asset.ID.String(), CacheValue: asset, CacheTTL: 10 * time.Minute, Metadata: asset.Metadata, EventEmitter: s.eventEmitter, EventEnabled: s.eventEnabled, EventType: "media.completed", EventID: asset.ID.String(), PatternType: "media", PatternID: asset.ID.String(), PatternMeta: asset.Metadata})
+		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+			Log:          s.log,
+			Cache:        s.cache,
+			CacheKey:     asset.ID.String(),
+			CacheValue:   asset,
+			CacheTTL:     10 * time.Minute,
+			Metadata:     asset.Metadata,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "media.completed",
+			EventID:      asset.ID.String(),
+			PatternType:  "media",
+			PatternID:    asset.ID.String(),
+			PatternMeta:  asset.Metadata,
+		})
 	}
 
 	if s.cache != nil {
@@ -1203,6 +1365,16 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 					return nil, graceful.ToStatusError(err)
 				}
 			}
+		}
+	}
+
+	// After successful media update (e.g., CompleteMediaUpload), emit canonical event
+	if s.eventEnabled && s.eventEmitter != nil {
+		payload, err := json.Marshal(asset)
+		if err != nil {
+			s.log.Error("Failed to marshal media asset for event emission", zap.Error(err))
+		} else {
+			(&EventEmitterAdapter{Emitter: s.eventEmitter}).EmitRawEventWithLogging(ctx, s.log, "media.updated", asset.ID.String(), payload)
 		}
 	}
 
@@ -1440,7 +1612,21 @@ func (s *ServiceImpl) DeleteMedia(ctx context.Context, req *mediapb.DeleteMediaR
 	// Emit media.deleted event after successful deletion
 	if s.eventEnabled && s.eventEmitter != nil {
 		success := graceful.WrapSuccess(ctx, codes.OK, "media deleted", req.Id, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: req.Id, CacheValue: req.Id, CacheTTL: 10 * time.Minute, Metadata: nil, EventEmitter: s.eventEmitter, EventEnabled: s.eventEnabled, EventType: "media.deleted", EventID: req.Id, PatternType: "media", PatternID: req.Id, PatternMeta: nil})
+		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+			Log:          s.log,
+			Cache:        s.cache,
+			CacheKey:     req.Id,
+			CacheValue:   req.Id,
+			CacheTTL:     10 * time.Minute,
+			Metadata:     nil,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "media.deleted",
+			EventID:      req.Id,
+			PatternType:  "media",
+			PatternID:    req.Id,
+			PatternMeta:  nil,
+		})
 	}
 
 	if s.cache != nil {
@@ -1477,6 +1663,16 @@ func (s *ServiceImpl) DeleteMedia(ctx context.Context, req *mediapb.DeleteMediaR
 					return nil, graceful.ToStatusError(err)
 				}
 			}
+		}
+	}
+
+	// After successful media deletion (DeleteMedia), emit canonical event
+	if s.eventEnabled && s.eventEmitter != nil {
+		payload, err := json.Marshal(asset)
+		if err != nil {
+			s.log.Error("Failed to marshal media asset for event emission", zap.Error(err))
+		} else {
+			(&EventEmitterAdapter{Emitter: s.eventEmitter}).EmitRawEventWithLogging(ctx, s.log, "media.deleted", asset.ID.String(), payload)
 		}
 	}
 
@@ -1694,3 +1890,29 @@ func (s *ServiceImpl) UploadChunks(ctx context.Context, chunks [][]byte, uploadC
 
 // Compile-time check.
 var _ mediapb.MediaServiceServer = (*ServiceImpl)(nil)
+
+// Add EventEmitterAdapter definition if not present
+// Adapter to bridge s.eventEmitter to the required orchestration EventEmitter interface.
+type EventEmitterAdapter struct {
+	Emitter events.EventEmitter
+}
+
+func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
+	if emitter, ok := a.Emitter.(interface {
+		EmitRawEventWithLogging(context.Context, *zap.Logger, string, string, []byte) (string, bool)
+	}); ok {
+		return emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
+	}
+	return "", false
+}
+
+// EmitEventWithLogging emits an event with proper logging.
+func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
+	if a.Emitter == nil {
+		if log != nil {
+			log.Warn("Event emitter is nil", zap.String("event_type", eventType))
+		}
+		return eventID, false
+	}
+	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
+}

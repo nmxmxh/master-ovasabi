@@ -11,14 +11,6 @@
 
 package product
 
-import (
-	"encoding/json"
-	"fmt"
-
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	"google.golang.org/protobuf/types/known/structpb"
-)
-
 // ServiceMetadata holds all product service-specific metadata fields (Amazon-style, extensible).
 type ServiceMetadata struct {
 	Versioning     map[string]interface{} `json:"versioning,omitempty"`
@@ -125,67 +117,4 @@ type AuditMetadata struct {
 	CreatedBy      string   `json:"created_by,omitempty"`
 	LastModifiedBy string   `json:"last_modified_by,omitempty"`
 	History        []string `json:"history,omitempty"`
-}
-
-// ServiceMetadataFromStruct converts a structpb.Struct to ServiceMetadata.
-func ServiceMetadataFromStruct(s *structpb.Struct) (*ServiceMetadata, error) {
-	if s == nil {
-		return &ServiceMetadata{}, nil
-	}
-	b, err := json.Marshal(s.AsMap())
-	if err != nil {
-		return nil, err
-	}
-	var meta ServiceMetadata
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-	return &meta, nil
-}
-
-// ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
-func ServiceMetadataToStruct(meta *ServiceMetadata) (*structpb.Struct, error) {
-	if meta == nil {
-		return structpb.NewStruct(map[string]interface{}{})
-	}
-	b, err := json.Marshal(meta)
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]interface{}
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return nil, err
-	}
-	return structpb.NewStruct(m)
-}
-
-// BuildProductMetadata builds a canonical product metadata struct for storage, analytics, and extensibility.
-func BuildProductMetadata(
-	meta *ServiceMetadata,
-	tags []string,
-) (*commonpb.Metadata, error) {
-	productMap := map[string]interface{}{}
-	b, err := json.Marshal(meta)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal product metadata: %w", err)
-	}
-	err = json.Unmarshal(b, &productMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal product metadata: %w", err)
-	}
-	// Always require versioning for compliance
-	if _, ok := productMap["versioning"]; !ok {
-		productMap["versioning"] = map[string]interface{}{"system_version": "1.0.0"}
-	}
-	ss := map[string]interface{}{"product": productMap}
-	ssStruct, err := structpb.NewStruct(ss)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build service_specific struct: %w", err)
-	}
-	return &commonpb.Metadata{
-		ServiceSpecific: ssStruct,
-		Tags:            tags,
-	}, nil
 }

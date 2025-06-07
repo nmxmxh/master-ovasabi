@@ -259,7 +259,15 @@ UnmuteUser removes a mute between the current user and the target user.
 
 Update updates a user record.
 
+##### UpdateTx
+
+UpdateTx updates a user within a provided transaction (for atomic multi-user updates).
+
 ##### UpdateUserGroup
+
+### Score
+
+Score holds balance and pending fields for system currency.
 
 ### Service
 
@@ -480,10 +488,6 @@ WebAuthnCredential holds a registered passkey credential.
 WebAuthnProvider defines the interface for WebAuthn operations (passkey registration/login).
 
 ## Functions
-
-### MetadataToStruct
-
-ServiceMetadataToStruct converts ServiceMetadata to structpb.Struct.
 
 ### NewService
 

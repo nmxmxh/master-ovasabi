@@ -136,14 +136,6 @@ Reference: docs/amadeus/amadeus_context.md, section 'Canonical Metadata Integrat
 
 ## Functions
 
-### BuildCommerceMetadata
-
-BuildCommerceMetadata builds a \*commonpb.Metadata from CommerceServiceMetadata and tags.
-
-### ExtractAndEnrichCommerceMetadata
-
-ExtractAndEnrichCommerceMetadata extracts, validates, and enriches commerce metadata.
-
 ### NewService
 
 ### Register

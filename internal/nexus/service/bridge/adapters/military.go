@@ -83,13 +83,11 @@ func (a *MilitaryAdapter) Receive(ctx context.Context, handler bridge.MessageHan
 				return
 			case <-ticker.C:
 				// Simulate receiving encrypted message
-				plaintext := []byte("simulated secret message")
 				if a.handler != nil {
-					msg := &bridge.Message{
-						Payload:  plaintext,
+					if err := a.handler(ctx, &bridge.Message{
+						Payload:  []byte("simulated secret message"),
 						Metadata: map[string]string{"classification": "secret", "protocol": a.protocol},
-					}
-					if err := a.handler(ctx, msg); err != nil {
+					}); err != nil {
 						log.Printf("[MilitaryAdapter] Handler error: %v", err)
 					}
 				}

@@ -82,14 +82,6 @@ Stats represents referral statistics.
 
 ## Functions
 
-### BuildReferralMetadata
-
-BuildReferralMetadata builds a canonical referral metadata struct for storage and analytics.
-
-### GetFraudSignals
-
-Example: Extract fraud signals from referral metadata.
-
 ### NewService
 
 NewService creates a new instance of ReferralService.
@@ -100,7 +92,3 @@ Register registers the Referral service with the DI container and event bus (sel
 pattern).
 
 ### StartEventSubscribers
-
-### ValidateReferralMetadata
-
-ValidateReferralMetadata ensures required fields are present and well-formed.

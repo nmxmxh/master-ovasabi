@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/lib/pq"
@@ -112,7 +113,7 @@ type Repository struct {
 
 func NewRepository(db *sql.DB, masterRepo repository.MasterRepository, log *zap.Logger) *Repository {
 	return &Repository{
-		BaseRepository: repository.NewBaseRepository(db),
+		BaseRepository: repository.NewBaseRepository(db, log),
 		masterRepo:     masterRepo,
 		log:            log,
 	}
@@ -171,6 +172,10 @@ func (r *Repository) GetMessage(ctx context.Context, id string) (*Message, error
 		err := protojson.Unmarshal([]byte(metadataStr), msg.Metadata)
 		if err != nil {
 			r.log.Warn("failed to unmarshal message metadata", zap.Error(err))
+		}
+		// Hydrate service_specific.messaging if missing
+		if msg.Metadata.ServiceSpecific == nil {
+			msg.Metadata.ServiceSpecific = metadata.NewStructFromMap(map[string]interface{}{"messaging": map[string]interface{}{}}, r.log)
 		}
 	} else {
 		msg.Metadata = &commonpb.Metadata{
@@ -404,6 +409,22 @@ func (r *Repository) ListMessageEventsByUser(ctx context.Context, userID string,
 
 // SendMessage creates and persists a new direct or thread message.
 func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessageRequest) (*Message, error) {
+	// Canonical: Ensure versioning and business fields are set in service_specific.messaging
+	if req.Metadata == nil {
+		req.Metadata = &commonpb.Metadata{}
+	}
+	if err := metadata.SetServiceSpecificField(req.Metadata, "messaging", "versioning", map[string]interface{}{
+		"system_version":  "1.0.0",
+		"service_version": "1.0.0",
+		"environment":     "prod",
+	}); err != nil {
+		r.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
+	}
+	// Optionally set audit, delivery, etc. as needed
+	// Normalize metadata before persistence
+	metaMap := metadata.ProtoToMap(req.Metadata)
+	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "messaging", req.Content, nil, "success", "enrich messaging metadata")
+	req.Metadata = metadata.MapToProto(normMap)
 	// Validate sender/recipients (omitted for brevity)
 	masterName := r.GenerateMasterName(repository.EntityType("message"), req.Content, req.Type.String(), fmt.Sprintf("sender-%s", req.SenderId))
 	masterID, err := r.masterRepo.Create(ctx, repository.EntityType("message"), masterName)
@@ -430,13 +451,21 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 		}
 	}
 	msg := &Message{}
+	var campaignID int64
+	if req.CampaignId != "" {
+		var err error
+		campaignID, err = strconv.ParseInt(req.CampaignId, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+	}
 	query := `INSERT INTO service_messaging_main (
 		master_id, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at
 	) VALUES (
 		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
 	) RETURNING id, created_at, updated_at`
 	err = r.GetDB().QueryRowContext(ctx, query,
-		masterID, req.ThreadId, req.ConversationId, req.ChatGroupId, req.SenderId, pq.Array(req.RecipientIds), req.Content, req.Type.String(), attachments, reactions, messagingpb.MessageStatus_MESSAGE_STATUS_SENT.String(), false, false, metadataJSON, req.CampaignId,
+		masterID, req.ThreadId, req.ConversationId, req.ChatGroupId, req.SenderId, pq.Array(req.RecipientIds), req.Content, req.Type.String(), attachments, reactions, messagingpb.MessageStatus_MESSAGE_STATUS_SENT.String(), false, false, metadataJSON, campaignID,
 	).Scan(&msg.ID, &msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
@@ -460,7 +489,7 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 	msg.Edited = false
 	msg.Deleted = false
 	msg.Metadata = req.Metadata
-	msg.CampaignID = req.CampaignId
+	msg.CampaignID = campaignID
 	return msg, nil
 }
 
@@ -492,6 +521,14 @@ func (r *Repository) SendGroupMessage(ctx context.Context, req *messagingpb.Send
 		}
 	}
 	msg := &Message{}
+	var campaignID int64
+	if req.CampaignId != "" {
+		var err error
+		campaignID, err = strconv.ParseInt(req.CampaignId, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+	}
 	query := `INSERT INTO service_messaging_main (
 		master_id, chat_group_id, sender_id, content, type, attachments, reactions, status, edited, deleted, metadata, created_at, updated_at
 	) VALUES (
@@ -519,6 +556,7 @@ func (r *Repository) SendGroupMessage(ctx context.Context, req *messagingpb.Send
 	msg.Edited = false
 	msg.Deleted = false
 	msg.Metadata = req.Metadata
+	msg.CampaignID = campaignID
 	return msg, nil
 }
 
@@ -538,19 +576,23 @@ func (r *Repository) EditMessage(ctx context.Context, req *messagingpb.EditMessa
 		}
 	}
 	msg.Edited = true
+	// Canonical: Update versioning in service_specific.messaging
 	if msg.Metadata == nil {
 		msg.Metadata = &commonpb.Metadata{}
 	}
-	if msg.Metadata.ServiceSpecific == nil {
-		msg.Metadata.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+	if err := metadata.SetServiceSpecificField(msg.Metadata, "messaging", "versioning", map[string]interface{}{
+		"system_version":  "1.0.0",
+		"service_version": "1.0.0",
+		"environment":     "prod",
+	}); err != nil {
+		r.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
 	}
-	// Optionally update audit/versioning in metadata
-	metadataJSON, err := metadata.MarshalCanonical(msg.Metadata)
-	if err != nil {
-		return nil, err
-	}
+	// Normalize metadata before persistence
+	metaMap := metadata.ProtoToMap(msg.Metadata)
+	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "messaging", msg.Content, nil, "edit", "edit messaging metadata")
+	msg.Metadata = metadata.MapToProto(normMap)
 	query := `UPDATE service_messaging_main SET content=$1, attachments=$2, edited=true, metadata=$3, updated_at=NOW() WHERE id=$4`
-	_, err = r.GetDB().ExecContext(ctx, query, msg.Content, msg.Attachments, metadataJSON, msg.ID)
+	_, err = r.GetDB().ExecContext(ctx, query, msg.Content, msg.Attachments, msg.Metadata, msg.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -626,12 +668,23 @@ func (r *Repository) ReactToMessage(ctx context.Context, req *messagingpb.ReactT
 		}
 		return nil, err
 	}
-	metadataJSON, err := metadata.MarshalCanonical(msg.Metadata)
-	if err != nil {
-		return nil, err
+	// Canonical: Update versioning in service_specific.messaging
+	if msg.Metadata == nil {
+		msg.Metadata = &commonpb.Metadata{}
 	}
+	if err := metadata.SetServiceSpecificField(msg.Metadata, "messaging", "versioning", map[string]interface{}{
+		"system_version":  "1.0.0",
+		"service_version": "1.0.0",
+		"environment":     "prod",
+	}); err != nil {
+		r.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
+	}
+	// Normalize metadata before persistence
+	metaMap := metadata.ProtoToMap(msg.Metadata)
+	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "messaging", msg.Content, nil, "react", "react messaging metadata")
+	msg.Metadata = metadata.MapToProto(normMap)
 	query := `UPDATE service_messaging_main SET reactions=$1, metadata=$2, updated_at=NOW() WHERE id=$3`
-	_, err = r.GetDB().ExecContext(ctx, query, msg.Reactions, metadataJSON, msg.ID)
+	_, err = r.GetDB().ExecContext(ctx, query, msg.Reactions, msg.Metadata, msg.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -797,6 +850,14 @@ func (r *Repository) CreateChatGroupWithRequest(ctx context.Context, req *messag
 		}
 	}
 	group := &ChatGroup{}
+	var campaignID int64
+	if req.CampaignId != "" {
+		var err error
+		campaignID, err = strconv.ParseInt(req.CampaignId, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+	}
 	query := `INSERT INTO service_messaging_chat_group (
 		master_id, name, description, member_ids, roles, metadata, created_at, updated_at
 	) VALUES (
@@ -819,7 +880,7 @@ func (r *Repository) CreateChatGroupWithRequest(ctx context.Context, req *messag
 	group.MemberIDs = req.MemberIds
 	group.Roles = req.Roles
 	group.Metadata = req.Metadata
-	group.CampaignID = req.CampaignId
+	group.CampaignID = campaignID
 	return group, nil
 }
 

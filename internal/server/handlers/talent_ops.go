@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -51,6 +52,17 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 			log.Error("Missing or invalid action in talent request", zap.Any("value", req["action"]))
 			http.Error(w, "missing or invalid action", http.StatusBadRequest)
 			return
+		}
+		// Optionally resolve EventEmitter and eventEnabled for orchestration/event bus
+		var eventEmitter interface {
+			EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
+		}
+		var eventEnabled bool
+		if err := container.Resolve(&eventEmitter); err != nil {
+			log.Warn("Failed to resolve event emitter", zap.Error(err))
+		}
+		if err := container.Resolve(&eventEnabled); err != nil {
+			log.Warn("Failed to resolve event enabled flag", zap.Error(err))
 		}
 		switch action {
 		case "create_talent_profile":
@@ -108,6 +120,11 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 				log.Error("Failed to write JSON response (create_talent_profile)", zap.Error(err))
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 				return
+			}
+			// Emit event to event bus for analytics, orchestration, audit
+			if eventEmitter != nil && eventEnabled && resp.Profile != nil {
+				_, _ = eventEmitter.EmitEventWithLogging(ctx, nil, log, "talent.profile_created", resp.Profile.Id, resp.Profile.Metadata)
+				// TODO: WebSocket broadcast for real-time updates
 			}
 		case "update_talent_profile":
 			profile := &talentpb.TalentProfile{}
@@ -168,6 +185,11 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 				return
 			}
+			// Emit event to event bus for analytics, orchestration, audit
+			if eventEmitter != nil && eventEnabled && resp.Profile != nil {
+				_, _ = eventEmitter.EmitEventWithLogging(ctx, nil, log, "talent.profile_updated", resp.Profile.Id, resp.Profile.Metadata)
+				// TODO: WebSocket broadcast for real-time updates
+			}
 		case "delete_talent_profile":
 			profileID, ok := req["profile_id"].(string)
 			if !ok {
@@ -190,6 +212,11 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 				log.Error("Failed to write JSON response (delete_talent_profile)", zap.Error(err))
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 				return
+			}
+			// Emit event to event bus for analytics, orchestration, audit
+			if eventEmitter != nil && eventEnabled && profileID != "" {
+				_, _ = eventEmitter.EmitEventWithLogging(ctx, nil, log, "talent.profile_deleted", profileID, nil)
+				// TODO: WebSocket broadcast for real-time updates
 			}
 		case "get_talent_profile":
 			profileID, ok := req["profile_id"].(string)

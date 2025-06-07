@@ -305,7 +305,7 @@ func (kg *KnowledgeGraph) GenerateVisualization(format, section string) ([]byte,
 	}
 
 	if format == "mermaid" && section == "services" {
-		fmt.Printf("[DEBUG] kg.Services: %+v\n", kg.Services)
+		kg.log.Debug("kg.Services", zap.Any("services", kg.Services))
 		var out string
 		out += "graph TD\n"
 		serviceNodeMap := make(map[string]string) // Map service name to node id
@@ -346,7 +346,7 @@ func (kg *KnowledgeGraph) GenerateVisualization(format, section string) ([]byte,
 				}
 			}
 		}
-		fmt.Printf("[DEBUG] Mermaid output:\n%s\n", out)
+		kg.log.Debug("Mermaid output", zap.String("output", out))
 		return []byte(out), nil
 	}
 	return nil, fmt.Errorf("GenerateVisualization: format '%s' and section '%s' not implemented", format, section)

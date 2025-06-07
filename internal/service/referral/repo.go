@@ -8,6 +8,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
 	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -38,16 +39,16 @@ type Stats struct {
 	SuccessfulReferrals int64 `json:"successful_referrals"`
 }
 
-// Repository handles database operations for referrals.
+// Repository handles referral data persistence.
 type Repository struct {
 	*repository.BaseRepository
 	master repository.MasterRepository
 }
 
-// NewReferralRepository creates a new referral repository instance.
-func NewRepository(db *sql.DB, master repository.MasterRepository) *Repository {
+// NewRepository creates a new referral repository.
+func NewRepository(db *sql.DB, log *zap.Logger, master repository.MasterRepository) *Repository {
 	return &Repository{
-		BaseRepository: repository.NewBaseRepository(db),
+		BaseRepository: repository.NewBaseRepository(db, log),
 		master:         master,
 	}
 }
@@ -194,5 +195,24 @@ func (r *Repository) GetByCode(referralCode string) (*Referral, error) {
 // UpdateReferredMasterID updates the referred_master_id for a referral.
 func (r *Repository) UpdateReferredMasterID(referralCode string, referredMasterID int64) error {
 	_, err := r.GetDB().Exec(`UPDATE service_referral_main SET referred_master_id = $1 WHERE referral_code = $2`, referredMasterID, referralCode)
+	return err
+}
+
+// Update updates a referral record (metadata, successful, updated_at, etc.).
+func (r *Repository) Update(referral *Referral) error {
+	marshaler := protojson.MarshalOptions{
+		UseProtoNames:   true,
+		EmitUnpopulated: false,
+		AllowPartial:    true,
+	}
+	metadataJSON, err := marshaler.Marshal(referral.Metadata)
+	if err != nil {
+		return err
+	}
+	query := `
+		UPDATE service_referral_main
+		SET successful = $1, updated_at = $2, metadata = $3
+		WHERE id = $4`
+	_, err = r.GetDB().Exec(query, referral.Successful, time.Now(), metadataJSON, referral.ID)
 	return err
 }

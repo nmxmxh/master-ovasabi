@@ -49,16 +49,26 @@ func (r *Repository) TrackEvent(ctx context.Context, event *analyticspb.Event) e
 	return err
 }
 
-func (r *Repository) BatchTrackEvents(ctx context.Context, events []*analyticspb.Event) (success, fail int, err error) {
+func (r *Repository) BatchTrackEvents(ctx context.Context, events []*analyticspb.Event) (success, fail int, firstErr error) {
 	success, fail = 0, 0
+	firstErr = nil
 	for _, event := range events {
 		if err := r.TrackEvent(ctx, event); err != nil {
 			fail++
+			if firstErr == nil {
+				firstErr = err
+			}
+			if r.log != nil {
+				r.log.Warn("Failed to track event in batch", zap.String("event_id", event.Id), zap.Error(err))
+			}
 		} else {
 			success++
 		}
 	}
-	return success, fail, nil
+	// success: number of events successfully tracked
+	// fail: number of events that failed to track
+	// firstErr: the first error encountered (if any), or nil if all succeeded
+	return success, fail, firstErr
 }
 
 func (r *Repository) GetUserEvents(ctx context.Context, userID string, campaignID int64, page, pageSize int) ([]*analyticspb.Event, int, error) {
@@ -90,7 +100,12 @@ func (r *Repository) GetUserEvents(ctx context.Context, userID string, campaignI
 		if metaRaw.Valid && metaRaw.String != "" {
 			meta := &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
 			if err := protojson.Unmarshal([]byte(metaRaw.String), meta); err != nil {
-				continue
+				r.log.Warn("Failed to unmarshal event metadata",
+					zap.Error(err),
+					zap.String("event_id", e.Id),
+					zap.String("metadata", metaRaw.String))
+				// Continue with empty metadata rather than skipping the event
+				meta = &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
 			}
 			e.Metadata = meta
 		}
@@ -134,7 +149,12 @@ func (r *Repository) GetProductEvents(ctx context.Context, productID string, cam
 		if metaRaw.Valid && metaRaw.String != "" {
 			meta := &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
 			if err := protojson.Unmarshal([]byte(metaRaw.String), meta); err != nil {
-				continue
+				r.log.Warn("Failed to unmarshal event metadata",
+					zap.Error(err),
+					zap.String("event_id", e.Id),
+					zap.String("metadata", metaRaw.String))
+				// Continue with empty metadata rather than skipping the event
+				meta = &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
 			}
 			e.Metadata = meta
 		}
@@ -165,10 +185,17 @@ func (r *Repository) GetReport(ctx context.Context, reportID string) (*analytics
 	if len(paramsRaw) > 0 {
 		var params map[string]string
 		if err := json.Unmarshal(paramsRaw, &params); err != nil {
-			r.log.Warn("Failed to unmarshal report parameters", zap.Error(err), zap.ByteString("paramsRaw", paramsRaw))
-		} else {
-			report.Parameters = params
+			r.log.Warn("Failed to unmarshal report parameters",
+				zap.Error(err),
+				zap.ByteString("paramsRaw", paramsRaw),
+				zap.String("report_id", reportID))
+			// Initialize empty parameters rather than leaving them nil
+			params = make(map[string]string)
 		}
+		report.Parameters = params
+	} else {
+		// Initialize empty parameters if none provided
+		report.Parameters = make(map[string]string)
 	}
 	report.Data = data
 	report.CreatedAt = int64(createdAt)
@@ -213,4 +240,14 @@ func (r *Repository) ListReports(ctx context.Context, page, pageSize int) ([]*an
 		return nil, 0, err
 	}
 	return reports, total, nil
+}
+
+// CountEventsByType returns the number of analytics events with the given event_type.
+func (r *Repository) CountEventsByType(ctx context.Context, eventType string) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM service_analytics_event WHERE event_type = $1`, eventType).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
