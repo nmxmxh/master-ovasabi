@@ -2,6 +2,8 @@ package ws
 
 import (
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -41,9 +43,25 @@ func NewManager(log *zap.Logger) Manager {
 	}
 }
 
-// Connect establishes a new WebSocket connection (not supported, use ConnectHTTP).
+// Connect establishes a new WebSocket connection.
 func (m *manager) Connect(campaignID, userID string) (Client, error) {
-	panic("Direct Connect is not supported. Use ConnectHTTP for WebSocket upgrades.")
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.clients[campaignID] == nil {
+		m.clients[campaignID] = make(map[string]Client)
+	}
+
+	// Create a new client with a nil WebSocket connection - for direct usage
+	client := &client{
+		log: m.log.With(
+			zap.String("campaign_id", campaignID),
+			zap.String("user_id", userID),
+			zap.String("connection_type", "direct"),
+		),
+	}
+	m.clients[campaignID][userID] = client
+	return client, nil
 }
 
 // ConnectHTTP upgrades an HTTP request to a WebSocket connection and registers the client.
@@ -58,6 +76,28 @@ func (m *manager) ConnectHTTP(w http.ResponseWriter, r *http.Request, campaignID
 	client, err := newClientFromRequest(w, r, m.log)
 	if err != nil {
 		return nil, err
+	}
+	m.clients[campaignID][userID] = client
+	return client, nil
+}
+
+// ConnectWithWebSocket establishes a new WebSocket connection with an existing websocket.Conn.
+func (m *manager) ConnectWithWebSocket(campaignID, userID string, conn *websocket.Conn) (Client, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.clients[campaignID] == nil {
+		m.clients[campaignID] = make(map[string]Client)
+	}
+
+	// Create a new client with the provided WebSocket connection
+	client := &client{
+		conn: conn,
+		log: m.log.With(
+			zap.String("campaign_id", campaignID),
+			zap.String("user_id", userID),
+			zap.String("connection_type", "websocket"),
+		),
 	}
 	m.clients[campaignID][userID] = client
 	return client, nil
@@ -124,7 +164,47 @@ type client struct {
 // newClient upgrades an HTTP request to a WebSocket connection and returns a client.
 func newClientFromRequest(w http.ResponseWriter, r *http.Request, log *zap.Logger) (*client, error) {
 	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true }, // TODO: tighten for production
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true // Allow non-browser clients
+			}
+
+			allowedOrigins := os.Getenv("WS_ALLOWED_ORIGINS")
+			if allowedOrigins == "" {
+				// Default to localhost in development
+				allowedOrigins = "localhost,127.0.0.1"
+			}
+
+			// Parse the origin URL
+			originHost := origin
+			if strings.Contains(origin, "://") {
+				parts := strings.Split(origin, "://")
+				if len(parts) != 2 {
+					return false
+				}
+				originHost = parts[1]
+			}
+			if strings.Contains(originHost, ":") {
+				originHost = strings.Split(originHost, ":")[0]
+			}
+
+			for _, allowed := range strings.Split(allowedOrigins, ",") {
+				if allowed == "*" || allowed == originHost {
+					return true
+				}
+				if strings.HasPrefix(allowed, "*.") && strings.HasSuffix(originHost, allowed[1:]) {
+					return true
+				}
+			}
+
+			if log != nil {
+				log.Warn("Rejected WebSocket connection",
+					zap.String("origin", origin),
+					zap.String("allowed_origins", allowedOrigins))
+			}
+			return false
+		},
 	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

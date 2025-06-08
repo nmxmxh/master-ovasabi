@@ -29,6 +29,7 @@ import (
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
+	server "github.com/nmxmxh/master-ovasabi/internal/server/rest"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -45,7 +46,7 @@ type Server struct {
 	Container  *di.Container
 }
 
-func NewServer(container *di.Container, logger *zap.Logger, httpPort, grpcPort string) *Server {
+func NewServer(container *di.Container, logger *zap.Logger, httpPort string) *Server {
 	grpcServer := grpc.NewServer()
 	metricsServer := &http.Server{
 		Addr:         ":9090",
@@ -54,15 +55,11 @@ func NewServer(container *di.Container, logger *zap.Logger, httpPort, grpcPort s
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
+
 	// IMPORTANT: The HTTP server should NOT bind to the ws-gateway port (8090).
 	// WebSocket endpoints are now handled by the ws-gateway service at /ws and /ws/{campaign_id}/{user_id}.
-	httpServer := &http.Server{
-		Addr:         ":" + httpPort, // e.g., 8081 for REST, 8090 for ws-gateway (do not use 8090 here)
-		Handler:      http.NewServeMux(),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  15 * time.Second,
-	}
+	httpServer := server.StartHTTPServer(logger, container)
+
 	return &Server{
 		GRPCServer: grpcServer,
 		HTTPServer: httpServer,

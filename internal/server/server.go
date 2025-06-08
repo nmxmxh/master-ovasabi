@@ -368,14 +368,14 @@ func Run() {
 	// Use the correct arguments for NewServer and Start (httpPort, grpcPort)
 	httpPort := os.Getenv("HTTP_PORT")
 	if httpPort == "" {
-		httpPort = ":8090" // fallback, but should be set in env
+		httpPort = "8081" // Use 8081 for REST endpoints, 8090 is reserved for ws-gateway
 	}
 	grpcPort := os.Getenv("GRPC_PORT")
 	if grpcPort == "" {
-		grpcPort = "8080" // fallback, but should be set in env
+		grpcPort = "8080" // gRPC port
 	}
 
-	// startAggregatedLogger(log)
+	startAggregatedLogger(log)
 
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
@@ -477,7 +477,7 @@ func Run() {
 		grpcPort = "8080" // fallback, but should be set in env
 	}
 
-	server := NewServer(container, log, httpPort, grpcPort)
+	server := NewServer(container, log, httpPort)
 
 	if err := server.Start(grpcPort); err != nil {
 		log.Error("Server failed to start", zap.Error(err))

@@ -42,7 +42,7 @@ func main() {
 		grpcPort = "8080" // fallback, but should be set in env
 	}
 
-	srv := server.NewServer(container, log.GetZapLogger(), httpPort, grpcPort)
+	srv := server.NewServer(container, log.GetZapLogger(), httpPort)
 
 	// Start server in a goroutine
 	go func() {

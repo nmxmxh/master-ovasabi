@@ -55,8 +55,9 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container) *http.Server {
 
 	httpPort := os.Getenv("HTTP_PORT")
 	if httpPort == "" {
-		httpPort = ":8090"
+		httpPort = "8081" // Use 8081 for REST endpoints, 8090 is reserved for ws-gateway
 	}
+	httpAddr := ":" + httpPort
 
 	// --- INJECT METAVERSION MIDDLEWARE HERE ---
 	// In production, pass evaluator from main server setup.
@@ -65,9 +66,12 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container) *http.Server {
 	wrappedMux := httputil.MetaversionMiddleware(evaluator, log)(mux)
 
 	server := &http.Server{
-		Addr:              httpPort,
+		Addr:              httpAddr,
 		Handler:           wrappedMux,
 		ReadHeaderTimeout: 10 * time.Second, // Mitigate Slowloris
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 	return server
 }
