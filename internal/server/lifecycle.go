@@ -45,10 +45,19 @@ type Server struct {
 	Container  *di.Container
 }
 
-func NewServer(container *di.Container, logger *zap.Logger, httpServer *http.Server) *Server {
+func NewServer(container *di.Container, logger *zap.Logger, httpPort, grpcPort string) *Server {
 	grpcServer := grpc.NewServer()
 	metricsServer := &http.Server{
 		Addr:         ":9090",
+		Handler:      http.NewServeMux(),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
+	}
+	// IMPORTANT: The HTTP server should NOT bind to the ws-gateway port (8090).
+	// WebSocket endpoints are now handled by the ws-gateway service at /ws and /ws/{campaign_id}/{user_id}.
+	httpServer := &http.Server{
+		Addr:         ":" + httpPort, // e.g., 8081 for REST, 8090 for ws-gateway (do not use 8090 here)
 		Handler:      http.NewServeMux(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -63,7 +72,7 @@ func NewServer(container *di.Container, logger *zap.Logger, httpServer *http.Ser
 	}
 }
 
-func (s *Server) Start() error {
+func (s *Server) Start(grpcPort string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var wg sync.WaitGroup
@@ -121,7 +130,7 @@ func (s *Server) Start() error {
 		}
 	}()
 
-	// Start HTTP server
+	// Start HTTP server (ws-gateway, port 8090)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -132,15 +141,11 @@ func (s *Server) Start() error {
 		}
 	}()
 
-	// Start gRPC server
+	// Start gRPC server (app, port 8080)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		port := os.Getenv("APP_PORT")
-		if port == "" {
-			port = "8080"
-		}
-		lis, err := net.Listen("tcp", ":"+port)
+		lis, err := net.Listen("tcp", ":"+grpcPort)
 		if err != nil {
 			errCh <- fmt.Errorf("gRPC listen error: %w", err)
 			cancel()

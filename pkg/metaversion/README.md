@@ -1,6 +1,6 @@
 # metaversion (v0.0.1)
 
-Canonical versioning and feature flag management for the OVASABI platform.
+Canonical versioning and feature flag management for the INOS platform.
 
 ## Purpose
 
@@ -101,4 +101,4 @@ ctx = auth.NewContext(ctx, authCtx)
 
 ## License
 
-Copyright OVASABI Studios. All rights reserved.
+Copyright Ovasabi Studios. All rights reserved.

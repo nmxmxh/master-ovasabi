@@ -5,7 +5,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// MarshalCanonical marshals a proto.Message using the canonical options for OVASABI metadata.
+// MarshalCanonical marshals a proto.Message using the canonical options for INOS metadata.
 func MarshalCanonical(msg proto.Message) ([]byte, error) {
 	marshaler := protojson.MarshalOptions{
 		UseProtoNames:   true,

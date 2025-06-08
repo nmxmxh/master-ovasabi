@@ -10,7 +10,6 @@ import (
 
 	"github.com/nmxmxh/master-ovasabi/internal/server/handlers"
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
-	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/metaversion"
 )
@@ -18,7 +17,9 @@ import (
 // StartHTTPServer sets up and returns the HTTP server. The caller is responsible for starting and stopping it.
 func StartHTTPServer(log *gozap.Logger, container *di.Container) *http.Server {
 	mux := http.NewServeMux()
-	ws.RegisterWebSocketHandlers(mux, log, container, nil)
+	// WebSocket endpoints are now handled by the standalone ws-gateway service.
+	// If you need to interact with WebSockets, use the ws-gateway at /ws and /ws/{campaign_id}/{user_id}.
+	// ws.RegisterWebSocketHandlers(mux, log, container, nil)
 
 	mux.HandleFunc("/api/media/upload", handlers.MediaOpsHandler(container))
 	mux.HandleFunc("/api/campaigns/", func(w http.ResponseWriter, r *http.Request) {

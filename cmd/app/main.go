@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/nmxmxh/master-ovasabi/internal/config"
 	"github.com/nmxmxh/master-ovasabi/internal/server"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
@@ -28,28 +26,27 @@ func main() {
 		}
 	}()
 
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Error("Failed to load configuration", zap.Error(err))
-		return
-	}
-
 	// Create DI container
 	container := di.New()
 
-	// Create HTTP server
-	httpServer := &http.Server{
-		Addr:              ":" + cfg.AppPort,
-		ReadHeaderTimeout: 10 * time.Second, // Mitigate Slowloris attacks
+	// NOTE: WebSocket endpoints are now handled by the ws-gateway service at /ws and /ws/{campaign_id}/{user_id}.
+	// This app only serves REST and gRPC endpoints. For WebSocket/event relay, use ws-gateway.
+
+	// Use the correct arguments for NewServer and Start (httpPort, grpcPort)
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = ":8090" // fallback, but should be set in env
+	}
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "8080" // fallback, but should be set in env
 	}
 
-	// Create server instance
-	srv := server.NewServer(container, log.GetZapLogger(), httpServer)
+	srv := server.NewServer(container, log.GetZapLogger(), httpPort, grpcPort)
 
 	// Start server in a goroutine
 	go func() {
-		if err := srv.Start(); err != nil {
+		if err := srv.Start(grpcPort); err != nil {
 			log.Error("Server error", zap.Error(err))
 			return
 		}

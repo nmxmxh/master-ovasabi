@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,7 +41,6 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"
-	restserver "github.com/nmxmxh/master-ovasabi/internal/server/rest"
 	campaignsvc "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	redisv9 "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
@@ -362,7 +362,20 @@ func Run() {
 
 	log.Info("Logger initialized (from server.Run)")
 
-	startAggregatedLogger(log)
+	// NOTE: WebSocket endpoints are now handled by the ws-gateway service at /ws and /ws/{campaign_id}/{user_id}.
+	// This server only serves REST and gRPC endpoints. For WebSocket/event relay, use ws-gateway.
+	//
+	// Use the correct arguments for NewServer and Start (httpPort, grpcPort)
+	httpPort := os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = ":8090" // fallback, but should be set in env
+	}
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "8080" // fallback, but should be set in env
+	}
+
+	// startAggregatedLogger(log)
 
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
@@ -451,11 +464,22 @@ func Run() {
 		}
 	}()
 
-	httpServer := restserver.StartHTTPServer(log, container)
+	// NOTE: WebSocket endpoints are now handled by the ws-gateway service at /ws and /ws/{campaign_id}/{user_id}.
+	// This server only serves REST and gRPC endpoints. For WebSocket/event relay, use ws-gateway.
+	//
+	// Use the correct arguments for NewServer and Start (httpPort, grpcPort)
+	httpPort = os.Getenv("HTTP_PORT")
+	if httpPort == "" {
+		httpPort = ":8090" // fallback, but should be set in env
+	}
+	grpcPort = os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "8080" // fallback, but should be set in env
+	}
 
-	server := NewServer(container, log, httpServer)
+	server := NewServer(container, log, httpPort, grpcPort)
 
-	if err := server.Start(); err != nil {
+	if err := server.Start(grpcPort); err != nil {
 		log.Error("Server failed to start", zap.Error(err))
 		return
 	}
