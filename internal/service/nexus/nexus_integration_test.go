@@ -31,7 +31,7 @@ import (
 // TestSuite holds common test dependencies and setup.
 type TestSuite struct {
 	tester    *tester.Tester
-	service   *Service
+	service   *internalnexus.Service
 	cat       *thecathasnoname.TheCatHasNoName
 	ctx       context.Context
 	zapLogger *zap.Logger
@@ -50,15 +50,15 @@ func setupTestSuite(tb testing.TB) *TestSuite {
 		tb.Fatalf("failed to setup containers: %v", err)
 	}
 
-	repo := NewRepository(testerObj.DB, nil)
+	repo := internalnexus.NewRepository(testerObj.DB, nil)
 	eventRepo := internalnexus.NewSQLEventRepository(testerObj.DB, zapLogger)
 	eventBus := bridge.NewEventBusWithRedis(zapLogger, testerObj.Redis)
 	cache := testerObj.Redis
 	logger := zapLogger
 
 	// Create service with all dependencies
-	svc := NewService(repo, eventRepo, cache, logger, eventBus, true, nil)
-	service, ok := svc.(*Service)
+	svc := internalnexus.NewService(repo, eventRepo, cache, logger, eventBus, true, nil)
+	service, ok := svc.(*internalnexus.Service)
 	if !ok {
 		tb.Fatal("failed to type assert service")
 	}

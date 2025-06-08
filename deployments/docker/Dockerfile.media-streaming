@@ -22,4 +22,4 @@ USER nonroot:nonroot
 
 EXPOSE 8081
 
-ENTRYPOINT ["/app/media-streaming"] 
+ENTRYPOINT ["/app/media-streaming"]

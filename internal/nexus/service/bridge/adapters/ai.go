@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -103,7 +104,12 @@ func (a *AIWasmWSAdapter) Capabilities() []string {
 	return []string{"predict", "infer", "embed", "summarize"}
 }
 
-func (a *AIWasmWSAdapter) Endpoint() string { return "ws://localhost:8081/ws" }
+func (a *AIWasmWSAdapter) Endpoint() string {
+	if wsURL := os.Getenv("AI_WASM_WS_URL"); wsURL != "" {
+		return wsURL
+	}
+	return "ws://localhost/ws"
+}
 
 func (a *AIWasmWSAdapter) Connect(ctx context.Context, _ bridge.AdapterConfig) error {
 	// Create a new context for this connection

@@ -3,7 +3,7 @@ import PublicLayout from '../components/shared/layouts/public';
 import { useWebSocketSearch } from '../lib/hooks/useWebSocketSearch';
 import styled from 'styled-components';
 
-const WS_URL = 'ws://localhost:8083/ws'; // Adjust as needed
+const WS_URL = import.meta.env.VITE_WS_URL;
 
 export default function SearchDemoPage() {
   const [query, setQuery] = useState('');

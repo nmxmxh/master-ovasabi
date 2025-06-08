@@ -34,6 +34,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: wasm-frontend
+                name: ws-gateway
                 port:
-                  number: 8081
+                  number: 8090

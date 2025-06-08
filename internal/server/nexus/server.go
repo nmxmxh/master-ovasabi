@@ -195,6 +195,10 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		meta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
 	}
 	ss := meta.ServiceSpecific
+	// Ensure ss.Fields is initialized
+	if ss.Fields == nil {
+		ss.Fields = map[string]*structpb.Value{}
+	}
 	// Get or create the 'nexus' map
 	var nexusMap map[string]*structpb.Value
 	if v, ok := ss.Fields["nexus"]; ok && v.GetStructValue() != nil {

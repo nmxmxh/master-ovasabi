@@ -43,12 +43,9 @@ func jsInfer(this js.Value, args []js.Value) interface{} {
 func log(args ...interface{}) {
 	for i, arg := range args {
 		switch v := arg.(type) {
-		case string:
-			// ok
-		case int, int32, int64, float32, float64, bool:
+		case string, int, int32, int64, float32, float64, bool:
 			// ok
 		default:
-			// fallback: convert to JSON or string
 			b, err := json.Marshal(v)
 			if err == nil {
 				args[i] = string(b)
@@ -88,7 +85,13 @@ func main() {
 		userID = "guest_" + str.String()[2:10]
 		log("[WASM] Generated guest ID (no sessionStorage):", userID)
 	}
-	wsUrl := "ws://localhost:8090/ws/ovasabi_website/" + userID
+	// Use a JS global for the WebSocket base URL, fallback to hardcoded frontend value
+	wsBase := js.Global().Get("WS_BASE_URL")
+	wsBaseUrl := "ws://localhost:8080/ws/ovasabi_website/"
+	if wsBase.Truthy() && wsBase.Type() == js.TypeString {
+		wsBaseUrl = wsBase.String()
+	}
+	wsUrl := wsBaseUrl + userID
 	log("[WASM] Connecting to WebSocket:", wsUrl)
 	ws := js.Global().Get("WebSocket").New(wsUrl)
 	ws.Set("onopen", js.FuncOf(func(this js.Value, args []js.Value) interface{} {

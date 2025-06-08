@@ -1,8 +1,10 @@
 package ws
 
 import (
+	"net/http"
 	"sync"
 
+	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
@@ -39,8 +41,13 @@ func NewManager(log *zap.Logger) Manager {
 	}
 }
 
-// Connect establishes a new WebSocket connection.
+// Connect establishes a new WebSocket connection (not supported, use ConnectHTTP).
 func (m *manager) Connect(campaignID, userID string) (Client, error) {
+	panic("Direct Connect is not supported. Use ConnectHTTP for WebSocket upgrades.")
+}
+
+// ConnectHTTP upgrades an HTTP request to a WebSocket connection and registers the client.
+func (m *manager) ConnectHTTP(w http.ResponseWriter, r *http.Request, campaignID, userID string) (Client, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -48,10 +55,11 @@ func (m *manager) Connect(campaignID, userID string) (Client, error) {
 		m.clients[campaignID] = make(map[string]Client)
 	}
 
-	// Create new client (implementation depends on your WebSocket library)
-	client := newClient() // You'll need to implement this
+	client, err := newClientFromRequest(w, r, m.log)
+	if err != nil {
+		return nil, err
+	}
 	m.clients[campaignID][userID] = client
-
 	return client, nil
 }
 
@@ -106,27 +114,48 @@ func (m *manager) GetClient(campaignID, userID string) (Client, bool) {
 	return nil, false
 }
 
-// This is a placeholder - you'll need to implement this based on your WebSocket library.
-func newClient() Client {
-	return &client{} // You'll need to implement this
-}
-
 // client implements the Client interface.
 type client struct {
-	log *zap.Logger
+	conn *websocket.Conn
+	log  *zap.Logger
+	mu   sync.Mutex // protects conn writes
 }
 
-// Send sends a message to the WebSocket client.
-func (c *client) Send(_ string, payload map[string]interface{}) error {
-	if c.log != nil {
-		c.log.Debug("Sending message to client",
-			zap.Any("payload", payload))
+// newClient upgrades an HTTP request to a WebSocket connection and returns a client.
+func newClientFromRequest(w http.ResponseWriter, r *http.Request, log *zap.Logger) (*client, error) {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true }, // TODO: tighten for production
 	}
-	// Implementation
-	return nil
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		if log != nil {
+			log.Error("WebSocket upgrade failed", zap.Error(err))
+		}
+		return nil, err
+	}
+	return &client{conn: conn, log: log}, nil
 }
 
+// Send sends a message to the WebSocket client (thread-safe).
+func (c *client) Send(eventType string, payload map[string]interface{}) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.log != nil {
+		c.log.Debug("Sending message to client", zap.String("eventType", eventType), zap.Any("payload", payload))
+	}
+	msg := map[string]interface{}{
+		"type":    eventType,
+		"payload": payload,
+	}
+	return c.conn.WriteJSON(msg)
+}
+
+// Close closes the WebSocket connection.
 func (c *client) Close() error {
-	// Implement WebSocket close
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conn != nil {
+		return c.conn.Close()
+	}
 	return nil
 }

@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS _metadata_master (
     environment TEXT NOT NULL,
     role TEXT NOT NULL,
     policy JSONB DEFAULT '{}',
-    metadata JSONB NOT NULL CHECK (octet_length(metadata) <= 65536), -- Canonical metadata, max 64KB
+    metadata JSONB NOT NULL CHECK (octet_length(metadata::text) <= 65536), -- Canonical metadata, max 64KB
     lineage JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -41,4 +41,4 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg__metadata_master_updated_at ON _metadata_master;
 CREATE TRIGGER trg__metadata_master_updated_at
 BEFORE UPDATE ON _metadata_master
-FOR EACH ROW EXECUTE FUNCTION update__metadata_master_updated_at_column(); 
+FOR EACH ROW EXECUTE FUNCTION update__metadata_master_updated_at_column();

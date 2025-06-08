@@ -22,4 +22,4 @@ USER nonroot:nonroot
 
 EXPOSE 50052 9090
 
-ENTRYPOINT ["/app/nexus"] 
+ENTRYPOINT ["/app/nexus"]

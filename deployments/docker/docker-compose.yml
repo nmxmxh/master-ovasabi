@@ -63,8 +63,6 @@ services:
     depends_on:
       - app
     restart: unless-stopped
-    ports:
-      - '8081:8081'
 
   redis:
     image: redis:8
@@ -221,12 +219,28 @@ services:
       - '80:80'
       - '443:443'
     volumes:
-      - ./deployments/docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./frontend/public:/usr/share/nginx/html:ro
       # - ./deployments/docker/certs:/etc/nginx/certs:ro  # Uncomment and set path if using SSL certs
     depends_on:
       - app
       - wasm-frontend
+    networks:
+      - ovasabi-network
+    restart: unless-stopped
+
+  ws-gateway:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.ws-gateway
+    ports:
+      - '8090:8090'
+    environment:
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+      REDIS_PORT: '${REDIS_PORT:-6379}'
+      LOG_LEVEL: debug
+    depends_on:
+      - redis
     networks:
       - ovasabi-network
     restart: unless-stopped
