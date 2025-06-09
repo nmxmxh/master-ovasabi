@@ -238,7 +238,7 @@ func (r *Repository) SearchProducts(ctx context.Context, filter SearchProductsFi
 		args = append(args, filter.CampaignID)
 		argIdx++
 	}
-	args = append(args, filter.PageSize, (filter.Page * filter.PageSize))
+	args = append(args, filter.PageSize, filter.Page*filter.PageSize)
 	baseQuery := "SELECT id, master_id, master_uuid, name, description, type, status, tags, metadata, campaign_id, created_at, updated_at FROM service_product_main"
 	if len(where) > 0 {
 		baseQuery += " WHERE " + strings.Join(where, " AND ")

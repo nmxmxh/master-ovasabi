@@ -9,7 +9,7 @@ import (
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
-	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
+	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
 )
 

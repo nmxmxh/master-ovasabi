@@ -4,7 +4,7 @@ import (
 	"context"
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
-	service "github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"go.uber.org/zap"
 )
 

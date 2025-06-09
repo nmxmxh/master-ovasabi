@@ -180,7 +180,7 @@ func (r *Repository) SearchTalentProfiles(ctx context.Context, query string, pag
 		args = append(args, campaignID)
 		argIdx++
 	}
-	args = append(args, pageSize, (page * pageSize))
+	args = append(args, pageSize, page*pageSize)
 	baseQuery := "SELECT id, master_id, master_uuid, user_id, display_name, bio, skills, tags, location, avatar_url, metadata, campaign_id, created_at, updated_at FROM service_talent_profile"
 	if len(where) > 0 {
 		baseQuery += " WHERE " + strings.Join(where, " AND ")

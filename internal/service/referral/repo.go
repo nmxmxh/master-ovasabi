@@ -6,7 +6,7 @@ import (
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -138,7 +138,7 @@ func (r *Repository) GetByID(id int64) (*Referral, error) {
 func (r *Repository) GetStats(referrerMasterID int64) (*Stats, error) {
 	stats := &Stats{}
 	query := `
-		SELECT 
+		SELECT
 			COUNT(*) as total_referrals,
 			COUNT(CASE WHEN successful THEN 1 END) as successful_referrals
 		FROM service_referral_main

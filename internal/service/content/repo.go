@@ -149,7 +149,7 @@ func (r *Repository) SearchContent(ctx context.Context, query, contextQuery, mas
 		args = append(args, masterID)
 		argIdx++
 	}
-	args = append(args, pageSize, (page * pageSize))
+	args = append(args, pageSize, page*pageSize)
 	baseQuery := "SELECT id, master_id, author_id, type, title, body, media_urls, metadata, tags, parent_id, visibility, created_at, updated_at FROM service_content_main"
 	if len(where) > 0 {
 		baseQuery += " WHERE " + strings.Join(where, " AND ")

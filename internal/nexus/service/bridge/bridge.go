@@ -12,7 +12,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
-	structpb "google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Canonical Event Bus Pattern: All orchestration uses eventBusImpl for event emission and logging.

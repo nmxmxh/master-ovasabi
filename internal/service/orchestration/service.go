@@ -26,7 +26,7 @@ import (
 	bckoff "github.com/cenkalti/backoff/v4"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
-	pattern "github.com/nmxmxh/master-ovasabi/internal/service/pattern"
+	"github.com/nmxmxh/master-ovasabi/internal/service/pattern"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	cb "github.com/sony/gobreaker"
 	"go.uber.org/zap"

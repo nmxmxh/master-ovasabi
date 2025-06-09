@@ -6,7 +6,7 @@ import (
 
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
-	service "github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"

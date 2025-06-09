@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -8,8 +9,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	context "context"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"google.golang.org/protobuf/encoding/protojson"

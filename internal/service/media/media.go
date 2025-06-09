@@ -50,15 +50,15 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 
-	azblob "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	blob "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
-	blockblob "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	pkgmeta "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
-	structpb "google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

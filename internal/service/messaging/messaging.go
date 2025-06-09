@@ -9,7 +9,7 @@
 package messaging
 
 import (
-	context "context"
+	"context"
 	"encoding/json"
 	"errors"
 	"strconv"

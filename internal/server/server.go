@@ -37,7 +37,7 @@ import (
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
-	ai "github.com/nmxmxh/master-ovasabi/internal/ai"
+	"github.com/nmxmxh/master-ovasabi/internal/ai"
 	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"

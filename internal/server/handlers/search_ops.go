@@ -13,7 +13,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
-	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
+	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 )

@@ -9,7 +9,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
-	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
+	"github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"

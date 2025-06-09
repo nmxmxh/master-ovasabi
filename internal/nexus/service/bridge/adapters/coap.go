@@ -10,8 +10,8 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/nexus/service/bridge"
 
 	"github.com/plgd-dev/go-coap/v3/message"
-	udp "github.com/plgd-dev/go-coap/v3/udp"
-	client "github.com/plgd-dev/go-coap/v3/udp/client"
+	"github.com/plgd-dev/go-coap/v3/udp"
+	"github.com/plgd-dev/go-coap/v3/udp/client"
 	"go.uber.org/zap"
 )
 

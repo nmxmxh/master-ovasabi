@@ -27,7 +27,7 @@ import (
 	"database/sql"
 
 	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
-	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"

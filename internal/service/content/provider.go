@@ -31,8 +31,8 @@ import (
 	"database/sql"
 
 	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
-	repository "github.com/nmxmxh/master-ovasabi/internal/repository"
-	service "github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"

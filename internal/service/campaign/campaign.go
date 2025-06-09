@@ -12,7 +12,7 @@ import (
 	"github.com/expr-lang/expr"
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	ws "github.com/nmxmxh/master-ovasabi/internal/server/ws"
+	"github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"

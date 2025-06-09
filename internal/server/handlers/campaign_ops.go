@@ -21,7 +21,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
-	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
+	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"

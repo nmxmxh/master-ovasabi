@@ -32,7 +32,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service/talent"
 	"github.com/nmxmxh/master-ovasabi/internal/service/user"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
-	registration "github.com/nmxmxh/master-ovasabi/pkg/registration"
+	"github.com/nmxmxh/master-ovasabi/pkg/registration"
 )
 
 // ServiceBootstrapper centralizes registration of all services.

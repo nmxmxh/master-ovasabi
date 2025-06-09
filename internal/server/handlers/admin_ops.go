@@ -11,7 +11,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
-	shield "github.com/nmxmxh/master-ovasabi/pkg/shield"
+	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
 )

@@ -111,10 +111,11 @@ message AIResponse {
 package main
 
 import (
-  "log"
-  "net"
-  pb "./proto"
-  "google.golang.org/grpc"
+
+pb "./proto"
+"google.golang.org/grpc"
+"log"
+"net"
 )
 
 func main() {
@@ -135,30 +136,30 @@ func main() {
 package main
 
 import (
-  "context"
-  "fmt"
-  pb "./proto"
-  "net/http"
-  "bytes"
-  "io/ioutil"
+	pb "./proto"
+	"bytes"
+	"context"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 )
 
 type server struct {
-  pb.UnimplementedAIServiceServer
+	pb.UnimplementedAIServiceServer
 }
 
 func (s *server) QueryAI(ctx context.Context, req *pb.AIRequest) (*pb.AIResponse, error) {
-  prompt := fmt.Sprintf("Using context: ..., answer: %s", req.Query)
+	prompt := fmt.Sprintf("Using context: ..., answer: %s", req.Query)
 
-  payload := []byte(fmt.Sprintf(`{"model":"llama3", "prompt":"%s", "stream":false}`, prompt))
-  res, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewBuffer(payload))
-  if err != nil {
-    return nil, err
-  }
-  defer res.Body.Close()
-  body, _ := ioutil.ReadAll(res.Body)
+	payload := []byte(fmt.Sprintf(`{"model":"llama3", "prompt":"%s", "stream":false}`, prompt))
+	res, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	body, _ := ioutil.ReadAll(res.Body)
 
-  return &pb.AIResponse{Result: string(body)}, nil
+	return &pb.AIResponse{Result: string(body)}, nil
 }
 ```
 

@@ -1,7 +1,7 @@
 package search
 
 import (
-	context "context"
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -16,7 +16,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
-	ai "github.com/nmxmxh/master-ovasabi/internal/ai"
+	"github.com/nmxmxh/master-ovasabi/internal/ai"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"

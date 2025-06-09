@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	protojson "google.golang.org/protobuf/encoding/protojson"
-	structpb "google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"

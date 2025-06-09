@@ -32,7 +32,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
-	service "github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"

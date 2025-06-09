@@ -1,7 +1,7 @@
 package metadata
 
 import (
-	context "context"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"time"

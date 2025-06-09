@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	kg "github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
+	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"

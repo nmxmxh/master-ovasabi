@@ -75,11 +75,11 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	goth "github.com/markbates/goth"
+	"github.com/markbates/goth"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
-	graceful "github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
@@ -87,7 +87,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	structpb "google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
