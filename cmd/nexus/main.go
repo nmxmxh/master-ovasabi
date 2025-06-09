@@ -13,7 +13,7 @@ import (
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	servernexus "github.com/nmxmxh/master-ovasabi/internal/server/nexus"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
-	redis "github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"google.golang.org/grpc/codes"
 )
 
