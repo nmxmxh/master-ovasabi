@@ -3,12 +3,10 @@ import PublicLayout from '../components/shared/layouts/public';
 import { useWebSocketSearch } from '../lib/hooks/useWebSocketSearch';
 import styled from 'styled-components';
 
-const WS_URL = import.meta.env.VITE_WS_URL;
-
 export default function SearchDemoPage() {
   const [query, setQuery] = useState('');
   const [typed, setTyped] = useState(false);
-  const { connected, results, loading, error, search } = useWebSocketSearch(WS_URL);
+  const { connected, results, loading, error, search } = useWebSocketSearch();
 
   // Suggestive search: send search on input change (debounced in real app)
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {

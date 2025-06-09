@@ -16,7 +16,7 @@ export interface SearchResult {
   metadata?: Record<string, any>;
 }
 
-export function useWebSocketSearch(wsUrl: string) {
+export function useWebSocketSearch() {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [results, setResults] = useState<SearchResult | null>(null);
@@ -25,7 +25,7 @@ export function useWebSocketSearch(wsUrl: string) {
 
   // Connect on mount
   useEffect(() => {
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket('ws://localhost:8090/ws/ovasabi_website/guest_kr5zmyvq');
     wsRef.current = ws;
     ws.onopen = () => setConnected(true);
     ws.onclose = () => setConnected(false);
@@ -44,7 +44,7 @@ export function useWebSocketSearch(wsUrl: string) {
     return () => {
       ws.close();
     };
-  }, [wsUrl]);
+  }, []);
 
   // Send a search request
   const search = useCallback((params: SearchRequest) => {

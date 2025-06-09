@@ -87,9 +87,6 @@ func configureWebSocketCallbacks() {
 	ws.Set("onopen", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		log("[WASM] WebSocket connection opened.")
 		sendWSMessage(0, []byte(`{"type":"ping"}`)) // JSON ping
-
-		// Notify JS world
-		js.Global().Call("triggerThreeAction", "ws_connected")
 		return nil
 	}))
 
