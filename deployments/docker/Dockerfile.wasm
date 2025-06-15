@@ -34,7 +34,7 @@ RUN chmod +x ./ws_server
 # Install nginx for static site
 RUN apk add --no-cache nginx
 COPY deployments/docker/nginx.conf /etc/nginx/nginx.conf
-EXPOSE 80 8081
+EXPOSE 80 8100
 # Start both nginx and ws_server (use dumb-init for PID 1 if available)
 CMD ["sh", "-c", "nginx -g 'daemon off;' & wait $(pgrep nginx); ./ws_server --log-level=debug"]
 # [For production: consider using supervisord or s6 for process management]

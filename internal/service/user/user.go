@@ -605,22 +605,11 @@ func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "users listed", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:                s.log,
-		Cache:              nil,
-		CacheKey:           "",
-		CacheValue:         nil,
-		CacheTTL:           0,
-		Metadata:           nil,
-		EventEmitter:       s.eventEmitter,
-		EventEnabled:       s.eventEnabled,
-		EventType:          "user_updated",
-		EventID:            "",
-		PatternType:        "user",
-		PatternID:          "",
-		PatternMeta:        nil,
-		KnowledgeGraphHook: nil,
-		SchedulerHook:      nil,
-		EventHook:          nil,
+		Log:          s.log,
+		EventEmitter: s.eventEmitter,
+		EventEnabled: s.eventEnabled,
+		EventType:    "user_updated",
+		PatternType:  "user",
 	})
 	return resp, nil
 }
@@ -719,8 +708,6 @@ func (s *Service) UpdatePassword(ctx context.Context, req *userpb.UpdatePassword
 		Log:          s.log,
 		Cache:        s.cache,
 		CacheKey:     repoUser.ID,
-		CacheValue:   nil, // No need to cache password
-		CacheTTL:     0,
 		Metadata:     repoUser.Metadata,
 		EventEmitter: s.eventEmitter,
 		EventEnabled: s.eventEnabled,
@@ -833,8 +820,6 @@ func (s *Service) AssignRole(ctx context.Context, req *userpb.AssignRoleRequest)
 		Log:          s.log,
 		Cache:        s.cache,
 		CacheKey:     repoUser.ID,
-		CacheValue:   nil,
-		CacheTTL:     0,
 		Metadata:     repoUser.Metadata,
 		EventEmitter: s.eventEmitter,
 		EventEnabled: s.eventEnabled,
@@ -872,8 +857,6 @@ func (s *Service) RemoveRole(ctx context.Context, req *userpb.RemoveRoleRequest)
 		Log:          s.log,
 		Cache:        s.cache,
 		CacheKey:     repoUser.ID,
-		CacheValue:   nil,
-		CacheTTL:     0,
 		Metadata:     repoUser.Metadata,
 		EventEmitter: s.eventEmitter,
 		EventEnabled: s.eventEnabled,

@@ -372,7 +372,7 @@ func Run() {
 	}
 	grpcPort := os.Getenv("GRPC_PORT")
 	if grpcPort == "" {
-		grpcPort = "8080" // gRPC port
+		grpcPort = "8082" // gRPC port
 	}
 
 	startAggregatedLogger(log)
@@ -470,11 +470,11 @@ func Run() {
 	// Use the correct arguments for NewServer and Start (httpPort, grpcPort)
 	httpPort = os.Getenv("HTTP_PORT")
 	if httpPort == "" {
-		httpPort = ":8090" // fallback, but should be set in env
+		httpPort = ":8081" // fallback, but should be set in env
 	}
 	grpcPort = os.Getenv("GRPC_PORT")
 	if grpcPort == "" {
-		grpcPort = "8080" // fallback, but should be set in env
+		grpcPort = "8082" // fallback, but should be set in env
 	}
 
 	server := NewServer(container, log, httpPort)

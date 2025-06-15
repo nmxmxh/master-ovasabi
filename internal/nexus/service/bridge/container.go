@@ -74,7 +74,7 @@ func (c *Container) serveHealth() {
 		}
 	})
 	srv := &http.Server{
-		Addr:         ":8081",
+		Addr:         ":8091",
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,

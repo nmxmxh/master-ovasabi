@@ -22,7 +22,7 @@ spec:
               service:
                 name: wasm-frontend
                 port:
-                  number: 8081
+                  number: 8100
           - path: /api
             pathType: Prefix
             backend:

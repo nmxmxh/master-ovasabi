@@ -20,6 +20,6 @@ COPY --from=builder /app/media-streaming .
 
 USER nonroot:nonroot
 
-EXPOSE 8081
+EXPOSE 8085
 
 ENTRYPOINT ["/app/media-streaming"]

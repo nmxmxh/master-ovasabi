@@ -25,7 +25,8 @@ services:
       ADMIN_USER: 'nmxmxh'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
       NEXUS_GRPC_ADDR: 'nexus:50052'
-      HTTP_PORT: '8080'
+      HTTP_PORT: '${HTTP_PORT:-8081}'
+      GRPC_PORT: ${GRPC_PORT:-8082}
       METRICS_PORT: ':9090'
     volumes:
       - ./config:/app/config:ro
@@ -52,6 +53,9 @@ services:
       - ../../.env
     ports:
       - '8080:8080'
+      - '50051:50051'
+      - '8081:8081'
+      - '8082:8082'
 
   wasm-frontend:
     build:
@@ -186,7 +190,7 @@ services:
       context: ../..
       dockerfile: deployments/docker/Dockerfile.media-streaming
     ports:
-      - '8081:8081'
+      - '8085:8085'
     environment:
       APP_ENV: '${APP_ENV:-development}'
       LOG_LEVEL: debug
