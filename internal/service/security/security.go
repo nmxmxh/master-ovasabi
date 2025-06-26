@@ -11,7 +11,6 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
-	wsPkg "github.com/nmxmxh/master-ovasabi/internal/server/ws" // for systemAggMu and systemAggStats
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -41,15 +40,6 @@ func recordAuditEventAggregate(eventType, action, principal string) {
 		auditEventCounts[minute][eventType][action] = make(map[string]int)
 	}
 	auditEventCounts[minute][eventType][action][principal]++
-
-	// Unified system aggregation
-	wsPkg.SystemAggMu.Lock()
-	if eventType == "security.audit_event" {
-		wsPkg.SystemAggStats.Audit.Events++
-	} else {
-		wsPkg.SystemAggStats.Security.Events++
-	}
-	wsPkg.SystemAggMu.Unlock()
 }
 
 func init() {
@@ -69,7 +59,7 @@ func init() {
 				}
 				delete(auditEventCounts, minute)
 			}
-			auditEventCountsMu.Unlock()
+			auditEventCountsMu.Unlock() // Ensure unlock even if map is empty
 		}
 	}()
 }

@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/server/ws"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
@@ -17,6 +16,14 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/structpb"
+)
+
+// Constants for Redis channels, must match ws-gateway.
+const (
+	redisEgressSystem   = "ws:egress:system"
+	redisEgressCampaign = "ws:egress:campaign:" // + {campaign_id}
+	redisEgressUser     = "ws:egress:user:"     // + {user_id}
 )
 
 // OrchestratorEvent represents an event for campaign orchestration.
@@ -35,7 +42,6 @@ type OrchestratorManager struct {
 	dispatcher    chan OrchestratorEvent
 	stopCh        chan struct{}
 	keyBuilder    *redis.KeyBuilder
-	wsClients     *ws.ClientMap // WebSocket client registry (set at startup)
 	container     *di.Container
 }
 
@@ -47,20 +53,20 @@ type DomainOrchestrator struct {
 	log        *zap.Logger
 	cache      *redis.Cache
 	keyBuilder *redis.KeyBuilder
-	wsClients  *ws.ClientMap // WebSocket client registry for this campaign
 	// Add campaign-specific state here (users, scores, etc.)
 	container *di.Container
+	// Metrics for this orchestrator
+	broadcastCount int64
 }
 
 // NewOrchestratorManager creates a new orchestrator manager.
-func NewOrchestratorManager(log *zap.Logger, cache *redis.Cache, wsClients *ws.ClientMap, container *di.Container) *OrchestratorManager {
+func NewOrchestratorManager(log *zap.Logger, cache *redis.Cache, container *di.Container) *OrchestratorManager {
 	return &OrchestratorManager{
 		log:        log,
 		cache:      cache,
 		dispatcher: make(chan OrchestratorEvent, 1024),
 		stopCh:     make(chan struct{}),
 		keyBuilder: redis.NewKeyBuilder(redis.NamespaceCache, redis.ContextCampaign),
-		wsClients:  wsClients,
 		container:  container,
 	}
 }
@@ -130,7 +136,6 @@ func (m *OrchestratorManager) newDomainOrchestrator(ctx context.Context, campaig
 		log:        m.log.With(zap.String("campaign", campaignID)),
 		cache:      m.cache,
 		keyBuilder: m.keyBuilder,
-		wsClients:  m.wsClients,
 		container:  m.container,
 	}
 	go torch.run(ctx)
@@ -140,14 +145,12 @@ func (m *OrchestratorManager) newDomainOrchestrator(ctx context.Context, campaig
 // Domain orchestrator event loop.
 func (o *DomainOrchestrator) run(ctx context.Context) {
 	var (
-		defaultFPS   = 1.0
-		maxBatchSize = 100 // Tune as needed
-		interval     = time.Second / time.Duration(defaultFPS)
-		fps          = defaultFPS
-		intervalCh   = make(chan float64, 1)  // For dynamic FPS updates
-		immediateCh  = make(chan struct{}, 8) // For event-driven triggers
-		loadMu       sync.Mutex
-		loadPercent  float64
+		defaultFPS  = 1.0
+		interval    = time.Second / time.Duration(defaultFPS)
+		fps         = defaultFPS
+		intervalCh  = make(chan float64, 1) // For dynamic FPS updates
+		loadMu      sync.Mutex
+		loadPercent float64
 	)
 	// Helper to update interval
 	updateInterval := func(newFPS float64) {
@@ -165,16 +168,13 @@ func (o *DomainOrchestrator) run(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			// Interval-based broadcast
-			o.broadcastBatch(ctx, maxBatchSize)
+			o.broadcastCampaignUpdate(ctx)
 			loadMu.Lock()
 			loadPercent = o.estimateLoad()
 			loadMu.Unlock()
 			if loadPercent > 0.95 {
 				o.throttleOrScale()
 			}
-		case <-immediateCh:
-			// Event-driven broadcast
-			o.broadcastBatch(ctx, maxBatchSize)
 		case newFPS := <-intervalCh:
 			ticker.Stop()
 			updateInterval(newFPS)
@@ -185,39 +185,39 @@ func (o *DomainOrchestrator) run(ctx context.Context) {
 	}
 }
 
-// broadcastBatch sends updates to users in batches, using async workers for large campaigns.
-func (o *DomainOrchestrator) broadcastBatch(ctx context.Context, batchSize int) {
-	users := o.getActiveUsers()
-	n := len(users)
-	if n == 0 {
+// broadcastCampaignUpdate prepares and sends a full campaign state update via Redis.
+func (o *DomainOrchestrator) broadcastCampaignUpdate(ctx context.Context) {
+	// In a real scenario, you would fetch the full, live campaign state here.
+	// For this example, we'll construct a mock state.
+	// This logic should be enriched to fetch real data from services.
+	campaignState := map[string]interface{}{
+		"id":                     o.campaignID,
+		"live_participant_count": 123, // Example data
+		"leaderboard": []map[string]interface{}{
+			{"user": "alice", "score": 150},
+			{"user": "bob", "score": 140},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+	}
+
+	event := map[string]interface{}{
+		"type":    "campaign_update",
+		"payload": campaignState,
+	}
+
+	payloadBytes, err := json.Marshal(event)
+	if err != nil {
+		o.log.Error("Failed to marshal campaign update payload", zap.Error(err))
 		return
 	}
-	batches := (n + batchSize - 1) / batchSize
-	var wg sync.WaitGroup
-	for i := 0; i < batches; i++ {
-		start := i * batchSize
-		end := start + batchSize
-		if end > n {
-			end = n
-		}
-		wg.Add(1)
-		go func(batch []string) {
-			defer wg.Done()
-			for _, userID := range batch {
-				client, ok := o.getClient(userID)
-				if !ok {
-					continue
-				}
-				select {
-				case client.Send() <- o.prepareBroadcastData(userID):
-					// sent
-				default:
-					// drop frame for slow client
-				}
-			}
-		}(users[start:end])
+
+	// Publish to the campaign-specific channel for the ws-gateway to pick up
+	channel := redisEgressCampaign + o.campaignID
+	if err := o.cache.GetClient().Publish(ctx, channel, payloadBytes).Err(); err != nil {
+		o.log.Error("Failed to publish campaign update to Redis", zap.Error(err), zap.String("channel", channel))
 	}
-	wg.Wait()
+	atomic.AddInt64(&o.broadcastCount, 1)
+
 	// After broadcasting, orchestrate with graceful
 	success := graceful.WrapSuccess(ctx, codes.OK, "campaign broadcast", nil, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
@@ -264,29 +264,6 @@ func (o *DomainOrchestrator) getLatestMetadata(ctx context.Context) *commonpb.Me
 	return nil
 }
 
-// getActiveUsers returns a list of active user IDs for this campaign from ws.ClientMap.
-func (o *DomainOrchestrator) getActiveUsers() []string {
-	var users []string
-	if o.wsClients == nil {
-		return users
-	}
-	o.wsClients.Range(func(campaignID, userID string, _ *ws.Client) bool {
-		if campaignID == o.campaignID {
-			users = append(users, userID)
-		}
-		return true
-	})
-	return users
-}
-
-// getClient returns the WebSocket client for a user in this campaign.
-func (o *DomainOrchestrator) getClient(userID string) (*ws.Client, bool) {
-	if o.wsClients == nil {
-		return nil, false
-	}
-	return o.wsClients.Load(o.campaignID, userID)
-}
-
 // Option type for partial update logic.
 type (
 	StateBuilderOption func(*stateBuilderConfig)
@@ -314,15 +291,25 @@ func WithPercentThreshold(threshold float64) StateBuilderOption {
 
 // BuildCampaignUserState builds the minimal, gamified, partial-update-ready state for a campaign/user.
 // Now uses canonical metadata.ExtractServiceVariables for all variable extraction.
-func BuildCampaignUserState(campaign *Campaign, user *userpb.User, _ []LeaderboardEntry, mediaState *mediapb.Media, opts ...StateBuilderOption) map[string]interface{} {
+func BuildCampaignUserState(campaign *Campaign, user *structpb.Struct, _ []LeaderboardEntry, mediaState *mediapb.Media, opts ...StateBuilderOption) map[string]interface{} {
 	// Canonical extraction from metadata
 	var campaignVars, userVars map[string]interface{}
 	if campaign != nil && campaign.Metadata != nil {
 		campaignVars = metadata.ExtractServiceVariables(campaign.Metadata, "campaign")
 	}
-	if user != nil && user.Metadata != nil {
-		userVars = metadata.ExtractServiceVariables(user.Metadata, "user")
+	var userMap map[string]interface{}
+	if user != nil {
+		userMap = user.AsMap()
+		if meta, ok := userMap["metadata"].(map[string]interface{}); ok {
+			// Assuming metadata is a structpb.Struct within the user struct
+			b, _ := json.Marshal(meta)
+			var commonMeta commonpb.Metadata
+			if json.Unmarshal(b, &commonMeta) == nil {
+				userVars = metadata.ExtractServiceVariables(&commonMeta, "user")
+			}
+		}
 	}
+
 	// Compose all fields
 	state := map[string]interface{}{
 		"campaign": map[string]interface{}{
@@ -338,12 +325,7 @@ func BuildCampaignUserState(campaign *Campaign, user *userpb.User, _ []Leaderboa
 			},
 		},
 		"user": map[string]interface{}{
-			"id":           user.Id,
-			"username":     user.Username,
-			"email":        user.Email,
-			"roles":        user.Roles,
-			"status":       user.Status,
-			"profile":      user.Profile,
+			"details":      userMap,
 			"gamification": userVars,
 		},
 		"media": mediaState,
@@ -384,15 +366,6 @@ func BuildCampaignUserState(campaign *Campaign, user *userpb.User, _ []Leaderboa
 		return partial
 	}
 	return state
-}
-
-// Refactor DomainOrchestrator.prepareBroadcastData to use BuildCampaignUserState.
-func (o *DomainOrchestrator) prepareBroadcastData(_ string) ws.WebSocketEvent {
-	payload := BuildCampaignUserState(nil, nil, nil, nil)
-	return ws.WebSocketEvent{
-		Type:    "campaign_update",
-		Payload: payload,
-	}
 }
 
 // Add a real-time metadata watcher using Redis pub/sub.
@@ -518,19 +491,20 @@ func (s *Service) advancedOrchestrateCampaign(ctx context.Context, c *Campaign, 
 // activeBroadcasts map[string]context.CancelFunc
 // cronScheduler *cron.Cron
 // scheduledJobs map[string][]cron.EntryID
-// wsClients *ws.WsClientMap
 
 // InitBroadcasts initializes the broadcast map.
 func (s *Service) InitBroadcasts() {
 	s.broadcastMu.Lock()
-	defer s.broadcastMu.Unlock()
 	if s.activeBroadcasts == nil {
 		s.activeBroadcasts = make(map[string]context.CancelFunc)
 	}
+	s.broadcastMu.Unlock()
 }
 
 // InitScheduler initializes the cron scheduler and job map.
 func (s *Service) InitScheduler() {
+	s.broadcastMu.Lock() // Using broadcastMu for scheduler as well for simplicity
+	defer s.broadcastMu.Unlock()
 	if s.cronScheduler == nil {
 		s.cronScheduler = cron.New()
 		s.scheduledJobs = make(map[string][]cron.EntryID)
@@ -538,18 +512,18 @@ func (s *Service) InitScheduler() {
 	}
 }
 
-// SetWSClients sets the WebSocket client map for orchestrator integration.
-func (s *Service) SetWSClients(clients *ws.ClientMap) {
-	s.clients = clients
-}
-
 // prepareBroadcastData prepares the data to send to a user in a campaign (global or user-specific).
-func (s *Service) prepareBroadcastData(c *Campaign, _ string) ws.WebSocketEvent {
-	payload := BuildCampaignUserState(c, nil, nil, nil)
-	return ws.WebSocketEvent{
-		Type:    "campaign_update",
-		Payload: payload,
+func (s *Service) prepareBroadcastData(c *Campaign, _ string) ([]byte, error) {
+	payload := BuildCampaignUserState(c, nil, nil, nil, nil)
+	event := map[string]interface{}{
+		"type":    "campaign_update",
+		"payload": payload,
 	}
+	bytes, err := json.Marshal(event)
+	if err != nil {
+		return nil, err
+	}
+	return bytes, nil
 }
 
 // orchestrateBroadcastEvent is a helper to DRY up graceful orchestration for broadcast events.
@@ -600,22 +574,16 @@ func (s *Service) startBroadcast(ctx context.Context, c *Campaign, meta *Metadat
 				s.orchestrateBroadcastEvent(ctx, "campaign.broadcast_stopped", c.Slug, c.Metadata, "campaign broadcast stopped")
 				return
 			case <-ticker.C:
-				if s.clients == nil {
-					s.log.Warn("No wsClients registry set; skipping broadcast", zap.String("slug", c.Slug))
+				data, err := s.prepareBroadcastData(c, "")
+				if err != nil {
+					s.log.Error("Failed to prepare broadcast data", zap.String("slug", c.Slug), zap.Error(err))
 					continue
 				}
-				s.clients.Range(func(campaignID, userID string, client *ws.Client) bool {
-					if campaignID == c.Slug {
-						data := s.prepareBroadcastData(c, userID)
-						select {
-						case client.Send() <- data:
-							// sent
-						default:
-							s.log.Warn("Dropping frame for slow client", zap.String("campaign", campaignID), zap.String("user", userID))
-						}
-					}
-					return true
-				})
+				channel := redisEgressCampaign + c.Slug
+				if err := s.cache.GetClient().Publish(ctx, channel, data).Err(); err != nil {
+					s.log.Error("Failed to publish broadcast to Redis", zap.String("slug", c.Slug), zap.Error(err))
+				}
+
 				s.orchestrateBroadcastEvent(ctx, "campaign.broadcast_tick", c.Slug, c.Metadata, "campaign broadcast tick")
 			}
 		}

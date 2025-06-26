@@ -1,29 +1,34 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
-	"time"
 
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	campaignmeta "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
+	"github.com/nmxmxh/master-ovasabi/pkg/auth" // Import the auth package
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// writeJSON is a DRY helper for writing JSON responses (inspired by generics best practices).
-func writeJSON(w http.ResponseWriter, v interface{}, log *zap.Logger) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Error("Failed to write JSON response", zap.Error(err))
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-	}
-}
+// Error messages for permissions.
+var (
+	errInsufficientCampaignRole = errors.New("forbidden: insufficient campaign role")
+	errAuthorMutationOnly       = errors.New("forbidden: only author can mutate")
+	errMissingCampaignOrAuthor  = errors.New("missing campaign_id or author_id")
+)
 
 // ContentOpsHandler handles content-related actions via the "action" field.
 //
@@ -44,25 +49,25 @@ func ContentOpsHandler(container *di.Container) http.HandlerFunc {
 		var contentSvc contentpb.ContentServiceServer
 		if err := container.Resolve(&contentSvc); err != nil {
 			log.Error("Failed to resolve ContentService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
 		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
+			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
 			return
 		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("Failed to decode content request JSON", zap.Error(err))
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err) // Already correct
 			return
 		}
 		action, ok := req["action"].(string)
 		if !ok || action == "" {
-			log.Error("Missing or invalid action in content request", zap.Any("value", req["action"]))
-			http.Error(w, "missing or invalid action", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil, zap.Any("value", req["action"]))
 			return
 		}
+
 		// Extract authentication context
 		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
@@ -70,10 +75,10 @@ func ContentOpsHandler(container *di.Container) http.HandlerFunc {
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
-
+		// Helper to build metadata for guest comments
 		buildGuestCommentMeta := func(guestNickname, deviceID string) *commonpb.Metadata {
 			fields := map[string]interface{}{
 				"guest_comment":  true,
@@ -88,627 +93,214 @@ func ContentOpsHandler(container *di.Container) http.HandlerFunc {
 			}
 			return &commonpb.Metadata{ServiceSpecific: ssStruct}
 		}
-		switch action {
-		case "create_content":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			var campaignID int64
-			var campaignSlug string
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				case string:
-					campaignSlug = vv
-				}
-			}
-			var authorID string
-			if v, ok := req["author_id"].(string); ok {
-				authorID = v
-			}
-			// --- Campaign-based: fetch campaign and check role ---
-			switch {
-			case campaignID != 0 || campaignSlug != "":
-				var campaignSvc campaignpb.CampaignServiceServer
-				if err := container.Resolve(&campaignSvc); err != nil {
-					log.Error("Failed to resolve CampaignService", zap.Error(err))
-					http.Error(w, "internal error", http.StatusInternalServerError)
+
+		// --- Action Handlers ---
+		actionHandlers := map[string]func(){
+			"create_content": func() {
+				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
+					handlePermissionError(w, log, err)
 					return
 				}
-				var getReq *campaignpb.GetCampaignRequest
-				if campaignSlug != "" {
-					getReq = &campaignpb.GetCampaignRequest{Slug: campaignSlug}
-				} else {
-					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
-				}
-				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
-				if err != nil || campResp == nil || campResp.Campaign == nil {
-					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
-					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
+				handleContentAction(w, ctx, log, req, &contentpb.CreateContentRequest{}, contentSvc.CreateContent)
+			},
+			"update_content": func() {
+				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
+					handlePermissionError(w, log, err)
 					return
 				}
-				role := campaignmeta.GetUserRoleInCampaign(campResp.Campaign.Metadata, userID, campResp.Campaign.OwnerId)
-				isSystem := campaignmeta.IsSystemCampaign(campResp.Campaign.Metadata)
-				isPlatformAdmin := isAdmin(authCtx.Roles)
-				if role != "admin" && role != "user" && (!isSystem || !isPlatformAdmin) {
-					http.Error(w, "forbidden: insufficient campaign role", http.StatusForbidden)
+				handleContentAction(w, ctx, log, req, &contentpb.UpdateContentRequest{}, contentSvc.UpdateContent)
+			},
+			"delete_content": func() {
+				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
+					handlePermissionError(w, log, err)
 					return
 				}
-				// Optionally, extract subscription info for response
-				// typ, price, currency, info := campaignmeta.GetSubscriptionInfo(campResp.Campaign.Metadata)
-			case authorID != "":
-				if authorID != userID {
-					http.Error(w, "forbidden: only author can mutate", http.StatusForbidden)
+				handleContentAction(w, ctx, log, req, &contentpb.DeleteContentRequest{}, contentSvc.DeleteContent)
+			},
+			"get_content": func() {
+				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
+					handlePermissionError(w, log, err)
 					return
 				}
-			default:
-				http.Error(w, "missing campaign_id or author_id", http.StatusBadRequest)
-				return
-			}
-			title, ok := req["title"].(string)
-			if !ok {
-				log.Error("Missing or invalid title in create_content")
-				http.Error(w, "missing or invalid title", http.StatusBadRequest)
-				return
-			}
-			body, ok := req["body"].(string)
-			if !ok {
-				log.Error("Missing or invalid body in create_content")
-				http.Error(w, "missing or invalid body", http.StatusBadRequest)
-				return
-			}
-			typeStr, ok := req["type"].(string)
-			if !ok {
-				log.Error("Missing or invalid type in create_content")
-				http.Error(w, "missing or invalid type", http.StatusBadRequest)
-				return
-			}
-			tags := []string{}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, v := range arr {
-					if s, ok := v.(string); ok {
-						tags = append(tags, s)
-					}
+				handleContentAction(w, ctx, log, req, &contentpb.GetContentRequest{}, contentSvc.GetContent)
+			},
+			"list_content": func() {
+				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
+					handlePermissionError(w, log, err)
+					return
 				}
-			}
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"]; ok && m != nil {
-				if metaMap, ok := m.(map[string]interface{}); ok {
-					metaStruct, err := structpb.NewStruct(metaMap)
-					if err != nil {
-						log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-						http.Error(w, "invalid metadata", http.StatusBadRequest)
+				handleContentAction(w, ctx, log, req, &contentpb.ListContentRequest{}, contentSvc.ListContent)
+			},
+			"add_reaction": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
+					return
+				}
+				handleContentAction(w, ctx, log, req, &contentpb.AddReactionRequest{}, contentSvc.AddReaction)
+			},
+			"add_comment": func() {
+				var authorID string
+				var commentMeta *commonpb.Metadata
+
+				if isGuest {
+					guestNickname, ok1 := req["guest_nickname"].(string)
+					deviceID, ok2 := req["device_id"].(string)
+					if !ok1 || !ok2 || guestNickname == "" || deviceID == "" {
+						httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing guest_nickname or device_id for guest comment", nil)
 						return
 					}
-					meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-				}
-			}
-			content := &contentpb.Content{
-				Title:      title,
-				Body:       body,
-				Type:       typeStr,
-				Tags:       tags,
-				Metadata:   meta,
-				CreatedAt:  time.Now().Unix(),
-				UpdatedAt:  time.Now().Unix(),
-				CampaignId: campaignID,
-			}
-			protoReq := &contentpb.CreateContentRequest{Content: content, CampaignId: campaignID}
-			resp, err := contentSvc.CreateContent(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to create content", zap.Error(err))
-				http.Error(w, "failed to create content", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]interface{}{"content": resp.Content}, log)
-		case "update_content":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			var campaignID int64
-			var campaignSlug string
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				case string:
-					campaignSlug = vv
-				}
-			}
-			var authorID string
-			if v, ok := req["author_id"].(string); ok {
-				authorID = v
-			}
-			// --- Campaign-based: fetch campaign and check role ---
-			switch {
-			case campaignID != 0 || campaignSlug != "":
-				var campaignSvc campaignpb.CampaignServiceServer
-				if err := container.Resolve(&campaignSvc); err != nil {
-					log.Error("Failed to resolve CampaignService", zap.Error(err))
-					http.Error(w, "internal error", http.StatusInternalServerError)
-					return
-				}
-				var getReq *campaignpb.GetCampaignRequest
-				if campaignSlug != "" {
-					getReq = &campaignpb.GetCampaignRequest{Slug: campaignSlug}
+					authorID = "guest:" + deviceID
+					commentMeta = buildGuestCommentMeta(guestNickname, deviceID)
 				} else {
-					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
+					authorID = userID
 				}
-				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
-				if err != nil || campResp == nil || campResp.Campaign == nil {
-					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
-					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
-					return
-				}
-				role := campaignmeta.GetUserRoleInCampaign(campResp.Campaign.Metadata, userID, campResp.Campaign.OwnerId)
-				isSystem := campaignmeta.IsSystemCampaign(campResp.Campaign.Metadata)
-				isPlatformAdmin := isAdmin(authCtx.Roles)
-				if role != "admin" && role != "user" && (!isSystem || !isPlatformAdmin) {
-					http.Error(w, "forbidden: insufficient campaign role", http.StatusForbidden)
-					return
-				}
-				// Optionally, extract subscription info for response
-				// typ, price, currency, info := campaignmeta.GetSubscriptionInfo(campResp.Campaign.Metadata)
-			case authorID != "":
-				if authorID != userID {
-					http.Error(w, "forbidden: only author can mutate", http.StatusForbidden)
-					return
-				}
-			default:
-				http.Error(w, "missing campaign_id or author_id", http.StatusBadRequest)
-				return
-			}
-			id, ok := req["id"].(string)
-			if !ok {
-				log.Error("Missing or invalid id in update_content")
-				http.Error(w, "missing or invalid id", http.StatusBadRequest)
-				return
-			}
-			title, ok := req["title"].(string)
-			if !ok {
-				log.Error("Missing or invalid title in update_content")
-				http.Error(w, "missing or invalid title", http.StatusBadRequest)
-				return
-			}
-			body, ok := req["body"].(string)
-			if !ok {
-				log.Error("Missing or invalid body in update_content")
-				http.Error(w, "missing or invalid body", http.StatusBadRequest)
-				return
-			}
-			typeStr, ok := req["type"].(string)
-			if !ok {
-				log.Error("Missing or invalid type in update_content")
-				http.Error(w, "missing or invalid type", http.StatusBadRequest)
-				return
-			}
-			tags := []string{}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, v := range arr {
-					if s, ok := v.(string); ok {
-						tags = append(tags, s)
-					}
-				}
-			}
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"]; ok && m != nil {
-				if metaMap, ok := m.(map[string]interface{}); ok {
-					metaStruct, err := structpb.NewStruct(metaMap)
+
+				// Inject author_id and potentially metadata into the request map before unmarshaling
+				req["author_id"] = authorID
+				if commentMeta != nil {
+					metaBytes, err := protojson.Marshal(commentMeta)
 					if err != nil {
-						log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-						http.Error(w, "invalid metadata", http.StatusBadRequest)
+						httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to process guest metadata", err)
 						return
 					}
-					meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-				}
-			}
-			content := &contentpb.Content{
-				Id:         id,
-				Title:      title,
-				Body:       body,
-				Type:       typeStr,
-				Tags:       tags,
-				Metadata:   meta,
-				UpdatedAt:  time.Now().Unix(),
-				CampaignId: campaignID,
-			}
-			protoReq := &contentpb.UpdateContentRequest{Content: content}
-			resp, err := contentSvc.UpdateContent(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to update content", zap.Error(err))
-				http.Error(w, "failed to update content", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]interface{}{"content": resp.Content}, log)
-		case "delete_content":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			var campaignID int64
-			var campaignSlug string
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				case string:
-					campaignSlug = vv
-				}
-			}
-			var authorID string
-			if v, ok := req["author_id"].(string); ok {
-				authorID = v
-			}
-			// --- Campaign-based: fetch campaign and check role ---
-			switch {
-			case campaignID != 0 || campaignSlug != "":
-				var campaignSvc campaignpb.CampaignServiceServer
-				if err := container.Resolve(&campaignSvc); err != nil {
-					log.Error("Failed to resolve CampaignService", zap.Error(err))
-					http.Error(w, "internal error", http.StatusInternalServerError)
-					return
-				}
-				var getReq *campaignpb.GetCampaignRequest
-				if campaignSlug != "" {
-					getReq = &campaignpb.GetCampaignRequest{Slug: campaignSlug}
-				} else {
-					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
-				}
-				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
-				if err != nil || campResp == nil || campResp.Campaign == nil {
-					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
-					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
-					return
-				}
-				role := campaignmeta.GetUserRoleInCampaign(campResp.Campaign.Metadata, userID, campResp.Campaign.OwnerId)
-				isSystem := campaignmeta.IsSystemCampaign(campResp.Campaign.Metadata)
-				isPlatformAdmin := isAdmin(authCtx.Roles)
-				if role != "admin" && role != "user" && (!isSystem || !isPlatformAdmin) {
-					http.Error(w, "forbidden: insufficient campaign role", http.StatusForbidden)
-					return
-				}
-				// Optionally, extract subscription info for response
-				// typ, price, currency, info := campaignmeta.GetSubscriptionInfo(campResp.Campaign.Metadata)
-			case authorID != "":
-				if authorID != userID {
-					http.Error(w, "forbidden: only author can mutate", http.StatusForbidden)
-					return
-				}
-			default:
-				http.Error(w, "missing campaign_id or author_id", http.StatusBadRequest)
-				return
-			}
-			id, ok := req["id"].(string)
-			if !ok {
-				log.Error("Missing or invalid id in delete_content")
-				http.Error(w, "missing or invalid id", http.StatusBadRequest)
-				return
-			}
-			protoReq := &contentpb.DeleteContentRequest{Id: id}
-			resp, err := contentSvc.DeleteContent(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to delete content", zap.Error(err))
-				http.Error(w, "failed to delete content", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]interface{}{"success": resp.Success}, log)
-		case "get_content":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			var campaignID int64
-			var campaignSlug string
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				case string:
-					campaignSlug = vv
-				}
-			}
-			var authorID string
-			if v, ok := req["author_id"].(string); ok {
-				authorID = v
-			}
-			// --- Campaign-based: fetch campaign and check role ---
-			switch {
-			case campaignID != 0 || campaignSlug != "":
-				var campaignSvc campaignpb.CampaignServiceServer
-				if err := container.Resolve(&campaignSvc); err != nil {
-					log.Error("Failed to resolve CampaignService", zap.Error(err))
-					http.Error(w, "internal error", http.StatusInternalServerError)
-					return
-				}
-				var getReq *campaignpb.GetCampaignRequest
-				if campaignSlug != "" {
-					getReq = &campaignpb.GetCampaignRequest{Slug: campaignSlug}
-				} else {
-					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
-				}
-				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
-				if err != nil || campResp == nil || campResp.Campaign == nil {
-					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
-					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
-					return
-				}
-				role := campaignmeta.GetUserRoleInCampaign(campResp.Campaign.Metadata, userID, campResp.Campaign.OwnerId)
-				isSystem := campaignmeta.IsSystemCampaign(campResp.Campaign.Metadata)
-				isPlatformAdmin := isAdmin(authCtx.Roles)
-				if role != "admin" && role != "user" && (!isSystem || !isPlatformAdmin) {
-					http.Error(w, "forbidden: insufficient campaign role", http.StatusForbidden)
-					return
-				}
-				// Optionally, extract subscription info for response
-				// typ, price, currency, info := campaignmeta.GetSubscriptionInfo(campResp.Campaign.Metadata)
-			case authorID != "":
-				if authorID != userID {
-					http.Error(w, "forbidden: only author can mutate", http.StatusForbidden)
-					return
-				}
-			default:
-				http.Error(w, "missing campaign_id or author_id", http.StatusBadRequest)
-				return
-			}
-			id, ok := req["id"].(string)
-			if !ok {
-				log.Error("Missing or invalid id in get_content")
-				http.Error(w, "missing or invalid id", http.StatusBadRequest)
-				return
-			}
-			protoReq := &contentpb.GetContentRequest{Id: id}
-			resp, err := contentSvc.GetContent(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to get content", zap.Error(err))
-				http.Error(w, "failed to get content", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]interface{}{"content": resp.Content}, log)
-		case "list_content":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			page := int32(0)
-			if p, ok := req["page"].(float64); ok {
-				page = int32(p)
-			}
-			pageSize := int32(20)
-			if ps, ok := req["page_size"].(float64); ok {
-				pageSize = int32(ps)
-			}
-			var campaignID int64
-			var campaignSlug string
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				case string:
-					campaignSlug = vv
-				}
-			}
-			var authorID string
-			if v, ok := req["author_id"].(string); ok {
-				authorID = v
-			}
-			typeStr, ok := req["type"].(string)
-			if !ok {
-				log.Error("Missing or invalid type in list_content")
-				http.Error(w, "missing or invalid type", http.StatusBadRequest)
-				return
-			}
-			tags := []string{}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, v := range arr {
-					if s, ok := v.(string); ok {
-						tags = append(tags, s)
+					var metaMap map[string]interface{}
+					if err := json.Unmarshal(metaBytes, &metaMap); err != nil {
+						httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to process guest metadata", err)
+						return
 					}
+					req["metadata"] = metaMap
 				}
-			}
-			// --- Campaign-based: fetch campaign and check role ---
-			switch {
-			case campaignID != 0 || campaignSlug != "":
-				var campaignSvc campaignpb.CampaignServiceServer
-				if err := container.Resolve(&campaignSvc); err != nil {
-					log.Error("Failed to resolve CampaignService", zap.Error(err))
-					http.Error(w, "internal error", http.StatusInternalServerError)
+
+				handleContentAction(w, ctx, log, req, &contentpb.AddCommentRequest{}, contentSvc.AddComment)
+			},
+			"moderate_content": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
 					return
 				}
-				var getReq *campaignpb.GetCampaignRequest
-				if campaignSlug != "" {
-					getReq = &campaignpb.GetCampaignRequest{Slug: campaignSlug}
-				} else {
-					getReq = &campaignpb.GetCampaignRequest{Slug: ""} // TODO: support lookup by ID if needed
-				}
-				campResp, err := campaignSvc.GetCampaign(ctx, getReq)
-				if err != nil || campResp == nil || campResp.Campaign == nil {
-					log.Error("Failed to fetch campaign for permission check", zap.Error(err))
-					http.Error(w, "failed to fetch campaign", http.StatusInternalServerError)
-					return
-				}
-				role := campaignmeta.GetUserRoleInCampaign(campResp.Campaign.Metadata, userID, campResp.Campaign.OwnerId)
-				isSystem := campaignmeta.IsSystemCampaign(campResp.Campaign.Metadata)
-				isPlatformAdmin := isAdmin(authCtx.Roles)
-				if role != "admin" && role != "user" && (!isSystem || !isPlatformAdmin) {
-					http.Error(w, "forbidden: insufficient campaign role", http.StatusForbidden)
-					return
-				}
-				// Optionally, extract subscription info for response
-				// typ, price, currency, info := campaignmeta.GetSubscriptionInfo(campResp.Campaign.Metadata)
-			case authorID != "":
-				if authorID != userID {
-					http.Error(w, "forbidden: only author can mutate", http.StatusForbidden)
-					return
-				}
-			default:
-				http.Error(w, "missing campaign_id or author_id", http.StatusBadRequest)
-				return
-			}
-			protoReq := &contentpb.ListContentRequest{
-				AuthorId: authorID,
-				Type:     typeStr,
-				Page:     page,
-				PageSize: pageSize,
-				Tags:     tags,
-			}
-			resp, err := contentSvc.ListContent(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to list content", zap.Error(err))
-				http.Error(w, "failed to list content", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]interface{}{"contents": resp.Contents, "total": resp.Total}, log)
-		case "add_reaction":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			contentID, ok := req["content_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid content_id in add_reaction")
-				http.Error(w, "missing or invalid content_id", http.StatusBadRequest)
-				return
-			}
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid user_id in add_reaction")
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
-				return
-			}
-			reaction, ok := req["reaction"].(string)
-			if !ok {
-				log.Error("Missing or invalid reaction in add_reaction")
-				http.Error(w, "missing or invalid reaction", http.StatusBadRequest)
-				return
-			}
-			protoReq := &contentpb.AddReactionRequest{
-				ContentId: contentID,
-				UserId:    userID,
-				Reaction:  reaction,
-			}
-			resp, err := contentSvc.AddReaction(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to add reaction", zap.Error(err))
-				http.Error(w, "failed to add reaction", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]interface{}{"reaction": resp}, log)
-		case "add_comment":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			contentID, ok := req["content_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid content_id in add_comment")
-				http.Error(w, "missing or invalid content_id", http.StatusBadRequest)
-				return
-			}
-			var authorID string
-			var commentMeta *commonpb.Metadata
-			if isGuest {
-				// Guest comment: require guest_nickname and device_id
-				guestNickname, ok1 := req["guest_nickname"].(string)
-				deviceID, ok2 := req["device_id"].(string)
-				if !ok1 || !ok2 || guestNickname == "" || deviceID == "" {
-					log.Error("Missing guest_nickname or device_id for guest comment")
-					http.Error(w, "missing guest_nickname or device_id for guest comment", http.StatusBadRequest)
-					return
-				}
-				authorID = "guest:" + deviceID
-				commentMeta = buildGuestCommentMeta(guestNickname, deviceID)
-			} else {
-				// Authenticated user
-				authorID = userID
-				if m, ok := req["metadata"].(map[string]interface{}); ok {
-					if metaStruct, err := structpb.NewStruct(m); err == nil {
-						commentMeta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-					}
-				}
-			}
-			body, ok := req["body"].(string)
-			if !ok {
-				log.Error("Missing or invalid body in add_comment")
-				http.Error(w, "missing or invalid body", http.StatusBadRequest)
-				return
-			}
-			protoReq := &contentpb.AddCommentRequest{
-				ContentId: contentID,
-				AuthorId:  authorID,
-				Body:      body,
-				Metadata:  commentMeta,
-			}
-			resp, err := contentSvc.AddComment(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to add comment", zap.Error(err))
-				http.Error(w, "failed to add comment", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]interface{}{"comment": resp.Comment}, log)
-		case "moderate_content":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			contentID, ok := req["content_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid content_id in moderate_content")
-				http.Error(w, "missing or invalid content_id", http.StatusBadRequest)
-				return
-			}
-			actionStr, ok := req["action_str"].(string) // avoid collision with 'action' field
-			if !ok {
-				log.Error("Missing or invalid action_str in moderate_content")
-				http.Error(w, "missing or invalid action_str", http.StatusBadRequest)
-				return
-			}
-			moderatorID, ok := req["moderator_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid moderator_id in moderate_content")
-				http.Error(w, "missing or invalid moderator_id", http.StatusBadRequest)
-				return
-			}
-			reason, ok := req["reason"].(string)
-			if !ok {
-				log.Error("Missing or invalid reason in moderate_content")
-				http.Error(w, "missing or invalid reason", http.StatusBadRequest)
-				return
-			}
-			protoReq := &contentpb.ModerateContentRequest{
-				ContentId:   contentID,
-				Action:      actionStr,
-				ModeratorId: moderatorID,
-				Reason:      reason,
-			}
-			resp, err := contentSvc.ModerateContent(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to moderate content", zap.Error(err))
-				http.Error(w, "failed to moderate content", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]interface{}{"moderation": resp}, log)
-		// Extensible: add more actions (add_reaction, add_comment, moderate_content, etc.)
-		default:
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			log.Error("Unknown action in content handler", zap.String("action", action))
-			http.Error(w, "unknown action", http.StatusBadRequest)
-			return
+				// Additional permission check for moderators can be added here if needed
+				handleContentAction(w, ctx, log, req, &contentpb.ModerateContentRequest{}, contentSvc.ModerateContent)
+			},
 		}
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil, zap.String("action", action))
+		}
+	}
+}
+
+// handleContentAction is a generic helper to reduce boilerplate in ContentOpsHandler.
+func handleContentAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoContent(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		log.Error("content service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil)
+		return
+	}
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProtoContent converts a map[string]interface{} to a proto.Message using JSON as an intermediate.
+func mapToProtoContent(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return protojson.Unmarshal(jsonBytes, v)
+}
+
+// checkCampaignContentPermission centralizes the complex permission logic for content actions.
+func checkCampaignContentPermission(ctx context.Context, container *di.Container, req map[string]interface{}, authCtx *auth.Context) error {
+	log := contextx.Logger(ctx)
+	userID := authCtx.UserID
+
+	if userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest") {
+		return shield.ErrUnauthenticated
+	}
+
+	var campaignID int64
+	var campaignSlug string
+	if v, ok := req["campaign_id"]; ok {
+		switch vv := v.(type) {
+		case float64:
+			campaignID = int64(vv)
+		case int64:
+			campaignID = vv
+		case string:
+			campaignSlug = vv
+		}
+	}
+
+	var authorID string
+	if v, ok := req["author_id"].(string); ok {
+		authorID = v
+	}
+
+	switch {
+	case campaignID != 0 || campaignSlug != "":
+		var campaignSvc campaignpb.CampaignServiceServer
+		if err := container.Resolve(&campaignSvc); err != nil {
+			log.Error("Failed to resolve CampaignService", zap.Error(err))
+			return errors.New("internal error")
+		}
+		var getReq *campaignpb.GetCampaignRequest
+		if campaignSlug != "" {
+			getReq = &campaignpb.GetCampaignRequest{Slug: campaignSlug}
+		} else {
+			// The current campaignpb.GetCampaignRequest does not support lookup by ID.
+			// To enable this, the campaign.proto file needs to be updated and then the Go protobufs regenerated.
+			// For now, we return an error if only campaignID is provided.
+			return errors.New("campaign lookup by ID is not supported by the current API definition; use slug instead")
+		}
+		campResp, err := campaignSvc.GetCampaign(ctx, getReq)
+		if err != nil || campResp == nil || campResp.Campaign == nil {
+			log.Error("Failed to fetch campaign for permission check", zap.Error(err))
+			return errors.New("failed to fetch campaign")
+		}
+		role := campaignmeta.GetUserRoleInCampaign(campResp.Campaign.Metadata, userID, campResp.Campaign.OwnerId)
+		isSystem := campaignmeta.IsSystemCampaign(campResp.Campaign.Metadata)
+		isPlatformAdmin := httputil.IsAdmin(authCtx.Roles)
+		if role != "admin" && role != "user" && (!isSystem || !isPlatformAdmin) {
+			return errInsufficientCampaignRole
+		}
+	case authorID != "":
+		if authorID != userID {
+			return errAuthorMutationOnly
+		}
+	default:
+		return errMissingCampaignOrAuthor
+	}
+
+	return nil
+}
+
+// handlePermissionError maps a permission error to an HTTP status code.
+func handlePermissionError(w http.ResponseWriter, log *zap.Logger, err error) {
+	switch {
+	case errors.Is(err, shield.ErrUnauthenticated):
+		httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", err)
+	case errors.Is(err, errInsufficientCampaignRole), errors.Is(err, errAuthorMutationOnly):
+		httputil.WriteJSONError(w, log, http.StatusForbidden, err.Error(), err)
+	case errors.Is(err, errMissingCampaignOrAuthor):
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, err.Error(), err)
+	default:
+		httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error during permission check", err)
 	}
 }

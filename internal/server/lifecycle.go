@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"sync"
 	"syscall"
 	"time"
 
 	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
 	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
+	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
 	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
@@ -46,7 +48,7 @@ type Server struct {
 	Container  *di.Container
 }
 
-func NewServer(container *di.Container, logger *zap.Logger, httpPort string) *Server {
+func NewServer(container *di.Container, logger *zap.Logger, httpAddr string) *Server {
 	grpcServer := grpc.NewServer()
 	metricsServer := &http.Server{
 		Addr:         ":9090",
@@ -56,9 +58,9 @@ func NewServer(container *di.Container, logger *zap.Logger, httpPort string) *Se
 		IdleTimeout:  15 * time.Second,
 	}
 
-	// IMPORTANT: The HTTP server should NOT bind to the ws-gateway port (8090).
-	// WebSocket endpoints are now handled by the ws-gateway service at /ws and /ws/{campaign_id}/{user_id}.
-	httpServer := server.StartHTTPServer(logger, container)
+	// The HTTP server for REST endpoints.
+	// server.StartHTTPServer initializes the handler, and we explicitly set the address here.
+	httpServer := server.StartHTTPServer(logger, container, httpAddr)
 
 	return &Server{
 		GRPCServer: grpcServer,
@@ -108,6 +110,7 @@ func (s *Server) Start(grpcPort string) error {
 		"nexus.NexusService",
 		"referral.ReferralService",
 		"messaging.MessagingService",
+		"campaign.CampaignService",
 		"scheduler.SchedulerService",
 	}
 	for _, svc := range services {
@@ -190,125 +193,43 @@ func (s *Server) Stop(ctx context.Context) error {
 	return err
 }
 
+// registerService is a generic helper to resolve a gRPC service from the DI container
+// and register it with the gRPC server, reducing boilerplate and improving maintainability.
+func registerService[T any](
+	grpcServer *grpc.Server,
+	container *di.Container,
+	log *zap.Logger,
+	registerFunc func(grpc.ServiceRegistrar, T),
+) {
+	var service T
+	if err := container.Resolve(&service); err == nil {
+		registerFunc(grpcServer, service)
+	} else {
+		// Using reflect to get the type name for logging. This is safe because T is an interface.
+		var t T
+		typeName := reflect.TypeOf(t).Elem().Name()
+		log.Error("Failed to resolve service", zap.String("service", typeName), zap.Error(err))
+	}
+}
+
 // registerGRPCServices resolves and registers all gRPC services from the DI container.
 func registerGRPCServices(grpcServer *grpc.Server, container *di.Container, log *zap.Logger) {
-	// User Service
-	var userService userpb.UserServiceServer
-	if err := container.Resolve(&userService); err == nil {
-		userpb.RegisterUserServiceServer(grpcServer, userService)
-	} else {
-		log.Error("Failed to resolve UserService", zap.Error(err))
-	}
-	// Notification Service
-	var notificationService notificationpb.NotificationServiceServer
-	if err := container.Resolve(&notificationService); err == nil {
-		notificationpb.RegisterNotificationServiceServer(grpcServer, notificationService)
-	} else {
-		log.Error("Failed to resolve NotificationService", zap.Error(err))
-	}
-	// Referral Service
-	var referralService referralpb.ReferralServiceServer
-	if err := container.Resolve(&referralService); err == nil {
-		referralpb.RegisterReferralServiceServer(grpcServer, referralService)
-	} else {
-		log.Error("Failed to resolve ReferralService", zap.Error(err))
-	}
-	// Nexus Service
-	var nexusService nexuspb.NexusServiceServer
-	if err := container.Resolve(&nexusService); err == nil {
-		nexuspb.RegisterNexusServiceServer(grpcServer, nexusService)
-	} else {
-		log.Error("Failed to resolve NexusService", zap.Error(err))
-	}
-	// Localization Service
-	var localizationService localizationpb.LocalizationServiceServer
-	if err := container.Resolve(&localizationService); err == nil {
-		localizationpb.RegisterLocalizationServiceServer(grpcServer, localizationService)
-	} else {
-		log.Error("Failed to resolve LocalizationService", zap.Error(err))
-	}
-	// Search Service
-	var searchService searchpb.SearchServiceServer
-	if err := container.Resolve(&searchService); err == nil {
-		searchpb.RegisterSearchServiceServer(grpcServer, searchService)
-	} else {
-		log.Error("Failed to resolve SearchService", zap.Error(err))
-	}
-	// Commerce Service
-	var commerceService commercepb.CommerceServiceServer
-	if err := container.Resolve(&commerceService); err == nil {
-		commercepb.RegisterCommerceServiceServer(grpcServer, commerceService)
-	} else {
-		log.Error("Failed to resolve CommerceService", zap.Error(err))
-	}
-	// Media Service
-	var mediaService mediapb.MediaServiceServer
-	if err := container.Resolve(&mediaService); err == nil {
-		mediapb.RegisterMediaServiceServer(grpcServer, mediaService)
-	} else {
-		log.Error("Failed to resolve MediaService", zap.Error(err))
-	}
-	// Product Service
-	var productService productpb.ProductServiceServer
-	if err := container.Resolve(&productService); err == nil {
-		productpb.RegisterProductServiceServer(grpcServer, productService)
-	} else {
-		log.Error("Failed to resolve ProductService", zap.Error(err))
-	}
-	// Talent Service
-	var talentService talentpb.TalentServiceServer
-	if err := container.Resolve(&talentService); err == nil {
-		talentpb.RegisterTalentServiceServer(grpcServer, talentService)
-	} else {
-		log.Error("Failed to resolve TalentService", zap.Error(err))
-	}
-	// Scheduler Service
-	var schedulerService schedulerpb.SchedulerServiceServer
-	if err := container.Resolve(&schedulerService); err == nil {
-		schedulerpb.RegisterSchedulerServiceServer(grpcServer, schedulerService)
-	} else {
-		log.Error("Failed to resolve SchedulerService", zap.Error(err))
-	}
-	// Content Service
-	var contentService contentpb.ContentServiceServer
-	if err := container.Resolve(&contentService); err == nil {
-		contentpb.RegisterContentServiceServer(grpcServer, contentService)
-	} else {
-		log.Error("Failed to resolve ContentService", zap.Error(err))
-	}
-	// Analytics Service
-	var analyticsService analyticspb.AnalyticsServiceServer
-	if err := container.Resolve(&analyticsService); err == nil {
-		analyticspb.RegisterAnalyticsServiceServer(grpcServer, analyticsService)
-	} else {
-		log.Error("Failed to resolve AnalyticsService", zap.Error(err))
-	}
-	// Content Moderation Service
-	var contentModerationService contentmoderationpb.ContentModerationServiceServer
-	if err := container.Resolve(&contentModerationService); err == nil {
-		contentmoderationpb.RegisterContentModerationServiceServer(grpcServer, contentModerationService)
-	} else {
-		log.Error("Failed to resolve ContentModerationService", zap.Error(err))
-	}
-	// Messaging Service
-	var messagingService messagingpb.MessagingServiceServer
-	if err := container.Resolve(&messagingService); err == nil {
-		messagingpb.RegisterMessagingServiceServer(grpcServer, messagingService)
-	} else {
-		log.Error("Failed to resolve MessagingService", zap.Error(err))
-	}
-	// Security Service
-	var securityService securitypb.SecurityServiceServer
-	if err := container.Resolve(&securityService); err == nil {
-		securitypb.RegisterSecurityServiceServer(grpcServer, securityService)
-	} else {
-		log.Error("Failed to resolve SecurityService", zap.Error(err))
-	}
-	// Admin Service
-	var adminService adminpb.AdminServiceServer
-	if err := container.Resolve(&adminService); err == nil {
-		adminpb.RegisterAdminServiceServer(grpcServer, adminService)
-	} else {
-		log.Error("Failed to resolve AdminService", zap.Error(err))
-	}
+	registerService(grpcServer, container, log, userpb.RegisterUserServiceServer)
+	registerService(grpcServer, container, log, campaignpb.RegisterCampaignServiceServer)
+	registerService(grpcServer, container, log, notificationpb.RegisterNotificationServiceServer)
+	registerService(grpcServer, container, log, referralpb.RegisterReferralServiceServer)
+	registerService(grpcServer, container, log, nexuspb.RegisterNexusServiceServer)
+	registerService(grpcServer, container, log, localizationpb.RegisterLocalizationServiceServer)
+	registerService(grpcServer, container, log, searchpb.RegisterSearchServiceServer)
+	registerService(grpcServer, container, log, commercepb.RegisterCommerceServiceServer)
+	registerService(grpcServer, container, log, mediapb.RegisterMediaServiceServer)
+	registerService(grpcServer, container, log, productpb.RegisterProductServiceServer)
+	registerService(grpcServer, container, log, talentpb.RegisterTalentServiceServer)
+	registerService(grpcServer, container, log, schedulerpb.RegisterSchedulerServiceServer)
+	registerService(grpcServer, container, log, contentpb.RegisterContentServiceServer)
+	registerService(grpcServer, container, log, analyticspb.RegisterAnalyticsServiceServer)
+	registerService(grpcServer, container, log, contentmoderationpb.RegisterContentModerationServiceServer)
+	registerService(grpcServer, container, log, messagingpb.RegisterMessagingServiceServer)
+	registerService(grpcServer, container, log, securitypb.RegisterSecurityServiceServer)
+	registerService(grpcServer, container, log, adminpb.RegisterAdminServiceServer)
 }

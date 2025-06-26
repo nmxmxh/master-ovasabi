@@ -3,11 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"go.uber.org/zap"
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -43,42 +43,19 @@ func (h *NexusOpsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var nexusClient nexusv1.NexusServiceClient
 	if err := h.Container.Resolve(&nexusClient); err != nil {
-		h.Log.Error("Failed to resolve NexusServiceClient", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		if err := json.NewEncoder(w).Encode(ErrorResponse{Error: "internal error", Code: 500}); err != nil {
-			h.Log.Error("failed to encode response", zap.Error(err))
-		}
+		httputil.WriteJSONError(w, h.Log, http.StatusInternalServerError, "internal error", err) // Already correct
 		return
 	}
 	var req nexusv1.HandleOpsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.Log.Warn("Failed to decode HandleOpsRequest", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(ErrorResponse{Error: "invalid request", Code: 400}); err != nil {
-			h.Log.Error("failed to encode response", zap.Error(err))
-		}
+		httputil.WriteJSONError(w, h.Log, http.StatusBadRequest, "invalid request", err) // Already correct
 		return
-	}
-
-	// Before calling the gRPC client, ensure req.CampaignId is set from the incoming HTTP request body (if present).
-	// For each action, set campaign_id in the proto request.
-	// Example:
-	if v, ok := req.Params["campaign_id"]; ok {
-		if cid, err := strconv.ParseInt(v, 10, 64); err == nil {
-			req.CampaignId = cid
-		}
 	}
 
 	resp, err := nexusClient.HandleOps(ctx, &req)
 	if err != nil {
-		h.Log.Error("HandleOps gRPC call failed", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		if err := json.NewEncoder(w).Encode(ErrorResponse{Error: "internal error", Code: 500}); err != nil {
-			h.Log.Error("failed to encode response", zap.Error(err))
-		}
+		httputil.WriteJSONError(w, h.Log, http.StatusInternalServerError, "HandleOps gRPC call failed", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -86,12 +63,7 @@ func (h *NexusOpsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	enc := protojson.MarshalOptions{EmitUnpopulated: true}
 	data, err := enc.Marshal(resp)
 	if err != nil {
-		h.Log.Error("Failed to marshal HandleOpsResponse", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		if err := json.NewEncoder(w).Encode(ErrorResponse{Error: "internal error", Code: 500}); err != nil {
-			h.Log.Error("failed to encode response", zap.Error(err))
-		}
+		httputil.WriteJSONError(w, h.Log, http.StatusInternalServerError, "Failed to marshal HandleOpsResponse", err)
 		return
 	}
 	if _, err := w.Write(data); err != nil {

@@ -10,19 +10,17 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
-	repo "github.com/nmxmxh/master-ovasabi/internal/repository"
 	"go.uber.org/zap"
 )
 
 // PostgresRepository provides analytics event storage.
 type Repository struct {
-	db         *sql.DB
-	masterRepo repo.MasterRepository
-	log        *zap.Logger
+	db  *sql.DB
+	log *zap.Logger
 }
 
-func NewRepository(db *sql.DB, masterRepo repo.MasterRepository, log *zap.Logger) *Repository {
-	return &Repository{db: db, masterRepo: masterRepo, log: log}
+func NewRepository(db *sql.DB, log *zap.Logger) *Repository {
+	return &Repository{db: db, log: log}
 }
 
 func (r *Repository) TrackEvent(ctx context.Context, event *analyticspb.Event) error {
@@ -71,6 +69,50 @@ func (r *Repository) BatchTrackEvents(ctx context.Context, events []*analyticspb
 	return success, fail, firstErr
 }
 
+// scanEventFromScanner is a helper to scan a single event from a sql.Row or sql.Rows.
+func (r *Repository) scanEventFromScanner(scanner interface{ Scan(...interface{}) error }) (*analyticspb.Event, error) {
+	var e analyticspb.Event
+	var props map[string]string
+	var ts float64
+	var metaRaw sql.NullString
+	var campaignID int64
+	if err := scanner.Scan(&e.Id, &e.MasterId, &e.MasterUuid, &e.UserId, &e.EventType, &e.EntityId, &e.EntityType, &props, &ts, &metaRaw, &campaignID); err != nil {
+		return nil, err
+	}
+	e.Properties = props
+	e.Timestamp = int64(ts)
+	e.CampaignId = campaignID
+	if metaRaw.Valid && metaRaw.String != "" {
+		meta := &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
+		if err := protojson.Unmarshal([]byte(metaRaw.String), meta); err != nil {
+			r.log.Warn("Failed to unmarshal event metadata",
+				zap.Error(err),
+				zap.String("event_id", e.Id),
+				zap.String("metadata", metaRaw.String))
+			// Continue with empty metadata rather than skipping the event
+			meta = &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
+		}
+		e.Metadata = meta
+	}
+	return &e, nil
+}
+
+// scanEventsFromRows is a helper to reduce duplication by iterating over rows.
+func (r *Repository) scanEventsFromRows(rows *sql.Rows) ([]*analyticspb.Event, error) {
+	var events []*analyticspb.Event
+	for rows.Next() {
+		event, err := r.scanEventFromScanner(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
 func (r *Repository) GetUserEvents(ctx context.Context, userID string, campaignID int64, page, pageSize int) ([]*analyticspb.Event, int, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, master_id, master_uuid, user_id, event_type, entity_id, entity_type, properties, EXTRACT(EPOCH FROM timestamp), metadata, campaign_id
@@ -84,34 +126,8 @@ func (r *Repository) GetUserEvents(ctx context.Context, userID string, campaignI
 	}
 	defer rows.Close()
 
-	var events []*analyticspb.Event
-	for rows.Next() {
-		var e analyticspb.Event
-		var props map[string]string
-		var ts float64
-		var metaRaw sql.NullString
-		var campaignID int64
-		if err := rows.Scan(&e.Id, &e.MasterId, &e.MasterUuid, &e.UserId, &e.EventType, &e.EntityId, &e.EntityType, &props, &ts, &metaRaw, &campaignID); err != nil {
-			return nil, 0, err
-		}
-		e.Properties = props
-		e.Timestamp = int64(ts)
-		e.CampaignId = campaignID
-		if metaRaw.Valid && metaRaw.String != "" {
-			meta := &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
-			if err := protojson.Unmarshal([]byte(metaRaw.String), meta); err != nil {
-				r.log.Warn("Failed to unmarshal event metadata",
-					zap.Error(err),
-					zap.String("event_id", e.Id),
-					zap.String("metadata", metaRaw.String))
-				// Continue with empty metadata rather than skipping the event
-				meta = &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
-			}
-			e.Metadata = meta
-		}
-		events = append(events, &e)
-	}
-	if err := rows.Err(); err != nil {
+	events, err := r.scanEventsFromRows(rows)
+	if err != nil {
 		return nil, 0, err
 	}
 	var total int
@@ -133,36 +149,12 @@ func (r *Repository) GetProductEvents(ctx context.Context, productID string, cam
 		return nil, 0, err
 	}
 	defer rows.Close()
-	var events []*analyticspb.Event
-	for rows.Next() {
-		var e analyticspb.Event
-		var props map[string]string
-		var ts float64
-		var metaRaw sql.NullString
-		var campaignID int64
-		if err := rows.Scan(&e.Id, &e.MasterId, &e.MasterUuid, &e.UserId, &e.EventType, &e.EntityId, &e.EntityType, &props, &ts, &metaRaw, &campaignID); err != nil {
-			return nil, 0, err
-		}
-		e.Properties = props
-		e.Timestamp = int64(ts)
-		e.CampaignId = campaignID
-		if metaRaw.Valid && metaRaw.String != "" {
-			meta := &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
-			if err := protojson.Unmarshal([]byte(metaRaw.String), meta); err != nil {
-				r.log.Warn("Failed to unmarshal event metadata",
-					zap.Error(err),
-					zap.String("event_id", e.Id),
-					zap.String("metadata", metaRaw.String))
-				// Continue with empty metadata rather than skipping the event
-				meta = &commonpb.Metadata{ServiceSpecific: metadatautil.NewStructFromMap(nil, r.log)}
-			}
-			e.Metadata = meta
-		}
-		events = append(events, &e)
-	}
-	if err := rows.Err(); err != nil {
+
+	events, err := r.scanEventsFromRows(rows)
+	if err != nil {
 		return nil, 0, err
 	}
+
 	var total int
 	row := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM service_analytics_event WHERE entity_id = $1 AND campaign_id = $2`, productID, campaignID)
 	err = row.Scan(&total)
@@ -170,6 +162,15 @@ func (r *Repository) GetProductEvents(ctx context.Context, productID string, cam
 		return nil, 0, err
 	}
 	return events, total, nil
+}
+
+func (r *Repository) GetEvent(ctx context.Context, eventID string) (*analyticspb.Event, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, master_id, master_uuid, user_id, event_type, entity_id, entity_type, properties, EXTRACT(EPOCH FROM timestamp), metadata, campaign_id
+		FROM service_analytics_event
+		WHERE id = $1
+	`, eventID)
+	return r.scanEventFromScanner(row)
 }
 
 func (r *Repository) GetReport(ctx context.Context, reportID string) (*analyticspb.Report, error) {
@@ -221,10 +222,14 @@ func (r *Repository) ListReports(ctx context.Context, page, pageSize int) ([]*an
 		if len(paramsRaw) > 0 {
 			var params map[string]string
 			if err := json.Unmarshal(paramsRaw, &params); err != nil {
-				r.log.Warn("Failed to unmarshal report parameters", zap.Error(err), zap.ByteString("paramsRaw", paramsRaw))
+				r.log.Warn("Failed to unmarshal report parameters", zap.Error(err), zap.ByteString("paramsRaw", paramsRaw), zap.String("report_id", report.Id))
+				report.Parameters = make(map[string]string)
 			} else {
 				report.Parameters = params
 			}
+		} else {
+			// Initialize empty parameters if none provided
+			report.Parameters = make(map[string]string)
 		}
 		report.Data = data
 		report.CreatedAt = int64(createdAt)

@@ -84,5 +84,3 @@ func ctxValue(ctx context.Context) string {
 	}
 	return ""
 }
-
-// Add any content service-specific interfaces or helpers below.

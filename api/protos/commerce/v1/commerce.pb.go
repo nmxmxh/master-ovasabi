@@ -3537,6 +3537,7 @@ type Portfolio struct {
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3611,6 +3612,13 @@ func (x *Portfolio) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *Portfolio) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 type AssetPosition struct {
@@ -4366,6 +4374,7 @@ type ExchangePair struct {
 	BaseAsset     string                 `protobuf:"bytes,2,opt,name=base_asset,json=baseAsset,proto3" json:"base_asset,omitempty"`
 	QuoteAsset    string                 `protobuf:"bytes,3,opt,name=quote_asset,json=quoteAsset,proto3" json:"quote_asset,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4428,12 +4437,20 @@ func (x *ExchangePair) GetMetadata() *v1.Metadata {
 	return nil
 }
 
+func (x *ExchangePair) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
+}
+
 type ExchangeRate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PairId        string                 `protobuf:"bytes,1,opt,name=pair_id,json=pairId,proto3" json:"pair_id,omitempty"`
 	Rate          float64                `protobuf:"fixed64,2,opt,name=rate,proto3" json:"rate,omitempty"`
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4494,6 +4511,13 @@ func (x *ExchangeRate) GetMetadata() *v1.Metadata {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *ExchangeRate) GetCampaignId() int64 {
+	if x != nil {
+		return x.CampaignId
+	}
+	return 0
 }
 
 // Investment
@@ -6896,7 +6920,7 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xab\x02\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xcc\x02\n" +
 	"\tPortfolio\x12!\n" +
 	"\fportfolio_id\x18\x01 \x01(\tR\vportfolioId\x12\x1d\n" +
 	"\n" +
@@ -6906,7 +6930,9 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8f\x02\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
+	"\vcampaign_id\x18\a \x01(\x03R\n" +
+	"campaignId\"\x8f\x02\n" +
 	"\rAssetPosition\x12\x19\n" +
 	"\basset_id\x18\x01 \x01(\tR\aassetId\x12\x1a\n" +
 	"\bquantity\x18\x02 \x01(\x01R\bquantity\x12#\n" +
@@ -6988,19 +7014,23 @@ const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"\x06status\x18\a \x01(\x0e2 .commerce.v1.ExchangeOrderStatusR\x06status\x12,\n" +
 	"\bmetadata\x18\b \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
 	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x95\x01\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xb6\x01\n" +
 	"\fExchangePair\x12\x17\n" +
 	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x1d\n" +
 	"\n" +
 	"base_asset\x18\x02 \x01(\tR\tbaseAsset\x12\x1f\n" +
 	"\vquote_asset\x18\x03 \x01(\tR\n" +
 	"quoteAsset\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xa3\x01\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"\xc4\x01\n" +
 	"\fExchangeRate\x12\x17\n" +
 	"\apair_id\x18\x01 \x01(\tR\x06pairId\x12\x12\n" +
 	"\x04rate\x18\x02 \x01(\x01R\x04rate\x128\n" +
 	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xd4\x01\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vcampaign_id\x18\x05 \x01(\x03R\n" +
+	"campaignId\"\xd4\x01\n" +
 	"\x1eCreateInvestmentAccountRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\tR\aownerId\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1a\n" +

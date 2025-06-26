@@ -21,11 +21,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/config"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
@@ -33,15 +33,15 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 
 	"github.com/google/uuid"
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1" // Added for MediaServiceServer registration
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
+	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/ai"
 	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
-	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"
-	campaignsvc "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
+	"github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	redisv9 "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -269,14 +269,7 @@ func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger)
 	}
 }
 
-// Helper to resolve the campaign service from the DI container.
-func resolveCampaignService(container *di.Container) (*campaignsvc.Service, error) {
-	var campaignService *campaignsvc.Service
-	err := container.Resolve(&campaignService)
-	return campaignService, err
-}
-
-func setupDIContainer(cfg *config.Config, log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, redisGoClient *redisv9.Client) *di.Container {
+func setupDIContainer(cfg *config.Config, log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, redisGoClient *redisv9.Client, grpcPort string) *di.Container {
 	container := di.New()
 	// Register KGService
 	if err := container.Register((*kgserver.KGService)(nil), func(_ *di.Container) (interface{}, error) {
@@ -303,6 +296,17 @@ func setupDIContainer(cfg *config.Config, log *zap.Logger, db *sql.DB, redisProv
 		return schedulerpb.NewSchedulerServiceClient(conn), nil
 	}); err != nil {
 		log.Error("Failed to register SchedulerServiceClient in DI container", zap.Error(err))
+	}
+
+	// Register UserServiceClient for internal gRPC calls (e.g., by AdminService)
+	if err := container.Register((*userpb.UserServiceClient)(nil), func(_ *di.Container) (interface{}, error) {
+		conn, err := grpc.NewClient(fmt.Sprintf("localhost:%s", grpcPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return nil, err
+		}
+		return userpb.NewUserServiceClient(conn), nil
+	}); err != nil {
+		log.Error("Failed to register UserServiceClient in DI container", zap.Error(err))
 	}
 	return container
 }
@@ -362,22 +366,23 @@ func Run() {
 
 	log.Info("Logger initialized (from server.Run)")
 
-	// NOTE: WebSocket endpoints are now handled by the ws-gateway service at /ws and /ws/{campaign_id}/{user_id}.
-	// This server only serves REST and gRPC endpoints. For WebSocket/event relay, use ws-gateway.
-	//
-	// Use the correct arguments for NewServer and Start (httpPort, grpcPort)
-	httpPort := os.Getenv("HTTP_PORT")
-	if httpPort == "" {
-		httpPort = "8081" // Use 8081 for REST endpoints, 8090 is reserved for ws-gateway
+	// Determine ports from environment variables, with documented fallbacks
+	httpPortStr := os.Getenv("HTTP_PORT")
+	if httpPortStr == "" {
+		httpPortStr = "8081" // Standard REST endpoint port for master-ovasabi
+	}
+	// Ensure the address is in the format ":port"
+	httpAddr := httpPortStr
+	if !strings.HasPrefix(httpAddr, ":") {
+		httpAddr = ":" + httpAddr
 	}
 	grpcPort := os.Getenv("GRPC_PORT")
 	if grpcPort == "" {
-		grpcPort = "8082" // gRPC port
+		grpcPort = "8082" // Standard gRPC endpoint port for master-ovasabi
 	}
 
 	startAggregatedLogger(log)
 
-	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -409,9 +414,7 @@ func Run() {
 		return
 	}
 
-	container := setupDIContainer(cfg, log, db, redisProvider, redisClient.Client)
-
-	masterRepo := repository.NewRepository(db, log)
+	container := setupDIContainer(cfg, log, db, redisProvider, redisClient.Client, grpcPort)
 
 	var provider *service.Provider
 	if err := container.Resolve(&provider); err != nil {
@@ -419,12 +422,11 @@ func Run() {
 		return
 	}
 
-	// --- AI Observer Orchestrator Registration ---
-	nexusBus := &NexusBusAdapter{Provider: provider, Log: log}
-	ai.Register(ctx, log, nexusBus)
-	log.Info("AI observer orchestrator registered and wired to Nexus event bus")
-	// --- End AI Observer Orchestrator Registration ---
+	masterRepo := repository.NewMasterRepository(db, log)
 
+	// The ServiceBootstrapper is responsible for registering all services,
+	// their dependencies, and any associated background processes or event subscribers
+	// (such as the AI Observer). This keeps the main server logic clean and focused.
 	bootstrapper := &bootstrap.ServiceBootstrapper{
 		Container:     container,
 		DB:            db,
@@ -440,44 +442,11 @@ func Run() {
 		return
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		campaignService, err := resolveCampaignService(container)
-		if err != nil {
-			log.Error("Failed to resolve CampaignService for orchestration", zap.Error(err))
-			return
-		}
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				log.Info("Campaign orchestration background job stopped")
-				return
-			case <-ticker.C:
-				log.Info("Triggering campaign orchestration scan")
-				if err := campaignService.OrchestrateActiveCampaignsAdvanced(ctx, 4); err != nil {
-					log.Error("Campaign orchestration failed", zap.Error(err))
-				}
-			}
-		}
-	}()
+	// Start the campaign orchestrator to manage active campaigns.
+	// This runs in the background, periodically scanning for and orchestrating campaigns.
+	go startCampaignOrchestrator(ctx, provider, log)
 
-	// NOTE: WebSocket endpoints are now handled by the ws-gateway service at /ws and /ws/{campaign_id}/{user_id}.
-	// This server only serves REST and gRPC endpoints. For WebSocket/event relay, use ws-gateway.
-	//
-	// Use the correct arguments for NewServer and Start (httpPort, grpcPort)
-	httpPort = os.Getenv("HTTP_PORT")
-	if httpPort == "" {
-		httpPort = ":8081" // fallback, but should be set in env
-	}
-	grpcPort = os.Getenv("GRPC_PORT")
-	if grpcPort == "" {
-		grpcPort = "8082" // fallback, but should be set in env
-	}
-
-	server := NewServer(container, log, httpPort)
+	server := NewServer(container, log, httpAddr)
 
 	if err := server.Start(grpcPort); err != nil {
 		log.Error("Server failed to start", zap.Error(err))
@@ -529,6 +498,38 @@ func connectToDatabase(ctx context.Context, log *zap.Logger, cfg *config.Config)
 		time.Sleep(3 * time.Second)
 	}
 	return nil, fmt.Errorf("failed to connect to database after %d retries: %w", maxRetries, err)
+}
+
+// startCampaignOrchestrator starts a background ticker to periodically orchestrate active campaigns.
+func startCampaignOrchestrator(ctx context.Context, provider *service.Provider, log *zap.Logger) {
+	log.Info("Campaign orchestrator background process starting.")
+
+	// Resolve CampaignService directly from the DI container.
+	// This is a direct fix. The idiomatic approach would be to add a `Campaign()` accessor
+	// to the service.Provider for consistency with other services.
+	var campaignSvc *campaign.Service
+	if err := provider.Container.Resolve(&campaignSvc); err != nil {
+		log.Error("Failed to resolve CampaignService for orchestrator, cannot start", zap.Error(err))
+		return
+	}
+
+	// Using a ticker to periodically scan for active campaigns.
+	// A 1-minute interval is a safe default.
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			log.Info("Campaign orchestrator tick: scanning for active campaigns.")
+			// The number of workers for concurrent orchestration can be configured.
+			if err := campaignSvc.OrchestrateActiveCampaignsAdvanced(ctx, 10); err != nil {
+				log.Error("Error during campaign orchestration scan", zap.Error(err))
+			}
+		case <-ctx.Done():
+			log.Info("Campaign orchestrator background process shutting down.")
+			return
+		}
+	}
 }
 
 // Add this function to start the aggregated logger.

@@ -373,6 +373,10 @@ func (r *Repository) ListMinedPatterns(ctx context.Context) ([]map[string]interf
 
 // MinePatterns returns mined patterns if source == "mined", otherwise queries by origin.
 func (r *Repository) MinePatterns(ctx context.Context, source string) ([]*nexusv1.Pattern, error) {
+	// The original code had a bug here: it was trying to parse req.EntityId
+	// which doesn't exist in this function's signature.
+	// Assuming the intent was to parse a string to int64 if needed elsewhere,
+	// but for this function, it's not directly relevant.
 	if source == "mined" {
 		rows, err := r.db.QueryContext(ctx, `
 			SELECT mined_pattern_id, pattern_type, definition, support_count, confidence, mined_at, metadata

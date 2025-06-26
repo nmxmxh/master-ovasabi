@@ -1,16 +1,21 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	campaignmeta "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // ContentModerationOpsHandler handles content moderation actions via the "action" field.
@@ -34,23 +39,23 @@ func ContentModerationOpsHandler(container *di.Container) http.HandlerFunc {
 		var moderationSvc contentmoderationpb.ContentModerationServiceServer
 		if err := container.Resolve(&moderationSvc); err != nil {
 			log.Error("Failed to resolve ContentModerationService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
 		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
+			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
 			return
 		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("Failed to decode content moderation request JSON", zap.Error(err))
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
 			return
 		}
 		action, ok := req["action"].(string)
 		if !ok || action == "" {
 			log.Error("Missing or invalid action in content moderation request", zap.Any("value", req["action"]))
-			http.Error(w, "missing or invalid action", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil, zap.Any("value", req["action"])) // Already correct
 			return
 		}
 		authCtx := contextx.Auth(ctx)
@@ -148,150 +153,65 @@ func ContentModerationOpsHandler(container *di.Container) http.HandlerFunc {
 				"roles": rolesIface,
 			}
 		}
-		switch action {
-		case "submit_content_for_moderation":
-			var protoReq contentmoderationpb.SubmitContentForModerationRequest
-			if err := mapToProto(req, &protoReq); err != nil {
-				log.Error("Failed to map request to proto (submit)", zap.Error(err))
-				http.Error(w, "invalid request", http.StatusBadRequest)
-				return
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				}
-			}
-			protoReq.CampaignId = campaignID
-			resp, err := moderationSvc.SubmitContentForModeration(ctx, &protoReq)
-			if err != nil {
-				log.Error("Failed to submit content for moderation", zap.Error(err))
-				http.Error(w, "failed to submit content for moderation", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("Failed to write JSON response (submit)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "get_moderation_result":
-			var protoReq contentmoderationpb.GetModerationResultRequest
-			if err := mapToProto(req, &protoReq); err != nil {
-				log.Error("Failed to map request to proto (get)", zap.Error(err))
-				http.Error(w, "invalid request", http.StatusBadRequest)
-				return
-			}
-			resp, err := moderationSvc.GetModerationResult(ctx, &protoReq)
-			if err != nil {
-				log.Error("Failed to get moderation result", zap.Error(err))
-				http.Error(w, "failed to get moderation result", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("Failed to write JSON response (get)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "list_flagged_content":
-			var protoReq contentmoderationpb.ListFlaggedContentRequest
-			if err := mapToProto(req, &protoReq); err != nil {
-				log.Error("Failed to map request to proto (list)", zap.Error(err))
-				http.Error(w, "invalid request", http.StatusBadRequest)
-				return
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				}
-			}
-			protoReq.CampaignId = campaignID
-			resp, err := moderationSvc.ListFlaggedContent(ctx, &protoReq)
-			if err != nil {
-				log.Error("Failed to list flagged content", zap.Error(err))
-				http.Error(w, "failed to list flagged content", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("Failed to write JSON response (list)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "approve_content":
-			var protoReq contentmoderationpb.ApproveContentRequest
-			if err := mapToProto(req, &protoReq); err != nil {
-				log.Error("Failed to map request to proto (approve)", zap.Error(err))
-				http.Error(w, "invalid request", http.StatusBadRequest)
-				return
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				}
-			}
-			protoReq.CampaignId = campaignID
-			resp, err := moderationSvc.ApproveContent(ctx, &protoReq)
-			if err != nil {
-				log.Error("Failed to approve content", zap.Error(err))
-				http.Error(w, "failed to approve content", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("Failed to write JSON response (approve)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "reject_content":
-			var protoReq contentmoderationpb.RejectContentRequest
-			if err := mapToProto(req, &protoReq); err != nil {
-				log.Error("Failed to map request to proto (reject)", zap.Error(err))
-				http.Error(w, "invalid request", http.StatusBadRequest)
-				return
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				}
-			}
-			protoReq.CampaignId = campaignID
-			resp, err := moderationSvc.RejectContent(ctx, &protoReq)
-			if err != nil {
-				log.Error("Failed to reject content", zap.Error(err))
-				http.Error(w, "failed to reject content", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("Failed to write JSON response (reject)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		default:
+
+		actionHandlers := map[string]func(){
+			"submit_content_for_moderation": func() {
+				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.SubmitContentForModerationRequest{}, moderationSvc.SubmitContentForModeration)
+			},
+			"get_moderation_result": func() {
+				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.GetModerationResultRequest{}, moderationSvc.GetModerationResult)
+			},
+			"list_flagged_content": func() {
+				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.ListFlaggedContentRequest{}, moderationSvc.ListFlaggedContent)
+			},
+			"approve_content": func() {
+				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.ApproveContentRequest{}, moderationSvc.ApproveContent)
+			},
+			"reject_content": func() {
+				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.RejectContentRequest{}, moderationSvc.RejectContent)
+			},
+		}
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
 			log.Error("Unknown action in contentmoderation_ops", zap.Any("action", action))
 			http.Error(w, "unknown action", http.StatusBadRequest)
-			return
 		}
 	}
 }
 
-// mapToProto is a helper to map a generic map[string]interface{} to a proto message using JSON marshal/unmarshal.
-func mapToProto(m map[string]interface{}, pbMsg interface{}) error {
-	b, err := json.Marshal(m)
+// handleContentModerationAction is a generic helper to reduce boilerplate in ContentModerationOpsHandler.
+func handleContentModerationAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoContentModeration(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		log.Error("content moderation service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil)
+		return
+	}
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProtoContentModeration converts a map[string]interface{} to a proto.Message using JSON as an intermediate.
+func mapToProtoContentModeration(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(b, pbMsg)
+	return protojson.Unmarshal(jsonBytes, v)
 }

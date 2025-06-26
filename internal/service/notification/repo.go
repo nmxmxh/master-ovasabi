@@ -79,9 +79,26 @@ func (r *Repository) Create(ctx context.Context, notification *Notification) (*N
 		string(notification.Type),
 		fmt.Sprintf("user-%d", notification.UserID))
 
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeNotification, masterName)
+	tx, err := r.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback() // Rollback on panic
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.GetLogger().Error("failed to rollback transaction on panic", zap.Error(rbErr))
+			}
+			panic(p) // Re-throw panic
+		}
+	}()
+
+	masterID, masterUUID, err := r.masterRepo.Create(ctx, tx, repository.EntityTypeNotification, masterName)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			r.GetLogger().Error("failed to rollback transaction", zap.Error(rbErr))
+		}
+		return nil, fmt.Errorf("failed to create master entity for notification: %w", err)
 	}
 
 	notification.MasterID = masterID
@@ -94,31 +111,39 @@ func (r *Repository) Create(ctx context.Context, notification *Notification) (*N
 	if notification.Metadata != nil {
 		metadataJSON, err = marshaler.Marshal(notification.Metadata)
 		if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.GetLogger().Error("failed to rollback transaction", zap.Error(rbErr))
+			}
 			return nil, err
 		}
 	}
-	err = r.GetDB().QueryRowContext(ctx,
+	err = tx.QueryRowContext(ctx,
 		`INSERT INTO service_notification (
-			master_id, user_id, type, title, content,
+			master_id, master_uuid, user_id, type, title, content,
 			status, metadata, scheduled_at, sent_at,
 			created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9,
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
 			NOW(), NOW()
 		) RETURNING id, created_at, updated_at`,
-		notification.MasterID, notification.UserID,
+		notification.MasterID, masterUUID, notification.UserID,
 		notification.Type, notification.Title,
 		notification.Content, notification.Status,
 		metadataJSON, notification.ScheduledAt,
 		notification.SentAt,
 	).Scan(&notification.ID, &notification.CreatedAt, &notification.UpdatedAt)
 	if err != nil {
-		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
-			r.GetLogger().Error("failed to delete master record after notification creation failure", zap.Error(err))
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			r.GetLogger().Error("failed to rollback transaction", zap.Error(rbErr))
 		}
 		return nil, err
 	}
 
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction for notification: %w", err)
+	}
+
+	notification.MasterUUID = masterUUID
 	return notification, nil
 }
 

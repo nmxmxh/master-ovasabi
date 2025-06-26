@@ -18,6 +18,7 @@ import (
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/ai"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
@@ -82,14 +83,14 @@ type Service struct {
 	log          *zap.Logger
 	repo         *Repository
 	Cache        *redis.Cache
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 	provider     *service.Provider // Canonical provider for DI/event orchestration
 	adapters     map[string]Adapter
 }
 
 // NewService creates a new SearchService instance with event bus and provider support (canonical pattern).
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool, provider *service.Provider) searchpb.SearchServiceServer {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool, provider *service.Provider) searchpb.SearchServiceServer {
 	return &Service{
 		log:          log,
 		repo:         repo,
@@ -112,20 +113,6 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 //
 // This pattern is additive: gRPC/REST APIs remain fully supported.
 // ------------------------------------------------
-
-// RegisterEventHandlers subscribes to event-driven search requests.
-func (s *Service) RegisterEventHandlers(ctx context.Context) {
-	if s.provider == nil {
-		s.log.Warn("provider is nil, cannot register event handlers")
-		return
-	}
-	err := s.provider.SubscribeEvents(ctx, []string{"search.requested"}, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
-		s.HandleSearchRequestedEvent(ctx, event)
-	})
-	if err != nil {
-		s.log.Error("Failed to subscribe to search.requested events", zap.Error(err))
-	}
-}
 
 // HandleSearchRequestedEvent processes a search.requested event and emits search.completed.
 func (s *Service) HandleSearchRequestedEvent(ctx context.Context, event *nexusv1.EventResponse) {
@@ -1203,7 +1190,7 @@ func (a *AcademicsSearchAdapter) searchArxiv(ctx context.Context, req *Request) 
 // --- AI/ML Post-Processing Layer ---
 
 // AIProcessResults processes search results with AI enrichment.
-func AIProcessResults(ctx context.Context, results []*Result, eventEmitter EventEmitter, log *zap.Logger) []*Result {
+func AIProcessResults(ctx context.Context, results []*Result, eventEmitter events.EventEmitter, log *zap.Logger) []*Result {
 	seen := make(map[string]*Result)
 	observer := ai.NewObserverAI()
 	for _, r := range results {
@@ -1254,7 +1241,7 @@ func AIProcessResults(ctx context.Context, results []*Result, eventEmitter Event
 // --- AIEnrichmentEventEmitter ---
 // Emits AI-enriched search results to the event bus and WebSocket (production: inject real bus/ws).
 type AIEnrichmentEventEmitter struct {
-	EventBus EventEmitter
+	EventBus events.EventEmitter
 	Log      *zap.Logger
 }
 

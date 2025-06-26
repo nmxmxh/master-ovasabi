@@ -12,7 +12,7 @@ import (
 	"github.com/expr-lang/expr"
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/server/ws"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -40,23 +40,23 @@ func isCampaignActive(meta *commonpb.Metadata) bool {
 	return false
 }
 
-// EventEmitter defines the interface for emitting events.
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool)
-}
-
 // Adapter to bridge event emission to the required orchestration EventEmitter interface.
 type EventEmitterAdapter struct {
-	Emitter EventEmitter
+	Emitter events.EventEmitter
 }
 
 func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	return a.Emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
+	if a.Emitter != nil {
+		return a.Emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
+	}
+	return "", false
 }
 
 func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
+	if a.Emitter != nil {
+		return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
+	}
+	return "", false
 }
 
 // Service implements the CampaignService gRPC interface.
@@ -65,6 +65,7 @@ type Service struct {
 	log          *zap.Logger
 	repo         *Repository
 	cache        *redis.Cache
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 
 	// Broadcast and job scheduling fields
@@ -72,17 +73,17 @@ type Service struct {
 	activeBroadcasts map[string]context.CancelFunc
 	cronScheduler    *cron.Cron
 	scheduledJobs    map[string][]cron.EntryID
-
-	// WebSocket client registry for campaign/user streaming
-	clients *ws.ClientMap
 }
 
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEnabled bool) *Service {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) *Service {
 	return &Service{
-		log:          log,
-		repo:         repo,
-		cache:        cache,
-		eventEnabled: eventEnabled,
+		log:              log,
+		repo:             repo,
+		cache:            cache,
+		eventEmitter:     eventEmitter,
+		eventEnabled:     eventEnabled,
+		activeBroadcasts: make(map[string]context.CancelFunc),
+		scheduledJobs:    make(map[string][]cron.EntryID),
 	}
 }
 
@@ -97,6 +98,12 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	log := s.log.With(
 		zap.String("operation", "create_campaign"),
 		zap.String("slug", req.Slug))
+
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if !ok {
+		err := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
+		return nil, graceful.ToStatusError(err)
+	}
 
 	log.Info("Creating campaign")
 
@@ -151,6 +158,7 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		Description:    req.Description,
 		RankingFormula: req.RankingFormula,
 		Metadata:       req.Metadata,
+		OwnerID:        authUserID,
 	}
 	if req.StartDate != nil {
 		c.StartDate = req.StartDate.AsTime()
@@ -160,15 +168,9 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	}
 	created, err := s.repo.CreateWithTransaction(ctx, tx, c)
 	if err != nil {
-		code := codes.Internal
-		msg := "failed to create campaign"
-		if errors.Is(err, ErrCampaignExists) {
-			code = codes.AlreadyExists
-			msg = "campaign already exists"
-		}
-		err := graceful.WrapErr(ctx, code, msg, err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to create campaign", codes.Internal)
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(gErr)
 	}
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -207,6 +209,7 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		CacheValue:   resp,
 		CacheTTL:     10 * time.Minute,
 		Metadata:     created.Metadata,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		EventEnabled: s.eventEnabled,
 		EventType:    "campaign.created",
 		EventID:      created.Slug,
@@ -229,7 +232,8 @@ func (s *Service) GetCampaign(ctx context.Context, req *campaignpb.GetCampaignRe
 	campaign, err := redis.GetOrSetWithProtection(ctx, s.cache, s.log, req.Slug, func(ctx context.Context) (*campaignpb.Campaign, error) {
 		c, err := s.repo.GetBySlug(ctx, req.Slug)
 		if err != nil {
-			return nil, err
+			// Use MapAndWrapErr to ensure consistent error handling even inside the cache function.
+			return nil, graceful.MapAndWrapErr(ctx, err, "failed to get campaign by slug", codes.Internal)
 		}
 		id32, err := SafeInt32(c.ID)
 		if err != nil {
@@ -253,45 +257,46 @@ func (s *Service) GetCampaign(ctx context.Context, req *campaignpb.GetCampaignRe
 		}
 		return resp, nil
 	}, 10*time.Minute)
-	if err == nil {
-		resp := &campaignpb.GetCampaignResponse{Campaign: campaign}
-		success := graceful.WrapSuccess(ctx, codes.OK, "campaign fetched", resp, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          log,
-			Cache:        s.cache,
-			CacheKey:     req.Slug,
-			CacheValue:   resp,
-			CacheTTL:     10 * time.Minute,
-			Metadata:     campaign.Metadata,
-			EventEnabled: s.eventEnabled,
-			EventType:    "campaign.fetched",
-			EventID:      req.Slug,
-			PatternType:  "campaign",
-			PatternID:    req.Slug,
-			PatternMeta:  campaign.Metadata,
-		})
-		return resp, nil
+	if err != nil {
+		var gErr *graceful.ContextError
+		if !errors.As(err, &gErr) {
+			// If the error is not already a graceful error, wrap it.
+			gErr = graceful.MapAndWrapErr(ctx, err, "failed to get campaign", codes.Internal)
+		}
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(gErr)
 	}
 
-	log.Error("Failed to get campaign", zap.Error(err))
-	return nil, graceful.ToStatusError(err)
+	resp := &campaignpb.GetCampaignResponse{Campaign: campaign}
+	success := graceful.WrapSuccess(ctx, codes.OK, "campaign fetched", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:      log,
+		Metadata: campaign.Metadata,
+		// Caching is handled by GetOrSetWithProtection, so we only orchestrate other concerns.
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+		EventEnabled: s.eventEnabled,
+		EventType:    "campaign.fetched",
+		EventID:      req.Slug,
+		PatternType:  "campaign",
+		PatternID:    req.Slug,
+		PatternMeta:  campaign.Metadata,
+	})
+	return resp, nil
 }
 
 func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCampaignRequest) (*campaignpb.UpdateCampaignResponse, error) {
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil))
+		err := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
+		return nil, graceful.ToStatusError(err)
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isPlatformAdmin := utils.IsServiceAdmin(roles, "campaign")
 	existing, err := s.repo.GetBySlug(ctx, req.Campaign.Slug)
 	if err != nil {
-		if errors.Is(err, ErrCampaignNotFound) {
-			s.log.Warn("Campaign not found", zap.Error(err))
-			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.NotFound, "campaign not found", err))
-		}
-		s.log.Error("Failed to get existing campaign", zap.Error(err))
-		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to get existing campaign", err))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to get existing campaign", codes.Internal)
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(gErr)
 	}
 	// --- Permission check: campaign membership/role ---
 	role := GetUserRoleInCampaign(existing.Metadata, authUserID, existing.OwnerID)
@@ -321,14 +326,10 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 
 	// Update in database
 	if err := s.repo.Update(ctx, existing); err != nil {
-		if errors.Is(err, ErrCampaignNotFound) {
-			log.Warn("Campaign not found during update", zap.Error(err))
-			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.NotFound, "campaign not found", err))
-		}
-		log.Error("Failed to update campaign", zap.Error(err))
-		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to update campaign", err))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update campaign", codes.Internal)
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(gErr)
 	}
-
 	// If campaign is now inactive or window ended, stop jobs and broadcasts
 	isActive := isCampaignActive(existing.Metadata)
 
@@ -337,26 +338,46 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 		s.stopBroadcast(ctx, existing.Slug, existing)
 	}
 
-	// Get updated campaign
-	getResp, err := s.GetCampaign(ctx, &campaignpb.GetCampaignRequest{Slug: existing.Slug})
+	// Manually construct response to avoid nested orchestration from calling GetCampaign.
+	id32, err := SafeInt32(existing.ID)
 	if err != nil {
-		return nil, err
+		gErr := graceful.WrapErr(ctx, codes.Internal, "campaign ID overflow", err)
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(gErr)
 	}
-	resp := &campaignpb.UpdateCampaignResponse{Campaign: getResp.Campaign}
+	campaignResp := &campaignpb.Campaign{
+		Id:             id32,
+		Slug:           existing.Slug,
+		Title:          existing.Title,
+		Description:    existing.Description,
+		RankingFormula: existing.RankingFormula,
+		Metadata:       existing.Metadata,
+		CreatedAt:      timestamppb.New(existing.CreatedAt),
+		UpdatedAt:      timestamppb.New(existing.UpdatedAt),
+	}
+	if !existing.StartDate.IsZero() {
+		campaignResp.StartDate = timestamppb.New(existing.StartDate)
+	}
+	if !existing.EndDate.IsZero() {
+		campaignResp.EndDate = timestamppb.New(existing.EndDate)
+	}
+
+	resp := &campaignpb.UpdateCampaignResponse{Campaign: campaignResp}
 	success := graceful.WrapSuccess(ctx, codes.OK, "campaign updated", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
 		Log:          log,
 		Cache:        s.cache,
 		CacheKey:     existing.Slug,
-		CacheValue:   resp,
+		CacheValue:   campaignResp, // Cache the campaign object, not the response wrapper.
 		CacheTTL:     10 * time.Minute,
-		Metadata:     getResp.Campaign.Metadata,
+		Metadata:     campaignResp.Metadata,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		EventEnabled: s.eventEnabled,
 		EventType:    "campaign.updated",
 		EventID:      existing.Slug,
 		PatternType:  "campaign",
 		PatternID:    existing.Slug,
-		PatternMeta:  getResp.Campaign.Metadata,
+		PatternMeta:  campaignResp.Metadata,
 	})
 	return resp, nil
 }
@@ -370,12 +391,9 @@ func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCamp
 	isPlatformAdmin := utils.IsServiceAdmin(roles, "campaign")
 	campaign, err := s.repo.GetBySlug(ctx, req.Slug)
 	if err != nil {
-		if errors.Is(err, ErrCampaignNotFound) {
-			s.log.Warn("Campaign not found", zap.Error(err))
-			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.NotFound, "campaign not found", err))
-		}
-		s.log.Error("Failed to get campaign", zap.Error(err))
-		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to get campaign", err))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to get campaign for deletion", codes.Internal)
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(gErr)
 	}
 	// --- Permission check: campaign membership/role ---
 	role := GetUserRoleInCampaign(campaign.Metadata, authUserID, campaign.OwnerID)
@@ -396,12 +414,9 @@ func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCamp
 	}
 
 	if err := s.repo.Delete(ctx, int64(req.Id)); err != nil {
-		if errors.Is(err, ErrCampaignNotFound) {
-			log.Warn("Campaign not found", zap.Error(err))
-			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.NotFound, "campaign not found", err))
-		}
-		log.Error("Failed to delete campaign", zap.Error(err))
-		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to delete campaign", err))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to delete campaign", codes.Internal)
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(gErr)
 	}
 
 	// Invalidate cache if we have the slug
@@ -418,6 +433,7 @@ func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCamp
 	success := graceful.WrapSuccess(ctx, codes.OK, "campaign deleted", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
 		Log:          log,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		EventEnabled: s.eventEnabled,
 		EventType:    "campaign.deleted",
 		EventID:      campaign.Slug,
@@ -454,8 +470,9 @@ func (s *Service) ListCampaigns(ctx context.Context, req *campaignpb.ListCampaig
 	// If not in cache, get from database
 	campaigns, err := s.repo.List(ctx, int(req.PageSize), int(req.Page*req.PageSize))
 	if err != nil {
-		log.Error("Failed to list campaigns", zap.Error(err))
-		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to list campaigns", err))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to list campaigns", codes.Internal)
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(gErr)
 	}
 
 	resp := &campaignpb.ListCampaignsResponse{
@@ -500,11 +517,12 @@ func (s *Service) ListCampaigns(ctx context.Context, req *campaignpb.ListCampaig
 
 	success := graceful.WrapSuccess(ctx, codes.OK, "campaigns listed", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        log,
-		Cache:      s.cache,
-		CacheKey:   cacheKey,
-		CacheValue: resp,
-		CacheTTL:   5 * time.Minute,
+		Log:          log,
+		Cache:        s.cache,
+		CacheKey:     cacheKey,
+		CacheValue:   resp,
+		CacheTTL:     5 * time.Minute,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 		// Optionally add event emission, etc.
 	})
 	return resp, nil
@@ -522,7 +540,7 @@ func (s *Service) GetLeaderboard(ctx context.Context, campaignSlug string, limit
 		if formula == "" {
 			return nil, fmt.Errorf("no ranking formula defined for campaign")
 		}
-		entries, err := s.repo.GetLeaderboard(ctx, campaignSlug, formula, limit)
+		entries, err := s.repo.GetLeaderboard(ctx, campaignSlug, limit)
 		if err != nil {
 			return nil, err
 		}

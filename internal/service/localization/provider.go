@@ -28,9 +28,10 @@ import (
 	"time"
 
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
-	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
@@ -38,16 +39,17 @@ import (
 
 // Register registers the localization service with the DI container and event bus support.
 // Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
+// Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled, provider.
 func Register(
 	ctx context.Context,
 	container *di.Container,
-	eventEmitter EventEmitter,
+	eventEmitter events.EventEmitter,
 	db *sql.DB,
-	masterRepo repositorypkg.MasterRepository,
+	masterRepo repository.MasterRepository,
 	redisProvider *redis.Provider,
 	log *zap.Logger,
 	eventEnabled bool,
-	provider interface{}, // unused, keep for signature consistency
+	provider interface{},
 ) error {
 	repo := NewRepository(db, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "localization")

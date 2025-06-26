@@ -2,49 +2,390 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 )
 
-// --- WebSocket Event, Bus, and Registry Types ---.
+// --- Constants ---.
+const (
+	// Redis channels for communication with backend services.
+	redisIngressChannel = "ws:ingress:events"   // Clients -> Backend
+	redisEgressSystem   = "ws:egress:system"    // Backend -> All clients
+	redisEgressCampaign = "ws:egress:campaign:" // + {campaign_id} -> Campaign clients
+	redisEgressUser     = "ws:egress:user:"     // + {user_id} -> Specific user
+)
+
+// --- WebSocket & Event Types ---
+
+// IngressEvent is a message received from a client, augmented with metadata.
+type IngressEvent struct {
+	CampaignID string          `json:"campaign_id"`
+	UserID     string          `json:"user_id"`
+	RawMessage json.RawMessage `json:"raw_message"`
+}
+
+// WebSocketEvent is a standard event structure for messages sent to clients.
 type WebSocketEvent struct {
 	Type    string      `json:"type"`
 	Payload interface{} `json:"payload"`
 }
 
-type userEvent struct {
-	UserID string
-	Event  WebSocketEvent
-}
-
-type CampaignWebSocketBus struct {
-	System map[string]chan WebSocketEvent // campaign_id -> system event channel
-	User   map[string]chan userEvent      // campaign_id -> user event channel
-}
-
 // WSClient represents a WebSocket client connection with its metadata.
 type WSClient struct {
 	conn       *websocket.Conn
-	send       chan WebSocketEvent // buffered outgoing channel
-	mu         sync.Mutex
+	send       chan []byte // buffered outgoing channel for raw bytes
 	campaignID string
 	userID     string
 }
 
+// ClientMap stores active WebSocket clients.
 type ClientMap struct {
 	mu      sync.RWMutex
 	clients map[string]map[string]*WSClient // campaign_id -> user_id -> WSClient
 }
+
+// --- Global State ---.
+var (
+	wsClientMap    = newWsClientMap()
+	allowedOrigins = getAllowedOrigins()
+	upgrader       = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     checkOrigin,
+	}
+	redisClient *redis.Client
+)
+
+// --- Main Application ---
+
+func main() {
+	// Setup logging
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Println("[ws-gateway] Starting application...")
+
+	// --- Configuration ---
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "redis:6379" // Use service name from docker-compose
+	}
+	if rdEnv := os.Getenv("REDIS_HOST"); rdEnv != "" {
+		port := os.Getenv("REDIS_PORT")
+		if port == "" {
+			port = "6379"
+		}
+		redisAddr = rdEnv + ":" + port
+	}
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+
+	wsPort := os.Getenv("HTTP_PORT") // ws-gateway uses HTTP_PORT in compose, but let's be specific
+	if wsPort == "" {
+		wsPort = os.Getenv("WS_PORT")
+	}
+	if wsPort == "" {
+		wsPort = "8090" // Default WebSocket gateway port
+	}
+	addr := ":" + wsPort
+
+	// --- Initialization ---
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: redisPassword, // Add password for authentication
+	})
+	if _, err := redisClient.Ping(context.Background()).Result(); err != nil {
+		log.Fatalf("Could not connect to Redis: %v", err)
+	}
+	log.Println("[ws-gateway] Connected to Redis")
+
+	// --- Start Redis Subscribers ---
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go subscribeAndBroadcast(ctx, redisEgressSystem, broadcastSystem)
+	go psubscribeAndBroadcast(ctx, redisEgressCampaign+"*", broadcastCampaign)
+	go psubscribeAndBroadcast(ctx, redisEgressUser+"*", broadcastUser)
+
+	// --- HTTP Server Setup ---
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws/", wsCampaignUserHandler) // Catches /ws/{campaign_id}/{user_id}
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second, // Mitigate Slowloris
+		WriteTimeout: 15 * time.Second, // Mitigate Slowloris
+		IdleTimeout:  60 * time.Second,
+	}
+
+	errChan := make(chan error, 1)
+
+	// --- Run and Shutdown ---
+	go func() {
+		log.Printf("[ws-gateway] Attempting to listen on %s/ws/{campaign_id}/{user_id} ...\n", addr)
+		// ListenAndServe blocks. It will only return a non-nil error if it fails.
+		errChan <- srv.ListenAndServe()
+	}()
+
+	log.Println("[ws-gateway] Main goroutine waiting for signal...")
+	select {
+	case err := <-errChan:
+		if err != nil && err != http.ErrServerClosed {
+			log.Printf("[ws-gateway] Server failed to start or encountered a fatal error: %v", err)
+			// The process will exit with status 1 after this.
+		}
+	case <-ctx.Done():
+		log.Println("[ws-gateway] Shutdown signal received. Initiating graceful server shutdown...")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("[ws-gateway] Error during server shutdown: %v\n", err)
+	}
+
+	log.Println("[ws-gateway] Server gracefully stopped.")
+}
+
+// --- WebSocket Handlers & Pumps ---
+
+func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ws/"), "/")
+	if len(parts) < 1 || parts[0] == "" {
+		http.Error(w, "invalid path: campaign_id is required", http.StatusBadRequest)
+		return
+	}
+	campaignID := parts[0]
+	var userID string
+	if len(parts) > 1 && parts[1] != "" {
+		userID = parts[1]
+	} else {
+		userID = "guest_" + uuid.New().String()
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("WebSocket upgrade error:", err)
+		return
+	}
+
+	client := &WSClient{
+		conn:       conn,
+		send:       make(chan []byte, 256), // Increased buffer size
+		campaignID: campaignID,
+		userID:     userID,
+	}
+	wsClientMap.Store(campaignID, userID, client)
+	log.Printf("Client connected: campaign=%s, user=%s, remote=%s", campaignID, userID, r.RemoteAddr)
+
+	go client.writePump()
+	go client.readPump()
+}
+
+// readPump pumps messages from the WebSocket connection to Redis.
+func (c *WSClient) readPump() {
+	defer func() {
+		wsClientMap.Delete(c.campaignID, c.userID)
+		c.conn.Close()
+		log.Printf("Client disconnected: campaign=%s, user=%s", c.campaignID, c.userID)
+	}()
+	// Set read limits and deadlines
+	c.conn.SetReadLimit(512)
+	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(60 * time.Second)); return nil })
+
+	for {
+		_, msg, err := c.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("Read error: %v", err)
+			}
+			break
+		}
+
+		// Wrap message in IngressEvent and publish to Redis
+		ingressEvent := IngressEvent{
+			CampaignID: c.campaignID,
+			UserID:     c.userID,
+			RawMessage: json.RawMessage(msg),
+		}
+		eventBytes, err := json.Marshal(ingressEvent)
+		if err != nil {
+			log.Printf("Error marshaling ingress event: %v", err)
+			continue
+		}
+
+		if err := redisClient.Publish(context.Background(), redisIngressChannel, eventBytes).Err(); err != nil {
+			log.Printf("Error publishing to Redis: %v", err)
+		}
+	}
+}
+
+// writePump pumps messages from the send channel to the WebSocket connection.
+func (c *WSClient) writePump() {
+	ticker := time.NewTicker(45 * time.Second)
+	defer func() {
+		ticker.Stop()
+		c.conn.Close()
+	}()
+	for {
+		select {
+		case message, ok := <-c.send:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if !ok {
+				// The hub closed the channel.
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+				log.Printf("Write error: %v", err)
+				return
+			}
+		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}
+}
+
+// --- Redis Pub/Sub Broadcasting ---
+
+func subscribeAndBroadcast(ctx context.Context, channel string, handler func(*redis.Message)) {
+	pubsub := redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
+	ch := pubsub.Channel()
+	for {
+		select {
+		case msg := <-ch:
+			handler(msg)
+		case <-ctx.Done():
+			log.Printf("Stopping subscriber for channel: %s", channel)
+			return
+		}
+	}
+}
+
+func psubscribeAndBroadcast(ctx context.Context, pattern string, handler func(*redis.Message)) {
+	pubsub := redisClient.PSubscribe(ctx, pattern)
+	defer pubsub.Close()
+	ch := pubsub.Channel()
+	for {
+		select {
+		case msg := <-ch:
+			handler(msg)
+		case <-ctx.Done():
+			log.Printf("Stopping psubscriber for pattern: %s", pattern)
+			return
+		}
+	}
+}
+
+func broadcastSystem(msg *redis.Message) {
+	log.Printf("System broadcast received: %s", msg.Payload)
+	wsClientMap.Range(func(_, _ string, client *WSClient) bool {
+		select {
+		case client.send <- []byte(msg.Payload):
+		default:
+			log.Printf("Dropped frame for client %s/%s", client.campaignID, client.userID)
+		}
+		return true
+	})
+}
+
+func broadcastCampaign(msg *redis.Message) {
+	// Channel is ws:egress:campaign:{campaign_id}
+	parts := strings.Split(msg.Channel, ":")
+	if len(parts) != 4 {
+		return
+	}
+	campaignID := parts[3]
+	log.Printf("Campaign broadcast received for %s: %s", campaignID, msg.Payload)
+
+	wsClientMap.Range(func(cid, _ string, client *WSClient) bool {
+		if cid == campaignID {
+			select {
+			case client.send <- []byte(msg.Payload):
+			default:
+				log.Printf("Dropped frame for client %s/%s", client.campaignID, client.userID)
+			}
+		}
+		return true
+	})
+}
+
+func broadcastUser(msg *redis.Message) {
+	// Channel is ws:egress:user:{user_id}
+	parts := strings.Split(msg.Channel, ":")
+	if len(parts) != 4 {
+		return
+	}
+	userID := parts[3]
+	log.Printf("User broadcast received for %s: %s", userID, msg.Payload)
+
+	wsClientMap.Range(func(_, uid string, client *WSClient) bool {
+		if uid == userID {
+			select {
+			case client.send <- []byte(msg.Payload):
+			default:
+				log.Printf("Dropped frame for client %s/%s", client.campaignID, client.userID)
+			}
+			// A user should only be connected once, so we can stop.
+			return false
+		}
+		return true
+	})
+}
+
+// --- Utility Functions ---
+
+func getAllowedOrigins() []string {
+	origins := os.Getenv("WS_ALLOWED_ORIGINS")
+	if origins == "" {
+		return []string{"*"} // Default to allow all for local dev
+	}
+	return strings.Split(origins, ",")
+}
+
+func checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	// Allow non-browser clients (where origin is not set)
+	if origin == "" {
+		return true
+	}
+
+	for _, allowed := range allowedOrigins {
+		if allowed == "*" {
+			return true
+		}
+		// This is a simplified check. For production, use a proper URL parser
+		// and check hostnames.
+		if strings.Contains(origin, allowed) {
+			return true
+		}
+	}
+
+	log.Printf("Rejected WebSocket connection from origin: %s", origin)
+	return false
+}
+
+// --- ClientMap Implementation ---
 
 func newWsClientMap() *ClientMap {
 	return &ClientMap{clients: make(map[string]map[string]*WSClient)}
@@ -74,6 +415,10 @@ func (w *ClientMap) Delete(campaignID, userID string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if m, ok := w.clients[campaignID]; ok {
+		// Also close the send channel to stop the writePump
+		if client, ok := m[userID]; ok {
+			close(client.send)
+		}
 		delete(m, userID)
 		if len(m) == 0 {
 			delete(w.clients, campaignID)
@@ -83,341 +428,22 @@ func (w *ClientMap) Delete(campaignID, userID string) {
 
 func (w *ClientMap) Range(f func(campaignID, userID string, client *WSClient) bool) {
 	w.mu.RLock()
-	defer w.mu.RUnlock()
-	for cid, m := range w.clients {
+	// Create a copy of the map to avoid holding the lock during the callback
+	// which might be slow or try to lock again.
+	copiedClients := make(map[string]map[string]*WSClient)
+	for cid, users := range w.clients {
+		copiedClients[cid] = make(map[string]*WSClient)
+		for uid, client := range users {
+			copiedClients[cid][uid] = client
+		}
+	}
+	w.mu.RUnlock()
+
+	for cid, m := range copiedClients {
 		for uid, c := range m {
 			if !f(cid, uid, c) {
 				return
 			}
 		}
 	}
-}
-
-// --- Event Registry for Orchestration ---.
-type EventFlow struct {
-	RequestedType string
-	CompletedType string
-	TimeoutType   string
-	ErrorType     string
-	Version       string
-	Timeout       time.Duration
-}
-
-type CorrelationInfo struct {
-	CampaignID string
-	UserID     string
-	EventType  string
-	StartedAt  time.Time
-	Timer      *time.Timer
-}
-
-type EventRegistry struct {
-	Flows        map[string]EventFlow
-	Correlations sync.Map // correlation_id -> CorrelationInfo
-	Metrics      *EventRegistryMetrics
-	Log          *log.Logger
-}
-
-type EventRegistryMetrics struct {
-	ActiveCorrelations int64
-	Completed          int64
-	Timeouts           int64
-	Errors             int64
-	TotalTime          int64 // nanoseconds
-}
-
-func NewEventRegistry() *EventRegistry {
-	return &EventRegistry{
-		Flows:   make(map[string]EventFlow),
-		Metrics: &EventRegistryMetrics{},
-		Log:     log.Default(),
-	}
-}
-
-func (r *EventRegistry) RegisterEventFlow(flow EventFlow) {
-	r.Flows[flow.RequestedType] = flow
-}
-
-func (r *EventRegistry) StartCorrelation(correlationID string, info CorrelationInfo, flow EventFlow, onTimeout func(correlationID string, info CorrelationInfo)) {
-	atomic.AddInt64(&r.Metrics.ActiveCorrelations, 1)
-	info.StartedAt = time.Now()
-	if flow.Timeout > 0 {
-		info.Timer = time.AfterFunc(flow.Timeout, func() {
-			r.Correlations.Delete(correlationID)
-			atomic.AddInt64(&r.Metrics.Timeouts, 1)
-			if onTimeout != nil {
-				onTimeout(correlationID, info)
-			}
-		})
-	}
-	r.Correlations.Store(correlationID, info)
-}
-
-func (r *EventRegistry) CompleteCorrelation(correlationID string) (CorrelationInfo, bool) {
-	v, ok := r.Correlations.LoadAndDelete(correlationID)
-	if !ok {
-		return CorrelationInfo{}, false
-	}
-
-	info, ok := v.(CorrelationInfo)
-	if !ok {
-		r.Log.Printf("Invalid correlation info type in registry for ID: %s", correlationID)
-		return CorrelationInfo{}, false
-	}
-
-	atomic.AddInt64(&r.Metrics.Completed, 1)
-	atomic.AddInt64(&r.Metrics.ActiveCorrelations, -1)
-	if info.Timer != nil {
-		info.Timer.Stop()
-	}
-	return info, true
-}
-
-var eventRegistry = NewEventRegistry()
-
-func init() {
-	eventRegistry.RegisterEventFlow(EventFlow{
-		RequestedType: "search.requested",
-		CompletedType: "search.completed",
-		TimeoutType:   "search.timeout",
-		ErrorType:     "search.error",
-		Version:       "1.0",
-		Timeout:       10 * time.Second,
-	})
-	eventRegistry.RegisterEventFlow(EventFlow{
-		RequestedType: "notification.send.requested",
-		CompletedType: "notification.send.completed",
-		TimeoutType:   "notification.send.timeout",
-		ErrorType:     "notification.send.error",
-		Version:       "1.0",
-		Timeout:       5 * time.Second,
-	})
-	eventRegistry.RegisterEventFlow(EventFlow{
-		RequestedType: "campaign.action.requested",
-		CompletedType: "campaign.action.completed",
-		TimeoutType:   "campaign.action.timeout",
-		ErrorType:     "campaign.action.error",
-		Version:       "1.0",
-		Timeout:       8 * time.Second,
-	})
-	eventRegistry.RegisterEventFlow(EventFlow{
-		RequestedType: "cat.hello.requested",
-		CompletedType: "cat.hello.completed",
-		TimeoutType:   "cat.hello.timeout",
-		ErrorType:     "cat.hello.error",
-		Version:       "1.0",
-		Timeout:       3 * time.Second,
-	})
-}
-
-// --- Configuration ---.
-var (
-	wsClientMap    = newWsClientMap()
-	allowedOrigins = getAllowedOrigins()
-)
-
-// getAllowedOrigins returns the list of allowed origins from environment or defaults.
-func getAllowedOrigins() []string {
-	origins := os.Getenv("WS_ALLOWED_ORIGINS")
-	if origins == "" {
-		// Default to localhost in development
-		return []string{
-			"localhost",
-			"127.0.0.1",
-			"null", // Allow null origin for local file testing
-		}
-	}
-	return strings.Split(origins, ",")
-}
-
-// checkOrigin verifies that the origin is allowed.
-func checkOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return true // Allow requests without origin header (e.g., non-browser clients)
-	}
-
-	// Parse the origin URL
-	originHost := origin
-	if strings.Contains(origin, "://") {
-		parts := strings.Split(origin, "://")
-		if len(parts) != 2 {
-			return false
-		}
-		originHost = parts[1]
-	}
-	if strings.Contains(originHost, ":") {
-		originHost = strings.Split(originHost, ":")[0]
-	}
-
-	// Check against allowed origins
-	for _, allowed := range allowedOrigins {
-		if allowed == "*" {
-			return true // Allow all origins if explicitly configured
-		}
-		if strings.HasPrefix(allowed, "*.") && strings.HasSuffix(originHost, allowed[1:]) {
-			return true // Allow wildcard subdomains
-		}
-		if allowed == originHost {
-			return true // Exact match
-		}
-	}
-
-	log.Printf("Rejected WebSocket connection from origin: %s", origin)
-	return false
-}
-
-// --- WebSocket Gateway Main ---.
-func main() {
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
-	}
-	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
-	defer redisClient.Close()
-
-	// Create server mux and register handlers
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", wsHandler)
-	mux.HandleFunc("/ws/", wsCampaignUserHandler)
-
-	// Configure the server
-	wsPort := os.Getenv("WS_PORT")
-	if wsPort == "" {
-		wsPort = "8090" // Default WebSocket gateway port
-	}
-	addr := ":" + wsPort
-
-	srv := &http.Server{
-		Addr:         addr,
-		Handler:      mux,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
-	// Setup graceful shutdown
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	// Run server in a goroutine
-	go func() {
-		log.Printf("[ws-gateway] Starting server on %s/ws and /ws/{campaign_id}/{user_id} ...\n", addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("[ws-gateway] Error starting server: %v\n", err)
-			stop() // Trigger shutdown on server error
-		}
-	}()
-
-	// Wait for interrupt signal
-	<-ctx.Done()
-
-	// Shutdown with timeout
-	log.Println("[ws-gateway] Shutting down server...")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Close active connections and shutdown server
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("[ws-gateway] Error during server shutdown: %v\n", err)
-	}
-
-	log.Println("[ws-gateway] Server gracefully stopped")
-}
-
-// --- WebSocket Handlers ---.
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-	upgrader := websocket.Upgrader{CheckOrigin: checkOrigin}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("WebSocket upgrade error:", err)
-		return
-	}
-	client := &WSClient{conn: conn, send: make(chan WebSocketEvent, 32)}
-	go wsWritePump(client)
-	defer func() {
-		conn.Close()
-	}()
-	for {
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			break
-		}
-		// Optionally handle system-wide messages here
-		_ = msg
-	}
-}
-
-func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
-	// Path: /ws/{campaign_id}/{user_id}
-	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ws/"), "/")
-	if len(parts) != 2 {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-	campaignID, userID := parts[0], parts[1]
-	upgrader := websocket.Upgrader{CheckOrigin: checkOrigin}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("WebSocket upgrade error:", err)
-		return
-	}
-	client := &WSClient{
-		conn:       conn,
-		send:       make(chan WebSocketEvent, 32),
-		campaignID: campaignID,
-		userID:     userID,
-	}
-	wsClientMap.Store(campaignID, userID, client)
-	go wsWritePump(client)
-	defer func() {
-		wsClientMap.Delete(campaignID, userID)
-		conn.Close()
-	}()
-	for {
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			break
-		}
-		// Optionally handle campaign/user messages here
-		_ = msg
-	}
-}
-
-func wsWritePump(client *WSClient) {
-	for event := range client.send {
-		client.mu.Lock()
-		if err := client.conn.WriteJSON(event); err != nil {
-			client.mu.Unlock()
-			log.Printf("WebSocket send error: %v", err)
-			return
-		}
-		client.mu.Unlock()
-	}
-}
-
-// --- Event Bus Example: Redis Pub/Sub Integration ---.
-func init() {
-	go func() {
-		redisAddr := os.Getenv("REDIS_ADDR")
-		if redisAddr == "" {
-			redisAddr = "localhost:6379"
-		}
-		client := redis.NewClient(&redis.Options{Addr: redisAddr})
-		defer client.Close()
-		ctx := context.Background()
-		pubsub := client.Subscribe(ctx, "media:events:system")
-		ch := pubsub.Channel()
-		for msg := range ch {
-			// Broadcast to all system-wide clients
-			wsClientMap.Range(func(campaignID, userID string, client *WSClient) bool {
-				select {
-				case client.send <- WebSocketEvent{Type: "system", Payload: msg.Payload}:
-				default:
-					log.Printf("Dropped frame for %s/%s", campaignID, userID)
-				}
-				return true
-			})
-		}
-	}()
 }

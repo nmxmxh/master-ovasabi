@@ -741,6 +741,7 @@ To ensure the OVASABI platform remains performant, scalable, and robust, a stand
    - Review schema, indexes, and migrations for optimal design.
    - Ensure queries use indexes and avoid full table scans.
    - Audit counting strategies (prefer increment/decrement counters over full scans).
+   - Verify all timestamp fields use `TIMESTAMT` and that queries involving date/time aggregation correctly handle timezone conversions (e.g., using `AT TIME ZONE`).
    - Check for partitioning, archiving, and extension usage (e.g., pg_trgm).
 
 3. **Caching & Data Access**
@@ -1536,7 +1537,7 @@ serviceServer := service.NewService(log, serviceRepo, serviceCache)
 | User            | NewUserRepository(db, masterRepo)    | Yes                  | Yes             |
 | Notification    | NewNotificationRepository(db, masterRepo) | Yes             | Yes             |
 | Referral        | NewReferralRepository(db, masterRepo)| Yes                  | Yes             |
-| Commerce        | NewRepository(db)                    | No                   | Yes             |
+| Commerce        | NewRepository(db, masterRepo)        | Yes                  | Yes             |
 | Localization    | NewRepository(db)                    | No                   | Yes             |
 | Search          | NewRepository(db)                    | No                   | Yes             |
 | Admin           | NewRepository(db)                    | No                   | Yes             |

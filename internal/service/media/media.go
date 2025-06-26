@@ -172,7 +172,7 @@ func (s *ServiceImpl) BroadcastAssetChunk(_ context.Context, chunk []byte) {
 var heavyUploadSessions = make(map[string]*UploadMetadata)
 
 // NewService constructs a new MediaServiceServer instance with event bus support.
-func NewService(log *zap.Logger, repo *Repo, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) mediapb.MediaServiceServer {
+func NewService(log *zap.Logger, repo *Repo, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) *ServiceImpl {
 	svc := &ServiceImpl{
 		log:          log,
 		repo:         repo,

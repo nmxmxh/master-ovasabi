@@ -2,6 +2,7 @@
 // ----------------------------------------------
 // Implements the canonical analytics service for event capture, enrichment, and listing.
 // - Uses robust, versioned, and GDPR-compliant metadata (see metadata.go).
+// - All repository interactions are handled via the RepositoryItf interface.
 // - All event creation uses BuildAnalyticsMetadata.
 // - Stores events in-memory (replace with DB/repo in production).
 // - Exposes gRPC-compatible methods: CaptureEvent, ListEvents, EnrichEventMetadata.
@@ -15,7 +16,9 @@ package analytics
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -41,11 +44,12 @@ type Event struct {
 type RepositoryItf interface {
 	TrackEvent(ctx context.Context, event *analytics.Event) error
 	BatchTrackEvents(ctx context.Context, events []*analytics.Event) (int, int, error)
-	GetUserEvents(ctx context.Context, userID string, campaignID string, page, pageSize int) ([]*analytics.Event, int, error)
-	GetProductEvents(ctx context.Context, productID string, campaignID string, page, pageSize int) ([]*analytics.Event, int, error)
+	GetUserEvents(ctx context.Context, userID string, campaignID int64, page, pageSize int) ([]*analytics.Event, int, error)
+	GetProductEvents(ctx context.Context, productID string, campaignID int64, page, pageSize int) ([]*analytics.Event, int, error)
 	GetReport(ctx context.Context, reportID string) (*analytics.Report, error)
 	ListReports(ctx context.Context, page, pageSize int) ([]*analytics.Report, int, error)
 	CountEventsByType(ctx context.Context, eventType string) (int, error)
+	GetEvent(ctx context.Context, eventID string) (*analytics.Event, error)
 }
 
 type Service struct {
@@ -196,26 +200,19 @@ func (s *Service) EnrichEventMetadata(ctx context.Context, req *analytics.Enrich
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	// Fetch all events (for demo, should optimize by event ID)
-	userEvents, _, err := s.repo.GetUserEvents(ctx, "", 0, 1, 10000)
+	// Fetch the specific event by ID instead of loading all events.
+	eventToUpdate, err := s.repo.GetEvent(ctx, req.EventId)
 	if err != nil {
-		s.log.Error("failed to fetch events for enrichment", zap.Error(err))
-		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to fetch events for enrichment", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			s.log.Warn("Event not found for enrichment", zap.String("event_id", req.EventId))
+			errCtx := graceful.WrapErr(ctx, codes.NotFound, "event not found for enrichment", ErrEventNotFound)
+			errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
+			return nil, ErrEventNotFound
+		}
+		s.log.Error("Failed to fetch event for enrichment", zap.Error(err), zap.String("event_id", req.EventId))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to fetch event for enrichment", err)
 		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
 		return nil, err
-	}
-	var eventToUpdate *analytics.Event
-	for _, e := range userEvents {
-		if e.Id == req.EventId {
-			eventToUpdate = e
-			break
-		}
-	}
-	if eventToUpdate == nil {
-		s.log.Error("Event not found for enrichment", zap.String("event_id", req.EventId))
-		errCtx := graceful.WrapErr(ctx, codes.NotFound, "event not found for enrichment", ErrEventNotFound)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
-		return nil, ErrEventNotFound
 	}
 	// Merge new fields into existing metadata using canonical helper
 	if eventToUpdate.Metadata != nil && req.NewFields != nil {
@@ -479,25 +476,7 @@ func (s *Service) ListReports(ctx context.Context, req *analytics.ListReportsReq
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	reports := []*analytics.Report{
-		{
-			Id:          "report1",
-			Name:        "Report 1",
-			Description: "First dummy report.",
-			Parameters:  map[string]string{"foo": "bar"},
-			Data:        []byte("data1"),
-			CreatedAt:   time.Now().Unix(),
-		},
-		{
-			Id:          "report2",
-			Name:        "Report 2",
-			Description: "Second dummy report.",
-			Parameters:  map[string]string{"baz": "qux"},
-			Data:        []byte("data2"),
-			CreatedAt:   time.Now().Unix(),
-		},
-	}
-	total := len(reports)
+
 	page := int(req.Page)
 	if page < 1 {
 		page = 1
@@ -506,26 +485,31 @@ func (s *Service) ListReports(ctx context.Context, req *analytics.ListReportsReq
 	if pageSize < 1 {
 		pageSize = 10
 	}
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if start > total {
-		start = total
+
+	// Use the repository to fetch reports instead of returning dummy data.
+	reports, total, err := s.repo.ListReports(ctx, page, pageSize)
+	if err != nil {
+		s.log.Error("failed to list reports", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to list reports", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
+		return nil, status.Error(codes.Internal, "failed to list reports")
 	}
-	if end > total {
-		end = total
-	}
-	paged := reports[start:end]
-	success := graceful.WrapSuccess(ctx, codes.OK, "analytics reports listed", &analytics.ListReportsResponse{
-		Reports:    paged,
+
+	totalPages := (total + pageSize - 1) / pageSize
+
+	resp := &analytics.ListReportsResponse{
+		Reports:    reports,
 		TotalCount: utils.ToInt32(total),
 		Page:       utils.ToInt32(page),
-		TotalPages: utils.ToInt32((total + pageSize - 1) / pageSize),
-	}, nil)
+		TotalPages: utils.ToInt32(totalPages),
+	}
+
+	success := graceful.WrapSuccess(ctx, codes.OK, "analytics reports listed", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
 		Log:          s.log,
 		Cache:        s.Cache,
 		CacheKey:     fmt.Sprintf("reports_list_%d_%d", page, pageSize),
-		CacheValue:   paged,
+		CacheValue:   reports,
 		CacheTTL:     10 * time.Minute,
 		Metadata:     nil,
 		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
@@ -536,10 +520,5 @@ func (s *Service) ListReports(ctx context.Context, req *analytics.ListReportsReq
 		PatternID:    "",
 		PatternMeta:  nil,
 	})
-	return &analytics.ListReportsResponse{
-		Reports:    paged,
-		TotalCount: utils.ToInt32(total),
-		Page:       utils.ToInt32(page),
-		TotalPages: utils.ToInt32((total + pageSize - 1) / pageSize),
-	}, nil
+	return resp, nil
 }

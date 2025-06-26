@@ -31,7 +31,7 @@ import (
 	"database/sql"
 
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
-	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
@@ -41,13 +41,13 @@ import (
 )
 
 // Register registers the security service with the DI container and event bus support.
-// Parameters used: ctx, container, db, masterRepo, redisProvider, log, eventEnabled. eventEmitter and provider are unused.
+// Parameters used: ctx, container, db, masterRepo, redisProvider, log, eventEnabled, provider. eventEmitter is unused.
 func Register(
 	ctx context.Context,
 	container *di.Container,
 	_ events.EventEmitter,
 	db *sql.DB,
-	masterRepo repositorypkg.MasterRepository,
+	masterRepo repository.MasterRepository,
 	redisProvider *redis.Provider,
 	log *zap.Logger,
 	eventEnabled bool,

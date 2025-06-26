@@ -15,7 +15,7 @@ COPY wasm/ .
 RUN go build -o /build/ws_server ws_server.go
 
 # --- Frontend Build Stage ---
-FROM node:slim AS frontend-builder
+FROM node:alpine AS frontend-builder
 WORKDIR /frontend
 COPY frontend/package*.json ./
 RUN yarn
@@ -29,12 +29,14 @@ WORKDIR /app
 # Copy static site
 COPY --from=frontend-builder /frontend/dist /usr/share/nginx/html
 # Copy WASM AI microservice
+# Also copy main.wasm to /app so ws_server can find it
+COPY --from=wasm-builder /build/main.wasm /app/main.wasm
 COPY --from=ws-server-builder /build/ws_server ./ws_server
 RUN chmod +x ./ws_server
-# Install nginx for static site
-RUN apk add --no-cache nginx
+# Install nginx and supervisord for static site and process management
+RUN apk add --no-cache nginx supervisor
 COPY deployments/docker/nginx.conf /etc/nginx/nginx.conf
+COPY deployments/docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 EXPOSE 80 8100
-# Start both nginx and ws_server (use dumb-init for PID 1 if available)
-CMD ["sh", "-c", "nginx -g 'daemon off;' & wait $(pgrep nginx); ./ws_server --log-level=debug"]
-# [For production: consider using supervisord or s6 for process management]
+# Use supervisord to manage nginx and ws_server processes
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

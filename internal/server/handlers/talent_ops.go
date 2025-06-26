@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	talentpb "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // TalentOpsHandler handles talent-related actions via the "action" field.
@@ -34,422 +36,138 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 		var talentSvc talentpb.TalentServiceServer
 		if err := container.Resolve(&talentSvc); err != nil {
 			log.Error("Failed to resolve TalentService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
 		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
+			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
 			return
 		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("Failed to decode talent request JSON", zap.Error(err))
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
 			return
 		}
 		action, ok := req["action"].(string)
 		if !ok || action == "" {
 			log.Error("Missing or invalid action in talent request", zap.Any("value", req["action"]))
-			http.Error(w, "missing or invalid action", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil)
 			return
 		}
-		// Optionally resolve EventEmitter and eventEnabled for orchestration/event bus
-		var eventEmitter interface {
-			EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-		}
-		var eventEnabled bool
-		if err := container.Resolve(&eventEmitter); err != nil {
-			log.Warn("Failed to resolve event emitter", zap.Error(err))
-		}
-		if err := container.Resolve(&eventEnabled); err != nil {
-			log.Warn("Failed to resolve event enabled flag", zap.Error(err))
-		}
-		switch action {
-		case "create_talent_profile":
-			profile := &talentpb.TalentProfile{}
-			if v, ok := req["user_id"].(string); ok {
-				profile.UserId = v
-			}
-			if v, ok := req["display_name"].(string); ok {
-				profile.DisplayName = v
-			}
-			if v, ok := req["bio"].(string); ok {
-				profile.Bio = v
-			}
-			if arr, ok := req["skills"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						profile.Skills = append(profile.Skills, s)
-					}
-				}
-			}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						profile.Tags = append(profile.Tags, s)
-					}
-				}
-			}
-			if v, ok := req["location"].(string); ok {
-				profile.Location = v
-			}
-			if v, ok := req["avatar_url"].(string); ok {
-				profile.AvatarUrl = v
-			}
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-					http.Error(w, "invalid metadata", http.StatusBadRequest)
+
+		authCtx := contextx.Auth(ctx)
+		userID := authCtx.UserID
+		roles := authCtx.Roles
+		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
+		isAdmin := httputil.IsAdmin(roles)
+
+		actionHandlers := map[string]func(){
+			"create_talent_profile": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: authentication required", nil)
 					return
 				}
-				profile.Metadata = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
-			}
-			protoReq := &talentpb.CreateTalentProfileRequest{Profile: profile, CampaignId: campaignID}
-			resp, err := talentSvc.CreateTalentProfile(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to create talent profile", zap.Error(err))
-				http.Error(w, "failed to create talent profile", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"profile": resp.Profile}); err != nil {
-				log.Error("Failed to write JSON response (create_talent_profile)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-			// Emit event to event bus for analytics, orchestration, audit
-			if eventEmitter != nil && eventEnabled && resp.Profile != nil {
-				_, _ = eventEmitter.EmitEventWithLogging(ctx, nil, log, "talent.profile_created", resp.Profile.Id, resp.Profile.Metadata)
-				// TODO: WebSocket broadcast for real-time updates
-			}
-		case "update_talent_profile":
-			profile := &talentpb.TalentProfile{}
-			if v, ok := req["id"].(string); ok {
-				profile.Id = v
-			}
-			if v, ok := req["user_id"].(string); ok {
-				profile.UserId = v
-			}
-			if v, ok := req["display_name"].(string); ok {
-				profile.DisplayName = v
-			}
-			if v, ok := req["bio"].(string); ok {
-				profile.Bio = v
-			}
-			if arr, ok := req["skills"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						profile.Skills = append(profile.Skills, s)
-					}
-				}
-			}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						profile.Tags = append(profile.Tags, s)
-					}
-				}
-			}
-			if v, ok := req["location"].(string); ok {
-				profile.Location = v
-			}
-			if v, ok := req["avatar_url"].(string); ok {
-				profile.AvatarUrl = v
-			}
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-					http.Error(w, "invalid metadata", http.StatusBadRequest)
+				handleTalentAction(w, ctx, log, req, &talentpb.CreateTalentProfileRequest{}, talentSvc.CreateTalentProfile)
+			},
+			"update_talent_profile": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: authentication required", nil)
 					return
 				}
-				profile.Metadata = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
-			}
-			protoReq := &talentpb.UpdateTalentProfileRequest{Profile: profile, CampaignId: campaignID}
-			resp, err := talentSvc.UpdateTalentProfile(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to update talent profile", zap.Error(err))
-				http.Error(w, "failed to update talent profile", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"profile": resp.Profile}); err != nil {
-				log.Error("Failed to write JSON response (update_talent_profile)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-			// Emit event to event bus for analytics, orchestration, audit
-			if eventEmitter != nil && eventEnabled && resp.Profile != nil {
-				_, _ = eventEmitter.EmitEventWithLogging(ctx, nil, log, "talent.profile_updated", resp.Profile.Id, resp.Profile.Metadata)
-				// TODO: WebSocket broadcast for real-time updates
-			}
-		case "delete_talent_profile":
-			profileID, ok := req["profile_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid profile_id in delete_talent_profile", zap.Any("value", req["profile_id"]))
-				http.Error(w, "missing or invalid profile_id", http.StatusBadRequest)
-				return
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
-			}
-			protoReq := &talentpb.DeleteTalentProfileRequest{ProfileId: profileID, CampaignId: campaignID}
-			resp, err := talentSvc.DeleteTalentProfile(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to delete talent profile", zap.Error(err))
-				http.Error(w, "failed to delete talent profile", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": resp.Success}); err != nil {
-				log.Error("Failed to write JSON response (delete_talent_profile)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-			// Emit event to event bus for analytics, orchestration, audit
-			if eventEmitter != nil && eventEnabled && profileID != "" {
-				_, _ = eventEmitter.EmitEventWithLogging(ctx, nil, log, "talent.profile_deleted", profileID, nil)
-				// TODO: WebSocket broadcast for real-time updates
-			}
-		case "get_talent_profile":
-			profileID, ok := req["profile_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid profile_id in get_talent_profile", zap.Any("value", req["profile_id"]))
-				http.Error(w, "missing or invalid profile_id", http.StatusBadRequest)
-				return
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
-			}
-			protoReq := &talentpb.GetTalentProfileRequest{ProfileId: profileID, CampaignId: campaignID}
-			resp, err := talentSvc.GetTalentProfile(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to get talent profile", zap.Error(err))
-				http.Error(w, "failed to get talent profile", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"profile": resp.Profile}); err != nil {
-				log.Error("Failed to write JSON response (get_talent_profile)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "list_talent_profiles":
-			page := int32(0)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
-			}
-			tags := []string{}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						tags = append(tags, s)
-					}
+				// Service layer handles ownership/admin check
+				handleTalentAction(w, ctx, log, req, &talentpb.UpdateTalentProfileRequest{}, talentSvc.UpdateTalentProfile)
+			},
+			"delete_talent_profile": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: authentication required", nil)
+					return
 				}
-			}
-			skills := []string{}
-			if arr, ok := req["skills"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						skills = append(skills, s)
-					}
+				// Service layer handles ownership/admin check
+				handleTalentAction(w, ctx, log, req, &talentpb.DeleteTalentProfileRequest{}, talentSvc.DeleteTalentProfile)
+			},
+			"get_talent_profile": func() {
+				// Publicly accessible
+				handleTalentAction(w, ctx, log, req, &talentpb.GetTalentProfileRequest{}, talentSvc.GetTalentProfile)
+			},
+			"list_talent_profiles": func() {
+				// Publicly accessible
+				handleTalentAction(w, ctx, log, req, &talentpb.ListTalentProfilesRequest{}, talentSvc.ListTalentProfiles)
+			},
+			"search_talent_profiles": func() {
+				// Publicly accessible
+				handleTalentAction(w, ctx, log, req, &talentpb.SearchTalentProfilesRequest{}, talentSvc.SearchTalentProfiles)
+			},
+			"book_talent": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: authentication required", nil)
+					return
 				}
-			}
-			location, ok := req["location"].(string)
-			if !ok && req["location"] != nil {
-				log.Error("Invalid type for location in list_talent_profiles", zap.Any("value", req["location"]))
-				http.Error(w, "invalid location", http.StatusBadRequest)
-				return
-			}
-			protoReq := &talentpb.ListTalentProfilesRequest{
-				Page:       page,
-				PageSize:   pageSize,
-				CampaignId: campaignID,
-				Tags:       tags,
-				Skills:     skills,
-				Location:   location,
-			}
-			resp, err := talentSvc.ListTalentProfiles(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to list talent profiles", zap.Error(err))
-				http.Error(w, "failed to list talent profiles", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"profiles": resp.Profiles, "total_count": resp.TotalCount, "page": resp.Page, "total_pages": resp.TotalPages}); err != nil {
-				log.Error("Failed to write JSON response (list_talent_profiles)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "search_talent_profiles":
-			query, ok := req["query"].(string)
-			if !ok {
-				log.Error("Missing or invalid query in search_talent_profiles", zap.Any("value", req["query"]))
-				http.Error(w, "missing or invalid query", http.StatusBadRequest)
-				return
-			}
-			page := int32(0)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
-			}
-			tags := []string{}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						tags = append(tags, s)
-					}
+				requestUserID, _ := req["user_id"].(string)
+				if requestUserID != userID && !isAdmin {
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: can only book for yourself unless you are an admin", nil)
+					return
 				}
-			}
-			skills := []string{}
-			if arr, ok := req["skills"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						skills = append(skills, s)
-					}
+				handleTalentAction(w, ctx, log, req, &talentpb.BookTalentRequest{}, talentSvc.BookTalent)
+			},
+			"list_bookings": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: authentication required", nil)
+					return
 				}
-			}
-			location, ok := req["location"].(string)
-			if !ok && req["location"] != nil {
-				log.Error("Invalid type for location in search_talent_profiles", zap.Any("value", req["location"]))
-				http.Error(w, "invalid location", http.StatusBadRequest)
-				return
-			}
-			protoReq := &talentpb.SearchTalentProfilesRequest{
-				Query:      query,
-				Page:       page,
-				PageSize:   pageSize,
-				CampaignId: campaignID,
-				Tags:       tags,
-				Skills:     skills,
-				Location:   location,
-			}
-			resp, err := talentSvc.SearchTalentProfiles(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to search talent profiles", zap.Error(err))
-				http.Error(w, "failed to search talent profiles", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"profiles": resp.Profiles, "total_count": resp.TotalCount, "page": resp.Page, "total_pages": resp.TotalPages}); err != nil {
-				log.Error("Failed to write JSON response (search_talent_profiles)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "book_talent":
-			talentID, ok := req["talent_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid talent_id in book_talent", zap.Any("value", req["talent_id"]))
-				http.Error(w, "missing or invalid talent_id", http.StatusBadRequest)
-				return
-			}
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid user_id in book_talent", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
-				return
-			}
-			startTime, ok := req["start_time"].(float64)
-			if !ok && req["start_time"] != nil {
-				log.Error("Invalid type for start_time in book_talent", zap.Any("value", req["start_time"]))
-				http.Error(w, "invalid start_time", http.StatusBadRequest)
-				return
-			}
-			endTime, ok := req["end_time"].(float64)
-			if !ok && req["end_time"] != nil {
-				log.Error("Invalid type for end_time in book_talent", zap.Any("value", req["end_time"]))
-				http.Error(w, "invalid end_time", http.StatusBadRequest)
-				return
-			}
-			notes, ok := req["notes"].(string)
-			if !ok && req["notes"] != nil {
-				log.Error("Invalid type for notes in book_talent", zap.Any("value", req["notes"]))
-				http.Error(w, "invalid notes", http.StatusBadRequest)
-				return
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
-			}
-			protoReq := &talentpb.BookTalentRequest{
-				TalentId:   talentID,
-				UserId:     userID,
-				StartTime:  int64(startTime),
-				EndTime:    int64(endTime),
-				Notes:      notes,
-				CampaignId: campaignID,
-			}
-			resp, err := talentSvc.BookTalent(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to book talent", zap.Error(err))
-				http.Error(w, "failed to book talent", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"booking": resp.Booking}); err != nil {
-				log.Error("Failed to write JSON response (book_talent)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "list_bookings":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid user_id in list_bookings", zap.Any("value", req["user_id"]))
-				http.Error(w, "missing or invalid user_id", http.StatusBadRequest)
-				return
-			}
-			page := int32(0)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"].(float64); ok {
-				campaignID = int64(v)
-			}
-			protoReq := &talentpb.ListBookingsRequest{
-				UserId:     userID,
-				Page:       page,
-				PageSize:   pageSize,
-				CampaignId: campaignID,
-			}
-			resp, err := talentSvc.ListBookings(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to list bookings", zap.Error(err))
-				http.Error(w, "failed to list bookings", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"bookings": resp.Bookings, "total_count": resp.TotalCount, "page": resp.Page, "total_pages": resp.TotalPages}); err != nil {
-				log.Error("Failed to write JSON response (list_bookings)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		default:
-			log.Error("Unknown action in talent_ops", zap.Any("action", action))
-			http.Error(w, "unknown action", http.StatusBadRequest)
-			return
+				requestUserID, _ := req["user_id"].(string)
+				if requestUserID != userID && !isAdmin {
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: can only list your own bookings unless you are an admin", nil)
+					return
+				}
+				handleTalentAction(w, ctx, log, req, &talentpb.ListBookingsRequest{}, talentSvc.ListBookings)
+			},
+		}
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
+			log.Error("Unknown action in talent_ops", zap.String("action", action))
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil)
 		}
 	}
+}
+
+// handleTalentAction is a generic helper to reduce boilerplate in TalentOpsHandler.
+func handleTalentAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoTalent(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		log.Error("talent service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil)
+		return
+	}
+
+	// Note: Event emission logic has been removed from the handler for consistency.
+	// This logic is better placed within the service layer to be triggered after a successful
+	// database transaction, ensuring a clear separation of concerns.
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProtoTalent converts a map[string]interface{} to a proto.Message using JSON as an intermediate.
+func mapToProtoTalent(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return protojson.Unmarshal(jsonBytes, v)
 }

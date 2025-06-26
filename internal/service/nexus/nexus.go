@@ -2,21 +2,26 @@ package nexus
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/nexus"
 	"github.com/nmxmxh/master-ovasabi/internal/nexus/service/bridge"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Service implements the Nexus service.
@@ -197,7 +202,39 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 		patternType := req.Params["pattern_type"]
 		version := req.Params["version"]
 		origin := req.Params["origin"]
-		def := req.Metadata.GetServiceSpecific()
+
+		// The 'definition' for RegisterPatternRequest is expected to be a commonpb.IntegrationPattern.
+		// It's currently being passed as a structpb.Struct via req.Metadata.GetServiceSpecific().
+		// We need to marshal the structpb.Struct to JSON and then unmarshal it into an IntegrationPattern.
+		rawDef := req.Metadata.GetServiceSpecific()
+		if rawDef == nil {
+			return &nexusv1.HandleOpsResponse{
+				Success:  false,
+				Message:  "Definition missing in metadata.service_specific",
+				Data:     nil,
+				Metadata: req.Metadata,
+			}, nil
+		}
+
+		defBytes, err := protojson.Marshal(rawDef)
+		if err != nil {
+			return &nexusv1.HandleOpsResponse{
+				Success:  false,
+				Message:  fmt.Sprintf("Failed to marshal definition from structpb.Struct: %v", err),
+				Data:     nil,
+				Metadata: req.Metadata,
+			}, nil
+		}
+		var patternDef commonpb.IntegrationPattern
+		if err := protojson.Unmarshal(defBytes, &patternDef); err != nil {
+			return &nexusv1.HandleOpsResponse{
+				Success:  false,
+				Message:  fmt.Sprintf("Failed to unmarshal definition into commonpb.IntegrationPattern: %v", err),
+				Data:     nil,
+				Metadata: req.Metadata,
+			}, nil
+		}
+
 		if patternID == "" || patternType == "" || version == "" || origin == "" {
 			return &nexusv1.HandleOpsResponse{
 				Success:  false,
@@ -230,7 +267,7 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 			PatternType: patternType,
 			Version:     version,
 			Origin:      origin,
-			Definition:  def,
+			Definition:  &patternDef, // Corrected type
 			Metadata:    req.Metadata,
 		}
 		resp, err := s.RegisterPattern(ctx, regReq)
@@ -292,27 +329,28 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 		s.log.Error("Invalid metadata in EmitEvent", zap.Error(err))
 		return nil, graceful.WrapErr(ctx, 3, "invalid metadata", err)
 	}
-	// Convert proto metadata to *ServiceMetadata for persistence
-	metaMap := metadata.ProtoToMap(req.Metadata)
-	var serviceMeta *metadata.ServiceMetadata
-	if metaMap != nil {
-		b, err := json.Marshal(metaMap)
-		if err == nil {
-			var sm metadata.ServiceMetadata
-			if err := json.Unmarshal(b, &sm); err == nil {
-				serviceMeta = &sm
-			}
+	// The conversion to ServiceMetadata was incorrect. CanonicalEvent expects commonpb.Metadata.
+	if s.eventRepo != nil {
+		// The CanonicalEvent expects a *commonpb.Metadata, which is what req.Metadata is.
+		// The conversion to a Go struct (*metadata.ServiceMetadata) was incorrect for this purpose.
+		masterID, _ := strconv.ParseInt(req.EntityId, 10, 64)
+		entityType := ""
+		if parts := strings.Split(req.EventType, "."); len(parts) > 0 {
+			entityType = parts[0]
 		}
-	}
-	if s.eventRepo != nil && serviceMeta != nil {
+
 		if err := s.eventRepo.SaveEvent(ctx, &nexus.CanonicalEvent{
-			EventType: req.EventType,
-			Metadata:  serviceMeta, // Store as *ServiceMetadata
-			Payload:   nil,         // Fill as needed
-			Status:    "emitted",
-			CreatedAt: time.Now(),
+			ID:         uuid.New(),
+			MasterID:   masterID,
+			EntityType: repository.EntityType(entityType),
+			EventType:  req.EventType,
+			Metadata:   req.Metadata, // Pass the original proto metadata
+			Payload:    req.Payload,
+			Status:     "emitted",
+			CreatedAt:  time.Now(),
 		}); err != nil {
-			s.log.Error("Failed to save event", zap.Error(err))
+			s.log.Error("Failed to save event to repository", zap.Error(err))
+			// Do not fail the whole operation if event saving fails, just log it.
 		}
 	}
 	if s.cache != nil {

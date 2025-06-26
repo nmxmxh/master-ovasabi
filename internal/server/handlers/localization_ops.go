@@ -1,16 +1,19 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // LocalizationOpsHandler handles localization-related actions via the "action" field.
@@ -34,349 +37,137 @@ func LocalizationOpsHandler(container *di.Container) http.HandlerFunc {
 		var localizationSvc localizationpb.LocalizationServiceServer
 		if err := container.Resolve(&localizationSvc); err != nil {
 			log.Error("Failed to resolve LocalizationService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err) // Already correct
 			return
 		}
 		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
+			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil) // Already correct
 			return
 		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("Failed to decode localization request JSON", zap.Error(err))
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err) // Already correct
 			return
 		}
 		action, ok := req["action"].(string)
 		if !ok || action == "" {
 			log.Error("Missing or invalid action in localization request", zap.Any("value", req["action"]))
-			http.Error(w, "missing or invalid action", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil, zap.Any("value", req["action"])) // Already correct
 			return
 		}
-		authCtx := contextx.Auth(r.Context())
+		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		roles := authCtx.Roles
 		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
-		isPlatformAdmin := false
-		isLocalizationManager := false
-		for _, r := range roles {
-			if r == "admin" {
-				isPlatformAdmin = true
+
+		// Helper for permission checks
+		checkPermission := func(requiredRoles ...string) bool {
+			if isGuest {
+				return false
 			}
-			if r == "localization_manager" {
-				isLocalizationManager = true
-			}
+			return httputil.HasRole(roles, requiredRoles...)
 		}
-		// --- Permission checks by action ---
-		mutatingActions := map[string]bool{
-			"create_translation": true,
-			"set_pricing_rule":   true,
-			// Add more mutating actions as needed
-		}
-		if mutatingActions[action] {
-			if isGuest || (!isPlatformAdmin && !isLocalizationManager) {
-				http.Error(w, "forbidden: admin or localization_manager required", http.StatusForbidden)
-				return
+
+		// Helper for audit metadata propagation
+		addAuditMetadata := func(requestMap map[string]interface{}) {
+			auditData := map[string]interface{}{
+				"performed_by": userID,
+				"roles":        roles,
+				"timestamp":    time.Now().UTC().Format(time.RFC3339),
 			}
-			// --- Audit/metadata propagation ---
-			if m, ok := req["metadata"]; ok && m != nil {
-				if metaMap, ok := m.(map[string]interface{}); ok {
-					// Convert roles []string to []interface{} for structpb compatibility
-					rolesIface := make([]interface{}, len(roles))
-					for i, r := range roles {
-						rolesIface[i] = r
-					}
-					metaMap["roles"] = rolesIface
-					metaMap["audit"] = map[string]interface{}{
-						"performed_by": userID,
-						"roles":        roles,
-						"timestamp":    time.Now().UTC().Format(time.RFC3339),
-					}
-					req["metadata"] = metaMap
+			if m, ok := requestMap["metadata"].(map[string]interface{}); ok {
+				if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+					ss["audit"] = auditData
+					m["service_specific"] = ss
+				} else {
+					m["service_specific"] = map[string]interface{}{"audit": auditData}
 				}
+				requestMap["metadata"] = m
 			} else {
-				req["metadata"] = map[string]interface{}{
-					"audit": map[string]interface{}{
-						"performed_by": userID,
-						"roles":        roles,
-						"timestamp":    time.Now().UTC().Format(time.RFC3339),
-					},
+				requestMap["metadata"] = map[string]interface{}{
+					"service_specific": map[string]interface{}{"audit": auditData},
 				}
 			}
 		}
-		switch action {
-		case "create_translation":
-			key, ok := req["key"].(string)
-			if !ok {
-				log.Error("Missing or invalid key in create_translation", zap.Any("value", req["key"]))
-				http.Error(w, "missing or invalid key", http.StatusBadRequest)
-				return
-			}
-			language, ok := req["language"].(string)
-			if !ok {
-				log.Error("Missing or invalid language in create_translation", zap.Any("value", req["language"]))
-				http.Error(w, "missing or invalid language", http.StatusBadRequest)
-				return
-			}
-			value, ok := req["value"].(string)
-			if !ok {
-				log.Error("Missing or invalid value in create_translation", zap.Any("value", req["value"]))
-				http.Error(w, "missing or invalid value", http.StatusBadRequest)
-				return
-			}
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-					http.Error(w, "invalid metadata", http.StatusBadRequest)
+
+		actionHandlers := map[string]func(){
+			"create_translation": func() {
+				if !checkPermission("admin", "localization_manager") {
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: admin or localization_manager required", nil)
 					return
 				}
-				meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				}
-			}
-			protoReq := &localizationpb.CreateTranslationRequest{
-				Key:        key,
-				Language:   language,
-				Value:      value,
-				Metadata:   meta,
-				CampaignId: campaignID,
-			}
-			resp, err := localizationSvc.CreateTranslation(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to create translation", zap.Error(err))
-				http.Error(w, "failed to create translation", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"translation": resp.Translation, "success": resp.Success}); err != nil {
-				log.Error("Failed to write JSON response (create_translation)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "get_translation":
-			id, ok := req["translation_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid translation_id in get_translation", zap.Any("value", req["translation_id"]))
-				http.Error(w, "missing or invalid translation_id", http.StatusBadRequest)
-				return
-			}
-			protoReq := &localizationpb.GetTranslationRequest{TranslationId: id}
-			resp, err := localizationSvc.GetTranslation(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to get translation", zap.Error(err))
-				http.Error(w, "failed to get translation", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"translation": resp.Translation}); err != nil {
-				log.Error("Failed to write JSON response (get_translation)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "list_translations":
-			language, ok := req["language"].(string)
-			if !ok {
-				log.Error("Missing or invalid language in list_translations", zap.Any("value", req["language"]))
-				http.Error(w, "missing or invalid language", http.StatusBadRequest)
-				return
-			}
-			page := int32(0)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			var campaignID int64
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					campaignID = int64(vv)
-				case int64:
-					campaignID = vv
-				}
-			}
-			protoReq := &localizationpb.ListTranslationsRequest{
-				Language:   language,
-				Page:       page,
-				PageSize:   pageSize,
-				CampaignId: campaignID,
-			}
-			resp, err := localizationSvc.ListTranslations(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to list translations", zap.Error(err))
-				http.Error(w, "failed to list translations", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"translations": resp.Translations, "total_count": resp.TotalCount, "page": resp.Page, "total_pages": resp.TotalPages}); err != nil {
-				log.Error("Failed to write JSON response (list_translations)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "translate":
-			key, ok := req["key"].(string)
-			if !ok {
-				log.Error("Missing or invalid key in translate", zap.Any("value", req["key"]))
-				http.Error(w, "missing or invalid key", http.StatusBadRequest)
-				return
-			}
-			locale, ok := req["locale"].(string)
-			if !ok {
-				log.Error("Missing or invalid locale in translate", zap.Any("value", req["locale"]))
-				http.Error(w, "missing or invalid locale", http.StatusBadRequest)
-				return
-			}
-			protoReq := &localizationpb.TranslateRequest{Key: key, Locale: locale}
-			resp, err := localizationSvc.Translate(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to translate", zap.Error(err))
-				http.Error(w, "failed to translate", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"value": resp.Value}); err != nil {
-				log.Error("Failed to write JSON response (translate)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "batch_translate":
-			keysIface, ok := req["keys"].([]interface{})
-			if !ok {
-				log.Error("Missing or invalid keys in batch_translate", zap.Any("value", req["keys"]))
-				http.Error(w, "missing or invalid keys", http.StatusBadRequest)
-				return
-			}
-			keys := make([]string, 0, len(keysIface))
-			for _, k := range keysIface {
-				if s, ok := k.(string); ok {
-					keys = append(keys, s)
-				}
-			}
-			locale, ok := req["locale"].(string)
-			if !ok {
-				log.Error("Missing or invalid locale in batch_translate", zap.Any("value", req["locale"]))
-				http.Error(w, "missing or invalid locale", http.StatusBadRequest)
-				return
-			}
-			protoReq := &localizationpb.BatchTranslateRequest{Keys: keys, Locale: locale}
-			resp, err := localizationSvc.BatchTranslate(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to batch translate", zap.Error(err))
-				http.Error(w, "failed to batch translate", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"values": resp.Values}); err != nil {
-				log.Error("Failed to write JSON response (batch_translate)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "set_pricing_rule":
-			var rule localizationpb.PricingRule
-			if m, ok := req["rule"].(map[string]interface{}); ok {
-				b, err := json.Marshal(m)
-				if err != nil {
-					log.Error("Failed to marshal rule for set_pricing_rule", zap.Error(err))
-					http.Error(w, "invalid rule", http.StatusBadRequest)
+				addAuditMetadata(req)
+				handleLocalizationAction(w, ctx, log, req, &localizationpb.CreateTranslationRequest{}, localizationSvc.CreateTranslation)
+			},
+			"get_translation": func() {
+				handleLocalizationAction(w, ctx, log, req, &localizationpb.GetTranslationRequest{}, localizationSvc.GetTranslation)
+			},
+			"list_translations": func() {
+				handleLocalizationAction(w, ctx, log, req, &localizationpb.ListTranslationsRequest{}, localizationSvc.ListTranslations)
+			},
+			"translate": func() {
+				handleLocalizationAction(w, ctx, log, req, &localizationpb.TranslateRequest{}, localizationSvc.Translate)
+			},
+			"batch_translate": func() {
+				handleLocalizationAction(w, ctx, log, req, &localizationpb.BatchTranslateRequest{}, localizationSvc.BatchTranslate)
+			},
+			"set_pricing_rule": func() {
+				if !checkPermission("admin", "localization_manager") {
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: admin or localization_manager required", nil)
 					return
 				}
-				if err := json.Unmarshal(b, &rule); err != nil {
-					log.Error("Failed to unmarshal rule for set_pricing_rule", zap.Error(err))
-					http.Error(w, "invalid rule", http.StatusBadRequest)
-					return
-				}
-			}
-			protoReq := &localizationpb.SetPricingRuleRequest{Rule: &rule}
-			resp, err := localizationSvc.SetPricingRule(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to set pricing rule", zap.Error(err))
-				http.Error(w, "failed to set pricing rule", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": resp.Success}); err != nil {
-				log.Error("Failed to write JSON response (set_pricing_rule)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "get_pricing_rule":
-			country, ok := req["country_code"].(string)
-			if !ok {
-				log.Error("Missing or invalid country_code in get_pricing_rule", zap.Any("value", req["country_code"]))
-				http.Error(w, "missing or invalid country_code", http.StatusBadRequest)
-				return
-			}
-			region, ok := req["region"].(string)
-			if !ok && req["region"] != nil {
-				log.Error("Invalid type for region in get_pricing_rule", zap.Any("value", req["region"]))
-				http.Error(w, "invalid region", http.StatusBadRequest)
-				return
-			}
-			city, ok := req["city"].(string)
-			if !ok && req["city"] != nil {
-				log.Error("Invalid type for city in get_pricing_rule", zap.Any("value", req["city"]))
-				http.Error(w, "invalid city", http.StatusBadRequest)
-				return
-			}
-			protoReq := &localizationpb.GetPricingRuleRequest{CountryCode: country, Region: region, City: city}
-			resp, err := localizationSvc.GetPricingRule(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to get pricing rule", zap.Error(err))
-				http.Error(w, "failed to get pricing rule", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"rule": resp.Rule}); err != nil {
-				log.Error("Failed to write JSON response (get_pricing_rule)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "list_pricing_rules":
-			country, ok := req["country_code"].(string)
-			if !ok {
-				log.Error("Missing or invalid country_code in list_pricing_rules", zap.Any("value", req["country_code"]))
-				http.Error(w, "missing or invalid country_code", http.StatusBadRequest)
-				return
-			}
-			region, ok := req["region"].(string)
-			if !ok && req["region"] != nil {
-				log.Error("Invalid type for region in list_pricing_rules", zap.Any("value", req["region"]))
-				http.Error(w, "invalid region", http.StatusBadRequest)
-				return
-			}
-			page := int32(0)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			protoReq := &localizationpb.ListPricingRulesRequest{
-				CountryCode: country,
-				Region:      region,
-				Page:        page,
-				PageSize:    pageSize,
-			}
-			resp, err := localizationSvc.ListPricingRules(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to list pricing rules", zap.Error(err))
-				http.Error(w, "failed to list pricing rules", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"rules": resp.Rules, "total_count": resp.TotalCount, "page": resp.Page, "total_pages": resp.TotalPages}); err != nil {
-				log.Error("Failed to write JSON response (list_pricing_rules)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		default:
+				addAuditMetadata(req)
+				handleLocalizationAction(w, ctx, log, req, &localizationpb.SetPricingRuleRequest{}, localizationSvc.SetPricingRule)
+			},
+			"get_pricing_rule": func() {
+				handleLocalizationAction(w, ctx, log, req, &localizationpb.GetPricingRuleRequest{}, localizationSvc.GetPricingRule)
+			},
+			"list_pricing_rules": func() {
+				handleLocalizationAction(w, ctx, log, req, &localizationpb.ListPricingRulesRequest{}, localizationSvc.ListPricingRules)
+			},
+		}
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
 			log.Error("Unknown action in localization_ops", zap.Any("action", action))
-			http.Error(w, "unknown action", http.StatusBadRequest)
-			return
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil)
 		}
 	}
+}
+
+// handleLocalizationAction is a generic helper to reduce boilerplate in LocalizationOpsHandler.
+func handleLocalizationAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoLocalization(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		log.Error("localization service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil)
+		return
+	}
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProtoLocalization converts a map[string]interface{} to a proto.Message using JSON as an intermediate.
+func mapToProtoLocalization(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return protojson.Unmarshal(jsonBytes, v)
 }

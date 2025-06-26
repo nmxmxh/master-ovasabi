@@ -393,6 +393,7 @@ message Portfolio {
   common.Metadata metadata = 4;
   google.protobuf.Timestamp created_at = 5;
   google.protobuf.Timestamp updated_at = 6;
+  int64 campaign_id = 7;
 }
 
 message AssetPosition {
@@ -522,6 +523,7 @@ message ExchangePair {
   string base_asset = 2;
   string quote_asset = 3;
   common.Metadata metadata = 4;
+  int64 campaign_id = 5;
 }
 
 message ExchangeRate {
@@ -529,6 +531,7 @@ message ExchangeRate {
   double rate = 2;
   google.protobuf.Timestamp timestamp = 3;
   common.Metadata metadata = 4;
+  int64 campaign_id = 5;
 }
 
 // Add request/response messages for new RPCs as needed (scaffold only, fill in details as you implement)

@@ -27,28 +27,22 @@ import (
 	"database/sql"
 	"errors"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
-
-// EventEmitter defines the interface for emitting events (canonical platform interface).
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool)
-}
 
 // Register registers the search service with the DI container and event bus support (canonical pattern).
 // Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled, provider.
 func Register(
 	ctx context.Context,
 	container *di.Container,
-	eventEmitter EventEmitter,
+	eventEmitter events.EventEmitter,
 	db *sql.DB,
 	masterRepo repository.MasterRepository,
 	redisProvider *redis.Provider,
@@ -81,9 +75,9 @@ func Register(
 		log.Error("Failed to register concrete *search.SearchService", zap.Error(err))
 		return err
 	}
-	// Register event-driven search handlers (see Amadeus context: Event-Driven Orchestration Standard)
+	// Start event subscribers for event-driven search orchestration.
 	if svc, ok := searchService.(*Service); ok {
-		svc.RegisterEventHandlers(ctx)
+		StartEventSubscribers(ctx, svc, log)
 	}
 	hello.StartHelloWorldLoop(ctx, svcProvider, log, "search")
 	return nil

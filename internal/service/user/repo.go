@@ -177,30 +177,43 @@ func (r *Repository) Create(ctx context.Context, user *User) (*User, error) {
 		return nil, err
 	}
 
-	// First create the master record with username as name
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityTypeUser, user.Username)
+	tx, err := r.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback() // Rollback on panic
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.GetLogger().Error("failed to rollback transaction on panic", zap.Error(rbErr))
+			}
+			panic(p) // Re-throw panic
+		}
+	}()
+
+	// 1. Create the master record within the transaction
+	user.MasterID, user.MasterUUID, err = r.masterRepo.Create(ctx, tx, repository.EntityTypeUser, user.Username)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			r.GetLogger().Error("failed to rollback transaction", zap.Error(rbErr))
+		}
+		return nil, fmt.Errorf("failed to create master entity for user: %w", err)
 	}
 
-	user.MasterID = masterID
-	err = r.GetDB().QueryRowContext(ctx,
+	// 2. Insert into service_user using the same transaction
+	err = tx.QueryRowContext(ctx, // Use tx here
 		`INSERT INTO service_user (
 			master_id, master_uuid, username, email, password_hash, referral_code, referred_by, device_hash, location, profile, roles, status, metadata,
 			created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()
 		) RETURNING id, created_at, updated_at`,
-		masterID, user.MasterUUID, user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, user.Location, user.Profile, user.Roles, user.Status, user.Metadata,
-	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+		user.MasterID, user.MasterUUID, user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, user.Location, user.Profile, user.Roles, user.Status, user.Metadata, // Arguments
+	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt) // Scan results
 	if err != nil {
-		// If user creation fails, clean up the master record
-		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
-			if log != nil {
-				log.Error("service not implemented", zap.Error(err))
-			}
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			r.GetLogger().Error("failed to rollback transaction", zap.Error(rbErr))
 		}
-
 		// Check for specific PostgreSQL errors
 		pqErr := &pq.Error{}
 		if errors.As(err, &pqErr) {

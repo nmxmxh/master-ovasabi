@@ -1,19 +1,20 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // AdminOpsHandler handles admin-related actions via the "action" field.
@@ -37,7 +38,7 @@ func AdminOpsHandler(container *di.Container) http.HandlerFunc {
 		var adminSvc adminpb.AdminServiceServer
 		if err := container.Resolve(&adminSvc); err != nil {
 			log.Error("Failed to resolve AdminService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
 		if r.Method != http.MethodPost {
@@ -52,7 +53,8 @@ func AdminOpsHandler(container *di.Container) http.HandlerFunc {
 			httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
 			return
 		}
-		if !isAdmin(authCtx.Roles) {
+		// Check if the authenticated user has the "admin" role.
+		if !httputil.IsAdmin(authCtx.Roles) {
 			log.Error("Admin role required for admin operations", zap.Strings("roles", authCtx.Roles))
 			httputil.WriteJSONError(w, log, http.StatusForbidden, "admin role required", nil)
 			return
@@ -62,349 +64,86 @@ func AdminOpsHandler(container *di.Container) http.HandlerFunc {
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		var req map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
-			return
-		}
-		action, ok := req["action"].(string)
-		if !ok || action == "" {
-			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil, zap.Any("value", req["action"]))
-			return
-		}
-		// Permission check for all admin actions
-		err := shield.CheckPermission(ctx, securitySvc, action, "admin", shield.WithMetadata(meta))
-		switch {
-		case err == nil:
-			// allowed, proceed
-		case errors.Is(err, shield.ErrUnauthenticated):
-			httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", err)
-			return
-		case errors.Is(err, shield.ErrPermissionDenied):
-			httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden", err)
-			return
-		default:
 			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
-		switch action {
-		case "create_user":
-			email, ok := req["email"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid email", nil, zap.Any("value", req["email"]))
-				return
-			}
-			name, ok := req["name"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid name", nil, zap.Any("value", req["name"]))
-				return
-			}
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid metadata", err)
-					return
-				}
-				meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			protoReq := &adminpb.CreateUserRequest{
-				User: &adminpb.User{
-					Email:    email,
-					Name:     name,
-					Metadata: meta,
-				},
-			}
-			resp, err := adminSvc.CreateUser(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to create user", err)
-				return
-			}
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"user": resp.User})
-		case "update_user":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid user_id", nil, zap.Any("value", req["user_id"]))
-				return
-			}
-			name, ok := req["name"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid name", nil, zap.Any("value", req["name"]))
-				return
-			}
-			email, ok := req["email"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid email", nil, zap.Any("value", req["email"]))
-				return
-			}
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid metadata", err)
-					return
-				}
-				meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			protoReq := &adminpb.UpdateUserRequest{
-				User: &adminpb.User{
-					Id:       userID,
-					Name:     name,
-					Email:    email,
-					Metadata: meta,
-				},
-			}
-			resp, err := adminSvc.UpdateUser(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to update user", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"user": resp.User})
-		case "delete_user":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid user_id", nil, zap.Any("value", req["user_id"]))
-				return
-			}
-			protoReq := &adminpb.DeleteUserRequest{UserId: userID}
-			resp, err := adminSvc.DeleteUser(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to delete user", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"success": resp.Success})
-		case "get_user":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid user_id", nil, zap.Any("value", req["user_id"]))
-				return
-			}
-			protoReq := &adminpb.GetUserRequest{UserId: userID}
-			resp, err := adminSvc.GetUser(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to get user", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"user": resp.User})
-		case "list_users":
-			page := int32(1)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			protoReq := &adminpb.ListUsersRequest{Page: page, PageSize: pageSize}
-			resp, err := adminSvc.ListUsers(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to list users", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, resp)
-		// --- Role Management ---
-		case "create_role":
-			name, ok := req["name"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid name", nil, zap.Any("value", req["name"]))
-				return
-			}
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid metadata", err)
-					return
-				}
-				meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			protoReq := &adminpb.CreateRoleRequest{
-				Role: &adminpb.Role{
-					Name:     name,
-					Metadata: meta,
-				},
-			}
-			resp, err := adminSvc.CreateRole(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to create role", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"role": resp.Role})
-		case "update_role":
-			roleID, ok := req["role_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid role_id", nil, zap.Any("value", req["role_id"]))
-				return
-			}
-			name, ok := req["name"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid name", nil, zap.Any("value", req["name"]))
-				return
-			}
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid metadata", err)
-					return
-				}
-				meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			protoReq := &adminpb.UpdateRoleRequest{
-				Role: &adminpb.Role{
-					Id:       roleID,
-					Name:     name,
-					Metadata: meta,
-				},
-			}
-			resp, err := adminSvc.UpdateRole(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to update role", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"role": resp.Role})
-		case "delete_role":
-			roleID, ok := req["role_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid role_id", nil, zap.Any("value", req["role_id"]))
-				return
-			}
-			protoReq := &adminpb.DeleteRoleRequest{RoleId: roleID}
-			resp, err := adminSvc.DeleteRole(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to delete role", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"success": resp.Success})
-		case "list_roles":
-			page := int32(1)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			protoReq := &adminpb.ListRolesRequest{Page: page, PageSize: pageSize}
-			resp, err := adminSvc.ListRoles(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to list roles", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, resp)
-		// --- Role Assignment ---
-		case "assign_role":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid user_id", nil, zap.Any("value", req["user_id"]))
-				return
-			}
-			roleID, ok := req["role_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid role_id", nil, zap.Any("value", req["role_id"]))
-				return
-			}
-			protoReq := &adminpb.AssignRoleRequest{UserId: userID, RoleId: roleID}
-			resp, err := adminSvc.AssignRole(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to assign role", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"success": resp.Success})
-		case "revoke_role":
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid user_id", nil, zap.Any("value", req["user_id"]))
-				return
-			}
-			roleID, ok := req["role_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid role_id", nil, zap.Any("value", req["role_id"]))
-				return
-			}
-			protoReq := &adminpb.RevokeRoleRequest{UserId: userID, RoleId: roleID}
-			resp, err := adminSvc.RevokeRole(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to revoke role", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"success": resp.Success})
-		// --- Audit Logs ---
-		case "get_audit_logs":
-			page := int32(1)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			userID, ok := req["user_id"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid user_id", nil, zap.Any("value", req["user_id"]))
-				return
-			}
-			actionStr, ok := req["action"].(string)
-			if !ok {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil, zap.Any("value", req["action"]))
-				return
-			}
-			protoReq := &adminpb.GetAuditLogsRequest{Page: page, PageSize: pageSize, UserId: userID, Action: actionStr}
-			resp, err := adminSvc.GetAuditLogs(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to get audit logs", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, resp)
-		// --- Settings ---
-		case "get_settings":
-			protoReq := &adminpb.GetSettingsRequest{}
-			resp, err := adminSvc.GetSettings(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to get settings", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"settings": resp.Settings})
-		case "update_settings":
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid metadata", err)
-					return
-				}
-				meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			protoReq := &adminpb.UpdateSettingsRequest{
-				Settings: &adminpb.Settings{
-					Metadata: meta,
-				},
-			}
-			resp, err := adminSvc.UpdateSettings(ctx, protoReq)
-			if err != nil {
-				httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to update settings", err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			httputil.WriteJSONResponse(w, log, map[string]interface{}{"settings": resp.Settings})
-		default:
-			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil, zap.String("action", action))
+		var reqMap map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&reqMap); err != nil {
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
 			return
 		}
+		action, ok := reqMap["action"].(string)
+		if !ok || action == "" {
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil, zap.Any("value", reqMap["action"]))
+			return
+		}
+		if err := shield.CheckPermission(ctx, securitySvc, action, "admin", shield.WithMetadata(meta)); err != nil {
+			httputil.HandleShieldError(w, log, err)
+			return
+		}
+
+		// Use a map for cleaner action dispatching, following the composable handler pattern.
+		actionHandlers := map[string]func(){
+			"create_user":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.CreateUserRequest{}, adminSvc.CreateUser) },
+			"update_user":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.UpdateUserRequest{}, adminSvc.UpdateUser) },
+			"delete_user":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.DeleteUserRequest{}, adminSvc.DeleteUser) },
+			"get_user":       func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.GetUserRequest{}, adminSvc.GetUser) },
+			"list_users":     func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.ListUsersRequest{}, adminSvc.ListUsers) },
+			"create_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.CreateRoleRequest{}, adminSvc.CreateRole) },
+			"update_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.UpdateRoleRequest{}, adminSvc.UpdateRole) },
+			"delete_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.DeleteRoleRequest{}, adminSvc.DeleteRole) },
+			"list_roles":     func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.ListRolesRequest{}, adminSvc.ListRoles) },
+			"assign_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.AssignRoleRequest{}, adminSvc.AssignRole) },
+			"revoke_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.RevokeRoleRequest{}, adminSvc.RevokeRole) },
+			"get_audit_logs": func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.GetAuditLogsRequest{}, adminSvc.GetAuditLogs) },
+			"get_settings":   func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.GetSettingsRequest{}, adminSvc.GetSettings) },
+			"update_settings": func() {
+				handleAdminAction(w, ctx, log, reqMap, &adminpb.UpdateSettingsRequest{}, adminSvc.UpdateSettings)
+			},
+		}
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil, zap.String("action", action))
+		}
 	}
+}
+
+// handleAdminAction is a generic helper to reduce boilerplate in AdminOpsHandler.
+// It decodes the request from a map, calls the provided service function, and handles the response/error.
+func handleAdminAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoAdmin(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		// Log the detailed error internally, but return a safe message to the client.
+		log.Error("admin service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil) // Don't leak internal error details
+		return
+	}
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProtoAdmin converts a map[string]interface{} to a proto.Message using JSON as an intermediate.
+func mapToProtoAdmin(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	// Use protojson to unmarshal, which correctly handles protobuf specifics.
+	return protojson.Unmarshal(jsonBytes, v)
 }

@@ -41,27 +41,41 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// NewNexusService creates a new Nexus service instance with all its dependencies.
+// This is the canonical constructor for the Nexus service.
+func NewNexusService(
+	repo *Repository,
+	eventRepo nexus.EventRepository,
+	cache *redis.Cache,
+	log *zap.Logger,
+	eventBus bridge.EventBus,
+	eventEnabled bool,
+	provider *service.Provider,
+) nexusv1.NexusServiceServer {
+	return &Service{
+		repo:         repo,
+		eventRepo:    eventRepo,
+		cache:        cache,
+		log:          log,
+		eventBus:     eventBus,
+		eventEnabled: eventEnabled,
+		provider:     provider,
+	}
+}
+
 // Canonical provider function for DI/bootstrap.
-func NewNexusServiceProvider(log *zap.Logger, db *sql.DB, masterRepo repository.MasterRepository, redisProvider *redis.Provider) nexusv1.NexusServiceServer {
+func NewNexusServiceProvider(log *zap.Logger, db *sql.DB, masterRepo repository.MasterRepository, redisProvider *redis.Provider, provider *service.Provider) (nexusv1.NexusServiceServer, error) {
 	repo := NewRepository(db, masterRepo)
 	eventRepo := nexus.NewSQLEventRepository(db, log)
 	cache, err := redisProvider.GetCache(context.Background(), "nexus")
 	if err != nil {
 		log.Warn("failed to get nexus cache", zap.Error(err))
+		// Return error to handle it upstream
+		return nil, fmt.Errorf("failed to get nexus cache: %w", err)
 	}
 	eventBus := bridge.NewEventBusWithRedis(log, cache)
-	return NewNexusService(context.Background(), repo, eventRepo, cache, log, eventBus)
-}
-
-// NewNexusService creates a new Nexus service instance.
-func NewNexusService(_ context.Context, repo *Repository, eventRepo nexus.EventRepository, cache *redis.Cache, log *zap.Logger, eventBus bridge.EventBus) nexusv1.NexusServiceServer {
-	return &Service{
-		repo:      repo,
-		eventRepo: eventRepo,
-		cache:     cache,
-		log:       log,
-		eventBus:  eventBus,
-	}
+	// Assuming eventEnabled is true by default for the provider
+	return NewNexusService(repo, eventRepo, cache, log, eventBus, true, provider), nil
 }
 
 // NewNexusClient creates a new gRPC client connection and returns a NexusServiceClient and a cleanup function.
@@ -99,7 +113,7 @@ func Register(
 		log.With(zap.String("service", "nexus")).Error("Failed to type assert provider as *service.Provider")
 		return fmt.Errorf("failed to type assert provider as *service.Provider")
 	}
-	serviceInstance := NewService(repo, eventRepo, cache, log, eventBus, eventEnabled, prov)
+	serviceInstance := NewNexusService(repo, eventRepo, cache, log, eventBus, eventEnabled, prov)
 	if err := container.Register((*nexusv1.NexusServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {
@@ -159,7 +173,7 @@ func RegisterNexusService(container *di.Container, provider, eventEmitter interf
 		return ""
 	}
 
-	serviceInstance := NewService(repo, eventRepo, cache, log, eventBus, eventEnabled, prov)
+	serviceInstance := NewNexusService(repo, eventRepo, cache, log, eventBus, eventEnabled, prov)
 	if err := container.Register((*nexusv1.NexusServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {
@@ -178,10 +192,10 @@ func RegisterNexusService(container *di.Container, provider, eventEmitter interf
 
 // CreateNexusService creates a new Nexus service with the given dependencies.
 func CreateNexusService(eventBus bridge.EventBus, eventRepo nexus.EventRepository, repo *Repository, cache *redis.Cache, log *zap.Logger) nexusv1.NexusServiceServer {
-	return NewService(repo, eventRepo, cache, log, eventBus, true, nil)
+	return NewNexusService(repo, eventRepo, cache, log, eventBus, true, nil)
 }
 
 // CreateNexusServiceWithProvider creates a new Nexus service with the given dependencies and provider.
 func CreateNexusServiceWithProvider(eventBus bridge.EventBus, eventRepo *nexus.SQLEventRepository, repo *Repository, cache *redis.Cache, log *zap.Logger, provider *service.Provider) nexusv1.NexusServiceServer {
-	return NewService(repo, eventRepo, cache, log, eventBus, true, provider)
+	return NewNexusService(repo, eventRepo, cache, log, eventBus, true, provider)
 }

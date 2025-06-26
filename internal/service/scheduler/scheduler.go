@@ -36,6 +36,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -47,7 +48,7 @@ import (
 
 // EventEmitterAdapter bridges any EventEmitter to the canonical interface.
 type EventEmitterAdapter struct {
-	Emitter EventEmitter
+	Emitter events.EventEmitter
 }
 
 func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
@@ -76,7 +77,7 @@ type Service struct {
 	schedulerpb.UnimplementedSchedulerServiceServer // Embed for forward compatibility
 	repo                                            RepositoryItf
 	cache                                           *redis.Cache // Cache for future extensibility (can be nil)
-	eventEmitter                                    EventEmitter
+	eventEmitter                                    events.EventEmitter
 	eventEnabled                                    bool
 	log                                             *zap.Logger
 	provider                                        *service.Provider
@@ -87,7 +88,7 @@ type Service struct {
 }
 
 // NewService constructs a new SchedulerService.
-func NewService(ctx context.Context, log *zap.Logger, repo RepositoryItf, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool, provider *service.Provider) *Service {
+func NewService(ctx context.Context, log *zap.Logger, repo RepositoryItf, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool, provider *service.Provider) *Service {
 	svc := &Service{
 		repo:          repo,
 		cache:         cache,

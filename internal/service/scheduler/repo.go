@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -209,18 +210,29 @@ func (r *Repository) ListJobs(ctx context.Context, page, pageSize int, status st
 		err    error
 	)
 	if status != "" {
+		// Convert string status to its integer enum value for querying.
+		// This handles both short names like "ACTIVE" and full enum names like "JOB_STATUS_ACTIVE".
+		statusKey := strings.ToUpper(status)
+		if !strings.HasPrefix(statusKey, "JOB_STATUS_") {
+			statusKey = "JOB_STATUS_" + statusKey
+		}
+		statusInt, ok := schedulerpb.JobStatus_value[statusKey]
+		if !ok {
+			return nil, 0, fmt.Errorf("invalid job status string: %q", status)
+		}
+
 		if campaignID == 0 {
 			rows, err = r.db.QueryContext(ctx, `
 				SELECT id, master_id, name, schedule, payload, status, metadata, last_run_id, trigger_type, job_type, owner, next_run_time, labels, created_at, updated_at, campaign_id
 				FROM service_scheduler_job WHERE status = $1
 				ORDER BY created_at DESC LIMIT $2 OFFSET $3
-			`, status, pageSize, offset)
+			`, statusInt, pageSize, offset)
 		} else {
 			rows, err = r.db.QueryContext(ctx, `
 				SELECT id, master_id, name, schedule, payload, status, metadata, last_run_id, trigger_type, job_type, owner, next_run_time, labels, created_at, updated_at, campaign_id
 				FROM service_scheduler_job WHERE status = $1 AND campaign_id = $2
 				ORDER BY created_at DESC LIMIT $3 OFFSET $4
-			`, status, campaignID, pageSize, offset)
+			`, statusInt, campaignID, pageSize, offset)
 		}
 	} else {
 		if campaignID == 0 {

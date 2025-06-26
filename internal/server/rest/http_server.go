@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -14,8 +13,8 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/metaversion"
 )
 
-// StartHTTPServer sets up and returns the HTTP server. The caller is responsible for starting and stopping it.
-func StartHTTPServer(log *gozap.Logger, container *di.Container) *http.Server {
+// StartHTTPServer sets up and returns the HTTP server with the specified address. The caller is responsible for starting and stopping it.
+func StartHTTPServer(log *gozap.Logger, container *di.Container, httpAddr string) *http.Server {
 	mux := http.NewServeMux()
 	// WebSocket endpoints are now handled by the standalone ws-gateway service.
 	// If you need to interact with WebSockets, use the ws-gateway at /ws and /ws/{campaign_id}/{user_id}.
@@ -37,8 +36,8 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container) *http.Server {
 		}
 		w.WriteHeader(http.StatusNotFound)
 	})
-	mux.HandleFunc("/api/campaign", handlers.CampaignHandler(container))
-	mux.HandleFunc("/api/notification", handlers.NotificationHandler(container))
+	mux.HandleFunc("/api/campaign", handlers.CampaignOpsHandler(container))
+	mux.HandleFunc("/api/notification", handlers.NotificationHandler(container)) // Still NotificationHandler, not NotificationOpsHandler
 	mux.HandleFunc("/api/referral", handlers.ReferralOpsHandler(container))
 	mux.HandleFunc("/api/content", handlers.ContentOpsHandler(container))
 	mux.HandleFunc("/api/analytics", handlers.AnalyticsOpsHandler(container))
@@ -52,12 +51,6 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container) *http.Server {
 
 	// Register the NexusOpsHandler for /api/nexus
 	mux.Handle("/api/nexus", handlers.NewNexusOpsHandler(container, log))
-
-	httpPort := os.Getenv("HTTP_PORT")
-	if httpPort == "" {
-		httpPort = "8081" // Use 8081 for REST endpoints, 8090 is reserved for ws-gateway
-	}
-	httpAddr := ":" + httpPort
 
 	// --- INJECT METAVERSION MIDDLEWARE HERE ---
 	// In production, pass evaluator from main server setup.

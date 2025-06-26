@@ -1,12 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -22,11 +20,12 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/shield"
-	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Minimal User and MediaState stubs for handler use (replace with import from campaign package if available).
@@ -57,31 +56,31 @@ type MediaState struct {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/campaign_ops [post]
 
-// CampaignHandler returns an http.HandlerFunc for campaign operations (composable endpoint).
-func CampaignHandler(container *di.Container) http.HandlerFunc {
+// CampaignOpsHandler returns an http.HandlerFunc for campaign operations (composable endpoint).
+func CampaignOpsHandler(container *di.Container) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := contextx.Logger(r.Context())
 		ctx := contextx.WithLogger(r.Context(), log)
 		var campaignSvc campaignpb.CampaignServiceServer
 		if err := container.Resolve(&campaignSvc); err != nil {
 			log.Error("Failed to resolve CampaignService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err) // Already correct
 			return
 		}
 		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
+			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
 			return
 		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("Failed to decode campaign request JSON", zap.Error(err))
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err) // Already correct
 			return
 		}
 		action, ok := req["action"].(string)
 		if !ok || action == "" {
 			log.Error("Missing or invalid action in campaign request", zap.Any("value", req["action"]))
-			http.Error(w, "missing or invalid action", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil) // Already correct
 			return
 		}
 		// Extract authentication context for sensitive/admin actions
@@ -93,313 +92,146 @@ func CampaignHandler(container *di.Container) http.HandlerFunc {
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
-		// For sensitive/admin actions, require authentication and admin role
-		sensitiveActions := map[string]bool{
-			"create_campaign":     true,
-			"update_campaign":     true,
-			"delete_campaign":     true,
-			"manage_participants": true,
-			"admin_action":        true,
-		}
-		if sensitiveActions[action] {
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			if !isAdmin(authCtx.Roles) {
-				log.Error("Admin role required for campaign action", zap.Strings("roles", authCtx.Roles))
-				http.Error(w, "admin role required", http.StatusForbidden)
-				return
-			}
-			err := shield.CheckPermission(ctx, securitySvc, action, "campaign", shield.WithMetadata(meta))
-			switch {
-			case err == nil:
-				// allowed, proceed
-			case errors.Is(err, shield.ErrUnauthenticated):
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			case errors.Is(err, shield.ErrPermissionDenied):
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			default:
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		}
-		switch action {
-		case "create_campaign":
-			slugRaw, ok := req["slug"].(string)
-			if !ok && req["slug"] != nil {
-				log.Warn("Invalid type for slug", zap.Any("value", req["slug"]))
-			}
-			slug := slugRaw
-			titleRaw, ok := req["title"].(string)
-			if !ok && req["title"] != nil {
-				log.Warn("Invalid type for title", zap.Any("value", req["title"]))
-			}
-			title := titleRaw
-			descriptionRaw, ok := req["description"].(string)
-			if !ok && req["description"] != nil {
-				log.Warn("Invalid type for description", zap.Any("value", req["description"]))
-			}
-			description := descriptionRaw
-			rankingFormulaRaw, ok := req["ranking_formula"].(string)
-			if !ok && req["ranking_formula"] != nil {
-				log.Warn("Invalid type for ranking_formula", zap.Any("value", req["ranking_formula"]))
-			}
-			rankingFormula := rankingFormulaRaw
-			// Parse start_date and end_date (RFC3339)
-			var startDate, endDate *time.Time
-			if s, ok := req["start_date"].(string); ok && s != "" {
-				t, err := time.Parse(time.RFC3339, s)
-				if err != nil {
-					log.Error("Invalid start_date format", zap.Error(err))
-					http.Error(w, "invalid start_date format", http.StatusBadRequest)
+
+		actionHandlers := map[string]func(){
+			"create_campaign": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
 					return
 				}
-				startDate = &t
-			}
-			if s, ok := req["end_date"].(string); ok && s != "" {
-				t, err := time.Parse(time.RFC3339, s)
-				if err != nil {
-					log.Error("Invalid end_date format", zap.Error(err))
-					http.Error(w, "invalid end_date format", http.StatusBadRequest)
+				if !httputil.IsAdmin(authCtx.Roles) {
+					log.Error("Admin role required for campaign action", zap.Strings("roles", authCtx.Roles)) // Log with user roles for debugging
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "admin role required", nil)
 					return
 				}
-				endDate = &t
-			}
-			// Metadata (including campaign type and scheduling)
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"]; ok && m != nil {
-				if metaMap, ok := m.(map[string]interface{}); ok {
-					metaStruct, err := structpb.NewStruct(metaMap)
-					if err != nil {
-						log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-						http.Error(w, "invalid metadata", http.StatusBadRequest)
+				if err := shield.CheckPermission(ctx, securitySvc, action, "campaign", shield.WithMetadata(meta)); err != nil {
+					httputil.HandleShieldError(w, log, err)
+					return
+				}
+
+				// Add owner_id from authenticated user
+				req["owner_id"] = userID
+
+				// Validate campaign type in metadata (specific to create/update)
+				if m, ok := req["metadata"].(map[string]interface{}); ok {
+					if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+						if campMeta, ok := ss["campaign"].(map[string]interface{}); ok {
+							if campaignType, ok := campMeta["type"].(string); !ok || campaignType == "" {
+								httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid campaign type in metadata", nil)
+								return
+							}
+						} else {
+							httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing 'campaign' object in metadata.service_specific", nil)
+							return
+						}
+					} else {
+						httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing 'service_specific' in metadata", nil)
 						return
 					}
-					meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
-				}
-			}
-			// Validate campaign type in metadata
-			if meta == nil || meta.ServiceSpecific == nil {
-				log.Error("Missing metadata.service_specific for campaign type")
-				http.Error(w, "missing campaign type in metadata", http.StatusBadRequest)
-				return
-			}
-			campaignType := meta.ServiceSpecific.Fields["campaign"].GetStructValue().Fields["type"].GetStringValue()
-			if campaignType == "" {
-				log.Error("Missing or invalid campaign type in metadata", zap.Any("value", meta.ServiceSpecific.Fields["campaign"]))
-				http.Error(w, "missing or invalid campaign type in metadata", http.StatusBadRequest)
-				return
-			}
-			// Build proto request
-			protoReq := &campaignpb.CreateCampaignRequest{
-				Slug:           slug,
-				Title:          title,
-				Description:    description,
-				RankingFormula: rankingFormula,
-			}
-			if startDate != nil {
-				protoReq.StartDate = timestamppb.New(*startDate)
-			}
-			if endDate != nil {
-				protoReq.EndDate = timestamppb.New(*endDate)
-			}
-			resp, err := campaignSvc.CreateCampaign(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to create campaign", zap.Error(err))
-				http.Error(w, "failed to create campaign", http.StatusInternalServerError)
-				return
-			}
-			// Register schedule for orchestration
-			// TODO: pattern.RegisterSchedule is not defined; implement if needed
-			// if err := pattern.RegisterSchedule(r.Context(), log, "campaign", slug, meta); err != nil {
-			// 	log.Error("Failed to register schedule for campaign", zap.Error(err))
-			// }
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"campaign": resp.Campaign,
-			}); err != nil {
-				log.Error("Failed to write JSON response (create_campaign)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "update_campaign":
-			// Parse slug and updated fields
-			slugRaw, ok := req["slug"].(string)
-			if !ok && req["slug"] != nil {
-				log.Warn("Invalid type for slug", zap.Any("value", req["slug"]))
-			}
-			slug := slugRaw
-			titleRaw, ok := req["title"].(string)
-			if !ok && req["title"] != nil {
-				log.Warn("Invalid type for title", zap.Any("value", req["title"]))
-			}
-			title := titleRaw
-			descriptionRaw, ok := req["description"].(string)
-			if !ok && req["description"] != nil {
-				log.Warn("Invalid type for description", zap.Any("value", req["description"]))
-			}
-			description := descriptionRaw
-			rankingFormulaRaw, ok := req["ranking_formula"].(string)
-			if !ok && req["ranking_formula"] != nil {
-				log.Warn("Invalid type for ranking_formula", zap.Any("value", req["ranking_formula"]))
-			}
-			rankingFormula := rankingFormulaRaw
-			var startDate, endDate *time.Time
-			if s, ok := req["start_date"].(string); ok && s != "" {
-				t, err := time.Parse(time.RFC3339, s)
-				if err != nil {
-					log.Error("Invalid start_date format", zap.Error(err))
-					http.Error(w, "invalid start_date format", http.StatusBadRequest)
+				} else {
+					httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing 'metadata' in request", nil)
 					return
 				}
-				startDate = &t
-			}
-			if s, ok := req["end_date"].(string); ok && s != "" {
-				t, err := time.Parse(time.RFC3339, s)
-				if err != nil {
-					log.Error("Invalid end_date format", zap.Error(err))
-					http.Error(w, "invalid end_date format", http.StatusBadRequest)
+
+				handleCampaignAction(w, ctx, log, req, &campaignpb.CreateCampaignRequest{}, campaignSvc.CreateCampaign)
+			},
+			"update_campaign": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
 					return
 				}
-				endDate = &t
-			}
-			// Metadata
-			var meta *commonpb.Metadata
-			if m, ok := req["metadata"]; ok && m != nil {
-				if metaMap, ok := m.(map[string]interface{}); ok {
-					metaStruct, err := structpb.NewStruct(metaMap)
-					if err != nil {
-						log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-						http.Error(w, "invalid metadata", http.StatusBadRequest)
-						return
+				if !httputil.IsAdmin(authCtx.Roles) {
+					log.Error("Admin role required for campaign action", zap.Strings("roles", authCtx.Roles)) // Log with user roles for debugging
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "admin role required", nil)
+					return
+				}
+				if err := shield.CheckPermission(ctx, securitySvc, action, "campaign", shield.WithMetadata(meta)); err != nil {
+					httputil.HandleShieldError(w, log, err)
+					return
+				}
+
+				// Transform top-level fields into a nested 'campaign' object for UpdateCampaignRequest
+				campaignData := make(map[string]interface{})
+				for k, v := range req {
+					// Copy all fields except 'action' into campaignData
+					if k != "action" {
+						campaignData[k] = v
 					}
-					meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
 				}
-			}
-			// Build proto request
-			updateReq := &campaignpb.UpdateCampaignRequest{
-				Campaign: &campaignpb.Campaign{
-					Slug:           slug,
-					Title:          title,
-					Description:    description,
-					RankingFormula: rankingFormula,
-				},
-			}
-			if startDate != nil {
-				updateReq.Campaign.StartDate = timestamppb.New(*startDate)
-			}
-			if endDate != nil {
-				updateReq.Campaign.EndDate = timestamppb.New(*endDate)
-			}
-			if meta != nil {
-				updateReq.Campaign.Metadata = meta
-			}
-			resp, err := campaignSvc.UpdateCampaign(ctx, updateReq)
-			if err != nil {
-				log.Error("Failed to update campaign", zap.Error(err))
-				http.Error(w, "failed to update campaign", http.StatusInternalServerError)
-				return
-			}
-			// Register schedule for orchestration
-			// TODO: pattern.RegisterSchedule is not defined; implement if needed
-			// if err := pattern.RegisterSchedule(r.Context(), log, "campaign", slug, meta); err != nil {
-			// 	log.Error("Failed to register schedule for campaign", zap.Error(err))
-			// }
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"campaign": resp.Campaign,
-			}); err != nil {
-				log.Error("Failed to write JSON response (update_campaign)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "list_campaigns":
-			page := 0
-			if p, ok := req["page"].(float64); ok {
-				page = int(p)
-			}
-			pageSize := 20
-			if ps, ok := req["page_size"].(float64); ok {
-				pageSize = int(ps)
-			}
-			page32 := utils.ToInt32(page)
-			pageSize32 := utils.ToInt32(pageSize)
-			listReq := &campaignpb.ListCampaignsRequest{
-				Page:     page32,
-				PageSize: pageSize32,
-			}
-			resp, err := campaignSvc.ListCampaigns(ctx, listReq)
-			if err != nil {
-				log.Error("Failed to list campaigns", zap.Error(err))
-				http.Error(w, "failed to list campaigns", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"campaigns": resp.Campaigns,
-			}); err != nil {
-				log.Error("Failed to write JSON response (list_campaigns)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "get_campaign":
-			slugRaw, ok := req["slug"].(string)
-			if !ok && req["slug"] != nil {
-				log.Warn("Invalid type for slug", zap.Any("value", req["slug"]))
-			}
-			slug := slugRaw
-			getReq := &campaignpb.GetCampaignRequest{Slug: slug}
-			resp, err := campaignSvc.GetCampaign(ctx, getReq)
-			if err != nil {
-				log.Error("Failed to get campaign", zap.Error(err))
-				http.Error(w, "failed to get campaign", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"campaign": resp.Campaign,
-			}); err != nil {
-				log.Error("Failed to write JSON response (get_campaign)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "delete_campaign":
-			id := int32(0)
-			if v, ok := req["id"].(float64); ok {
-				id = int32(v)
-			}
-			slugRaw, ok := req["slug"].(string)
-			if !ok && req["slug"] != nil {
-				log.Warn("Invalid type for slug", zap.Any("value", req["slug"]))
-			}
-			slug := slugRaw
-			deleteReq := &campaignpb.DeleteCampaignRequest{Id: id, Slug: slug}
-			resp, err := campaignSvc.DeleteCampaign(ctx, deleteReq)
-			if err != nil {
-				log.Error("Failed to delete campaign", zap.Error(err))
-				http.Error(w, "failed to delete campaign", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": resp.Success,
-			}); err != nil {
-				log.Error("Failed to write JSON response (delete_campaign)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "get_leaderboard":
-			// The generic CampaignServiceServer does not expose GetLeaderboard; this requires the concrete type.
-			log.Error("get_leaderboard not implemented via generic CampaignServiceServer")
-			http.Error(w, "get_leaderboard not implemented", http.StatusNotImplemented)
-			return
-		default:
-			log.Error("Unknown action in campaign handler", zap.String("action", action))
-			http.Error(w, "unknown action", http.StatusBadRequest)
-			return
+				req["campaign"] = campaignData
+
+				handleCampaignAction(w, ctx, log, req, &campaignpb.UpdateCampaignRequest{}, campaignSvc.UpdateCampaign)
+			},
+			"list_campaigns": func() {
+				// No specific permission check beyond initial guest check if needed
+				handleCampaignAction(w, ctx, log, req, &campaignpb.ListCampaignsRequest{}, campaignSvc.ListCampaigns)
+			},
+			"get_campaign": func() {
+				// No specific permission check beyond initial guest check if needed
+				handleCampaignAction(w, ctx, log, req, &campaignpb.GetCampaignRequest{}, campaignSvc.GetCampaign)
+			},
+			"delete_campaign": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
+					return
+				}
+				if !httputil.IsAdmin(authCtx.Roles) {
+					log.Error("Admin role required for campaign action", zap.Strings("roles", authCtx.Roles)) // Log with user roles for debugging
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "admin role required", nil)
+					return
+				}
+				if err := shield.CheckPermission(ctx, securitySvc, action, "campaign", shield.WithMetadata(meta)); err != nil {
+					httputil.HandleShieldError(w, log, err)
+					return
+				}
+				handleCampaignAction(w, ctx, log, req, &campaignpb.DeleteCampaignRequest{}, campaignSvc.DeleteCampaign)
+			},
+		}
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil, zap.String("action", action))
 		}
 	}
+}
+
+// handleCampaignAction is a generic helper to reduce boilerplate in CampaignOpsHandler.
+func handleCampaignAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoCampaign(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		log.Error("campaign service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil)
+		return
+	}
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProtoCampaign converts a map[string]interface{} to a proto.Message using JSON as an intermediate.
+func mapToProtoCampaign(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return protojson.Unmarshal(jsonBytes, v)
 }
 
 // REST campaign state hydration endpoints
@@ -418,7 +250,7 @@ func CampaignStateHandler(container *di.Container) http.HandlerFunc {
 		// Extract campaign ID from URL path
 		parts := strings.Split(r.URL.Path, "/")
 		if len(parts) < 4 {
-			http.Error(w, "invalid path", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid path", nil)
 			return
 		}
 		id := parts[3]
@@ -426,7 +258,7 @@ func CampaignStateHandler(container *di.Container) http.HandlerFunc {
 		if err := container.Resolve(&nexusClient); err != nil {
 			errResp := graceful.WrapErr(ctx, codes.Internal, "Failed to resolve NexusServiceClient", err)
 			errResp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
 
@@ -462,18 +294,10 @@ func CampaignStateHandler(container *di.Container) http.HandlerFunc {
 		if err != nil {
 			errResp := graceful.WrapErr(ctx, codes.Internal, "Failed to emit event to Nexus", err)
 			errResp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
-			http.Error(w, "event bus error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "event bus error", err)
 			return
 		}
-
-		// TODO: Wait synchronously for 'campaign.state.ready' event/response (implement WaitForResponse or subscribe with timeout)
-		// For now, simulate not implemented
-		w.WriteHeader(http.StatusNotImplemented)
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "event bus orchestration response not yet implemented"}); err != nil {
-			log.Error("Failed to write JSON response (event bus orchestration)", zap.Error(err))
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
+		httputil.WriteJSONError(w, log, http.StatusNotImplemented, "event bus orchestration response not yet implemented", nil)
 	}
 }
 
@@ -483,11 +307,8 @@ func CampaignUserStateHandler(container *di.Container) http.HandlerFunc {
 		ctx := contextx.WithLogger(r.Context(), log)
 		parts := strings.Split(r.URL.Path, "/")
 		if len(parts) < 6 {
-			if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid path"}); err != nil {
-				log.Error("Failed to write JSON response (invalid path)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid path", nil)
+			return
 		}
 		id := parts[3]
 		userID := parts[5]
@@ -552,16 +373,16 @@ func CampaignUserStateHandler(container *di.Container) http.HandlerFunc {
 			}
 		}
 		// --- Build state ---
-		var userProto *userpb.User
+		var userStruct *structpb.Struct
 		if userModel != nil {
-			userProto = &userpb.User{
-				Id:       userModel.ID,
-				Email:    userModel.Email,
-				Username: userModel.Username,
-				// TODO: Map additional fields as needed
+			userMap := map[string]interface{}{
+				"id":       userModel.ID,
+				"email":    userModel.Email,
+				"username": userModel.Username,
 			}
+			userStruct, _ = structpb.NewStruct(userMap)
 		}
-		payload := campaign.BuildCampaignUserState(campaignModel, userProto, leaderboard, mediaProto, campaign.WithFields(fields))
+		payload := campaign.BuildCampaignUserState(campaignModel, userStruct, leaderboard, mediaProto, campaign.WithFields(fields))
 		httputil.WriteJSONResponse(w, log, payload)
 	}
 }
@@ -599,42 +420,14 @@ func CampaignLeaderboardHandler(container *di.Container) http.HandlerFunc {
 		payload := campaign.BuildCampaignUserState(campaignModel, nil, leaderboard, nil, campaign.WithFields([]string{"campaign"}))
 		campaignMap, ok := payload["campaign"].(map[string]interface{})
 		if !ok {
-			// handle type assertion failure
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to build campaign state", nil)
 			return
 		}
 		leaderboardData, ok := campaignMap["leaderboard"]
 		if !ok {
-			// handle missing leaderboard key
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "leaderboard data not found in campaign state", nil)
 			return
 		}
 		httputil.WriteJSONResponse(w, log, map[string]interface{}{"leaderboard": leaderboardData})
-	}
-}
-
-// MediaModelToProto maps a media.Model to mediapb.Media.
-func MediaModelToProto(m *media.Model) *mediapb.Media {
-	if m == nil {
-		return nil
-	}
-	var masterIDInt64 int64
-	if m.MasterID != "" {
-		if v, err := strconv.ParseInt(m.MasterID, 10, 64); err == nil {
-			masterIDInt64 = v
-		}
-	}
-	return &mediapb.Media{
-		Id:        m.ID.String(),
-		MasterId:  masterIDInt64,
-		UserId:    m.UserID.String(),
-		Type:      mediapb.MediaType(mediapb.MediaType_value[string(m.Type)]),
-		Name:      m.Name,
-		MimeType:  m.MimeType,
-		Size:      m.Size,
-		Url:       m.URL,
-		IsSystem:  m.IsSystem,
-		CreatedAt: timestamppb.New(m.CreatedAt),
-		UpdatedAt: timestamppb.New(m.UpdatedAt),
-		Metadata:  m.Metadata,
-		// Add more fields as needed
 	}
 }

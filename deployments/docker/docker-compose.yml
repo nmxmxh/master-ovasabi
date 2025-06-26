@@ -57,17 +57,6 @@ services:
       - '8081:8081'
       - '8082:8082'
 
-  wasm-frontend:
-    build:
-      context: ../..
-      dockerfile: deployments/docker/Dockerfile.wasm
-      target: prod
-    networks:
-      - ovasabi-network
-    depends_on:
-      - app
-    restart: unless-stopped
-
   redis:
     image: redis:8
     ports:
@@ -177,7 +166,7 @@ services:
       SERVICE_NAME: nexus
       NEXUS_GRPC_ADDR: ':50052'
       METRICS_PORT: ':9090'
-      REDIS_PASSWORD: '${REDIS_PASSWORD:-@Osiano1995}'
+      REDIS_PASSWORD: '${REDIS_PASSWORD}'
     networks:
       - ovasabi-network
     depends_on:
@@ -218,7 +207,10 @@ services:
       - ../../.env
 
   nginx:
-    image: nginx:1.25
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.wasm
+      target: prod
     ports:
       - '80:80'
       - '443:443'
@@ -228,7 +220,6 @@ services:
       # - ./deployments/docker/certs:/etc/nginx/certs:ro  # Uncomment and set path if using SSL certs
     depends_on:
       - app
-      - wasm-frontend
     networks:
       - ovasabi-network
     restart: unless-stopped
@@ -242,6 +233,7 @@ services:
     environment:
       REDIS_HOST: '${REDIS_HOST:-redis}'
       REDIS_PORT: '${REDIS_PORT:-6379}'
+      REDIS_PASSWORD: '${REDIS_PASSWORD}' # Add this line
       LOG_LEVEL: debug
     depends_on:
       - redis
@@ -255,4 +247,3 @@ volumes:
 
 networks:
   ovasabi-network:
-    external: true

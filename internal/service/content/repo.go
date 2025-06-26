@@ -449,9 +449,24 @@ func (r *Repository) LogContentEvent(ctx context.Context, event *contentpb.Conte
 }
 
 // Moderation stubs.
-func (r *Repository) ModerateContent(_ context.Context, _, _, _, _ string) (ok bool, msg string, err error) {
-	// TODO: Implement moderation logic (approve/reject, log event, update status, etc.)
-	return false, "not_implemented", nil
+func (r *Repository) ModerateContent(ctx context.Context, contentID, moderatorID, status, reason string) error {
+	// This implementation assumes a `moderation_status` column exists on `service_content_main`.
+	// It also enriches the content's metadata with moderation details.
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE service_content_main
+		SET
+			moderation_status = $1,
+			metadata = jsonb_set(
+				jsonb_set(COALESCE(metadata, '{}'::jsonb), '{moderation,status}', to_jsonb($1::text)),
+				'{moderation,reason}', to_jsonb($2::text)
+			),
+			updated_at = NOW()
+		WHERE id = $3
+	`, status, reason, contentID)
+	if err != nil {
+		return fmt.Errorf("failed to update content moderation status: %w", err)
+	}
+	return nil
 }
 
 // Flexible ListContent with filters.

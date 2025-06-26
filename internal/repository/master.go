@@ -75,43 +75,59 @@ func (r *DefaultMasterRepository) validateEntityType(ctx context.Context, entity
 	return nil
 }
 
-// Create creates a new master record.
-func (r *DefaultMasterRepository) Create(ctx context.Context, entityType EntityType, name string) (int64, error) {
-	if err := r.validateEntityType(ctx, entityType); err != nil {
-		return 0, err
-	}
-
+// CreateMasterRecord creates a new master record in a new transaction.
+// This is for cases where the master record is the only thing being created in a transaction.
+func (r *DefaultMasterRepository) CreateMasterRecord(ctx context.Context, entityType, name string) (int64, string, error) {
 	tx, err := r.GetDB().BeginTx(ctx, nil)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			r.log.Error("failed to rollback transaction", zap.Error(err))
+		if r := recover(); r != nil {
+			_ = tx.Rollback()
+			panic(r)
+		}
+		if err != nil { // Only rollback if an error occurred in the function
+			_ = tx.Rollback()
 		}
 	}()
 
-	var id int64
-	err = tx.QueryRowContext(ctx,
-		`INSERT INTO master (uuid, name, type, created_at, updated_at, is_active, version) 
-		 VALUES ($1, $2, $3, NOW(), NOW(), true, 1) 
-		 RETURNING id`,
-		uuid.New(), name, entityType).Scan(&id)
+	id, uuidStr, err := r.Create(ctx, tx, EntityType(entityType), name) // Call the new transactional Create
 	if err != nil {
-		pqErr := &pq.Error{}
-		if errors.As(err, &pqErr) {
-			if pqErr.Code == "23505" {
-				return 0, fmt.Errorf("duplicate master record: %w", err)
-			}
-		}
-		return 0, fmt.Errorf("failed to create master record: %w", err)
+		return 0, "", err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+		return 0, "", fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return id, nil
+	return id, uuidStr, nil
+}
+
+// Create creates a new master record within an existing transaction.
+// It returns the generated master_id, master_uuid, and an error if any.
+func (r *DefaultMasterRepository) Create(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (int64, string, error) {
+	if err := r.validateEntityType(ctx, entityType); err != nil {
+		return 0, "", err
+	}
+
+	newUUID := uuid.New()
+	var id int64
+	err := tx.QueryRowContext(ctx, // Use the provided tx
+		`INSERT INTO master (uuid, name, type, created_at, updated_at, is_active, version) 
+		 VALUES ($1, $2, $3, NOW(), NOW(), true, 1) 
+		 RETURNING id`,
+		newUUID, name, entityType).Scan(&id)
+	if err != nil {
+		pqErr := &pq.Error{}
+		if errors.As(err, &pqErr) {
+			if pqErr.Code == "23505" { // unique_violation
+				return 0, "", fmt.Errorf("duplicate master record: %w", err)
+			}
+		}
+		return 0, "", fmt.Errorf("failed to create master record: %w", err)
+	}
+	return id, newUUID.String(), nil
 }
 
 // Get retrieves a master record by ID.
@@ -573,9 +589,4 @@ func (r *DefaultMasterRepository) UpdateWithTransaction(ctx context.Context, tx 
 
 	master.Version++
 	return nil
-}
-
-// Add CreateMasterRecord to implement MasterRepository interface.
-func (r *DefaultMasterRepository) CreateMasterRecord(ctx context.Context, entityType, name string) (int64, error) {
-	return r.Create(ctx, EntityType(entityType), name)
 }

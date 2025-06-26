@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"regexp"
+	"fmt"
 	"strings"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -24,6 +23,8 @@ var (
 // Repository handles database operations for campaigns.
 type Repository struct {
 	*repository.BaseRepository
+	// master is the MasterRepository, which is a dependency for creating master entries.
+	// It's part of the internal/repository package.
 	master repository.MasterRepository
 }
 
@@ -35,10 +36,18 @@ func NewRepository(db *sql.DB, log *zap.Logger, master repository.MasterReposito
 	}
 }
 
-// CreateWithTransaction creates a new campaign within a transaction.
+// CreateWithTransaction creates a new campaign within a transaction, including its master record.
 func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, campaign *Campaign) (*Campaign, error) {
+	// Create master entry first, as it's a core part of creating a campaign entity.
+	// This ensures every campaign is registered in the master table for cross-service orchestration.
+	masterID, masterUUID, err := r.master.Create(ctx, tx, repository.EntityType("campaign"), campaign.Slug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create master entry for campaign: %w", err)
+	}
+	campaign.MasterID = masterID
+	campaign.MasterUUID = masterUUID
+
 	var metadataJSON []byte
-	var err error
 	if campaign.Metadata != nil {
 		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
 		if err != nil {
@@ -77,7 +86,8 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 	var createdAt, updatedAt time.Time
 	err = row.Scan(&id, &createdAt, &updatedAt)
 	if err != nil {
-		if err.Error() == "pq: duplicate key value violates unique constraint" {
+		// Check for unique constraint violation on slug
+		if strings.Contains(err.Error(), "service_campaign_main_slug_key") || strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
 			return nil, ErrCampaignExists
 		}
 		return nil, err
@@ -125,13 +135,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		return nil, err
 	}
 
-	// Always set serviceSpecific to campaign_id only, as err is always nil here
-	serviceSpecific := map[string]interface{}{"campaign_id": campaign.ID}
-	campaign.Metadata = &commonpb.Metadata{
-		ServiceSpecific: metadata.NewStructFromMap(serviceSpecific, nil),
-		Tags:            []string{},
-		Features:        []string{},
-	}
+	campaign.Metadata = &commonpb.Metadata{} // Initialize metadata
 	if metadataStr != "" {
 		err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 		if err != nil {
@@ -139,13 +143,11 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 			return nil, err
 		}
 	}
-	// Canonicalize and validate metadata
-	canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
-	if err != nil {
-		r.GetLogger().Warn("campaign metadata is invalid", zap.Error(err))
-		return nil, err
+	// Ensure ServiceSpecific exists and add/update campaign_id
+	if campaign.Metadata.ServiceSpecific == nil {
+		campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 	}
-	campaign.Metadata = ToProto(canonicalMeta)
+	campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaign.ID))
 
 	return campaign, nil
 }
@@ -269,12 +271,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 			return nil, err
 		}
 		// Always set serviceSpecific to campaign_id only, as err is always nil here
-		serviceSpecific := map[string]interface{}{"campaign_id": campaign.ID}
-		campaign.Metadata = &commonpb.Metadata{
-			ServiceSpecific: metadata.NewStructFromMap(serviceSpecific, nil),
-			Tags:            []string{},
-			Features:        []string{},
-		}
+		campaign.Metadata = &commonpb.Metadata{} // Initialize metadata
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
@@ -282,13 +279,11 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 				return nil, err
 			}
 		}
-		// Canonicalize and validate metadata
-		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
-		if err != nil {
-			r.GetLogger().Warn("campaign metadata is invalid", zap.Error(err))
-			return nil, err
+		// Ensure ServiceSpecific exists and add/update campaign_id
+		if campaign.Metadata.ServiceSpecific == nil {
+			campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 		}
-		campaign.Metadata = ToProto(canonicalMeta)
+		campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaign.ID))
 		campaigns = append(campaigns, campaign)
 	}
 
@@ -302,13 +297,14 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 // ListActiveWithinWindow returns campaigns with status=active and now between start/end.
 func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) ([]*Campaign, error) {
 	query := `
-		SELECT id, master_id, master_uuid, slug, title, description, ranking_formula, metadata, start_date, end_date, created_at, updated_at
+		SELECT id, master_id, master_uuid, slug, title, description, ranking_formula, metadata, start_date, end_date, created_at, updated_at, owner_id
 		FROM service_campaign_main
 		WHERE (metadata->'service_specific'->'campaign'->>'status') = 'active'
 		AND start_date <= $1 AND end_date >= $1
 		ORDER BY created_at DESC`
 	rows, err := r.GetDB().QueryContext(ctx, query, now)
 	if err != nil {
+		r.GetLogger().Error("Failed to query active campaigns", zap.Error(err))
 		return nil, err
 	}
 	defer func() {
@@ -334,17 +330,13 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 			&campaign.EndDate,
 			&campaign.CreatedAt,
 			&campaign.UpdatedAt,
+			&campaign.OwnerID,
 		)
 		if err != nil {
 			return nil, err
 		}
 		// Always set serviceSpecific to campaign_id only, as err is always nil here
-		serviceSpecific := map[string]interface{}{"campaign_id": campaign.ID}
-		campaign.Metadata = &commonpb.Metadata{
-			ServiceSpecific: metadata.NewStructFromMap(serviceSpecific, nil),
-			Tags:            []string{},
-			Features:        []string{},
-		}
+		campaign.Metadata = &commonpb.Metadata{} // Initialize metadata
 		if metadataStr != "" {
 			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
@@ -352,13 +344,11 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 				return nil, err
 			}
 		}
-		// Canonicalize and validate metadata
-		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
-		if err != nil {
-			r.GetLogger().Warn("campaign metadata is invalid", zap.Error(err))
-			return nil, err
+		// Ensure ServiceSpecific exists and add/update campaign_id
+		if campaign.Metadata.ServiceSpecific == nil {
+			campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 		}
-		campaign.Metadata = ToProto(canonicalMeta)
+		campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaign.ID))
 		campaigns = append(campaigns, campaign)
 	}
 
@@ -395,67 +385,6 @@ type LeaderboardEntry struct {
 	Metadata      *commonpb.Metadata
 }
 
-// Example: "referral_count DESC, username ASC".
-type RankingFormula struct {
-	Columns []RankingColumn
-}
-
-type RankingColumn struct {
-	Name      string
-	Direction string // "ASC" or "DESC"
-}
-
-var allowedColumns = map[string]bool{
-	"referral_count": true,
-	"username":       true,
-}
-
-var allowedDirections = map[string]bool{
-	"ASC":  true,
-	"DESC": true,
-}
-
-// validateRankingFormula parses and validates a ranking formula string for safety.
-func validateRankingFormula(formula string) (*RankingFormula, error) {
-	formula = strings.TrimSpace(formula)
-	if formula == "" {
-		return nil, errors.New("empty ranking formula")
-	}
-	columns := strings.Split(formula, ",")
-	parsed := make([]RankingColumn, 0, len(columns))
-	for _, col := range columns {
-		col = strings.TrimSpace(col)
-		// Use regex to match: column_name [ASC|DESC]
-		re := regexp.MustCompile(`^([a-zA-Z0-9_]+)(?:\s+(ASC|DESC))?$`)
-		matches := re.FindStringSubmatch(col)
-		if len(matches) == 0 {
-			return nil, errors.New("invalid ranking formula syntax")
-		}
-		name := matches[1]
-		dir := "DESC" // Default direction
-		if len(matches) > 2 && matches[2] != "" {
-			dir = strings.ToUpper(matches[2])
-		}
-		if !allowedColumns[name] {
-			return nil, errors.New("column " + name + " not allowed in ranking formula")
-		}
-		if !allowedDirections[dir] {
-			return nil, errors.New("direction " + dir + " not allowed in ranking formula")
-		}
-		parsed = append(parsed, RankingColumn{Name: name, Direction: dir})
-	}
-	return &RankingFormula{Columns: parsed}, nil
-}
-
-// ToSQL returns the SQL ORDER BY clause for the validated formula.
-func (rf *RankingFormula) ToSQL() string {
-	parts := make([]string, 0, len(rf.Columns))
-	for _, col := range rf.Columns {
-		parts = append(parts, col.Name+" "+col.Direction)
-	}
-	return strings.Join(parts, ", ")
-}
-
 // FlattenMetadataToVars extracts primitive fields from campaign metadata into the variables map.
 func FlattenMetadataToVars(meta *commonpb.Metadata, vars map[string]interface{}) {
 	if meta == nil {
@@ -482,18 +411,14 @@ func FlattenMetadataToVars(meta *commonpb.Metadata, vars map[string]interface{})
 }
 
 // GetLeaderboard returns the leaderboard for a campaign, applying the ranking formula.
-func (r *Repository) GetLeaderboard(ctx context.Context, campaignSlug, rankingFormula string, limit int) ([]LeaderboardEntry, error) {
-	rf, err := validateRankingFormula(rankingFormula)
-	if err != nil {
-		return nil, err
-	}
-	orderBy := rf.ToSQL()
+func (r *Repository) GetLeaderboard(ctx context.Context, campaignSlug string, limit int) ([]LeaderboardEntry, error) {
+	// The SQL query fetches raw data; scoring and sorting by formula happen in Go using 'expr'.
 	query := `
 		SELECT u.username, COUNT(r.id) AS referral_count
 		FROM service_user_master u
 		LEFT JOIN service_referral_main r ON u.id = r.referrer_id AND r.campaign_slug = $1
 		GROUP BY u.id
-		ORDER BY ` + orderBy + `
+		ORDER BY referral_count DESC, u.username ASC -- Fixed order for initial fetch, actual scoring/sorting in Go
 		LIMIT $2
 	`
 	rows, err := r.GetDB().QueryContext(ctx, query, campaignSlug, limit)

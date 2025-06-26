@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
@@ -47,68 +48,52 @@ type ServiceBootstrapper struct {
 	Provider      *service.Provider // Canonical provider for DI and event orchestration
 }
 
+// registerFunc defines the common signature for all service registration functions.
+type registerFunc func(context.Context, *di.Container, events.EventEmitter, *sql.DB, repository.MasterRepository, *redis.Provider, *zap.Logger, bool, interface{}) error
+
+// createRegisterAdapter creates a generic registration function that handles type assertions.
+// This reduces boilerplate by wrapping the specific service registration functions.
+func createRegisterAdapter(fn registerFunc) registration.ServiceRegisterFunc {
+	return func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
+		ee, ok := eventEmitter.(events.EventEmitter)
+		if !ok {
+			return fmt.Errorf("eventEmitter is not of type events.EventEmitter")
+		}
+		mr, ok := masterRepo.(repository.MasterRepository)
+		if !ok {
+			return fmt.Errorf("masterRepo is not of type repository.MasterRepository")
+		}
+		return fn(ctx, container, ee, db, mr, redisProvider, log, eventEnabled, provider)
+	}
+}
+
 // RegisterAll registers all core services with the DI container and event bus using the JSON-driven pattern.
 func (b *ServiceBootstrapper) RegisterAll() error {
 	ctx := context.Background()
-	//nolint:errcheck // Errors are handled at the top level in RegisterAllFromJSON
-	// Map service names to Go Register functions using adapters for type assertions
+
+	// Map service names to their registration functions.
+	// The adapter handles the necessary type assertions, keeping this map clean.
 	registerFuncs := map[string]registration.ServiceRegisterFunc{
-		"user": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return user.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"notification": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return notification.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"referral": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return referral.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"commerce": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return commerce.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"media": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return media.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo, redisProvider, log, eventEnabled, provider)
-		},
-		"product": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return product.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"talent": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return talent.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"scheduler": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return scheduler.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"analytics": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return analytics.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"admin": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return admin.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"content": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return content.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"contentmoderation": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return contentmoderation.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"security": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return security.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"messaging": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return messaging.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"nexus": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return nexus.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"campaign": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return campaign.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"localization": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return localization.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
-		"search": func(ctx context.Context, container *di.Container, eventEmitter interface{}, db *sql.DB, masterRepo interface{}, redisProvider *redis.Provider, log *zap.Logger, eventEnabled bool, provider interface{}) error {
-			return search.Register(ctx, container, eventEmitter.(events.EventEmitter), db, masterRepo.(repository.MasterRepository), redisProvider, log, eventEnabled, provider)
-		},
+		"user":              createRegisterAdapter(user.Register),
+		"notification":      createRegisterAdapter(notification.Register),
+		"referral":          createRegisterAdapter(referral.Register),
+		"commerce":          createRegisterAdapter(commerce.Register),
+		"media":             createRegisterAdapter(media.Register),
+		"product":           createRegisterAdapter(product.Register),
+		"talent":            createRegisterAdapter(talent.Register),
+		"scheduler":         createRegisterAdapter(scheduler.Register),
+		"analytics":         createRegisterAdapter(analytics.Register),
+		"admin":             createRegisterAdapter(admin.Register),
+		"content":           createRegisterAdapter(content.Register),
+		"contentmoderation": createRegisterAdapter(contentmoderation.Register),
+		"security":          createRegisterAdapter(security.Register),
+		"messaging":         createRegisterAdapter(messaging.Register),
+		"nexus":             createRegisterAdapter(nexus.Register),
+		"campaign":          createRegisterAdapter(campaign.Register),
+		"localization":      createRegisterAdapter(localization.Register),
+		"search":            createRegisterAdapter(search.Register),
 	}
-	// Use the JSON-driven registration
+	// Use the JSON-driven registration from the shared registration package.
 	return registration.RegisterAllFromJSON(
 		ctx,
 		b.Container,
@@ -119,7 +104,7 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 		b.Logger,
 		b.EventEnabled,
 		b.Provider,
-		"service_registration.json",
+		"service_registration.json", // Ensure this file contains an entry for "media".
 		registerFuncs,
 	)
 }

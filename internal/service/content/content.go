@@ -484,19 +484,21 @@ func (s *Service) LogContentEvent(ctx context.Context, req *contentpb.LogContent
 }
 
 func (s *Service) ModerateContent(ctx context.Context, req *contentpb.ModerateContentRequest) (*contentpb.ModerateContentResponse, error) {
-	successVal, statusStr, err := s.repo.ModerateContent(ctx, req.ContentId, req.Action, req.ModeratorId, req.Reason)
+	// The repository's ModerateContent now returns only an error.
+	// The req.Action (e.g., "APPROVE", "REJECT") is passed as the status to the repository.
+	err := s.repo.ModerateContent(ctx, req.ContentId, req.ModeratorId, req.Action, req.Reason)
 	if err != nil {
 		s.log.Error("ModerateContent failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to moderate content: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to moderate content: %v", err), err)
+		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		return nil, graceful.ToStatusError(gErr)
 	}
 	// Enrich moderation event with versioning and bad_actor (increment flag_count)
 	meta := &commonpb.Metadata{}
 	if err := metadata.SetServiceSpecificField(meta, "content", "versioning", map[string]interface{}{
 		"system_version": "1.0.0", "service_version": "1.0.0", "environment": "prod",
 	}); err != nil {
-		s.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
+		s.log.Warn("Failed to set service-specific metadata field (versioning)", zap.Error(err))
 	}
 	// Extract, increment flag_count, and update last_flagged_at
 	metaMap := metadata.ProtoToMap(meta)
@@ -515,13 +517,16 @@ func (s *Service) ModerateContent(ctx context.Context, req *contentpb.ModerateCo
 		"flag_count":      flagCount,
 		"last_flagged_at": time.Now().Format(time.RFC3339),
 	}
-	if err := metadata.SetServiceSpecificField(meta, "content", "bad_actor", badActorMetaMap); err != nil {
-		s.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
+	if err := metadata.SetServiceSpecificField(meta, "content", "bad_actor", badActorMetaMap); err != nil { // Corrected variable name
+		s.log.Warn("Failed to set service-specific metadata field (bad_actor)", zap.Error(err))
 	}
 	metaMap = metadata.ProtoToMap(meta)
 	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "moderation", req.ContentId, nil, "success", "enrich moderation metadata")
 	meta = metadata.MapToProto(normMap)
-	resp := &contentpb.ModerateContentResponse{Success: successVal, Status: statusStr}
+	resp := &contentpb.ModerateContentResponse{
+		Success: true,       // Operation was successful if no error from repo
+		Status:  req.Action, // The action requested becomes the new status
+	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "content moderated", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
 		Log:          s.log,

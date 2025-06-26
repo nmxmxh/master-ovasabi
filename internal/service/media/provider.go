@@ -1,7 +1,3 @@
-// Media Service Construction & Helpers
-// This file contains the canonical construction logic, interfaces, and helpers for the Media service.
-// It does NOT contain DI/Provider accessor logic (which remains in the service package).
-
 // Provider/DI Registration Pattern (Modern, Extensible, DRY)
 // ---------------------------------------------------------
 //
@@ -30,10 +26,11 @@ import (
 	"context"
 	"database/sql"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
@@ -42,24 +39,18 @@ import (
 )
 
 // EventEmitter defines the interface for emitting events (canonical platform interface).
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventID, eventType string, meta *commonpb.Metadata) (string, bool)
-	// EmitRawEventWithLogging emits a raw JSON event (e.g., canonical orchestration envelope) to the event bus or broker.
-	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool)
-}
-
 // Register registers the media service with the DI container and event bus support.
-// Parameters used: ctx, container, eventEmitter, db, redisProvider, log, eventEnabled. masterRepo and provider are unused.
+// Parameters used: ctx, container, eventEmitter, db, redisProvider, log, eventEnabled, provider. masterRepo is unused.
 func Register(
 	ctx context.Context,
 	container *di.Container,
-	eventEmitter EventEmitter,
+	eventEmitter events.EventEmitter,
 	db *sql.DB,
-	masterRepo interface{}, // unused, keep for signature consistency
+	masterRepo repository.MasterRepository, // Use canonical type for consistency, even if unused.
 	redisProvider *redis.Provider,
 	log *zap.Logger,
 	eventEnabled bool,
-	provider interface{}, // unused, keep for signature consistency
+	provider interface{},
 ) error {
 	repo := InitRepository(db, log)
 	cache, err := redisProvider.GetCache(ctx, "media")
@@ -67,11 +58,20 @@ func Register(
 		log.With(zap.String("service", "media")).Warn("Failed to get media cache", zap.Error(err), zap.String("cache", "media"), zap.String("context", ctxValue(ctx)))
 	}
 	mediaService := NewService(log, repo, cache, eventEmitter, eventEnabled)
+
+	// Register the gRPC interface for the server to use.
 	if err := container.Register((*mediapb.MediaServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return mediaService, nil
 	}); err != nil {
-		log.With(zap.String("service", "media")).Error("Failed to register media service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		log.With(zap.String("service", "media")).Error("Failed to register media service interface", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
+	}
+
+	// Register the concrete implementation for internal handlers (e.g., REST endpoints) to resolve.
+	if err := container.Register((*ServiceImpl)(nil), func(_ *di.Container) (interface{}, error) {
+		return mediaService, nil
+	}); err != nil {
+		log.With(zap.String("service", "media")).Error("Failed to register media service implementation", zap.Error(err), zap.String("context", ctxValue(ctx)))
 	}
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {

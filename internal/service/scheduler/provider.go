@@ -27,27 +27,22 @@ import (
 	"database/sql"
 	"errors"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
-
-// EventEmitter defines the interface for emitting events (canonical platform interface).
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-}
 
 // Register registers the scheduler service with the DI container and event bus support.
 // Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled, provider.
 func Register(
 	ctx context.Context,
 	container *di.Container,
-	eventEmitter EventEmitter,
+	eventEmitter events.EventEmitter,
 	db *sql.DB,
 	masterRepo repository.MasterRepository,
 	redisProvider *redis.Provider,
@@ -112,7 +107,7 @@ func RegisterSchedulerService(container *di.Container, provider, eventEmitter in
 		return ""
 	}
 
-	emitter, ok := eventEmitter.(EventEmitter)
+	emitter, ok := eventEmitter.(events.EventEmitter)
 	if !ok {
 		log.Error("failed to cast eventEmitter to EventEmitter")
 		return ""

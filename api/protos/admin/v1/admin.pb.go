@@ -10,6 +10,7 @@ import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -203,8 +204,8 @@ type User struct {
 	Name          string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
 	Roles         []string               `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
 	IsActive      bool                   `protobuf:"varint,6,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
-	CreatedAt     int64                  `protobuf:"varint,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     int64                  `protobuf:"varint,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	UserId        string                 `protobuf:"bytes,9,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for analytics, orchestration, etc.
 	unknownFields protoimpl.UnknownFields
@@ -290,18 +291,18 @@ func (x *User) GetIsActive() bool {
 	return false
 }
 
-func (x *User) GetCreatedAt() int64 {
+func (x *User) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreatedAt
 	}
-	return 0
+	return nil
 }
 
-func (x *User) GetUpdatedAt() int64 {
+func (x *User) GetUpdatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.UpdatedAt
 	}
-	return 0
+	return nil
 }
 
 func (x *User) GetUserId() string {
@@ -321,10 +322,11 @@ func (x *User) GetMetadata() *v1.Metadata {
 type Role struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      string                 `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // Master ID for analytics/unified queries
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // Master ID for analytics/unified queries
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Permissions   []string               `protobuf:"bytes,4,rep,name=permissions,proto3" json:"permissions,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for analytics, orchestration, etc.
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`                       // Extensible metadata for analytics, orchestration, etc.
+	MasterUuid    string                 `protobuf:"bytes,6,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -366,11 +368,11 @@ func (x *Role) GetId() string {
 	return ""
 }
 
-func (x *Role) GetMasterId() string {
+func (x *Role) GetMasterId() int64 {
 	if x != nil {
 		return x.MasterId
 	}
-	return ""
+	return 0
 }
 
 func (x *Role) GetName() string {
@@ -392,6 +394,13 @@ func (x *Role) GetMetadata() *v1.Metadata {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *Role) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
+	}
+	return ""
 }
 
 type AuditLog struct {
@@ -2028,7 +2037,7 @@ var File_admin_v1_admin_proto protoreflect.FileDescriptor
 
 const file_admin_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x14admin/v1/admin.proto\x12\badmin.v1\x1a\x18common/v1/metadata.proto\"]\n" +
+	"\x14admin/v1/admin.proto\x12\badmin.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"]\n" +
 	"\x10AdminPreferences\x12\x14\n" +
 	"\x05theme\x18\x01 \x01(\tR\x05theme\x123\n" +
 	"\x15notifications_enabled\x18\x02 \x01(\bR\x14notificationsEnabled\"p\n" +
@@ -2042,7 +2051,7 @@ const file_admin_v1_admin_proto_rawDesc = "" +
 	"\n" +
 	"created_by\x18\x02 \x01(\tR\tcreatedBy\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x03 \x01(\x03R\tcreatedAt\"\xb6\x02\n" +
+	"created_at\x18\x03 \x01(\x03R\tcreatedAt\"\xee\x02\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
@@ -2051,20 +2060,22 @@ const file_admin_v1_admin_proto_rawDesc = "" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12\x12\n" +
 	"\x04name\x18\x04 \x01(\tR\x04name\x12\x14\n" +
 	"\x05roles\x18\x05 \x03(\tR\x05roles\x12\x1b\n" +
-	"\tis_active\x18\x06 \x01(\bR\bisActive\x12\x1d\n" +
+	"\tis_active\x18\x06 \x01(\bR\bisActive\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\x03R\tupdatedAt\x12\x17\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x17\n" +
 	"\auser_id\x18\t \x01(\tR\x06userId\x12,\n" +
 	"\bmetadata\x18\n" +
-	" \x01(\v2\x10.common.MetadataR\bmetadata\"\x97\x01\n" +
+	" \x01(\v2\x10.common.MetadataR\bmetadata\"\xb8\x01\n" +
 	"\x04Role\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tmaster_id\x18\x02 \x01(\tR\bmasterId\x12\x12\n" +
+	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
 	"\vpermissions\x18\x04 \x03(\tR\vpermissions\x12,\n" +
-	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\"\xea\x01\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
+	"\vmaster_uuid\x18\x06 \x01(\tR\n" +
+	"masterUuid\"\xea\x01\n" +
 	"\bAuditLog\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\x02 \x01(\tR\bmasterId\x12\x17\n" +
@@ -2246,65 +2257,68 @@ var file_admin_v1_admin_proto_goTypes = []any{
 	(*CheckPermissionResponse)(nil), // 36: admin.v1.CheckPermissionResponse
 	nil,                             // 37: admin.v1.Settings.ValuesEntry
 	nil,                             // 38: admin.v1.CheckPermissionRequest.ContextEntry
-	(*v1.Metadata)(nil),             // 39: common.Metadata
+	(*timestamppb.Timestamp)(nil),   // 39: google.protobuf.Timestamp
+	(*v1.Metadata)(nil),             // 40: common.Metadata
 }
 var file_admin_v1_admin_proto_depIdxs = []int32{
-	39, // 0: admin.v1.User.metadata:type_name -> common.Metadata
-	39, // 1: admin.v1.Role.metadata:type_name -> common.Metadata
-	39, // 2: admin.v1.AuditLog.metadata:type_name -> common.Metadata
-	37, // 3: admin.v1.Settings.values:type_name -> admin.v1.Settings.ValuesEntry
-	39, // 4: admin.v1.Settings.metadata:type_name -> common.Metadata
-	3,  // 5: admin.v1.CreateUserRequest.user:type_name -> admin.v1.User
-	3,  // 6: admin.v1.CreateUserResponse.user:type_name -> admin.v1.User
-	3,  // 7: admin.v1.UpdateUserRequest.user:type_name -> admin.v1.User
-	3,  // 8: admin.v1.UpdateUserResponse.user:type_name -> admin.v1.User
-	3,  // 9: admin.v1.ListUsersResponse.users:type_name -> admin.v1.User
-	3,  // 10: admin.v1.GetUserResponse.user:type_name -> admin.v1.User
-	4,  // 11: admin.v1.CreateRoleRequest.role:type_name -> admin.v1.Role
-	4,  // 12: admin.v1.CreateRoleResponse.role:type_name -> admin.v1.Role
-	4,  // 13: admin.v1.UpdateRoleRequest.role:type_name -> admin.v1.Role
-	4,  // 14: admin.v1.UpdateRoleResponse.role:type_name -> admin.v1.Role
-	4,  // 15: admin.v1.ListRolesResponse.roles:type_name -> admin.v1.Role
-	5,  // 16: admin.v1.GetAuditLogsResponse.logs:type_name -> admin.v1.AuditLog
-	6,  // 17: admin.v1.GetSettingsResponse.settings:type_name -> admin.v1.Settings
-	6,  // 18: admin.v1.UpdateSettingsRequest.settings:type_name -> admin.v1.Settings
-	6,  // 19: admin.v1.UpdateSettingsResponse.settings:type_name -> admin.v1.Settings
-	38, // 20: admin.v1.CheckPermissionRequest.context:type_name -> admin.v1.CheckPermissionRequest.ContextEntry
-	7,  // 21: admin.v1.AdminService.CreateUser:input_type -> admin.v1.CreateUserRequest
-	9,  // 22: admin.v1.AdminService.UpdateUser:input_type -> admin.v1.UpdateUserRequest
-	11, // 23: admin.v1.AdminService.DeleteUser:input_type -> admin.v1.DeleteUserRequest
-	13, // 24: admin.v1.AdminService.ListUsers:input_type -> admin.v1.ListUsersRequest
-	15, // 25: admin.v1.AdminService.GetUser:input_type -> admin.v1.GetUserRequest
-	17, // 26: admin.v1.AdminService.CreateRole:input_type -> admin.v1.CreateRoleRequest
-	19, // 27: admin.v1.AdminService.UpdateRole:input_type -> admin.v1.UpdateRoleRequest
-	21, // 28: admin.v1.AdminService.DeleteRole:input_type -> admin.v1.DeleteRoleRequest
-	23, // 29: admin.v1.AdminService.ListRoles:input_type -> admin.v1.ListRolesRequest
-	25, // 30: admin.v1.AdminService.AssignRole:input_type -> admin.v1.AssignRoleRequest
-	27, // 31: admin.v1.AdminService.RevokeRole:input_type -> admin.v1.RevokeRoleRequest
-	29, // 32: admin.v1.AdminService.GetAuditLogs:input_type -> admin.v1.GetAuditLogsRequest
-	31, // 33: admin.v1.AdminService.GetSettings:input_type -> admin.v1.GetSettingsRequest
-	33, // 34: admin.v1.AdminService.UpdateSettings:input_type -> admin.v1.UpdateSettingsRequest
-	35, // 35: admin.v1.AdminService.CheckPermission:input_type -> admin.v1.CheckPermissionRequest
-	8,  // 36: admin.v1.AdminService.CreateUser:output_type -> admin.v1.CreateUserResponse
-	10, // 37: admin.v1.AdminService.UpdateUser:output_type -> admin.v1.UpdateUserResponse
-	12, // 38: admin.v1.AdminService.DeleteUser:output_type -> admin.v1.DeleteUserResponse
-	14, // 39: admin.v1.AdminService.ListUsers:output_type -> admin.v1.ListUsersResponse
-	16, // 40: admin.v1.AdminService.GetUser:output_type -> admin.v1.GetUserResponse
-	18, // 41: admin.v1.AdminService.CreateRole:output_type -> admin.v1.CreateRoleResponse
-	20, // 42: admin.v1.AdminService.UpdateRole:output_type -> admin.v1.UpdateRoleResponse
-	22, // 43: admin.v1.AdminService.DeleteRole:output_type -> admin.v1.DeleteRoleResponse
-	24, // 44: admin.v1.AdminService.ListRoles:output_type -> admin.v1.ListRolesResponse
-	26, // 45: admin.v1.AdminService.AssignRole:output_type -> admin.v1.AssignRoleResponse
-	28, // 46: admin.v1.AdminService.RevokeRole:output_type -> admin.v1.RevokeRoleResponse
-	30, // 47: admin.v1.AdminService.GetAuditLogs:output_type -> admin.v1.GetAuditLogsResponse
-	32, // 48: admin.v1.AdminService.GetSettings:output_type -> admin.v1.GetSettingsResponse
-	34, // 49: admin.v1.AdminService.UpdateSettings:output_type -> admin.v1.UpdateSettingsResponse
-	36, // 50: admin.v1.AdminService.CheckPermission:output_type -> admin.v1.CheckPermissionResponse
-	36, // [36:51] is the sub-list for method output_type
-	21, // [21:36] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	39, // 0: admin.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	39, // 1: admin.v1.User.updated_at:type_name -> google.protobuf.Timestamp
+	40, // 2: admin.v1.User.metadata:type_name -> common.Metadata
+	40, // 3: admin.v1.Role.metadata:type_name -> common.Metadata
+	40, // 4: admin.v1.AuditLog.metadata:type_name -> common.Metadata
+	37, // 5: admin.v1.Settings.values:type_name -> admin.v1.Settings.ValuesEntry
+	40, // 6: admin.v1.Settings.metadata:type_name -> common.Metadata
+	3,  // 7: admin.v1.CreateUserRequest.user:type_name -> admin.v1.User
+	3,  // 8: admin.v1.CreateUserResponse.user:type_name -> admin.v1.User
+	3,  // 9: admin.v1.UpdateUserRequest.user:type_name -> admin.v1.User
+	3,  // 10: admin.v1.UpdateUserResponse.user:type_name -> admin.v1.User
+	3,  // 11: admin.v1.ListUsersResponse.users:type_name -> admin.v1.User
+	3,  // 12: admin.v1.GetUserResponse.user:type_name -> admin.v1.User
+	4,  // 13: admin.v1.CreateRoleRequest.role:type_name -> admin.v1.Role
+	4,  // 14: admin.v1.CreateRoleResponse.role:type_name -> admin.v1.Role
+	4,  // 15: admin.v1.UpdateRoleRequest.role:type_name -> admin.v1.Role
+	4,  // 16: admin.v1.UpdateRoleResponse.role:type_name -> admin.v1.Role
+	4,  // 17: admin.v1.ListRolesResponse.roles:type_name -> admin.v1.Role
+	5,  // 18: admin.v1.GetAuditLogsResponse.logs:type_name -> admin.v1.AuditLog
+	6,  // 19: admin.v1.GetSettingsResponse.settings:type_name -> admin.v1.Settings
+	6,  // 20: admin.v1.UpdateSettingsRequest.settings:type_name -> admin.v1.Settings
+	6,  // 21: admin.v1.UpdateSettingsResponse.settings:type_name -> admin.v1.Settings
+	38, // 22: admin.v1.CheckPermissionRequest.context:type_name -> admin.v1.CheckPermissionRequest.ContextEntry
+	7,  // 23: admin.v1.AdminService.CreateUser:input_type -> admin.v1.CreateUserRequest
+	9,  // 24: admin.v1.AdminService.UpdateUser:input_type -> admin.v1.UpdateUserRequest
+	11, // 25: admin.v1.AdminService.DeleteUser:input_type -> admin.v1.DeleteUserRequest
+	13, // 26: admin.v1.AdminService.ListUsers:input_type -> admin.v1.ListUsersRequest
+	15, // 27: admin.v1.AdminService.GetUser:input_type -> admin.v1.GetUserRequest
+	17, // 28: admin.v1.AdminService.CreateRole:input_type -> admin.v1.CreateRoleRequest
+	19, // 29: admin.v1.AdminService.UpdateRole:input_type -> admin.v1.UpdateRoleRequest
+	21, // 30: admin.v1.AdminService.DeleteRole:input_type -> admin.v1.DeleteRoleRequest
+	23, // 31: admin.v1.AdminService.ListRoles:input_type -> admin.v1.ListRolesRequest
+	25, // 32: admin.v1.AdminService.AssignRole:input_type -> admin.v1.AssignRoleRequest
+	27, // 33: admin.v1.AdminService.RevokeRole:input_type -> admin.v1.RevokeRoleRequest
+	29, // 34: admin.v1.AdminService.GetAuditLogs:input_type -> admin.v1.GetAuditLogsRequest
+	31, // 35: admin.v1.AdminService.GetSettings:input_type -> admin.v1.GetSettingsRequest
+	33, // 36: admin.v1.AdminService.UpdateSettings:input_type -> admin.v1.UpdateSettingsRequest
+	35, // 37: admin.v1.AdminService.CheckPermission:input_type -> admin.v1.CheckPermissionRequest
+	8,  // 38: admin.v1.AdminService.CreateUser:output_type -> admin.v1.CreateUserResponse
+	10, // 39: admin.v1.AdminService.UpdateUser:output_type -> admin.v1.UpdateUserResponse
+	12, // 40: admin.v1.AdminService.DeleteUser:output_type -> admin.v1.DeleteUserResponse
+	14, // 41: admin.v1.AdminService.ListUsers:output_type -> admin.v1.ListUsersResponse
+	16, // 42: admin.v1.AdminService.GetUser:output_type -> admin.v1.GetUserResponse
+	18, // 43: admin.v1.AdminService.CreateRole:output_type -> admin.v1.CreateRoleResponse
+	20, // 44: admin.v1.AdminService.UpdateRole:output_type -> admin.v1.UpdateRoleResponse
+	22, // 45: admin.v1.AdminService.DeleteRole:output_type -> admin.v1.DeleteRoleResponse
+	24, // 46: admin.v1.AdminService.ListRoles:output_type -> admin.v1.ListRolesResponse
+	26, // 47: admin.v1.AdminService.AssignRole:output_type -> admin.v1.AssignRoleResponse
+	28, // 48: admin.v1.AdminService.RevokeRole:output_type -> admin.v1.RevokeRoleResponse
+	30, // 49: admin.v1.AdminService.GetAuditLogs:output_type -> admin.v1.GetAuditLogsResponse
+	32, // 50: admin.v1.AdminService.GetSettings:output_type -> admin.v1.GetSettingsResponse
+	34, // 51: admin.v1.AdminService.UpdateSettings:output_type -> admin.v1.UpdateSettingsResponse
+	36, // 52: admin.v1.AdminService.CheckPermission:output_type -> admin.v1.CheckPermissionResponse
+	38, // [38:53] is the sub-list for method output_type
+	23, // [23:38] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_admin_proto_init() }

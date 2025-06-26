@@ -27,7 +27,7 @@ func Register(
 	eventEnabled bool,
 	provider interface{},
 ) error {
-	repo := NewRepository(db, masterRepo, log)
+	repo := NewRepository(db, log)
 	cache, err := redisProvider.GetCache(ctx, "analytics")
 	if err != nil {
 		log.With(zap.String("service", "analytics")).Warn("Failed to get analytics cache", zap.Error(err), zap.String("cache", "analytics"), zap.String("context", ctxValue(ctx)))

@@ -554,6 +554,39 @@
     }
   },
   {
+    "name": "media",
+    "version": "v1",
+    "capabilities": ["asset_ingestion", "streaming", "metadata_enrichment"],
+    "dependencies": ["notification"],
+    "schema": {
+      "proto_path": "api/protos/media/v1/media.proto",
+      "methods": [
+        "UploadLightMedia",
+        "StartHeavyMediaUpload",
+        "StreamMediaChunk",
+        "CompleteMediaUpload",
+        "GetMedia",
+        "StreamMediaContent",
+        "DeleteMedia",
+        "ListUserMedia",
+        "ListSystemMedia",
+        "BroadcastSystemMedia"
+      ]
+    },
+    "endpoints": [
+      {
+        "path": "/api/media_ops",
+        "method": "POST",
+        "actions": ["upload_light", "upload_heavy_start", "get_media"],
+        "description": "Composable media operations endpoint."
+      }
+    ],
+    "models": ["Media", "UploadLightMediaRequest", "StartHeavyMediaUploadRequest"],
+    "health_check": "/health/media",
+    "metrics": "/metrics/media",
+    "metadata_enrichment": true
+  },
+  {
     "name": "localization",
     "version": "v1",
     "capabilities": ["i18n", "translation", "locale_based_pricing"],

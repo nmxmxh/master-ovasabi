@@ -38,15 +38,24 @@
 
 package admin
 
+const (
+	// ServiceName is the name of the admin service used in metadata.
+	ServiceName = "admin"
+
+	// CurrentVersion represents the current version of the admin service.
+	CurrentVersion = "1.0.0"
+)
+
 // AdminMetadataFields defines the canonical keys for admin metadata.
 const (
-	AdminNamespace          = "admin"
-	AdminFieldVersioning    = "versioning"
-	AdminFieldRBAC          = "rbac"
-	AdminFieldPermissions   = "permissions"
-	AdminFieldAudit         = "audit"
-	AdminFieldLastLoginAt   = "last_login_at"
-	AdminFieldLastAction    = "last_action"
-	AdminFieldImpersonation = "impersonation"
-	AdminFieldAdminNotes    = "admin_notes"
+	AdminNamespace           = "admin"
+	AdminFieldVersioning     = "versioning"
+	AdminFieldRBAC           = "rbac"
+	AdminFieldPermissions    = "permissions"
+	AdminFieldAudit          = "audit"
+	AdminFieldLastLoginAt    = "last_login_at"
+	AdminFieldLastAction     = "last_action"
+	AdminFieldImpersonation  = "impersonation"
+	AdminFieldAdminNotes     = "admin_notes"
+	AdminFieldServiceVersion = "service_version" // Key for the service version within the versioning metadata
 )

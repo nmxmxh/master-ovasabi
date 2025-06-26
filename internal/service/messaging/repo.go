@@ -122,11 +122,12 @@ func NewRepository(db *sql.DB, masterRepo repository.MasterRepository, log *zap.
 // CreateMessage inserts a new message record.
 func (r *Repository) CreateMessage(ctx context.Context, msg *Message) (*Message, error) {
 	masterName := r.GenerateMasterName(repository.EntityType("message"), msg.Content, msg.Type, fmt.Sprintf("sender-%s", msg.SenderID))
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityType("message"), masterName)
+	masterID, masterUUID, err := r.masterRepo.CreateMasterRecord(ctx, string(repository.EntityType("message")), masterName)
 	if err != nil {
 		return nil, err
 	}
 	msg.MasterID = masterID
+	msg.MasterUUID = masterUUID
 	var metadataJSON []byte
 	if msg.Metadata != nil {
 		metadataJSON, err = metadata.MarshalCanonical(msg.Metadata)
@@ -135,12 +136,12 @@ func (r *Repository) CreateMessage(ctx context.Context, msg *Message) (*Message,
 		}
 	}
 	query := `INSERT INTO service_messaging_main (
-		master_id, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at
+		master_id, master_uuid, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at
 	) VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
+		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW()
 	) RETURNING id, created_at, updated_at`
 	err = r.GetDB().QueryRowContext(ctx, query,
-		msg.MasterID, msg.ThreadID, msg.ConversationID, msg.ChatGroupID, msg.SenderID, pq.Array(msg.RecipientIDs), msg.Content, msg.Type, msg.Attachments, msg.Reactions, msg.Status, msg.Edited, msg.Deleted, metadataJSON, msg.CampaignID,
+		msg.MasterID, msg.MasterUUID, msg.ThreadID, msg.ConversationID, msg.ChatGroupID, msg.SenderID, pq.Array(msg.RecipientIDs), msg.Content, msg.Type, msg.Attachments, msg.Reactions, msg.Status, msg.Edited, msg.Deleted, metadataJSON, msg.CampaignID,
 	).Scan(&msg.ID, &msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, msg.MasterID); err != nil {
@@ -157,9 +158,9 @@ func (r *Repository) CreateMessage(ctx context.Context, msg *Message) (*Message,
 func (r *Repository) GetMessage(ctx context.Context, id string) (*Message, error) {
 	msg := &Message{}
 	var metadataStr string
-	query := `SELECT id, master_id, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at FROM service__main WHERE id = $1`
+	query := `SELECT id, master_id, master_uuid, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at FROM service_messaging_main WHERE id = $1`
 	err := r.GetDB().QueryRowContext(ctx, query, id).Scan(
-		&msg.ID, &msg.MasterID, &msg.ThreadID, &msg.ConversationID, &msg.ChatGroupID, &msg.SenderID, pq.Array(&msg.RecipientIDs), &msg.Content, &msg.Type, &msg.Attachments, &msg.Reactions, &msg.Status, &msg.Edited, &msg.Deleted, &metadataStr, &msg.CampaignID, &msg.CreatedAt, &msg.UpdatedAt,
+		&msg.ID, &msg.MasterID, &msg.MasterUUID, &msg.ThreadID, &msg.ConversationID, &msg.ChatGroupID, &msg.SenderID, pq.Array(&msg.RecipientIDs), &msg.Content, &msg.Type, &msg.Attachments, &msg.Reactions, &msg.Status, &msg.Edited, &msg.Deleted, &metadataStr, &msg.CampaignID, &msg.CreatedAt, &msg.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -230,7 +231,7 @@ func (r *Repository) DeleteMessage(ctx context.Context, id string) error {
 
 // ListMessages retrieves a paginated list of messages for a thread or conversation.
 func (r *Repository) ListMessages(ctx context.Context, threadID, conversationID string, limit, offset int) ([]*Message, error) {
-	query := `SELECT id, master_id, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at FROM service_messaging_main WHERE (thread_id = $1 OR conversation_id = $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4`
+	query := `SELECT id, master_id, master_uuid, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at FROM service_messaging_main WHERE (thread_id = $1 OR conversation_id = $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4`
 	rows, err := r.GetDB().QueryContext(ctx, query, threadID, conversationID, limit, offset)
 	if err != nil {
 		return nil, err
@@ -240,7 +241,7 @@ func (r *Repository) ListMessages(ctx context.Context, threadID, conversationID 
 	for rows.Next() {
 		msg := &Message{}
 		var metadataStr string
-		err := rows.Scan(&msg.ID, &msg.MasterID, &msg.ThreadID, &msg.ConversationID, &msg.ChatGroupID, &msg.SenderID, pq.Array(&msg.RecipientIDs), &msg.Content, &msg.Type, &msg.Attachments, &msg.Reactions, &msg.Status, &msg.Edited, &msg.Deleted, &metadataStr, &msg.CampaignID, &msg.CreatedAt, &msg.UpdatedAt)
+		err := rows.Scan(&msg.ID, &msg.MasterID, &msg.MasterUUID, &msg.ThreadID, &msg.ConversationID, &msg.ChatGroupID, &msg.SenderID, pq.Array(&msg.RecipientIDs), &msg.Content, &msg.Type, &msg.Attachments, &msg.Reactions, &msg.Status, &msg.Edited, &msg.Deleted, &metadataStr, &msg.CampaignID, &msg.CreatedAt, &msg.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -427,7 +428,7 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 	req.Metadata = metadata.MapToProto(normMap)
 	// Validate sender/recipients (omitted for brevity)
 	masterName := r.GenerateMasterName(repository.EntityType("message"), req.Content, req.Type.String(), fmt.Sprintf("sender-%s", req.SenderId))
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityType("message"), masterName)
+	masterID, masterUUID, err := r.masterRepo.CreateMasterRecord(ctx, string(repository.EntityType("message")), masterName)
 	if err != nil {
 		return nil, err
 	}
@@ -460,12 +461,12 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 		}
 	}
 	query := `INSERT INTO service_messaging_main (
-		master_id, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at
+		master_id, master_uuid, thread_id, conversation_id, chat_group_id, sender_id, recipient_ids, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at
 	) VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
+		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW()
 	) RETURNING id, created_at, updated_at`
 	err = r.GetDB().QueryRowContext(ctx, query,
-		masterID, req.ThreadId, req.ConversationId, req.ChatGroupId, req.SenderId, pq.Array(req.RecipientIds), req.Content, req.Type.String(), attachments, reactions, messagingpb.MessageStatus_MESSAGE_STATUS_SENT.String(), false, false, metadataJSON, campaignID,
+		masterID, masterUUID, req.ThreadId, req.ConversationId, req.ChatGroupId, req.SenderId, pq.Array(req.RecipientIds), req.Content, req.Type.String(), attachments, reactions, messagingpb.MessageStatus_MESSAGE_STATUS_SENT.String(), false, false, metadataJSON, campaignID,
 	).Scan(&msg.ID, &msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
@@ -476,6 +477,7 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 		return nil, err
 	}
 	msg.MasterID = masterID
+	msg.MasterUUID = masterUUID
 	msg.ThreadID = req.ThreadId
 	msg.ConversationID = req.ConversationId
 	msg.ChatGroupID = req.ChatGroupId
@@ -497,7 +499,7 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 func (r *Repository) SendGroupMessage(ctx context.Context, req *messagingpb.SendGroupMessageRequest) (*Message, error) {
 	// Validate group and sender (omitted for brevity)
 	masterName := r.GenerateMasterName(repository.EntityType("message"), req.Content, req.Type.String(), fmt.Sprintf("sender-%s", req.SenderId))
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityType("message"), masterName)
+	masterID, masterUUID, err := r.masterRepo.CreateMasterRecord(ctx, string(repository.EntityType("message")), masterName)
 	if err != nil {
 		return nil, err
 	}
@@ -530,12 +532,12 @@ func (r *Repository) SendGroupMessage(ctx context.Context, req *messagingpb.Send
 		}
 	}
 	query := `INSERT INTO service_messaging_main (
-		master_id, chat_group_id, sender_id, content, type, attachments, reactions, status, edited, deleted, metadata, created_at, updated_at
+		master_id, master_uuid, chat_group_id, sender_id, content, type, attachments, reactions, status, edited, deleted, metadata, campaign_id, created_at, updated_at
 	) VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW()
+		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()
 	) RETURNING id, created_at, updated_at`
 	err = r.GetDB().QueryRowContext(ctx, query,
-		masterID, req.ChatGroupId, req.SenderId, req.Content, req.Type.String(), attachments, reactions, messagingpb.MessageStatus_MESSAGE_STATUS_SENT.String(), false, false, metadataJSON,
+		masterID, masterUUID, req.ChatGroupId, req.SenderId, req.Content, req.Type.String(), attachments, reactions, messagingpb.MessageStatus_MESSAGE_STATUS_SENT.String(), false, false, metadataJSON, campaignID,
 	).Scan(&msg.ID, &msg.CreatedAt, &msg.UpdatedAt)
 	if err != nil {
 		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
@@ -546,6 +548,7 @@ func (r *Repository) SendGroupMessage(ctx context.Context, req *messagingpb.Send
 		return nil, err
 	}
 	msg.MasterID = masterID
+	msg.MasterUUID = masterUUID
 	msg.ChatGroupID = req.ChatGroupId
 	msg.SenderID = req.SenderId
 	msg.Content = req.Content
@@ -831,15 +834,36 @@ func (r *Repository) AcknowledgeMessage(ctx context.Context, req *messagingpb.Ac
 
 // CreateChatGroup creates a new chat group.
 func (r *Repository) CreateChatGroupWithRequest(ctx context.Context, req *messagingpb.CreateChatGroupRequest) (*ChatGroup, error) {
-	masterName := r.GenerateMasterName(repository.EntityType("chat_group"), req.Name, "group", "")
-	masterID, err := r.masterRepo.Create(ctx, repository.EntityType("chat_group"), masterName)
+	tx, err := r.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback() // Rollback on panic
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.log.Error("failed to rollback transaction on panic", zap.Error(rbErr))
+			}
+			panic(p) // Re-throw panic
+		}
+	}()
+
+	masterName := r.GenerateMasterName(repository.EntityType("chat_group"), req.Name, "group", "")
+	masterID, masterUUID, err := r.masterRepo.Create(ctx, tx, repository.EntityType("chat_group"), masterName)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			r.log.Error("failed to rollback transaction", zap.Error(rbErr))
+		}
+		return nil, fmt.Errorf("failed to create master entity for chat group: %w", err)
+	}
+
 	var metadataJSON []byte
 	if req.Metadata != nil {
 		metadataJSON, err = metadata.MarshalCanonical(req.Metadata)
 		if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.log.Error("failed to rollback transaction", zap.Error(rbErr))
+			}
 			return nil, err
 		}
 	}
@@ -847,34 +871,44 @@ func (r *Repository) CreateChatGroupWithRequest(ctx context.Context, req *messag
 	if err != nil {
 		if r.log != nil {
 			r.log.Warn("failed to marshal roles", zap.Error(err))
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.log.Error("failed to rollback transaction", zap.Error(rbErr))
+			}
+			return nil, err // Return error if roles cannot be marshaled
 		}
 	}
 	group := &ChatGroup{}
 	var campaignID int64
 	if req.CampaignId != "" {
-		var err error
+		// strconv.ParseInt can return an error, which was previously ignored.
+		// Now, it's checked and handled.
 		campaignID, err = strconv.ParseInt(req.CampaignId, 10, 64)
 		if err != nil {
+			_ = tx.Rollback()
 			return nil, err
 		}
 	}
 	query := `INSERT INTO service_messaging_chat_group (
-		master_id, name, description, member_ids, roles, metadata, created_at, updated_at
+		master_id, master_uuid, name, description, member_ids, roles, metadata, created_at, updated_at
 	) VALUES (
-		$1, $2, $3, $4, $5, $6, NOW(), NOW()
+		$1, $2, $3, $4, $5, $6, $7, NOW(), NOW()
 	) RETURNING id, created_at, updated_at`
-	err = r.GetDB().QueryRowContext(ctx, query,
-		masterID, req.Name, req.Description, pq.Array(req.MemberIds), roles, metadataJSON,
+	err = tx.QueryRowContext(ctx, query,
+		masterID, masterUUID, req.Name, req.Description, pq.Array(req.MemberIds), roles, metadataJSON,
 	).Scan(&group.ID, &group.CreatedAt, &group.UpdatedAt)
 	if err != nil {
-		if err := r.masterRepo.Delete(ctx, masterID); err != nil {
-			if r.log != nil {
-				r.log.Error("failed to delete master record", zap.Error(err))
-			}
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			r.log.Error("failed to rollback transaction", zap.Error(rbErr))
 		}
 		return nil, err
 	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction for chat group: %w", err)
+	}
+
 	group.MasterID = masterID
+	group.MasterUUID = masterUUID
 	group.Name = req.Name
 	group.Description = req.Description
 	group.MemberIDs = req.MemberIds

@@ -8,6 +8,7 @@ option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/nexus";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
+import "common/v1/patterns.proto"; // Import the IntegrationPattern definition
 import "common/v1/payload.proto";
 
 // NexusService: High-level composer, orchestrator, and pattern identifier
@@ -30,7 +31,7 @@ message RegisterPatternRequest {
   string pattern_type = 2; // workflow, data, ai, etc.
   string version = 3;
   string origin = 4; // manual, mined, imported
-  google.protobuf.Struct definition = 5; // pattern definition (YAML/JSON/DSL)
+  common.IntegrationPattern definition = 5; // Formalized pattern definition
   common.Metadata metadata = 6;
   int64 campaign_id = 7; // campaign/tenant context
 }
@@ -57,7 +58,7 @@ message Pattern {
   string pattern_type = 2;
   string version = 3;
   string origin = 4;
-  google.protobuf.Struct definition = 5;
+  common.IntegrationPattern definition = 5; // Formalized pattern definition
   int64 usage_count = 6;
   google.protobuf.Timestamp last_used = 7;
   common.Metadata metadata = 8;

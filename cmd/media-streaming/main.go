@@ -17,11 +17,10 @@ import (
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/pion/webrtc/v3"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type Message struct {
@@ -40,6 +39,7 @@ type Peer struct {
 	Room           *Room
 	Send           chan Message
 	Cancel         context.CancelFunc
+	Done           chan struct{} // Signal for when peer processing is done
 	Metadata       *commonpb.Metadata
 }
 
@@ -54,6 +54,7 @@ type Room struct {
 var (
 	rooms   = make(map[string]*Room)
 	roomsMu sync.RWMutex
+	logger  *zap.Logger // Global logger instance
 )
 
 // NexusClient wraps the gRPC client and connection.
@@ -94,7 +95,7 @@ func (nc *NexusClient) emitEvent(ctx context.Context, eventType, entityID string
 		Payload:    payload,
 	})
 	if err != nil {
-		log.Println("[Nexus] Failed to emit event:", err)
+		logger.Error("Failed to emit event to Nexus", zap.Error(err), zap.String("eventType", eventType), zap.String("entityID", entityID))
 	}
 }
 
@@ -108,10 +109,10 @@ func (nc *NexusClient) subscribeEvents(campaignID int64, meta *commonpb.Metadata
 			Metadata:   meta,
 		})
 		if err != nil {
-			log.Println("[Nexus] Failed to subscribe to events:", err)
+			logger.Error("Failed to subscribe to Nexus events", zap.Error(err))
 			return
 		}
-		for {
+		for { // This loop should respect the passed context's cancellation
 			resp, err := stream.Recv()
 			if err != nil {
 				log.Println("[Nexus] Event subscription closed:", err)
@@ -127,15 +128,11 @@ func (nc *NexusClient) subscribeEvents(campaignID int64, meta *commonpb.Metadata
 func (nc *NexusClient) registerPattern(campaignID int64, meta *commonpb.Metadata) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	def, err := structpb.NewStruct(map[string]interface{}{
-		"service":     "media-streaming",
-		"description": "Multi-modal, campaign/context-aware media streaming service",
-	})
-	if err != nil {
-		log.Println("[Nexus] Failed to create structpb.NewStruct:", err)
-		return
+	def := &commonpb.IntegrationPattern{ // Corrected field names
+		Id:          "media-streaming",
+		Description: "Multi-modal, campaign/context-aware media streaming service",
 	}
-	_, err = nc.Client.RegisterPattern(ctx, &nexusv1.RegisterPatternRequest{
+	_, err := nc.Client.RegisterPattern(ctx, &nexusv1.RegisterPatternRequest{
 		PatternId:   "media-streaming",
 		PatternType: "media",
 		Version:     "1.0.0",
@@ -145,7 +142,7 @@ func (nc *NexusClient) registerPattern(campaignID int64, meta *commonpb.Metadata
 		CampaignId:  campaignID,
 	})
 	if err != nil {
-		log.Println("[Nexus] Failed to register pattern:", err)
+		logger.Error("Failed to register pattern with Nexus", zap.Error(err), zap.String("patternId", "media-streaming"))
 	}
 }
 
@@ -194,8 +191,9 @@ func (p *Peer) onDataChannelMessage(ctx context.Context, msg []byte) {
 		p.Room.State[k] = v
 	}
 	p.Room.mu.Unlock()
+	// This should broadcast the *full* updated state, not just the partial update
 	p.Room.broadcastPartialUpdate(update, p)
-	log.Printf("[Event] State updated in campaign=%s context=%s by peer=%s: %v", p.Room.CampaignID, p.Room.ContextID, p.ID, update)
+	logger.Info("State updated", zap.String("campaignID", p.Room.CampaignID), zap.String("contextID", p.Room.ContextID), zap.String("peerID", p.ID), zap.Any("update", update))
 
 	if nexusClient != nil {
 		meta := p.Metadata
@@ -210,13 +208,18 @@ func (p *Peer) readPump(ctx context.Context) {
 		p.Cancel()
 	}()
 	for {
-		_, msgBytes, err := p.Conn.ReadMessage()
+		messageType, msgBytes, err := p.Conn.ReadMessage()
 		if err != nil {
+			logger.Warn("WebSocket read error", zap.Error(err), zap.String("peerID", p.ID))
 			return
+		}
+		if messageType != websocket.TextMessage {
+			logger.Warn("Received non-text WebSocket message", zap.Int("messageType", messageType), zap.String("peerID", p.ID))
+			continue
 		}
 		var msg Message
 		if err := json.Unmarshal(msgBytes, &msg); err != nil {
-			log.Println("Failed to unmarshal incoming message:", err)
+			logger.Error("Failed to unmarshal incoming WebSocket message", zap.Error(err), zap.String("peerID", p.ID), zap.ByteString("message", msgBytes))
 			continue
 		}
 		switch msg.Type {
@@ -224,29 +227,29 @@ func (p *Peer) readPump(ctx context.Context) {
 			pc, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 			if err != nil {
 				log.Println("Failed to create PeerConnection:", err)
-				return
+				continue // Don't return, try to process next message
 			}
 			p.PeerConnection = pc
 			var offer webrtc.SessionDescription
 			if s, ok := msg.Data.(string); ok {
 				if err := json.Unmarshal([]byte(s), &offer); err != nil {
 					log.Println("Failed to unmarshal SDP offer:", err)
-					return
+					continue
 				}
 				if err := pc.SetRemoteDescription(offer); err != nil {
 					log.Println("Failed to set remote description:", err)
-					return
+					continue
 				}
 				answer, err := pc.CreateAnswer(nil)
 				if err == nil {
 					if err := pc.SetLocalDescription(answer); err != nil {
 						log.Println("Failed to set local description:", err)
-						return
+						continue
 					}
 					answerJSON, err := json.Marshal(answer)
 					if err != nil {
 						log.Println("Failed to marshal SDP answer:", err)
-						return
+						continue
 					}
 					p.Send <- Message{
 						PeerID:     p.ID,
@@ -273,7 +276,7 @@ func (p *Peer) readPump(ctx context.Context) {
 				if s, ok := msg.Data.(string); ok {
 					if err := json.Unmarshal([]byte(s), &candidate); err != nil {
 						log.Println("Failed to unmarshal ICE candidate:", err)
-						return
+						continue
 					}
 					if err := p.PeerConnection.AddICECandidate(candidate); err != nil {
 						log.Println("Failed to add ICE candidate:", err)
@@ -291,49 +294,40 @@ func (p *Peer) readPump(ctx context.Context) {
 }
 
 func (p *Peer) writePump() {
+	defer close(p.Done) // Signal that writePump has exited
 	for msg := range p.Send {
-		msgCopy := msg
-		if msg.Metadata != nil {
-			metaJSON, err := protojson.Marshal(msg.Metadata)
-			if err == nil {
-				var metaMap map[string]interface{}
-				if err := json.Unmarshal(metaJSON, &metaMap); err != nil {
-					log.Println("Failed to unmarshal metadata JSON:", err)
-					continue
-				}
-				msgCopy.Metadata = nil
-				msgMap := map[string]interface{}{
-					"peer_id":     msgCopy.PeerID,
-					"type":        msgCopy.Type,
-					"data":        msgCopy.Data,
-					"campaign_id": msgCopy.CampaignID,
-					"context_id":  msgCopy.ContextID,
-					"metadata":    metaMap,
-				}
-				msgBytes, err := json.Marshal(msgMap)
-				if err != nil {
-					log.Println("Failed to marshal message map:", err)
-					continue
-				}
-				if err := p.Conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-					log.Println("Failed to write WebSocket message:", err)
-				}
-				continue
-			}
-		}
-		msgBytes, err := json.Marshal(msgCopy)
+		// Use protojson for the entire message if it contains protobuf types
+		// Otherwise, use standard json.Marshal
+		var msgBytes []byte
+		var err error
+
+		msgBytes, err = json.Marshal(msg)
 		if err != nil {
-			log.Println("Failed to marshal message:", err)
+			logger.Error("Failed to marshal message for WebSocket", zap.Error(err), zap.Any("message", msg))
 			continue
 		}
+
 		if err := p.Conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-			log.Println("Failed to write WebSocket message:", err)
+			logger.Error("Failed to write WebSocket message", zap.Error(err), zap.String("peerID", p.ID))
+			// If writing fails, the connection might be broken, so stop trying to send.
+			return
 		}
 	}
 }
 
 func main() {
-	log.Println("[Startup] Media Streaming Service starting up...")
+	// Initialize Zap logger
+	var err error
+	logger, err = zap.NewProduction() // or zap.NewDevelopment() for more verbose logging
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer func() {
+		_ = logger.Sync() // Flushes any buffered log entries
+	}()
+
+	logger.Info("Media Streaming Service starting up...")
+
 	upgrader := websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }}
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		campaignID := r.URL.Query().Get("campaign")
@@ -341,35 +335,49 @@ func main() {
 		peerID := r.URL.Query().Get("peer")
 		if campaignID == "" || peerID == "" {
 			http.Error(w, "campaign and peer required", http.StatusBadRequest)
+			logger.Warn("Missing campaign or peer ID in WebSocket request", zap.String("remoteAddr", r.RemoteAddr))
 			return
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Println("WebSocket upgrade error:", err)
+			logger.Error("WebSocket upgrade error", zap.Error(err), zap.String("remoteAddr", r.RemoteAddr))
 			return
 		}
 		ctx, cancel := context.WithCancel(r.Context())
-		meta := &commonpb.Metadata{
-			ServiceSpecific: nil,
-		}
+
+		// Initialize metadata properly
+		meta := &commonpb.Metadata{}
+		// Add initial service-specific metadata if needed, e.g., for tracking
+		// meta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{"peer_id": structpb.NewStringValue(peerID)}}
+
 		peer := &Peer{
 			ID:       peerID,
 			Conn:     conn,
 			Send:     make(chan Message, 32),
 			Cancel:   cancel,
+			Done:     make(chan struct{}),
 			Metadata: meta,
 		}
 		room := getOrCreateRoom(campaignID, contextID)
 		peer.Room = room
 		room.mu.Lock()
+		// Check if peer already exists to prevent overwriting active connections
+		if existingPeer, ok := room.Peers[peerID]; ok {
+			logger.Warn("Peer reconnected, closing old connection", zap.String("peerID", peerID))
+			existingPeer.Cancel()         // Cancel old peer's context
+			<-existingPeer.Done           // Wait for old writePump to finish
+			_ = existingPeer.Conn.Close() // Close old WebSocket
+		}
 		room.Peers[peerID] = peer
 		room.mu.Unlock()
+
 		go peer.writePump()
-		peer.readPump(ctx)
+		peer.readPump(ctx) // Blocking call, will exit when connection closes or error occurs
+
+		// Cleanup after readPump exits
 		room.mu.Lock()
 		delete(room.Peers, peerID)
 		room.mu.Unlock()
-		peer.Cancel()
 		if err := conn.Close(); err != nil {
 			log.Println("Failed to close WebSocket connection:", err)
 		}
@@ -378,7 +386,7 @@ func main() {
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte("ok")); err != nil {
-			log.Println("Failed to write healthz response:", err)
+			logger.Error("Failed to write healthz response", zap.Error(err))
 		}
 	})
 
@@ -388,13 +396,14 @@ func main() {
 	}
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Println("ListenAndServe:", err)
+			logger.Fatal("HTTP server ListenAndServe failed", zap.Error(err))
 		}
 	}()
 
 	// Connect to Nexus, register pattern, and subscribe to events
-	nexusClient, err := connectNexus()
+	nexusClient, err = connectNexus()
 	if err != nil {
+		logger.Fatal("Failed to connect to Nexus gRPC server", zap.Error(err))
 		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to connect to Nexus", err).
 			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
 		return
@@ -413,13 +422,13 @@ func main() {
 	nexusClient.registerPattern(campaignID, meta)
 	nexusClient.subscribeEvents(campaignID, meta)
 
-	sig := make(chan os.Signal, 1)
+	sig := make(chan os.Signal, 1) // Buffered channel for signals
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	<-sig
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
-		log.Println("Failed to shutdown server:", err)
+		logger.Error("HTTP server shutdown failed", zap.Error(err))
 	}
-	log.Println("[Shutdown] Media Streaming Service stopped.")
+	logger.Info("Media Streaming Service stopped.")
 }

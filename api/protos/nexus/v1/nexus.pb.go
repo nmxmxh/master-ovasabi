@@ -33,7 +33,7 @@ type RegisterPatternRequest struct {
 	PatternType   string                 `protobuf:"bytes,2,opt,name=pattern_type,json=patternType,proto3" json:"pattern_type,omitempty"` // workflow, data, ai, etc.
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	Origin        string                 `protobuf:"bytes,4,opt,name=origin,proto3" json:"origin,omitempty"`         // manual, mined, imported
-	Definition    *structpb.Struct       `protobuf:"bytes,5,opt,name=definition,proto3" json:"definition,omitempty"` // pattern definition (YAML/JSON/DSL)
+	Definition    *v1.IntegrationPattern `protobuf:"bytes,5,opt,name=definition,proto3" json:"definition,omitempty"` // Formalized pattern definition
 	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	unknownFields protoimpl.UnknownFields
@@ -98,7 +98,7 @@ func (x *RegisterPatternRequest) GetOrigin() string {
 	return ""
 }
 
-func (x *RegisterPatternRequest) GetDefinition() *structpb.Struct {
+func (x *RegisterPatternRequest) GetDefinition() *v1.IntegrationPattern {
 	if x != nil {
 		return x.Definition
 	}
@@ -297,7 +297,7 @@ type Pattern struct {
 	PatternType   string                 `protobuf:"bytes,2,opt,name=pattern_type,json=patternType,proto3" json:"pattern_type,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	Origin        string                 `protobuf:"bytes,4,opt,name=origin,proto3" json:"origin,omitempty"`
-	Definition    *structpb.Struct       `protobuf:"bytes,5,opt,name=definition,proto3" json:"definition,omitempty"`
+	Definition    *v1.IntegrationPattern `protobuf:"bytes,5,opt,name=definition,proto3" json:"definition,omitempty"` // Formalized pattern definition
 	UsageCount    int64                  `protobuf:"varint,6,opt,name=usage_count,json=usageCount,proto3" json:"usage_count,omitempty"`
 	LastUsed      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_used,json=lastUsed,proto3" json:"last_used,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -364,7 +364,7 @@ func (x *Pattern) GetOrigin() string {
 	return ""
 }
 
-func (x *Pattern) GetDefinition() *structpb.Struct {
+func (x *Pattern) GetDefinition() *v1.IntegrationPattern {
 	if x != nil {
 		return x.Definition
 	}
@@ -1368,15 +1368,15 @@ var File_nexus_v1_nexus_proto protoreflect.FileDescriptor
 
 const file_nexus_v1_nexus_proto_rawDesc = "" +
 	"\n" +
-	"\x14nexus/v1/nexus.proto\x12\bnexus.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\x1a\x17common/v1/payload.proto\"\x94\x02\n" +
+	"\x14nexus/v1/nexus.proto\x12\bnexus.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\x1a\x18common/v1/patterns.proto\x1a\x17common/v1/payload.proto\"\x97\x02\n" +
 	"\x16RegisterPatternRequest\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x01 \x01(\tR\tpatternId\x12!\n" +
 	"\fpattern_type\x18\x02 \x01(\tR\vpatternType\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x16\n" +
-	"\x06origin\x18\x04 \x01(\tR\x06origin\x127\n" +
+	"\x06origin\x18\x04 \x01(\tR\x06origin\x12:\n" +
 	"\n" +
-	"definition\x18\x05 \x01(\v2\x17.google.protobuf.StructR\n" +
+	"definition\x18\x05 \x01(\v2\x1a.common.IntegrationPatternR\n" +
 	"definition\x12,\n" +
 	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1f\n" +
 	"\vcampaign_id\x18\a \x01(\x03R\n" +
@@ -1392,15 +1392,15 @@ const file_nexus_v1_nexus_proto_rawDesc = "" +
 	"campaignId\"s\n" +
 	"\x14ListPatternsResponse\x12-\n" +
 	"\bpatterns\x18\x01 \x03(\v2\x11.nexus.v1.PatternR\bpatterns\x12,\n" +
-	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata\"\xdf\x02\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata\"\xe2\x02\n" +
 	"\aPattern\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x01 \x01(\tR\tpatternId\x12!\n" +
 	"\fpattern_type\x18\x02 \x01(\tR\vpatternType\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x16\n" +
-	"\x06origin\x18\x04 \x01(\tR\x06origin\x127\n" +
+	"\x06origin\x18\x04 \x01(\tR\x06origin\x12:\n" +
 	"\n" +
-	"definition\x18\x05 \x01(\v2\x17.google.protobuf.StructR\n" +
+	"definition\x18\x05 \x01(\v2\x1a.common.IntegrationPatternR\n" +
 	"definition\x12\x1f\n" +
 	"\vusage_count\x18\x06 \x01(\x03R\n" +
 	"usageCount\x127\n" +
@@ -1538,30 +1538,31 @@ var file_nexus_v1_nexus_proto_goTypes = []any{
 	(*SubscribeRequest)(nil),        // 18: nexus.v1.SubscribeRequest
 	(*Nexus)(nil),                   // 19: nexus.v1.Nexus
 	nil,                             // 20: nexus.v1.HandleOpsRequest.ParamsEntry
-	(*structpb.Struct)(nil),         // 21: google.protobuf.Struct
+	(*v1.IntegrationPattern)(nil),   // 21: common.IntegrationPattern
 	(*v1.Metadata)(nil),             // 22: common.Metadata
 	(*timestamppb.Timestamp)(nil),   // 23: google.protobuf.Timestamp
-	(*v1.Payload)(nil),              // 24: common.Payload
+	(*structpb.Struct)(nil),         // 24: google.protobuf.Struct
+	(*v1.Payload)(nil),              // 25: common.Payload
 }
 var file_nexus_v1_nexus_proto_depIdxs = []int32{
-	21, // 0: nexus.v1.RegisterPatternRequest.definition:type_name -> google.protobuf.Struct
+	21, // 0: nexus.v1.RegisterPatternRequest.definition:type_name -> common.IntegrationPattern
 	22, // 1: nexus.v1.RegisterPatternRequest.metadata:type_name -> common.Metadata
 	22, // 2: nexus.v1.RegisterPatternResponse.metadata:type_name -> common.Metadata
 	22, // 3: nexus.v1.ListPatternsRequest.metadata:type_name -> common.Metadata
 	4,  // 4: nexus.v1.ListPatternsResponse.patterns:type_name -> nexus.v1.Pattern
 	22, // 5: nexus.v1.ListPatternsResponse.metadata:type_name -> common.Metadata
-	21, // 6: nexus.v1.Pattern.definition:type_name -> google.protobuf.Struct
+	21, // 6: nexus.v1.Pattern.definition:type_name -> common.IntegrationPattern
 	23, // 7: nexus.v1.Pattern.last_used:type_name -> google.protobuf.Timestamp
 	22, // 8: nexus.v1.Pattern.metadata:type_name -> common.Metadata
-	21, // 9: nexus.v1.OrchestrateRequest.input:type_name -> google.protobuf.Struct
+	24, // 9: nexus.v1.OrchestrateRequest.input:type_name -> google.protobuf.Struct
 	22, // 10: nexus.v1.OrchestrateRequest.metadata:type_name -> common.Metadata
-	21, // 11: nexus.v1.OrchestrateResponse.output:type_name -> google.protobuf.Struct
+	24, // 11: nexus.v1.OrchestrateResponse.output:type_name -> google.protobuf.Struct
 	22, // 12: nexus.v1.OrchestrateResponse.metadata:type_name -> common.Metadata
 	22, // 13: nexus.v1.TracePatternRequest.metadata:type_name -> common.Metadata
 	9,  // 14: nexus.v1.TracePatternResponse.steps:type_name -> nexus.v1.TraceStep
 	22, // 15: nexus.v1.TracePatternResponse.metadata:type_name -> common.Metadata
 	23, // 16: nexus.v1.TraceStep.timestamp:type_name -> google.protobuf.Timestamp
-	21, // 17: nexus.v1.TraceStep.details:type_name -> google.protobuf.Struct
+	24, // 17: nexus.v1.TraceStep.details:type_name -> google.protobuf.Struct
 	22, // 18: nexus.v1.MinePatternsRequest.metadata:type_name -> common.Metadata
 	4,  // 19: nexus.v1.MinePatternsResponse.patterns:type_name -> nexus.v1.Pattern
 	22, // 20: nexus.v1.MinePatternsResponse.metadata:type_name -> common.Metadata
@@ -1569,12 +1570,12 @@ var file_nexus_v1_nexus_proto_depIdxs = []int32{
 	22, // 22: nexus.v1.FeedbackResponse.metadata:type_name -> common.Metadata
 	20, // 23: nexus.v1.HandleOpsRequest.params:type_name -> nexus.v1.HandleOpsRequest.ParamsEntry
 	22, // 24: nexus.v1.HandleOpsRequest.metadata:type_name -> common.Metadata
-	21, // 25: nexus.v1.HandleOpsResponse.data:type_name -> google.protobuf.Struct
+	24, // 25: nexus.v1.HandleOpsResponse.data:type_name -> google.protobuf.Struct
 	22, // 26: nexus.v1.HandleOpsResponse.metadata:type_name -> common.Metadata
 	22, // 27: nexus.v1.EventRequest.metadata:type_name -> common.Metadata
-	24, // 28: nexus.v1.EventRequest.payload:type_name -> common.Payload
+	25, // 28: nexus.v1.EventRequest.payload:type_name -> common.Payload
 	22, // 29: nexus.v1.EventResponse.metadata:type_name -> common.Metadata
-	24, // 30: nexus.v1.EventResponse.payload:type_name -> common.Payload
+	25, // 30: nexus.v1.EventResponse.payload:type_name -> common.Payload
 	22, // 31: nexus.v1.SubscribeRequest.metadata:type_name -> common.Metadata
 	0,  // 32: nexus.v1.NexusService.RegisterPattern:input_type -> nexus.v1.RegisterPatternRequest
 	2,  // 33: nexus.v1.NexusService.ListPatterns:input_type -> nexus.v1.ListPatternsRequest

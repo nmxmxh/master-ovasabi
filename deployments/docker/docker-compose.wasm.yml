@@ -6,13 +6,10 @@ services:
       dockerfile: deployments/docker/Dockerfile.wasm
       target: prod
     ports:
-      - '8080:80'
-    volumes:
-      - ./frontend/dist:/usr/share/nginx/html:ro
+      - '8088:80'
     restart: unless-stopped
     networks:
       - ovasabi-network
 
 networks:
   ovasabi-network:
-    external: true

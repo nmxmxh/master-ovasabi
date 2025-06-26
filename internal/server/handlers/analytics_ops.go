@@ -1,16 +1,20 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	analyticspb "github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/shield"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // AnalyticsOpsHandler handles analytics-related actions via the "action" field.
@@ -34,7 +38,7 @@ func AnalyticsOpsHandler(container *di.Container) http.HandlerFunc {
 		var analyticsSvc analyticspb.AnalyticsServiceServer
 		if err := container.Resolve(&analyticsSvc); err != nil {
 			log.Error("Failed to resolve AnalyticsService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err) // Already correct
 			return
 		}
 		// Extract authentication context
@@ -42,7 +46,7 @@ func AnalyticsOpsHandler(container *di.Container) http.HandlerFunc {
 		userID := authCtx.UserID
 		isGuest := userID == "" || (len(authCtx.Roles) == 1 && authCtx.Roles[0] == "guest")
 		if isGuest {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil) // Already correct
 			return
 		}
 		meta := shield.BuildRequestMetadata(r, userID, isGuest)
@@ -50,253 +54,92 @@ func AnalyticsOpsHandler(container *di.Container) http.HandlerFunc {
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err) // Already correct
 			return
 		}
-		var req map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var reqMap map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&reqMap); err != nil {
 			log.Error("invalid JSON in AnalyticsOpsHandler", zap.Error(err))
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
 			return
 		}
-		action, ok := req["action"].(string)
+		action, ok := reqMap["action"].(string)
 		if !ok || action == "" {
-			log.Error("missing or invalid action in AnalyticsOpsHandler", zap.Any("value", req["action"]))
-			http.Error(w, "missing or invalid action", http.StatusBadRequest)
+			log.Error("missing or invalid action in AnalyticsOpsHandler", zap.Any("value", reqMap["action"]))
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil)
 			return
 		}
-		// Permission check for all analytics actions
-		err := shield.CheckPermission(ctx, securitySvc, action, "analytics", shield.WithMetadata(meta))
-		switch {
-		case err == nil:
-			// allowed, proceed
-		case errors.Is(err, shield.ErrUnauthenticated):
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		case errors.Is(err, shield.ErrPermissionDenied):
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		default:
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+		if err := shield.CheckPermission(ctx, securitySvc, action, "analytics", shield.WithMetadata(meta)); err != nil {
+			httputil.HandleShieldError(w, log, err)
 			return
 		}
-		switch action {
-		case "capture_event":
-			var captureReq analyticspb.CaptureEventRequest
-			if err := mapToProto(req, &captureReq); err != nil {
-				log.Error("invalid capture_event request", zap.Error(err))
-				http.Error(w, "invalid capture_event request", http.StatusBadRequest)
-				return
-			}
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					captureReq.CampaignId = int64(vv)
-				case int64:
-					captureReq.CampaignId = vv
-				}
-			}
-			resp, err := analyticsSvc.CaptureEvent(ctx, &captureReq)
-			if err != nil {
-				log.Error("service error in capture_event", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in capture_event", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		case "list_events":
-			resp, err := analyticsSvc.ListEvents(ctx, &analyticspb.ListEventsRequest{})
-			if err != nil {
-				log.Error("service error in list_events", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in list_events", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		case "enrich_event_metadata":
-			var enrichReq analyticspb.EnrichEventMetadataRequest
-			if err := mapToProto(req, &enrichReq); err != nil {
-				log.Error("invalid enrich_event_metadata request", zap.Error(err))
-				http.Error(w, "invalid enrich_event_metadata request", http.StatusBadRequest)
-				return
-			}
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					enrichReq.CampaignId = int64(vv)
-				case int64:
-					enrichReq.CampaignId = vv
-				}
-			}
-			resp, err := analyticsSvc.EnrichEventMetadata(ctx, &enrichReq)
-			if err != nil {
-				log.Error("service error in enrich_event_metadata", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in enrich_event_metadata", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		case "track_event":
-			var trackReq analyticspb.TrackEventRequest
-			if err := mapToProto(req, &trackReq); err != nil {
-				log.Error("invalid track_event request", zap.Error(err))
-				http.Error(w, "invalid track_event request", http.StatusBadRequest)
-				return
-			}
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					if trackReq.Event != nil {
-						trackReq.Event.CampaignId = int64(vv)
-					}
-				case int64:
-					if trackReq.Event != nil {
-						trackReq.Event.CampaignId = vv
-					}
-				}
-			}
-			resp, err := analyticsSvc.TrackEvent(ctx, &trackReq)
-			if err != nil {
-				log.Error("service error in track_event", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in track_event", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		case "batch_track_events":
-			var batchReq analyticspb.BatchTrackEventsRequest
-			if err := mapToProto(req, &batchReq); err != nil {
-				log.Error("invalid batch_track_events request", zap.Error(err))
-				http.Error(w, "invalid batch_track_events request", http.StatusBadRequest)
-				return
-			}
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					for _, e := range batchReq.Events {
-						e.CampaignId = int64(vv)
-					}
-				case int64:
-					for _, e := range batchReq.Events {
-						e.CampaignId = vv
-					}
-				}
-			}
-			resp, err := analyticsSvc.BatchTrackEvents(ctx, &batchReq)
-			if err != nil {
-				log.Error("service error in batch_track_events", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in batch_track_events", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		case "get_user_events":
-			var userReq analyticspb.GetUserEventsRequest
-			if err := mapToProto(req, &userReq); err != nil {
-				log.Error("invalid get_user_events request", zap.Error(err))
-				http.Error(w, "invalid get_user_events request", http.StatusBadRequest)
-				return
-			}
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					userReq.CampaignId = int64(vv)
-				case int64:
-					userReq.CampaignId = vv
-				}
-			}
-			resp, err := analyticsSvc.GetUserEvents(ctx, &userReq)
-			if err != nil {
-				log.Error("service error in get_user_events", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in get_user_events", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		case "get_product_events":
-			var prodReq analyticspb.GetProductEventsRequest
-			if err := mapToProto(req, &prodReq); err != nil {
-				log.Error("invalid get_product_events request", zap.Error(err))
-				http.Error(w, "invalid get_product_events request", http.StatusBadRequest)
-				return
-			}
-			if v, ok := req["campaign_id"]; ok {
-				switch vv := v.(type) {
-				case float64:
-					prodReq.CampaignId = int64(vv)
-				case int64:
-					prodReq.CampaignId = vv
-				}
-			}
-			resp, err := analyticsSvc.GetProductEvents(ctx, &prodReq)
-			if err != nil {
-				log.Error("service error in get_product_events", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in get_product_events", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		case "get_report":
-			var reportReq analyticspb.GetReportRequest
-			if err := mapToProto(req, &reportReq); err != nil {
-				log.Error("invalid get_report request", zap.Error(err))
-				http.Error(w, "invalid get_report request", http.StatusBadRequest)
-				return
-			}
-			resp, err := analyticsSvc.GetReport(ctx, &reportReq)
-			if err != nil {
-				log.Error("service error in get_report", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in get_report", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		case "list_reports":
-			var listReq analyticspb.ListReportsRequest
-			if err := mapToProto(req, &listReq); err != nil {
-				log.Error("invalid list_reports request", zap.Error(err))
-				http.Error(w, "invalid list_reports request", http.StatusBadRequest)
-				return
-			}
-			resp, err := analyticsSvc.ListReports(ctx, &listReq)
-			if err != nil {
-				log.Error("service error in list_reports", zap.Error(err))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Error("failed to encode response in list_reports", zap.Error(err))
-				http.Error(w, "failed to encode response", http.StatusInternalServerError)
-				return
-			}
-		default:
+
+		// Use a map for cleaner action dispatching
+		actionHandlers := map[string]func(){
+			"capture_event": func() {
+				handleAction(w, ctx, log, reqMap, &analyticspb.CaptureEventRequest{}, analyticsSvc.CaptureEvent)
+			},
+			"list_events": func() { handleAction(w, ctx, log, reqMap, &analyticspb.ListEventsRequest{}, analyticsSvc.ListEvents) },
+			"enrich_event_metadata": func() {
+				handleAction(w, ctx, log, reqMap, &analyticspb.EnrichEventMetadataRequest{}, analyticsSvc.EnrichEventMetadata)
+			},
+			"track_event": func() { handleAction(w, ctx, log, reqMap, &analyticspb.TrackEventRequest{}, analyticsSvc.TrackEvent) },
+			"batch_track_events": func() {
+				handleAction(w, ctx, log, reqMap, &analyticspb.BatchTrackEventsRequest{}, analyticsSvc.BatchTrackEvents)
+			},
+			"get_user_events": func() {
+				handleAction(w, ctx, log, reqMap, &analyticspb.GetUserEventsRequest{}, analyticsSvc.GetUserEvents)
+			},
+			"get_product_events": func() {
+				handleAction(w, ctx, log, reqMap, &analyticspb.GetProductEventsRequest{}, analyticsSvc.GetProductEvents)
+			},
+			"get_report":   func() { handleAction(w, ctx, log, reqMap, &analyticspb.GetReportRequest{}, analyticsSvc.GetReport) },
+			"list_reports": func() { handleAction(w, ctx, log, reqMap, &analyticspb.ListReportsRequest{}, analyticsSvc.ListReports) },
+		}
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
 			log.Error("unknown action in AnalyticsOpsHandler", zap.String("action", action))
-			http.Error(w, "unknown action", http.StatusBadRequest)
-			return
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil)
 		}
 	}
+}
+
+// handleAction is a generic helper to reduce boilerplate in AnalyticsOpsHandler.
+// It decodes the request from a map, calls the provided service function, and handles the response/error.
+func handleAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoAnalytics(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		// Log the detailed error internally, but return a safe message to the client.
+		log.Error("analytics service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil) // Don't leak internal error details
+		return
+	}
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProto converts a map[string]interface{} to a proto.Message using JSON as an intermediate.
+func mapToProtoAnalytics(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	// Use protojson to unmarshal, which correctly handles protobuf specifics.
+	return protojson.Unmarshal(jsonBytes, v)
 }

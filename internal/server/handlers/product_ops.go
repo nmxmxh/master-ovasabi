@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"time"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // Define a custom type for context keys to avoid linter errors
@@ -46,302 +48,158 @@ func ProductOpsHandler(container *di.Container) http.HandlerFunc {
 		var productSvc productpb.ProductServiceServer
 		if err := container.Resolve(&productSvc); err != nil {
 			log.Error("Failed to resolve ProductService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
 		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
+			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
 			return
 		}
 		var req map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("Failed to decode product request JSON", zap.Error(err))
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
 			return
 		}
 		action, ok := req["action"].(string)
 		if !ok || action == "" {
 			log.Error("Missing or invalid action in product request", zap.Any("value", req["action"]))
-			http.Error(w, "missing or invalid action", http.StatusBadRequest)
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil)
 			return
 		}
 		authCtx := contextx.Auth(ctx)
 		userID := authCtx.UserID
 		roles := authCtx.Roles
 		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
-		switch action {
-		case "create_product":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			// Only allow owner or admin to create
-			if !isAdmin(roles) && req["owner_id"] != userID {
-				http.Error(w, "forbidden: only owner or admin can create", http.StatusForbidden)
-				return
-			}
-			product := &productpb.Product{}
-			if v, ok := req["name"].(string); ok {
-				product.Name = v
-			}
-			if v, ok := req["description"].(string); ok {
-				product.Description = v
-			}
-			if v, ok := req["type"].(float64); ok {
-				product.Type = productpb.ProductType(int32(v))
-			}
-			if v, ok := req["status"].(float64); ok {
-				product.Status = productpb.ProductStatus(int32(v))
-			}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						product.Tags = append(product.Tags, s)
-					}
-				}
-			}
-			ownerID, ok := req["owner_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid owner_id in create_product", zap.Any("value", req["owner_id"]))
-				http.Error(w, "missing or invalid owner_id", http.StatusBadRequest)
-				return
-			}
-			product.OwnerId = ownerID
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				if ss, ok := m["service_specific"].(map[string]interface{}); ok {
-					if prod, ok := ss["product"].(map[string]interface{}); ok {
-						prod["audit"] = map[string]interface{}{"created_by": userID, "created_at": time.Now().Format(time.RFC3339)}
-						ss["product"] = prod
-						m["service_specific"] = ss
-						req["metadata"] = m
-					}
-				}
-				metaStruct, err := structpb.NewStruct(m)
-				if err != nil {
-					log.Error("Failed to convert metadata to structpb.Struct", zap.Error(err))
-					http.Error(w, "invalid metadata", http.StatusBadRequest)
+
+		actionHandlers := map[string]func(){
+			"create_product": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
 					return
 				}
-				product.Metadata = &commonpb.Metadata{ServiceSpecific: metaStruct}
-			}
-			protoReq := &productpb.CreateProductRequest{Product: product}
-			resp, err := productSvc.CreateProduct(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to create product", zap.Error(err))
-				http.Error(w, "failed to create product", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"product": resp.Product}); err != nil {
-				log.Error("Failed to write JSON response (create_product)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "get_product":
-			productID, ok := req["product_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid product_id in get_product", zap.Any("value", req["product_id"]))
-				http.Error(w, "missing or invalid product_id", http.StatusBadRequest)
-				return
-			}
-			protoReq := &productpb.GetProductRequest{ProductId: productID}
-			resp, err := productSvc.GetProduct(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to get product", zap.Error(err))
-				http.Error(w, "failed to get product", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"product": resp.Product}); err != nil {
-				log.Error("Failed to write JSON response (get_product)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "update_product":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			// Only allow owner or admin to update
-			ownerID, ok := req["owner_id"].(string)
-			if !ok || (!isAdmin(roles) && ownerID != userID) {
-				http.Error(w, "forbidden: only owner or admin can update", http.StatusForbidden)
-				return
-			}
-			productID, ok := req["product_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid product_id in update_product", zap.Any("value", req["product_id"]))
-				http.Error(w, "missing or invalid product_id", http.StatusBadRequest)
-				return
-			}
-			product := &productpb.Product{Id: productID}
-			if v, ok := req["name"].(string); ok {
-				product.Name = v
-			}
-			if v, ok := req["description"].(string); ok {
-				product.Description = v
-			}
-			if v, ok := req["type"].(float64); ok {
-				product.Type = productpb.ProductType(int32(v))
-			}
-			if v, ok := req["status"].(float64); ok {
-				product.Status = productpb.ProductStatus(int32(v))
-			}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						product.Tags = append(product.Tags, s)
+				// The request body for create_product should contain a 'product' object.
+				// We check the owner_id within that object.
+				if productData, ok := req["product"].(map[string]interface{}); ok {
+					if ownerID, ok := productData["owner_id"].(string); !ok || (!httputil.IsAdmin(roles) && ownerID != userID) {
+						httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: only owner or admin can create", nil)
+						return
 					}
-				}
-			}
-			// Enrich metadata with audit info
-			if m, ok := req["metadata"].(map[string]interface{}); ok {
-				if ss, ok := m["service_specific"].(map[string]interface{}); ok {
-					if prod, ok := ss["product"].(map[string]interface{}); ok {
-						prod["audit"] = map[string]interface{}{"last_modified_by": userID, "last_modified_at": time.Now().Format(time.RFC3339)}
-						ss["product"] = prod
-						m["service_specific"] = ss
-						req["metadata"] = m
+					// Enrich metadata with audit info
+					if m, ok := productData["metadata"].(map[string]interface{}); ok {
+						if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+							if prod, ok := ss["product"].(map[string]interface{}); ok {
+								prod["audit"] = map[string]interface{}{"created_by": userID, "created_at": time.Now().UTC().Format(time.RFC3339)}
+								ss["product"] = prod
+								m["service_specific"] = ss
+								productData["metadata"] = m
+							}
+						}
 					}
+					req["product"] = productData
+				} else {
+					httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing product data in request", nil)
+					return
 				}
-			}
-			protoReq := &productpb.UpdateProductRequest{Product: product}
-			resp, err := productSvc.UpdateProduct(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to update product", zap.Error(err))
-				http.Error(w, "failed to update product", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"product": resp.Product}); err != nil {
-				log.Error("Failed to write JSON response (update_product)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "delete_product":
-			if isGuest {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			// Only allow owner or admin to delete
-			ownerID, ok := req["owner_id"].(string)
-			if !ok || (!isAdmin(roles) && ownerID != userID) {
-				http.Error(w, "forbidden: only owner or admin can delete", http.StatusForbidden)
-				return
-			}
-			productID, ok := req["product_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid product_id in delete_product", zap.Any("value", req["product_id"]))
-				http.Error(w, "missing or invalid product_id", http.StatusBadRequest)
-				return
-			}
-			protoReq := &productpb.DeleteProductRequest{ProductId: productID}
-			resp, err := productSvc.DeleteProduct(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to delete product", zap.Error(err))
-				http.Error(w, "failed to delete product", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"success": resp.Success}); err != nil {
-				log.Error("Failed to write JSON response (delete_product)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "list_products":
-			page := int32(0)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			ownerID, ok := req["owner_id"].(string)
-			if !ok {
-				log.Error("Missing or invalid owner_id in list_products", zap.Any("value", req["owner_id"]))
-				http.Error(w, "missing or invalid owner_id", http.StatusBadRequest)
-				return
-			}
-			tags := []string{}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						tags = append(tags, s)
+				handleProductAction(w, ctx, log, req, &productpb.CreateProductRequest{}, productSvc.CreateProduct)
+			},
+			"get_product": func() {
+				handleProductAction(w, ctx, log, req, &productpb.GetProductRequest{}, productSvc.GetProduct)
+			},
+			"update_product": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
+					return
+				}
+				if productData, ok := req["product"].(map[string]interface{}); ok {
+					if ownerID, ok := productData["owner_id"].(string); !ok || (!httputil.IsAdmin(roles) && ownerID != userID) {
+						httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: only owner or admin can update", nil)
+						return
 					}
-				}
-			}
-			var metadataFilters map[string]interface{}
-			if m, ok := req["metadata_filters"].(map[string]interface{}); ok {
-				metadataFilters = m
-			}
-			if metadataFilters != nil {
-				ctx = context.WithValue(ctx, metadataFiltersKey, metadataFilters)
-			}
-			protoReq := &productpb.ListProductsRequest{
-				Page:     page,
-				PageSize: pageSize,
-				OwnerId:  ownerID,
-				Tags:     tags,
-			}
-			resp, err := productSvc.ListProducts(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to list products", zap.Error(err))
-				http.Error(w, "failed to list products", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"products": resp.Products, "total_count": resp.TotalCount, "page": resp.Page, "total_pages": resp.TotalPages}); err != nil {
-				log.Error("Failed to write JSON response (list_products)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		case "search_products":
-			query, ok := req["query"].(string)
-			if !ok {
-				log.Error("Missing or invalid query in search_products", zap.Any("value", req["query"]))
-				http.Error(w, "missing or invalid query", http.StatusBadRequest)
-				return
-			}
-			page := int32(0)
-			if v, ok := req["page"].(float64); ok {
-				page = int32(v)
-			}
-			pageSize := int32(20)
-			if v, ok := req["page_size"].(float64); ok {
-				pageSize = int32(v)
-			}
-			tags := []string{}
-			if arr, ok := req["tags"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						tags = append(tags, s)
+					// Enrich metadata with audit info
+					if m, ok := productData["metadata"].(map[string]interface{}); ok {
+						if ss, ok := m["service_specific"].(map[string]interface{}); ok {
+							if prod, ok := ss["product"].(map[string]interface{}); ok {
+								prod["audit"] = map[string]interface{}{"last_modified_by": userID, "last_modified_at": time.Now().UTC().Format(time.RFC3339)}
+								ss["product"] = prod
+								m["service_specific"] = ss
+								productData["metadata"] = m
+							}
+						}
 					}
+					req["product"] = productData
+				} else {
+					httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing product data in request", nil)
+					return
 				}
-			}
-			var metadataFilters map[string]interface{}
-			if m, ok := req["metadata_filters"].(map[string]interface{}); ok {
-				metadataFilters = m
-			}
-			if metadataFilters != nil {
-				ctx = context.WithValue(ctx, metadataFiltersKey, metadataFilters)
-			}
-			protoReq := &productpb.SearchProductsRequest{
-				Query:    query,
-				Page:     page,
-				PageSize: pageSize,
-				Tags:     tags,
-			}
-			resp, err := productSvc.SearchProducts(ctx, protoReq)
-			if err != nil {
-				log.Error("Failed to search products", zap.Error(err))
-				http.Error(w, "failed to search products", http.StatusInternalServerError)
-				return
-			}
-			if err := json.NewEncoder(w).Encode(map[string]interface{}{"products": resp.Products, "total_count": resp.TotalCount, "page": resp.Page, "total_pages": resp.TotalPages}); err != nil {
-				log.Error("Failed to write JSON response (search_products)", zap.Error(err))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-		default:
-			log.Error("Unknown action in product_ops", zap.Any("action", action))
-			http.Error(w, "unknown action", http.StatusBadRequest)
-			return
+				handleProductAction(w, ctx, log, req, &productpb.UpdateProductRequest{}, productSvc.UpdateProduct)
+			},
+			"delete_product": func() {
+				if isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
+					return
+				}
+				// For delete, owner_id might be at the top level for permission check before deletion
+				if ownerID, ok := req["owner_id"].(string); !ok || (!httputil.IsAdmin(roles) && ownerID != userID) {
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: only owner or admin can delete", nil)
+					return
+				}
+				handleProductAction(w, ctx, log, req, &productpb.DeleteProductRequest{}, productSvc.DeleteProduct)
+			},
+			"list_products": func() {
+				if m, ok := req["metadata_filters"].(map[string]interface{}); ok {
+					ctx = context.WithValue(ctx, metadataFiltersKey, m)
+				}
+				handleProductAction(w, ctx, log, req, &productpb.ListProductsRequest{}, productSvc.ListProducts)
+			},
+			"search_products": func() {
+				if m, ok := req["metadata_filters"].(map[string]interface{}); ok {
+					ctx = context.WithValue(ctx, metadataFiltersKey, m)
+				}
+				handleProductAction(w, ctx, log, req, &productpb.SearchProductsRequest{}, productSvc.SearchProducts)
+			},
+		}
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
+			log.Error("Unknown action in product_ops", zap.String("action", action))
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil)
 		}
 	}
+}
+
+// handleProductAction is a generic helper to reduce boilerplate in ProductOpsHandler.
+func handleProductAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoProduct(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		log.Error("product service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil)
+		return
+	}
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProtoProduct converts a map[string]interface{} to a proto.Message using JSON as an intermediate.
+func mapToProtoProduct(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return protojson.Unmarshal(jsonBytes, v)
 }

@@ -280,19 +280,29 @@ func (s *Service) CreateOrder(ctx context.Context, req *commercepb.CreateOrderRe
 	meta := req.Metadata
 	orderID := req.UserId + ":order:" + time.Now().Format("20060102150405.000")
 	order := &Order{
-		OrderID:   orderID,
-		UserID:    req.UserId,
-		Total:     0,
-		Currency:  req.Currency,
-		Status:    "PENDING",
-		Metadata:  meta,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		OrderID:    orderID,
+		UserID:     req.UserId,
+		Total:      0,
+		Currency:   req.Currency,
+		Status:     "PENDING",
+		Metadata:   meta,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+		CampaignID: req.CampaignId, // Pass CampaignId from request
+	}
+	repoItems := make([]OrderItem, len(req.Items))
+	for i, item := range req.Items {
+		repoItems[i] = OrderItem{
+			ProductID: item.ProductId,
+			Quantity:  int(item.Quantity),
+			Price:     item.Price,
+			Metadata:  item.Metadata,
+		}
 	}
 	for _, item := range req.Items {
 		order.Total += item.Price * float64(item.Quantity)
 	}
-	if err := s.repo.CreateOrder(ctx, order, nil); err != nil {
+	if err := s.repo.CreateOrder(ctx, order, repoItems); err != nil { // Pass repoItems instead of nil
 		s.log.Error("failed to create order", zap.Error(err))
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to create order", err)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
@@ -300,14 +310,15 @@ func (s *Service) CreateOrder(ctx context.Context, req *commercepb.CreateOrderRe
 	}
 	resp := &commercepb.CreateOrderResponse{
 		Order: &commercepb.Order{
-			OrderId:   order.OrderID,
-			UserId:    order.UserID,
-			Total:     order.Total,
-			Currency:  order.Currency,
-			Status:    toOrderStatus(order.Status),
-			Metadata:  order.Metadata,
-			CreatedAt: timestamppb.New(order.CreatedAt),
-			UpdatedAt: timestamppb.New(order.UpdatedAt),
+			OrderId:    order.OrderID,
+			UserId:     order.UserID,
+			Total:      order.Total,
+			Currency:   order.Currency,
+			Status:     toOrderStatus(order.Status),
+			Metadata:   order.Metadata,
+			CreatedAt:  timestamppb.New(order.CreatedAt),
+			CampaignId: order.CampaignID, // Include CampaignId in response
+			UpdatedAt:  timestamppb.New(order.UpdatedAt),
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "order created", resp, nil)
@@ -347,15 +358,34 @@ func (s *Service) GetOrder(ctx context.Context, req *commercepb.GetOrderRequest)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
+	// Load order items
+	orderItems, err := s.repo.ListOrderItems(ctx, order.OrderID)
+	if err != nil {
+		err := graceful.WrapErr(ctx, codes.Internal, "failed to list order items", err)
+		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		return nil, graceful.ToStatusError(err)
+	}
 	resp := &commercepb.GetOrderResponse{
 		Order: &commercepb.Order{
-			OrderId:   order.OrderID,
-			UserId:    order.UserID,
-			Total:     order.Total,
-			Currency:  order.Currency,
-			Status:    toOrderStatus(order.Status),
-			Metadata:  order.Metadata,
-			CreatedAt: timestamppb.New(order.CreatedAt),
+			OrderId:    order.OrderID,
+			UserId:     order.UserID,
+			Total:      order.Total,
+			Currency:   order.Currency,
+			Status:     toOrderStatus(order.Status),
+			Metadata:   order.Metadata,
+			CreatedAt:  timestamppb.New(order.CreatedAt),
+			CampaignId: order.CampaignID, // Include CampaignId in response
+			Items: func() []*commercepb.OrderItem {
+				protoItems := make([]*commercepb.OrderItem, len(orderItems))
+				for i, item := range orderItems {
+					protoItems[i] = &commercepb.OrderItem{
+						ProductId: item.ProductID,
+						Quantity:  int32(item.Quantity),
+						Price:     item.Price,
+					}
+				}
+				return protoItems
+			}(),
 			UpdatedAt: timestamppb.New(order.UpdatedAt),
 		},
 	}
@@ -397,14 +427,15 @@ func (s *Service) ListOrders(ctx context.Context, req *commercepb.ListOrdersRequ
 	}
 	for i, order := range orders {
 		resp.Orders[i] = &commercepb.Order{
-			OrderId:   order.OrderID,
-			UserId:    order.UserID,
-			Total:     order.Total,
-			Currency:  order.Currency,
-			Status:    toOrderStatus(order.Status),
-			Metadata:  order.Metadata,
-			CreatedAt: timestamppb.New(order.CreatedAt),
-			UpdatedAt: timestamppb.New(order.UpdatedAt),
+			OrderId:    order.OrderID,
+			UserId:     order.UserID,
+			Total:      order.Total,
+			Currency:   order.Currency,
+			Status:     toOrderStatus(order.Status),
+			Metadata:   order.Metadata,
+			CreatedAt:  timestamppb.New(order.CreatedAt),
+			CampaignId: order.CampaignID, // Include CampaignId in response
+			UpdatedAt:  timestamppb.New(order.UpdatedAt),
 		}
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "orders listed", resp, nil)
@@ -488,16 +519,17 @@ func (s *Service) InitiatePayment(ctx context.Context, req *commercepb.InitiateP
 	}
 	meta := req.Metadata
 	payment := &Payment{
-		PaymentID: req.OrderId + ":payment:" + time.Now().Format("20060102150405.000"),
-		OrderID:   req.OrderId,
-		UserID:    req.UserId,
-		Amount:    req.Amount,
-		Currency:  req.Currency,
-		Method:    req.Method,
-		Status:    "PENDING",
-		Metadata:  meta,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		PaymentID:  req.OrderId + ":payment:" + time.Now().Format("20060102150405.000"),
+		OrderID:    req.OrderId,
+		UserID:     req.UserId,
+		Amount:     req.Amount,
+		Currency:   req.Currency,
+		Method:     req.Method,
+		Status:     "PENDING",
+		Metadata:   meta,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+		CampaignID: req.CampaignId, // Pass CampaignId from request
 	}
 	if err := s.repo.CreatePayment(ctx, payment); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to create payment", err)
@@ -506,16 +538,17 @@ func (s *Service) InitiatePayment(ctx context.Context, req *commercepb.InitiateP
 	}
 	resp := &commercepb.InitiatePaymentResponse{
 		Payment: &commercepb.Payment{
-			PaymentId: payment.PaymentID,
-			OrderId:   payment.OrderID,
-			UserId:    payment.UserID,
-			Amount:    payment.Amount,
-			Currency:  payment.Currency,
-			Method:    payment.Method,
-			Status:    commercepb.PaymentStatus_PAYMENT_STATUS_PENDING,
-			Metadata:  payment.Metadata,
-			CreatedAt: timestamppb.New(payment.CreatedAt),
-			UpdatedAt: timestamppb.New(payment.UpdatedAt),
+			PaymentId:  payment.PaymentID,
+			OrderId:    payment.OrderID,
+			UserId:     payment.UserID,
+			Amount:     payment.Amount,
+			Currency:   payment.Currency,
+			Method:     payment.Method,
+			Status:     commercepb.PaymentStatus_PAYMENT_STATUS_PENDING,
+			Metadata:   payment.Metadata,
+			CreatedAt:  timestamppb.New(payment.CreatedAt),
+			CampaignId: payment.CampaignID, // Include CampaignId in response
+			UpdatedAt:  timestamppb.New(payment.UpdatedAt),
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "payment initiated", resp, nil)
@@ -564,16 +597,17 @@ func (s *Service) ConfirmPayment(ctx context.Context, req *commercepb.ConfirmPay
 	}
 	resp := &commercepb.ConfirmPaymentResponse{
 		Payment: &commercepb.Payment{
-			PaymentId: payment.PaymentID,
-			OrderId:   payment.OrderID,
-			UserId:    payment.UserID,
-			Amount:    payment.Amount,
-			Currency:  payment.Currency,
-			Method:    payment.Method,
-			Status:    commercepb.PaymentStatus_PAYMENT_STATUS_SUCCEEDED,
-			Metadata:  payment.Metadata,
-			CreatedAt: timestamppb.New(payment.CreatedAt),
-			UpdatedAt: timestamppb.New(payment.UpdatedAt),
+			PaymentId:  payment.PaymentID,
+			OrderId:    payment.OrderID,
+			UserId:     payment.UserID,
+			Amount:     payment.Amount,
+			Currency:   payment.Currency,
+			Method:     payment.Method,
+			Status:     commercepb.PaymentStatus_PAYMENT_STATUS_SUCCEEDED,
+			Metadata:   payment.Metadata,
+			CreatedAt:  timestamppb.New(payment.CreatedAt),
+			CampaignId: payment.CampaignID, // Include CampaignId in response
+			UpdatedAt:  timestamppb.New(payment.UpdatedAt),
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "payment confirmed", resp, nil)
@@ -622,16 +656,17 @@ func (s *Service) RefundPayment(ctx context.Context, req *commercepb.RefundPayme
 	}
 	resp := &commercepb.RefundPaymentResponse{
 		Payment: &commercepb.Payment{
-			PaymentId: payment.PaymentID,
-			OrderId:   payment.OrderID,
-			UserId:    payment.UserID,
-			Amount:    payment.Amount,
-			Currency:  payment.Currency,
-			Method:    payment.Method,
-			Status:    commercepb.PaymentStatus_PAYMENT_STATUS_REFUNDED,
-			Metadata:  payment.Metadata,
-			CreatedAt: timestamppb.New(payment.CreatedAt),
-			UpdatedAt: timestamppb.New(payment.UpdatedAt),
+			PaymentId:  payment.PaymentID,
+			OrderId:    payment.OrderID,
+			UserId:     payment.UserID,
+			Amount:     payment.Amount,
+			Currency:   payment.Currency,
+			Method:     payment.Method,
+			Status:     commercepb.PaymentStatus_PAYMENT_STATUS_REFUNDED,
+			Metadata:   payment.Metadata,
+			CreatedAt:  timestamppb.New(payment.CreatedAt),
+			CampaignId: payment.CampaignID, // Include CampaignId in response
+			UpdatedAt:  timestamppb.New(payment.UpdatedAt),
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "payment refunded", resp, nil)
@@ -687,6 +722,7 @@ func (s *Service) GetTransaction(ctx context.Context, req *commercepb.GetTransac
 			Status:        toTransactionStatus(transaction.Status),
 			Metadata:      transaction.Metadata,
 			CreatedAt:     timestamppb.New(transaction.CreatedAt),
+			CampaignId:    transaction.CampaignID, // Include CampaignId in response
 			UpdatedAt:     timestamppb.New(transaction.UpdatedAt),
 		},
 	}
@@ -750,6 +786,7 @@ func (s *Service) ListTransactions(ctx context.Context, req *commercepb.ListTran
 			Status:        toTransactionStatus(tx.Status),
 			Metadata:      tx.Metadata,
 			CreatedAt:     timestamppb.New(tx.CreatedAt),
+			CampaignId:    tx.CampaignID, // Include CampaignId in response
 			UpdatedAt:     timestamppb.New(tx.UpdatedAt),
 		}
 	}
@@ -789,11 +826,12 @@ func (s *Service) GetBalance(ctx context.Context, req *commercepb.GetBalanceRequ
 	}
 	resp := &commercepb.GetBalanceResponse{
 		Balance: &commercepb.Balance{
-			UserId:    balance.UserID,
-			Currency:  balance.Currency,
-			Amount:    balance.Amount,
-			UpdatedAt: timestamppb.New(balance.UpdatedAt),
-			Metadata:  balance.Metadata,
+			UserId:     balance.UserID,
+			Currency:   balance.Currency,
+			Amount:     balance.Amount,
+			UpdatedAt:  timestamppb.New(balance.UpdatedAt),
+			Metadata:   balance.Metadata,
+			CampaignId: balance.CampaignID, // Include CampaignId in response
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "balance fetched", resp, nil)
@@ -838,11 +876,12 @@ func (s *Service) ListBalances(ctx context.Context, req *commercepb.ListBalances
 	}
 	for i, b := range balances {
 		resp.Balances[i] = &commercepb.Balance{
-			UserId:    b.UserID,
-			Currency:  b.Currency,
-			Amount:    b.Amount,
-			UpdatedAt: timestamppb.New(b.UpdatedAt),
-			Metadata:  b.Metadata,
+			UserId:     b.UserID,
+			Currency:   b.Currency,
+			Amount:     b.Amount,
+			UpdatedAt:  timestamppb.New(b.UpdatedAt),
+			Metadata:   b.Metadata,
+			CampaignId: b.CampaignID, // Include CampaignId in response
 		}
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "balances listed", resp, nil)
@@ -869,14 +908,14 @@ func (s *Service) ListEvents(ctx context.Context, req *commercepb.ListEventsRequ
 		return nil, graceful.ToStatusError(err)
 	}
 	page := int(req.Page)
-	if page < 1 {
+	pageSize := int(req.PageSize)
+	if page < 1 { // Ensure page is at least 1
 		page = 1
 	}
-	pageSize := int(req.PageSize)
-	if pageSize < 1 {
+	if pageSize < 1 { // Ensure pageSize is at least 1
 		pageSize = 20
 	}
-	eventList, total, err := s.repo.ListEvents(ctx, req.EntityId, req.EntityType, page, pageSize)
+	eventList, total, err := s.repo.ListEvents(ctx, req.EntityId, req.EntityType, req.CampaignId, page, pageSize) // Pass CampaignId
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to list events", err)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
@@ -888,12 +927,13 @@ func (s *Service) ListEvents(ctx context.Context, req *commercepb.ListEventsRequ
 	}
 	for i, e := range eventList {
 		resp.Events[i] = &commercepb.CommerceEvent{
-			EventId:    fmt.Sprintf("%d", e.EventID),
-			EntityId:   fmt.Sprintf("%d", e.EntityID),
+			EventId:    fmt.Sprintf("%d", e.ID),
+			EntityId:   e.EntityID,
 			EntityType: e.EntityType,
 			EventType:  e.EventType,
 			Payload:    toProtoStruct(e.Payload),
 			CreatedAt:  timestamppb.New(e.CreatedAt),
+			CampaignId: e.CampaignID, // Include CampaignId in response
 			Metadata:   e.Metadata,
 		}
 	}
@@ -924,14 +964,15 @@ func (s *Service) CreateInvestmentAccount(ctx context.Context, req *commercepb.C
 	meta := req.Metadata
 	accountID := req.OwnerId + ":investment_account:" + time.Now().Format("20060102150405.000")
 	account := &InvestmentAccount{
-		AccountID: accountID,
-		OwnerID:   req.OwnerId,
-		Type:      req.Type,
-		Currency:  req.Currency,
-		Balance:   req.Balance,
-		Metadata:  meta,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		AccountID:  accountID,
+		OwnerID:    req.OwnerId,
+		Type:       req.Type,
+		Currency:   req.Currency,
+		Balance:    req.Balance,
+		Metadata:   meta,
+		CreatedAt:  time.Now(),
+		CampaignID: req.CampaignId, // Pass CampaignId from request
+		UpdatedAt:  time.Now(),
 	}
 	if err := s.repo.CreateInvestmentAccount(ctx, account); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to create investment account", err)
@@ -940,12 +981,13 @@ func (s *Service) CreateInvestmentAccount(ctx context.Context, req *commercepb.C
 	}
 	resp := &commercepb.CreateInvestmentAccountResponse{
 		Account: &commercepb.InvestmentAccount{
-			AccountId: account.AccountID,
-			OwnerId:   account.OwnerID,
-			Type:      account.Type,
-			Currency:  account.Currency,
-			Balance:   account.Balance,
-			Metadata:  account.Metadata,
+			AccountId:  account.AccountID,
+			OwnerId:    account.OwnerID,
+			Type:       account.Type,
+			Currency:   account.Currency,
+			Balance:    account.Balance,
+			CampaignId: account.CampaignID, // Include CampaignId in response
+			Metadata:   account.Metadata,
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "investment account created", resp, nil)
@@ -982,16 +1024,17 @@ func (s *Service) PlaceInvestmentOrder(ctx context.Context, req *commercepb.Plac
 	meta := req.Metadata
 	orderID := req.AccountId + ":investment_order:" + time.Now().Format("20060102150405.000")
 	order := &InvestmentOrder{
-		OrderID:   orderID,
-		AccountID: req.AccountId,
-		AssetID:   req.AssetId,
-		Quantity:  req.Quantity,
-		Price:     req.Price,
-		OrderType: req.OrderType,
-		Status:    1,
-		Metadata:  meta,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		OrderID:    orderID,
+		AccountID:  req.AccountId,
+		AssetID:    req.AssetId,
+		Quantity:   req.Quantity,
+		Price:      req.Price,
+		OrderType:  req.OrderType,
+		Status:     1,
+		Metadata:   meta,
+		CreatedAt:  time.Now(),
+		CampaignID: req.CampaignId, // Pass CampaignId from request
+		UpdatedAt:  time.Now(),
 	}
 	if err := s.repo.CreateInvestmentOrder(ctx, order); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to create investment order", err)
@@ -1000,15 +1043,16 @@ func (s *Service) PlaceInvestmentOrder(ctx context.Context, req *commercepb.Plac
 	}
 	resp := &commercepb.PlaceInvestmentOrderResponse{
 		Order: &commercepb.InvestmentOrder{
-			OrderId:   order.OrderID,
-			AccountId: order.AccountID,
-			AssetId:   order.AssetID,
-			Quantity:  order.Quantity,
-			Price:     order.Price,
-			OrderType: order.OrderType,
-			Status:    commercepb.InvestmentOrderStatus_INVESTMENT_ORDER_STATUS_PENDING,
-			Metadata:  order.Metadata,
-			CreatedAt: timestamppb.New(order.CreatedAt),
+			OrderId:    order.OrderID,
+			AccountId:  order.AccountID,
+			AssetId:    order.AssetID,
+			Quantity:   order.Quantity,
+			Price:      order.Price,
+			OrderType:  order.OrderType,
+			Status:     commercepb.InvestmentOrderStatus_INVESTMENT_ORDER_STATUS_PENDING,
+			CampaignId: order.CampaignID, // Include CampaignId in response
+			Metadata:   order.Metadata,
+			CreatedAt:  timestamppb.New(order.CreatedAt),
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "investment order placed", resp, nil)
@@ -1056,6 +1100,7 @@ func (s *Service) GetPortfolio(ctx context.Context, req *commercepb.GetPortfolio
 			AccountId:   portfolio.AccountID,
 			Metadata:    portfolio.Metadata,
 			CreatedAt:   timestamppb.New(portfolio.CreatedAt),
+			CampaignId:  portfolio.CampaignID, // Include CampaignId in response
 			UpdatedAt:   timestamppb.New(portfolio.UpdatedAt),
 		},
 	}
@@ -1101,14 +1146,15 @@ func (s *Service) GetInvestmentAccount(ctx context.Context, req *commercepb.GetI
 	}
 	resp := &commercepb.GetInvestmentAccountResponse{
 		Account: &commercepb.InvestmentAccount{
-			AccountId: account.AccountID,
-			OwnerId:   account.OwnerID,
-			Type:      account.Type,
-			Currency:  account.Currency,
-			Balance:   account.Balance,
-			Metadata:  account.Metadata,
-			CreatedAt: timestamppb.New(account.CreatedAt),
-			UpdatedAt: timestamppb.New(account.UpdatedAt),
+			AccountId:  account.AccountID,
+			OwnerId:    account.OwnerID,
+			Type:       account.Type,
+			Currency:   account.Currency,
+			Balance:    account.Balance,
+			Metadata:   account.Metadata,
+			CreatedAt:  timestamppb.New(account.CreatedAt),
+			CampaignId: account.CampaignID, // Include CampaignId in response
+			UpdatedAt:  timestamppb.New(account.UpdatedAt),
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "investment account fetched", resp, nil)
@@ -1130,14 +1176,14 @@ func (s *Service) GetInvestmentAccount(ctx context.Context, req *commercepb.GetI
 	return resp, nil
 }
 
-func (s *Service) ListPortfolios(ctx context.Context, req *commercepb.ListPortfoliosRequest) (*commercepb.ListPortfoliosResponse, error) {
-	log := s.log.With(zap.String("operation", "list_portfolios"), zap.String("account_id", req.GetAccountId()))
-	if req == nil || req.AccountId == "" {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "account_id is required", nil)
+func (s *Service) ListPortfolios(ctx context.Context, req *commercepb.ListPortfoliosRequest) (*commercepb.ListPortfoliosResponse, error) { // Updated signature
+	log := s.log.With(zap.String("operation", "list_portfolios"), zap.String("account_id", req.GetAccountId()), zap.Int64("campaign_id", req.GetCampaignId()))
+	if req == nil || req.AccountId == "" || req.CampaignId == 0 { // Added CampaignId check
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "account_id and campaign_id are required", nil) // Updated error message
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
 		return nil, graceful.ToStatusError(err)
 	}
-	portfolios, err := s.repo.ListPortfolios(ctx, req.AccountId)
+	portfolios, err := s.repo.ListPortfolios(ctx, req.AccountId, req.CampaignId) // Pass campaignID to repo
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to list portfolios", err)
 		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
@@ -1152,6 +1198,7 @@ func (s *Service) ListPortfolios(ctx context.Context, req *commercepb.ListPortfo
 			AccountId:   p.AccountID,
 			Metadata:    p.Metadata,
 			CreatedAt:   timestamppb.New(p.CreatedAt),
+			CampaignId:  p.CampaignID, // Include CampaignId in response
 			UpdatedAt:   timestamppb.New(p.UpdatedAt),
 		}
 	}
@@ -1187,9 +1234,8 @@ func (s *Service) CreateExchangePair(ctx context.Context, req *commercepb.Create
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := req.Metadata
-	pair := &ExchangePair{
+	pair := &ExchangePair{ // Removed MasterID: 0
 		PairID:     req.PairId,
-		MasterID:   0,
 		BaseAsset:  req.BaseAsset,
 		QuoteAsset: req.QuoteAsset,
 		Metadata:   meta,
@@ -1204,6 +1250,7 @@ func (s *Service) CreateExchangePair(ctx context.Context, req *commercepb.Create
 			PairId:     pair.PairID,
 			BaseAsset:  pair.BaseAsset,
 			QuoteAsset: pair.QuoteAsset,
+			CampaignId: pair.CampaignID, // Include CampaignId in response
 			Metadata:   pair.Metadata,
 		},
 	}
@@ -1239,7 +1286,7 @@ func (s *Service) CreateExchangeRate(ctx context.Context, req *commercepb.Create
 		return nil, graceful.ToStatusError(err)
 	}
 	rate := &ExchangeRate{
-		PairID: req.PairId,
+		PairID: req.PairId, // Removed MasterID: 0
 		Rate:   req.Rate,
 	}
 	if err := s.repo.CreateExchangeRate(ctx, rate); err != nil {
@@ -1249,10 +1296,11 @@ func (s *Service) CreateExchangeRate(ctx context.Context, req *commercepb.Create
 	}
 	resp := &commercepb.CreateExchangeRateResponse{
 		Rate: &commercepb.ExchangeRate{
-			PairId:    rate.PairID,
-			Rate:      rate.Rate,
-			Timestamp: req.Timestamp,
-			Metadata:  rate.Metadata,
+			PairId:     rate.PairID,
+			Rate:       rate.Rate,
+			Timestamp:  req.Timestamp,
+			CampaignId: rate.CampaignID, // Include CampaignId in response
+			Metadata:   rate.Metadata,
 		},
 	}
 	success := graceful.WrapSuccess(ctx, codes.OK, "exchange rate created", resp, nil)

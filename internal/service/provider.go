@@ -249,28 +249,6 @@ func (p *Provider) EmitEchoEvent(ctx context.Context, serviceName, message strin
 	return p.EmitEventWithLogging(ctx, nil, p.Log, "echo", serviceName, meta)
 }
 
-// StartEchoLoop starts a background goroutine that emits an echo event every 15 seconds.
-func (p *Provider) StartEchoLoop(ctx context.Context, serviceName, message string) {
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				p.Log.Info("Echo loop stopped", zap.String("service", serviceName))
-				return
-			case <-ticker.C:
-				msg, ok := p.EmitEchoEvent(ctx, serviceName, message)
-				if ok {
-					p.Log.Info("Echo event emitted", zap.String("service", serviceName), zap.String("msg", msg))
-				} else {
-					p.Log.Warn("Failed to emit echo event", zap.String("service", serviceName))
-				}
-			}
-		}
-	}()
-}
-
 // Update all logging calls to use the helper function.
 func (p *Provider) RegisterService(name string, service interface{}) error {
 	p.Log.Info("Registering service",

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package admin.v1;
 
+import "google/protobuf/timestamp.proto";
 import "common/v1/metadata.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1;adminpb";
@@ -56,18 +57,19 @@ message User {
   string name = 4;
   repeated string roles = 5;
   bool is_active = 6;
-  int64 created_at = 7;
-  int64 updated_at = 8;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
   string user_id = 9;
   common.Metadata metadata = 10; // Extensible metadata for analytics, orchestration, etc.
 }
 
 message Role {
   string id = 1;
-  string master_id = 2; // Master ID for analytics/unified queries
+  int64 master_id = 2; // Master ID for analytics/unified queries
   string name = 3;
   repeated string permissions = 4;
   common.Metadata metadata = 5; // Extensible metadata for analytics, orchestration, etc.
+  string master_uuid = 6; // Global UUID reference to master table
 }
 
 message AuditLog {

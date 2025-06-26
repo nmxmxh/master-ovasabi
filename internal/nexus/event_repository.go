@@ -3,30 +3,30 @@ package nexus
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // CanonicalEvent wraps the existing Event struct and adds extensibility for multi-event orchestration and metadata.
 type CanonicalEvent struct {
-	ID          uuid.UUID                 `json:"id" db:"id"`
-	MasterID    int64                     `json:"master_id" db:"master_id"`
-	EntityType  repository.EntityType     `json:"entity_type" db:"entity_type"`
-	EventType   string                    `json:"event_type" db:"event_type"`
-	Payload     map[string]interface{}    `json:"payload" db:"payload"`
-	Metadata    *metadata.ServiceMetadata `json:"metadata" db:"metadata"`
-	Status      string                    `json:"status" db:"status"`
-	CreatedAt   time.Time                 `json:"created_at" db:"created_at"`
-	ProcessedAt *time.Time                `json:"processed_at" db:"processed_at"`
-	PatternID   *string                   `json:"pattern_id,omitempty" db:"pattern_id"` // For pattern-based orchestration
-	Step        *string                   `json:"step,omitempty" db:"step"`             // For multi-step events
-	Retries     int                       `json:"retries" db:"retries"`
-	Error       *string                   `json:"error,omitempty" db:"error"`
+	ID          uuid.UUID             `json:"id" db:"id"`
+	MasterID    int64                 `json:"master_id" db:"master_id"`
+	EntityType  repository.EntityType `json:"entity_type" db:"entity_type"`
+	EventType   string                `json:"event_type" db:"event_type"`
+	Payload     *commonpb.Payload     `json:"payload" db:"payload"`
+	Metadata    *commonpb.Metadata    `json:"metadata" db:"metadata"`
+	Status      string                `json:"status" db:"status"`
+	CreatedAt   time.Time             `json:"created_at" db:"created_at"`
+	ProcessedAt *time.Time            `json:"processed_at" db:"processed_at"`
+	PatternID   *string               `json:"pattern_id,omitempty" db:"pattern_id"` // For pattern-based orchestration
+	Step        *string               `json:"step,omitempty" db:"step"`             // For multi-step events
+	Retries     int                   `json:"retries" db:"retries"`
+	Error       *string               `json:"error,omitempty" db:"error"`
 }
 
 // EventRepository defines the interface for event persistence and orchestration.
@@ -69,7 +69,7 @@ func (r *SQLEventRepository) SaveEvent(ctx context.Context, event *CanonicalEven
 		zap.String("request_id", getRequestID(ctx)),
 	)
 
-	metaBytes, err := json.Marshal(event.Metadata)
+	metaBytes, err := protojson.Marshal(event.Metadata)
 	if err != nil {
 		if r.log != nil {
 			r.log.Error("Failed to marshal event metadata",
@@ -81,7 +81,7 @@ func (r *SQLEventRepository) SaveEvent(ctx context.Context, event *CanonicalEven
 		return err
 	}
 
-	payloadBytes, err := json.Marshal(event.Payload)
+	payloadBytes, err := protojson.Marshal(event.Payload)
 	if err != nil {
 		if r.log != nil {
 			r.log.Error("Failed to marshal event payload",
@@ -148,26 +148,26 @@ func (r *SQLEventRepository) GetEvent(ctx context.Context, id uuid.UUID) (*Canon
 		return nil, err
 	}
 
-	if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
-		if r.log != nil {
-			r.log.Error("Failed to unmarshal event payload",
-				zap.Error(err),
-				zap.String("event_id", id.String()),
-				zap.String("request_id", getRequestID(ctx)),
-			)
+	if len(payloadBytes) > 0 {
+		event.Payload = &commonpb.Payload{}
+		if err := protojson.Unmarshal(payloadBytes, event.Payload); err != nil {
+			r.log.Error("Failed to unmarshal event payload", zap.Error(err), zap.String("event_id", id.String()))
+			return nil, err
 		}
-		return nil, err
 	}
 
-	if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
-		if r.log != nil {
-			r.log.Error("Failed to unmarshal event metadata",
-				zap.Error(err),
-				zap.String("event_id", id.String()),
-				zap.String("request_id", getRequestID(ctx)),
-			)
+	if len(metaBytes) > 0 {
+		event.Metadata = &commonpb.Metadata{}
+		if err := protojson.Unmarshal(metaBytes, event.Metadata); err != nil {
+			if r.log != nil {
+				r.log.Error("Failed to unmarshal event metadata",
+					zap.Error(err),
+					zap.String("event_id", id.String()),
+					zap.String("request_id", getRequestID(ctx)),
+				)
+			}
+			return nil, err
 		}
-		return nil, err
 	}
 
 	if r.log != nil {
@@ -197,11 +197,17 @@ func (r *SQLEventRepository) ListEventsByMaster(ctx context.Context, masterID in
 		if err := rows.Scan(&event.ID, &event.MasterID, &event.EntityType, &event.EventType, &payloadBytes, &metaBytes, &event.Status, &event.CreatedAt, &event.ProcessedAt, &event.PatternID, &event.Step, &event.Retries, &event.Error); err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
-			return nil, err
+		if len(payloadBytes) > 0 {
+			event.Payload = &commonpb.Payload{}
+			if err := protojson.Unmarshal(payloadBytes, event.Payload); err != nil {
+				return nil, err
+			}
 		}
-		if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
-			return nil, err
+		if len(metaBytes) > 0 {
+			event.Metadata = &commonpb.Metadata{}
+			if err := protojson.Unmarshal(metaBytes, event.Metadata); err != nil {
+				return nil, err
+			}
 		}
 		events = append(events, &event)
 		if err := rows.Err(); err != nil {
@@ -232,11 +238,17 @@ func (r *SQLEventRepository) ListPendingEvents(ctx context.Context, entityType r
 		if err := rows.Scan(&event.ID, &event.MasterID, &event.EntityType, &event.EventType, &payloadBytes, &metaBytes, &event.Status, &event.CreatedAt, &event.ProcessedAt, &event.PatternID, &event.Step, &event.Retries, &event.Error); err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
-			return nil, err
+		if len(payloadBytes) > 0 {
+			event.Payload = &commonpb.Payload{}
+			if err := protojson.Unmarshal(payloadBytes, event.Payload); err != nil {
+				return nil, err
+			}
 		}
-		if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
-			return nil, err
+		if len(metaBytes) > 0 {
+			event.Metadata = &commonpb.Metadata{}
+			if err := protojson.Unmarshal(metaBytes, event.Metadata); err != nil {
+				return nil, err
+			}
 		}
 		events = append(events, &event)
 		if err := rows.Err(); err != nil {
@@ -280,11 +292,17 @@ func (r *SQLEventRepository) ListEventsByPattern(ctx context.Context, patternID 
 		if err := rows.Scan(&event.ID, &event.MasterID, &event.EntityType, &event.EventType, &payloadBytes, &metaBytes, &event.Status, &event.CreatedAt, &event.ProcessedAt, &event.PatternID, &event.Step, &event.Retries, &event.Error); err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(payloadBytes, &event.Payload); err != nil {
-			return nil, err
+		if len(payloadBytes) > 0 {
+			event.Payload = &commonpb.Payload{}
+			if err := protojson.Unmarshal(payloadBytes, event.Payload); err != nil {
+				return nil, err
+			}
 		}
-		if err := json.Unmarshal(metaBytes, &event.Metadata); err != nil {
-			return nil, err
+		if len(metaBytes) > 0 {
+			event.Metadata = &commonpb.Metadata{}
+			if err := protojson.Unmarshal(metaBytes, event.Metadata); err != nil {
+				return nil, err
+			}
 		}
 		events = append(events, &event)
 		if err := rows.Err(); err != nil {

@@ -1,21 +1,20 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
-	"strconv"
-	"strings"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/shield"
-	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // SearchOpsHandler handles search-related actions via the "action" field.
@@ -39,269 +38,185 @@ func SearchOpsHandler(container *di.Container) http.HandlerFunc {
 		var searchSvc searchpb.SearchServiceServer
 		if err := container.Resolve(&searchSvc); err != nil {
 			log.Error("Failed to resolve SearchService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err) // Already correct
 			return
 		}
+		if r.Method != http.MethodPost {
+			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
+			return
+		}
+
 		// Extract user context
 		authCtx := contextx.Auth(r.Context())
 		userID := authCtx.UserID
 		roles := authCtx.Roles
 		isGuest := userID == "" || (len(roles) == 1 && roles[0] == "guest")
+
 		meta := shield.BuildRequestMetadata(r, userID, isGuest)
 		ctx = contextx.WithMetadata(ctx, meta)
+
 		var securitySvc securitypb.SecurityServiceClient
 		if err := container.Resolve(&securitySvc); err != nil {
 			log.Error("Failed to resolve SecurityService", zap.Error(err))
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "internal error", err)
 			return
 		}
-		var req *searchpb.SearchRequest
-		switch r.Method {
-		case http.MethodGet:
-			query := r.URL.Query().Get("query")
-			typesParam := r.URL.Query().Get("types")
-			var types []string
-			if typesParam != "" {
-				types = strings.Split(typesParam, ",")
-			}
-			pageStr := r.URL.Query().Get("page")
-			page, err := strconv.Atoi(pageStr)
-			if err != nil || page < 0 {
-				log.Warn("Invalid or missing page param, using default 0", zap.String("page", pageStr), zap.Error(err))
-				page = 0
-			}
-			pageSizeStr := r.URL.Query().Get("page_size")
-			pageSize, err := strconv.Atoi(pageSizeStr)
-			if err != nil || pageSize <= 0 {
-				log.Warn("Invalid or missing page_size param, using default 20", zap.String("page_size", pageSizeStr), zap.Error(err))
-				pageSize = 20
-			}
-			metadataParam := r.URL.Query().Get("metadata")
-			var metadata *commonpb.Metadata
-			if metadataParam != "" {
-				metadata = &commonpb.Metadata{}
-				if err := json.Unmarshal([]byte(metadataParam), metadata); err != nil {
-					httputil.WriteJSONError(w, log, http.StatusBadRequest, "Invalid metadata param", err)
-					return
-				}
-			}
-			campaignIDStr := r.URL.Query().Get("campaign_id")
-			var campaignID int64
-			if campaignIDStr != "" {
-				if cid, err := strconv.ParseInt(campaignIDStr, 10, 64); err == nil {
-					campaignID = cid
-				}
-			}
-			req = &searchpb.SearchRequest{
-				Query:      query,
-				Types:      types,
-				PageNumber: utils.ToInt32(page),
-				PageSize:   utils.ToInt32(pageSize),
-				Metadata:   metadata,
-				CampaignId: campaignID,
-			}
-		case http.MethodPost:
-			var body map[string]interface{}
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
-				return
-			}
-			// Compose SearchRequest from body
-			req = &searchpb.SearchRequest{}
-			if v, ok := body["query"].(string); ok {
-				req.Query = v
-			}
-			if arr, ok := body["types"].([]interface{}); ok {
-				for _, t := range arr {
-					if s, ok := t.(string); ok {
-						req.Types = append(req.Types, s)
-					}
-				}
-			}
-			if v, ok := body["page_number"].(float64); ok {
-				req.PageNumber = int32(v)
-			}
-			if v, ok := body["page_size"].(float64); ok {
-				req.PageSize = int32(v)
-			}
-			if m, ok := body["metadata"].(map[string]interface{}); ok {
-				metaBytes, err := json.Marshal(m)
-				if err != nil {
-					httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid metadata in request body", err)
-					return
-				}
-				meta := &commonpb.Metadata{}
-				if err := json.Unmarshal(metaBytes, meta); err == nil {
-					req.Metadata = meta
-				}
-			}
-			if v, ok := body["campaign_id"].(float64); ok {
-				req.CampaignId = int64(v)
-			}
-		default:
-			httputil.WriteJSONError(w, log, http.StatusMethodNotAllowed, "method not allowed", nil)
+
+		var reqMap map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&reqMap); err != nil {
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid JSON", err)
 			return
 		}
-		// After building meta:
-		ctx = contextx.WithMetadata(ctx, meta)
-		// --- Permission enforcement by type ---
-		// Determine required permission based on types and metadata
-		needAuth := false
-		needAdmin := false
-		needAnalytics := false
-		for _, t := range req.Types {
-			switch t {
-			case "campaign":
-				// If campaign is private, require campaign member/admin; else allow guest
-				if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
-					if camp, ok := req.Metadata.ServiceSpecific.Fields["campaign"]; ok && camp.GetStructValue() != nil {
-						if v, ok := camp.GetStructValue().Fields["visibility"]; ok && v.GetStringValue() == "private" {
-							needAuth = true
-						}
-					}
+
+		action, ok := reqMap["action"].(string)
+		if !ok || action == "" {
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid action", nil, zap.Any("value", reqMap["action"]))
+			return
+		}
+
+		actionHandlers := map[string]func(){
+			"search": func() {
+				// The permission logic for search is complex and depends on the parsed request.
+				// So, we handle it manually here instead of using the generic helper.
+				var protoReq searchpb.SearchRequest
+				if err := mapToProtoSearch(reqMap, &protoReq); err != nil {
+					httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+					return
 				}
-			case "user":
-				// If user data is private, require user or admin
-				if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
-					if userMeta, ok := req.Metadata.ServiceSpecific.Fields["user"]; ok && userMeta.GetStructValue() != nil {
-						if v, ok := userMeta.GetStructValue().Fields["visibility"]; ok && v.GetStringValue() == "private" {
-							needAuth = true
-						}
-					}
-				}
-			case "system":
-				needAdmin = true
-			case "analytics":
-				needAnalytics = true
-			default:
-				// Service-specific: check for required role in metadata
-				if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
-					if svc, ok := req.Metadata.ServiceSpecific.Fields[t]; ok && svc.GetStructValue() != nil {
-						if v, ok := svc.GetStructValue().Fields["required_role"]; ok && v.GetStringValue() != "" {
-							role := v.GetStringValue()
-							found := false
-							for _, r := range roles {
-								if r == role {
-									found = true
-									break
+
+				// --- Permission enforcement by type ---
+				needAuth := false
+				needAdmin := false
+				needAnalytics := false
+				for _, t := range protoReq.Types {
+					switch t {
+					case "campaign":
+						if protoReq.Metadata != nil && protoReq.Metadata.ServiceSpecific != nil {
+							if camp, ok := protoReq.Metadata.ServiceSpecific.Fields["campaign"]; ok && camp.GetStructValue() != nil {
+								if v, ok := camp.GetStructValue().Fields["visibility"]; ok && v.GetStringValue() == "private" {
+									needAuth = true
 								}
 							}
-							if !found {
-								http.Error(w, "forbidden: required role for service-specific search", http.StatusForbidden)
+						}
+					case "user":
+						if protoReq.Metadata != nil && protoReq.Metadata.ServiceSpecific != nil {
+							if userMeta, ok := protoReq.Metadata.ServiceSpecific.Fields["user"]; ok && userMeta.GetStructValue() != nil {
+								if v, ok := userMeta.GetStructValue().Fields["visibility"]; ok && v.GetStringValue() == "private" {
+									needAuth = true
+								}
+							}
+						}
+					case "system": // This case is handled by isAdmin(roles) below
+						needAdmin = true
+					case "analytics":
+						needAnalytics = true
+					case "talent":
+						// --- Gamified Talent Permission Enforcement ---
+						var talentMeta map[string]interface{}
+						if protoReq.Metadata != nil && protoReq.Metadata.ServiceSpecific != nil {
+							if talentField, ok := protoReq.Metadata.ServiceSpecific.Fields["talent"]; ok && talentField.GetStructValue() != nil {
+								talentMeta = talentField.GetStructValue().AsMap()
+							}
+						}
+						// Example logic (can be expanded)
+						if party, ok := talentMeta["party"].(map[string]interface{}); ok {
+							if role, ok := party["role"].(string); ok && role != "leader" && role != "officer" {
+								httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: insufficient party role", nil)
 								return
 							}
 						}
-					}
-				}
-			}
-		}
-		if needAdmin && !isAdmin(roles) {
-			http.Error(w, "admin role required for system search", http.StatusForbidden)
-			return
-		}
-		if needAnalytics {
-			found := false
-			for _, r := range roles {
-				if r == "analytics" || r == "admin" {
-					found = true
-					break
-				}
-			}
-			if !found {
-				http.Error(w, "analytics or admin role required for analytics search", http.StatusForbidden)
-				return
-			}
-		}
-		if needAuth && isGuest {
-			http.Error(w, "authentication required for private search", http.StatusUnauthorized)
-			return
-		}
-		// For sensitive queries, check permission via shield
-		if needAuth || needAdmin || needAnalytics {
-			err := shield.CheckPermission(ctx, securitySvc, "search", "search", shield.WithMetadata(meta))
-			if err != nil {
-				switch {
-				case errors.Is(err, shield.ErrUnauthenticated):
-					http.Error(w, "unauthorized", http.StatusUnauthorized)
-					return
-				case errors.Is(err, shield.ErrPermissionDenied):
-					http.Error(w, "forbidden", http.StatusForbidden)
-					return
-				default:
-					http.Error(w, "internal server error", http.StatusInternalServerError)
-					return
-				}
-			}
-		}
-		// --- Gamified Talent Permission Enforcement ---
-		for _, t := range req.Types {
-			if t != "talent" {
-				continue
-			}
-			// Extract gamified fields from metadata
-			var talentMeta map[string]interface{}
-			if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
-				if talentField, ok := req.Metadata.ServiceSpecific.Fields["talent"]; ok && talentField.GetStructValue() != nil {
-					talentMeta = talentField.GetStructValue().AsMap()
-				}
-			}
-			// Example: enforce party/guild/campaign/level/badge logic
-			if party, ok := talentMeta["party"].(map[string]interface{}); ok {
-				if role, ok := party["role"].(string); ok && role != "leader" && role != "officer" {
-					http.Error(w, "forbidden: insufficient party role", http.StatusForbidden)
-					return
-				}
-			}
-			if guild, ok := talentMeta["guild"].(map[string]interface{}); ok {
-				if rank, ok := guild["rank"].(string); ok && rank != "officer" && rank != "leader" {
-					http.Error(w, "forbidden: insufficient guild rank", http.StatusForbidden)
-					return
-				}
-			}
-			if lvl, ok := talentMeta["level"].(float64); ok {
-				if lvl < 5 { // Example: require level 5+
-					http.Error(w, "forbidden: level too low for this action", http.StatusForbidden)
-					return
-				}
-			}
-			if badges, ok := talentMeta["badges"].([]interface{}); ok {
-				requiredBadge := "Campaign Champion"
-				hasBadge := false
-				for _, b := range badges {
-					if badge, ok := b.(map[string]interface{}); ok {
-						if badge["name"] == requiredBadge {
-							hasBadge = true
-							break
+						// For sensitive talent actions, check permission via shield
+						if err := shield.CheckPermission(ctx, securitySvc, "search_talent", "talent", shield.WithMetadata(meta)); err != nil {
+							httputil.HandleShieldError(w, log, err)
+							return
+						}
+					default:
+						// Service-specific: check for required role in metadata
+						if protoReq.Metadata != nil && protoReq.Metadata.ServiceSpecific != nil {
+							if svc, ok := protoReq.Metadata.ServiceSpecific.Fields[t]; ok && svc.GetStructValue() != nil {
+								if v, ok := svc.GetStructValue().Fields["required_role"]; ok && v.GetStringValue() != "" {
+									role := v.GetStringValue()
+									if !httputil.HasRole(roles, role) {
+										httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: required role for service-specific search", nil, zap.String("required_role", role), zap.Strings("user_roles", roles))
+										return
+									}
+								}
+							}
 						}
 					}
 				}
-				if !hasBadge {
-					http.Error(w, "forbidden: missing required badge", http.StatusForbidden)
+				if needAdmin && !httputil.IsAdmin(roles) {
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "admin role required for system search", nil, zap.Strings("user_roles", roles))
 					return
 				}
-			}
-			// For sensitive talent actions, check permission via shield
-			err := shield.CheckPermission(ctx, securitySvc, "search_talent", "talent", shield.WithMetadata(meta))
-			if err != nil {
-				switch {
-				case errors.Is(err, shield.ErrUnauthenticated):
-					http.Error(w, "unauthorized", http.StatusUnauthorized)
-					return
-				case errors.Is(err, shield.ErrPermissionDenied):
-					http.Error(w, "forbidden", http.StatusForbidden)
-					return
-				default:
-					http.Error(w, "internal server error", http.StatusInternalServerError)
+				if needAnalytics && !httputil.HasRole(roles, "analytics", "admin") {
+					httputil.WriteJSONError(w, log, http.StatusForbidden, "analytics or admin role required for analytics search", nil)
 					return
 				}
-			}
-			// Add comments for extensibility: new roles, badges, progression rules can be added here
+				if needAuth && isGuest {
+					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "authentication required for private search", nil)
+					return
+				}
+
+				// For sensitive queries, check permission via shield
+				if needAuth || needAdmin || needAnalytics {
+					if err := shield.CheckPermission(ctx, securitySvc, "search", "search", shield.WithMetadata(meta)); err != nil {
+						httputil.HandleShieldError(w, log, err)
+						return
+					}
+				}
+
+				resp, err := searchSvc.Search(ctx, &protoReq)
+				if err != nil {
+					httputil.WriteJSONError(w, log, http.StatusInternalServerError, "search failed", err)
+					return
+				}
+				httputil.WriteJSONResponse(w, log, resp)
+			},
+			"suggest": func() {
+				handleSearchAction(w, ctx, log, reqMap, &searchpb.SuggestRequest{}, searchSvc.Suggest)
+			},
 		}
-		resp, err := searchSvc.Search(ctx, req)
-		if err != nil {
-			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "search failed", err)
-			return
+
+		if handler, found := actionHandlers[action]; found {
+			handler()
+		} else {
+			httputil.WriteJSONError(w, log, http.StatusBadRequest, "unknown action", nil, zap.String("action", action))
 		}
-		httputil.WriteJSONResponse(w, log, resp)
 	}
+}
+
+// handleSearchAction is a generic helper for simple search actions.
+func handleSearchAction[T proto.Message, U proto.Message](
+	w http.ResponseWriter,
+	ctx context.Context,
+	log *zap.Logger,
+	reqMap map[string]interface{},
+	req T,
+	svcFunc func(context.Context, T) (U, error),
+) {
+	if err := mapToProtoSearch(reqMap, req); err != nil {
+		httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	resp, err := svcFunc(ctx, req)
+	if err != nil {
+		st, _ := status.FromError(err)
+		httpStatus := httputil.GRPCStatusToHTTPStatus(st.Code())
+		log.Error("search service call failed", zap.Error(err), zap.String("grpc_code", st.Code().String()))
+		httputil.WriteJSONError(w, log, httpStatus, st.Message(), nil)
+		return
+	}
+
+	httputil.WriteJSONResponse(w, log, resp)
+}
+
+// mapToProtoSearch converts a map[string]interface{} to a proto.Message.
+func mapToProtoSearch(data map[string]interface{}, v proto.Message) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return protojson.Unmarshal(jsonBytes, v)
 }

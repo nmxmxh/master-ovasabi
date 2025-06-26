@@ -367,6 +367,20 @@ func (c *Cache) SIsMember(ctx context.Context, key string, member interface{}) (
 	return exists, nil
 }
 
+// HIncrBy increments the integer value of a hash field by the given amount.
+func (c *Cache) HIncrBy(ctx context.Context, key, field string, incr int64) (int64, error) {
+	val, err := c.client.HIncrBy(ctx, key, field, incr).Result()
+	if err != nil {
+		c.log.Error("failed to increment hash field",
+			zap.String("key", key),
+			zap.String("field", field),
+			zap.Int64("increment", incr),
+			zap.Error(err),
+		)
+	}
+	return val, err
+}
+
 // Sorted Set Operations
 
 // ZAdd adds members to a sorted set.

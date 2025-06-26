@@ -33,6 +33,7 @@ const (
 	EntityTypeReferral     EntityType = "referral"
 	EntityTypeAuth         EntityType = "auth"
 	EntityTypeFinance      EntityType = "finance"
+	EntityTypeRole         EntityType = "role"
 )
 
 // Master represents the core entity in the master table.
@@ -56,8 +57,8 @@ type Master struct {
 
 // MasterRepository defines the interface for master entity operations, including caching and search.
 type MasterRepository interface {
-	CreateMasterRecord(ctx context.Context, entityType, name string) (int64, error)
-	Create(ctx context.Context, entityType EntityType, name string) (int64, error)
+	CreateMasterRecord(ctx context.Context, entityType, name string) (int64, string, error)            // Non-transactional convenience
+	Create(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (int64, string, error) // Transactional
 	Get(ctx context.Context, id int64) (*Master, error)
 	Delete(ctx context.Context, id int64) error
 	List(ctx context.Context, limit, offset int) ([]*Master, error)

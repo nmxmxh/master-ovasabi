@@ -39,20 +39,20 @@ type OperationStep struct {
 
 // StoredPattern represents a pattern stored in Redis.
 type StoredPattern struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Version     int                    `json:"version"`
-	Origin      PatternOrigin          `json:"origin"`
-	Category    PatternCategory        `json:"category"`
-	Steps       []OperationStep        `json:"steps"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	CreatedBy   string                 `json:"created_by"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	IsActive    bool                   `json:"is_active"`
-	UsageCount  int64                  `json:"usage_count"`
-	SuccessRate float64                `json:"success_rate"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Version     int             `json:"version"`
+	Origin      PatternOrigin   `json:"origin"`
+	Category    PatternCategory `json:"category"`
+	Steps       []OperationStep `json:"steps"`
+	Metadata    json.RawMessage `json:"metadata"`
+	CreatedBy   string          `json:"created_by"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+	IsActive    bool            `json:"is_active"`
+	UsageCount  int64           `json:"usage_count"`
+	SuccessRate float64         `json:"success_rate"`
 }
 
 // PatternStore manages pattern storage in Redis.
