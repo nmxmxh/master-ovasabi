@@ -1,0 +1,39 @@
+graph TD
+    %% Knowledge Graph Core
+    KGS[Knowledge Graph Store]
+    KGAPI[Knowledge Graph API]
+    IL[Integration Layer]
+    
+    %% Integration Components
+    SH[Service Hooks]
+    NP[Nexus Patterns]
+    CLI[CLI Tools]
+    
+    %% External Systems
+    SVC[OVASABI Services]
+    NS[Nexus System]
+    OT[Operational Tools]
+    
+    %% Connections
+    KGAPI -->|Reads/Writes| KGS
+    IL -->|Uses| KGAPI
+    IL -->|Provides| SH
+    IL -->|Provides| NP
+    IL -->|Provides| CLI
+    
+    SH -->|Updates| SVC
+    NP -->|Integrates| NS
+    CLI -->|Used by| OT
+    
+    SVC -->|Sends updates| SH
+    NS -->|Executes patterns| NP
+    OT -->|Invokes| CLI
+    
+    %% Styles
+    classDef core fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef integration fill:#bbf,stroke:#333,stroke-width:1px;
+    classDef external fill:#bfb,stroke:#333,stroke-width:1px;
+    
+    class KGS,KGAPI core;
+    class SH,NP,CLI,IL integration;
+    class SVC,NS,OT external; 

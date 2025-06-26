@@ -1,8 +1,8 @@
-# Project Preface
-
 > **Context:** This preface and roadmap are for the Inos Internet-Native OS — a distributed, device-agnostic OS for the post-platform era. See the [README](../../README.md) for architecture and onboarding.
 >
 > **🚧 Work in Progress (WIP):** This roadmap is community-driven and updated regularly.
+
+# Project Preface
 
 Welcome to Inos—a project born from the desire to build not just software, but a living, breathing digital legacy.
 

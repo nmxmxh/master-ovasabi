@@ -1,15 +1,22 @@
 # Inos – The Internet Native Operating System
 
 > **🚧 Work in Progress (WIP):**  
-> INOS is a fast-evolving, open platform for distributed, AI-powered, and WASM-enabled systems. We welcome contributors of all backgrounds—Go developers, AI/ML engineers, database and distributed systems specialists, QA/testers, frontend and WASM enthusiasts, and anyone passionate about building resilient, extensible digital infrastructure. See the Contributing section below to get involved!
+> INOS is a fast-evolving, open platform for distributed, AI-powered, and WASM-enabled systems. We
+> welcome contributors of all backgrounds—Go developers, AI/ML engineers, database and distributed
+> systems specialists, QA/testers, frontend and WASM enthusiasts, and anyone passionate about
+> building resilient, extensible digital infrastructure. See the Contributing section below to get
+> involved!
 
-Welcome to **Inos**—a self-documenting, AI-ready, and community-driven platform for orchestrating digital services, relationships, and value.
+Welcome to **Inos**—a self-documenting, AI-ready, and community-driven platform for orchestrating
+digital services, relationships, and value.
 
 ---
 
 ## What is Inos?
 
-**Inos** (Internet Native Operating System) is a modular, event-driven platform for orchestrating digital services, relationships, and value across the internet. It provides a unified substrate for identity, data, and interface interoperability—bridging backend, real-time, and frontend layers.
+**Inos** (Internet Native Operating System) is a modular, event-driven platform for orchestrating
+digital services, relationships, and value across the internet. It provides a unified substrate for
+identity, data, and interface interoperability—bridging backend, real-time, and frontend layers.
 
 ---
 
@@ -35,28 +42,41 @@ Frontend (React, TypeScript, SPA, PWA)
 
 ### **Key Components**
 
-- **Go Services:** Modular, domain-driven microservices (user, campaign, content, analytics, etc.) expose gRPC APIs and business logic.
-- **gRPC Mesh:** High-performance, strongly-typed APIs for internal and external service communication.
-- **Event Bus & WebSockets:** Real-time orchestration, pub/sub, and campaign/user-specific messaging. Enables live updates, notifications, and cross-service workflows.
-- **Multithreaded WASM:** High-performance AI/ML and compute modules running in the browser or edge, interoperating with backend services.
-- **Frontend:** Modern, reactive UI (React/TypeScript) consuming real-time data and WASM-powered features.
+- **Go Services:** Modular, domain-driven microservices (user, campaign, content, analytics, etc.)
+  expose gRPC APIs and business logic.
+- **gRPC Mesh:** High-performance, strongly-typed APIs for internal and external service
+  communication.
+- **Event Bus & WebSockets:** Real-time orchestration, pub/sub, and campaign/user-specific
+  messaging. Enables live updates, notifications, and cross-service workflows.
+- **Multithreaded WASM:** High-performance AI/ML and compute modules running in the browser or edge,
+  interoperating with backend services.
+- **Frontend:** Modern, reactive UI (React/TypeScript) consuming real-time data and WASM-powered
+  features.
 
 ---
 
 ## Metadata: The System’s DNA
 
-- **Universal Ledger:** Metadata is the core currency and audit trail of INOS, tracking every operation, relationship, and value flow—across users, services, content, and tasks.
-- **Extensibility:** All services, events, and entities are described and orchestrated via extensible metadata, enabling dynamic evolution without breaking existing data.
-- **Lineage & Provenance:** Every entity and action is traceable, supporting audit, compliance, and digital legacy.
-- **System Currency:** The sum of all scores and values across the system forms a living, auditable measure of reputation, contribution, and impact.
+- **Universal Ledger:** Metadata is the core currency and audit trail of INOS, tracking every
+  operation, relationship, and value flow—across users, services, content, and tasks.
+- **Extensibility:** All services, events, and entities are described and orchestrated via
+  extensible metadata, enabling dynamic evolution without breaking existing data.
+- **Lineage & Provenance:** Every entity and action is traceable, supporting audit, compliance, and
+  digital legacy.
+- **System Currency:** The sum of all scores and values across the system forms a living, auditable
+  measure of reputation, contribution, and impact.
 
 ---
 
 ## Graceful Orchestration: Error & Success as First-Class Citizens
 
-- **Centralized Handling:** All errors and successes are orchestrated via the `graceful` package, ensuring that every outcome—positive or negative—is logged, auditable, and can trigger further automation.
-- **Extensible Hooks:** Custom hooks and overrides allow for service-specific or advanced orchestration, supporting resilience and compliance.
-- **Symmetry:** Both error and success flows are handled with equal care, enabling robust, predictable, and transparent system behavior.
+- **Centralized Handling:** All errors and successes are orchestrated via the `graceful` package,
+  ensuring that every outcome—positive or negative—is logged, auditable, and can trigger further
+  automation.
+- **Extensible Hooks:** Custom hooks and overrides allow for service-specific or advanced
+  orchestration, supporting resilience and compliance.
+- **Symmetry:** Both error and success flows are handled with equal care, enabling robust,
+  predictable, and transparent system behavior.
 
 ---
 
@@ -134,22 +154,25 @@ Frontend (React, TypeScript, SPA, PWA)
 
 ## Database & Redis Practices
 
-- **PostgreSQL:**  
-  - Uses `jsonb` columns for rich, extensible metadata  
-  - Full-text search, GIN/partial indexes for performance  
+- **PostgreSQL:**
+  - Uses `jsonb` columns for rich, extensible metadata
+  - Full-text search, GIN/partial indexes for performance
   - Partitioning, archiving, and audit trails for scalability
-- **Redis:**  
-  - Hot data caching for low-latency access  
-  - Pub/sub for real-time events and notifications  
+- **Redis:**
+  - Hot data caching for low-latency access
+  - Pub/sub for real-time events and notifications
   - Rate limiting, counters, and ephemeral state
 
 ---
 
 ## Handlers, Nexus, and Orchestration Patterns
 
-- **Handlers:** REST, gRPC, and WebSocket handlers translate external requests into canonical metadata-driven actions.
-- **Nexus:** The event bus and orchestration layer connect all services, adapters, and real-time flows, enabling dynamic, metadata-driven automation.
-- **Bridge/Adapters:** Protocol adapters (MQTT, WebSocket, etc.) enable integration with any external system or device.
+- **Handlers:** REST, gRPC, and WebSocket handlers translate external requests into canonical
+  metadata-driven actions.
+- **Nexus:** The event bus and orchestration layer connect all services, adapters, and real-time
+  flows, enabling dynamic, metadata-driven automation.
+- **Bridge/Adapters:** Protocol adapters (MQTT, WebSocket, etc.) enable integration with any
+  external system or device.
 
 ---
 
@@ -164,7 +187,8 @@ Frontend (React, TypeScript, SPA, PWA)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. All are welcome—code, docs, ideas, and feedback!
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. All are welcome—code, docs, ideas, and
+feedback!
 
 ---
 
@@ -172,12 +196,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. All are welcome—code, d
 
 INOS is dual-licensed:
 
-- **MIT License:** Free and open source for community use, contributions, and research. See [LICENSE](LICENSE).
-- **Enterprise License (AGPL/BUSL):** For advanced features, enterprise support, and legal guarantees. See [LICENSE](LICENSE).
+- **MIT License:** Free and open source for community use, contributions, and research. See
+  [LICENSE](LICENSE).
+- **Enterprise License (AGPL/BUSL):** For advanced features, enterprise support, and legal
+  guarantees. See [LICENSE](LICENSE).
 
 **Why this license?**  
-We believe in open innovation and community-driven development, while also supporting enterprise needs for advanced features, support, and compliance.  
-This dual-licensing model ensures INOS remains open and accessible, while enabling sustainable growth and stewardship.
+We believe in open innovation and community-driven development, while also supporting enterprise
+needs for advanced features, support, and compliance.  
+This dual-licensing model ensures INOS remains open and accessible, while enabling sustainable
+growth and stewardship.
 
 ---
 
@@ -187,8 +215,10 @@ This dual-licensing model ensures INOS remains open and accessible, while enabli
 - Users own their profiles and move seamlessly across apps.
 - Developers build interoperable frontends and shared backends.
 - INOS provides standards for memory, interfaces, and control in network-native environments.
-- Metadata is the backbone: every action, relationship, and value flow is tracked, auditable, and programmable.
-- Graceful orchestration ensures robust, transparent, and resilient system behavior for both errors and successes.
+- Metadata is the backbone: every action, relationship, and value flow is tracked, auditable, and
+  programmable.
+- Graceful orchestration ensures robust, transparent, and resilient system behavior for both errors
+  and successes.
 
 **INOS is the OS for the programmable, AI-native, internet-scale future.**
 

@@ -1,0 +1,39 @@
+```mermaid
+graph LR
+    subgraph "Core Patterns"
+        A[Repository Pattern]
+        B[Dependency Injection]
+        C[Error Handling Pattern]
+        D[Context Management]
+    end
+    
+    subgraph "Communication Patterns"
+        E[gRPC Service Pattern]
+        F[Event-Driven Pattern]
+        G[Pub/Sub Pattern]
+    end
+    
+    subgraph "Data Patterns"
+        H[CQRS Pattern]
+        I[Outbox Pattern]
+        J[Circuit Breaker]
+    end
+    
+    subgraph "Architectural Patterns"
+        K[Hexagonal Architecture]
+        L[Microservices]
+        M[BFF Pattern]
+    end
+    
+    A --> K
+    B --> K
+    C --> K
+    D --> K
+    E --> L
+    F --> L
+    G --> L
+    H --> L
+    I --> L
+    J --> L
+    M --> L
+``` 
