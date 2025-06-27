@@ -17,11 +17,13 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/nmxmxh/master-ovasabi/internal/config"
@@ -360,7 +362,15 @@ func Run() {
 	log := loggerInstance.GetZapLogger()
 	defer func() {
 		if err := log.Sync(); err != nil {
-			log.Error("Failed to sync logger", zap.Error(err))
+			// On some systems, particularly when stdout is redirected or during shutdown,
+			// Sync() can return an "invalid argument" error (syscall.EINVAL). This is often benign
+			// as the process is exiting and the underlying file descriptor might be closed.
+			// We log it at a debug or info level to avoid alarming error messages during normal shutdown.
+			if errors.Is(err, syscall.EINVAL) {
+				log.Debug("Logger sync returned EINVAL, likely benign during shutdown", zap.Error(err))
+			} else {
+				log.Error("Failed to sync logger", zap.Error(err))
+			}
 		}
 	}()
 

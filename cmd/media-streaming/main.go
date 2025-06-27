@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -323,7 +324,18 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer func() {
-		_ = logger.Sync() // Flushes any buffered log entries
+		if err := logger.Sync(); err != nil {
+			// On some systems, particularly when stdout is redirected or during shutdown,
+			// Sync() can return an "invalid argument" error (syscall.EINVAL). This is often benign
+			// as the process is exiting and the underlying file descriptor might be closed.
+			// We log it at a debug or info level to avoid alarming error messages during normal shutdown.
+			if errors.Is(err, syscall.EINVAL) {
+				logger.Debug("Logger sync returned EINVAL, likely benign during shutdown", zap.Error(err))
+			} else {
+				// Using the standard logger as a fallback if zap is failing.
+				log.Printf("ERROR: Failed to sync zap logger: %v\n", err)
+			}
+		}
 	}()
 
 	logger.Info("Media Streaming Service starting up...")
