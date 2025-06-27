@@ -9,8 +9,12 @@ import (
 	"sync"
 	"time"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -43,92 +47,125 @@ type KGUpdate struct {
 
 // KGHooks manages real-time knowledge graph updates.
 type KGHooks struct {
-	redis      *redis.Client
-	logger     *zap.Logger
-	batchMu    sync.Mutex
-	updateChan chan *KGUpdate
-	ctx        context.Context
-	cancel     context.CancelFunc
-	startOnce  sync.Once
-}
-
-// NewKGHooks creates a new KGHooks instance.
-func NewKGHooks(redisClient *redis.Client, logger *zap.Logger) *KGHooks {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &KGHooks{
-		redis:      redisClient,
-		logger:     logger,
-		updateChan: make(chan *KGUpdate, updateBatchSize),
-		ctx:        ctx,
-		cancel:     cancel,
+	redis           *redis.Client
+	logger          *zap.Logger
+	batchMu         sync.Mutex
+	updateChan      chan *KGUpdate
+	ctx             context.Context
+	cancel          context.CancelFunc
+	startOnce       sync.Once
+	eventSubscriber interface {
+		SubscribeEvents(ctx context.Context, eventTypes []string, meta *commonpb.Metadata, handler func(context.Context, *nexusv1.EventResponse)) error
 	}
 }
 
-// Start begins processing knowledge graph updates.
+// NewKGHooks creates a new KGHooks instance.
+func NewKGHooks(redisClient *redis.Client, logger *zap.Logger, eventSubscriber interface {
+	SubscribeEvents(ctx context.Context, eventTypes []string, meta *commonpb.Metadata, handler func(context.Context, *nexusv1.EventResponse)) error
+}) *KGHooks {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &KGHooks{
+		redis:           redisClient,
+		logger:          logger,
+		updateChan:      make(chan *KGUpdate, updateBatchSize),
+		ctx:             ctx,
+		cancel:          cancel,
+		eventSubscriber: eventSubscriber,
+	}
+}
+
+// Start begins processing knowledge graph updates by subscribing to the Nexus event bus.
 func (h *KGHooks) Start() error {
 	h.startOnce.Do(func() {
 		h.logger.Info("KGHooks starting...")
-		go h.processUpdates()
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					h.logger.Error("Recovered from panic in PubSub goroutine", zap.Any("recover", r))
-				}
-			}()
-			var reconnectAttempts int
-			for {
-				h.logger.Info("Subscribing to Redis PubSub channel", zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
-				pubsub := h.redis.Subscribe(h.ctx, kgUpdateChannel)
-				ch := pubsub.Channel()
-				for {
-					select {
-					case msg, ok := <-ch:
-						if !ok || msg == nil {
-							h.logger.Error("Redis pubsub channel closed or nil message received, reconnecting...", zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
-							if err := pubsub.Unsubscribe(h.ctx, kgUpdateChannel); err != nil {
-								h.logger.Warn("Failed to unsubscribe before close", zap.Error(err))
-							}
-							if err := pubsub.Close(); err != nil {
-								h.logger.Error("Failed to close Redis pubsub on reconnect", zap.Error(err), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
-							}
-							reconnectAttempts++
-							backoff := time.Second * time.Duration(1<<reconnectAttempts)
-							if backoff > 30*time.Second {
-								backoff = 30 * time.Second
-							}
-							n, err := rand.Int(rand.Reader, big.NewInt(1000))
-							if err != nil {
-								n = big.NewInt(0)
-							}
-							jitter := time.Duration(n.Int64()) * time.Millisecond
-							totalSleep := backoff + jitter
-							h.logger.Info("Sleeping before resubscribe", zap.Duration("sleep", totalSleep), zap.Int("attempt", reconnectAttempts), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
-							time.Sleep(totalSleep)
-							h.logger.Info("Attempting to resubscribe to Redis PubSub channel", zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
-							break
-						}
-						var update KGUpdate
-						if err := json.Unmarshal([]byte(msg.Payload), &update); err != nil {
-							h.logger.Error("Failed to unmarshal update", zap.Error(err), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
-							continue
-						}
-						h.updateChan <- &update
-						reconnectAttempts = 0
-					case <-h.ctx.Done():
-						h.logger.Info("KGHooks PubSub goroutine received shutdown signal")
-						if err := pubsub.Unsubscribe(h.ctx, kgUpdateChannel); err != nil {
-							h.logger.Warn("Failed to unsubscribe before close on shutdown", zap.Error(err))
-						}
-						if err := pubsub.Close(); err != nil {
-							h.logger.Error("Failed to close Redis pubsub on shutdown", zap.Error(err), zap.String("service", "master-ovasabi-local"), zap.String("channel", kgUpdateChannel))
-						}
-						return
-					}
-				}
-			}
-		}()
+		go h.processUpdates() // This batch processor remains the same
+		go h.subscribeToNexus()
 	})
 	return nil
+}
+
+// subscribeToNexus handles the subscription to Nexus events with reconnection logic.
+func (h *KGHooks) subscribeToNexus() {
+	defer func() {
+		if r := recover(); r != nil {
+			h.logger.Error("Recovered from panic in Nexus subscription goroutine", zap.Any("recover", r))
+		}
+	}()
+
+	// Define the event handler that will process incoming KG updates
+	handler := func(ctx context.Context, eventResp *nexusv1.EventResponse) {
+		h.logger.Debug("KGHooks received event from Nexus", zap.String("eventType", eventResp.EventType), zap.String("eventID", eventResp.EventId))
+
+		// The canonical payload is a commonpb.Payload, which contains a structpb.Struct.
+		// We need to marshal this struct back to JSON to unmarshal it into our KGUpdate struct.
+		if eventResp.Payload == nil || eventResp.Payload.Data == nil {
+			h.logger.Error("Nexus event received with nil payload or data", zap.String("eventID", eventResp.EventId))
+			return
+		}
+
+		payloadBytes, err := protojson.Marshal(eventResp.Payload.Data)
+		if err != nil {
+			h.logger.Error("Failed to marshal structpb.Struct to JSON", zap.Error(err), zap.String("eventID", eventResp.EventId))
+			return
+		}
+
+		var update KGUpdate
+		if err := json.Unmarshal(payloadBytes, &update); err != nil {
+			h.logger.Error("Failed to unmarshal KGUpdate from Nexus event payload", zap.Error(err), zap.String("eventID", eventResp.EventId))
+			return
+		}
+
+		// Send the validated update to the batch processor
+		h.updateChan <- &update
+	}
+
+	eventTypes := []string{"knowledge_graph.update"}
+	// A group ID ensures that if multiple hook instances are running, they act as a single consumer group.
+	groupID := "kg-hooks-workers"
+	// Create metadata for the subscription, including the consumer group ID.
+	var meta *commonpb.Metadata
+	metaStruct, err := structpb.NewStruct(map[string]interface{}{
+		"consumer_group": groupID,
+	})
+	if err != nil {
+		h.logger.Error("Failed to create metadata struct for Nexus subscription", zap.Error(err))
+	} else {
+		meta = &commonpb.Metadata{ServiceSpecific: metaStruct}
+	}
+	var reconnectAttempts int
+
+	for {
+		select {
+		case <-h.ctx.Done():
+			h.logger.Info("KGHooks Nexus subscriber received shutdown signal.")
+			return
+		default:
+			h.logger.Info("KGHooks subscribing to Nexus event bus", zap.Strings("eventTypes", eventTypes), zap.String("groupID", groupID))
+			// This is a blocking call that will run until the context is cancelled or an error occurs.
+			err := h.eventSubscriber.SubscribeEvents(h.ctx, eventTypes, meta, handler)
+			if err != nil && h.ctx.Err() == nil { // Don't log error on graceful shutdown
+				h.logger.Error("Nexus event subscription failed, will retry...", zap.Error(err))
+				reconnectAttempts++
+				backoff := time.Second * time.Duration(1<<reconnectAttempts)
+				if backoff > 30*time.Second {
+					backoff = 30 * time.Second
+				}
+				n, randErr := rand.Int(rand.Reader, big.NewInt(1000))
+				if randErr != nil {
+					n = big.NewInt(0)
+				}
+				jitter := time.Duration(n.Int64()) * time.Millisecond
+				time.Sleep(backoff + jitter)
+				continue
+			}
+			// If context was cancelled, the loop will exit on the next iteration.
+			if h.ctx.Err() != nil {
+				h.logger.Info("KGHooks Nexus subscription stopped due to context cancellation.")
+				return
+			}
+			reconnectAttempts = 0 // Reset on successful run (though SubscribeEvents is blocking)
+		}
+	}
 }
 
 // Stop gracefully shuts down the hooks.

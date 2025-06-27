@@ -2,11 +2,12 @@ package graceful
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
@@ -110,12 +111,16 @@ type SuccessOrchestrationConfig struct {
 		EmitEventWithLogging(context.Context, interface{}, *zap.Logger, string, string, *commonpb.Metadata) (string, bool)
 		EmitRawEventWithLogging(context.Context, *zap.Logger, string, string, []byte) (string, bool)
 	}
-	EventEnabled bool
-	EventType    string
-	EventID      string
-	PatternType  string
-	PatternID    string
-	PatternMeta  *commonpb.Metadata
+	EventEnabled     bool
+	EventType        string
+	EventID          string
+	PatternType      string
+	PatternID        string
+	PatternMeta      *commonpb.Metadata
+	Tags             []string
+	KGService        KGUpdater
+	SchedulerService Scheduler
+	NexusService     Nexus
 
 	// New: Custom orchestration hooks (all optional, run in order if set)
 	MetadataHook       func(context.Context) error
@@ -188,9 +193,22 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 				cfg.Log.Warn("KnowledgeGraphHook failed", zap.Error(err))
 			}
 		}
-	} else if cfg.PatternMeta != nil && cfg.PatternType != "" && cfg.PatternID != "" {
-		// Default: enrich knowledge graph (stub, implement as needed)
-		errs = append(errs, errors.New("knowledge graph enrichment not implemented"))
+	} else if cfg.KGService != nil && cfg.PatternMeta != nil && cfg.PatternType != "" && cfg.PatternID != "" {
+		// Default: enrich knowledge graph by updating a relation.
+		relationPayload := map[string]interface{}{
+			"entity_id":   cfg.PatternID,
+			"entity_type": cfg.PatternType,
+			"event":       "success_orchestration",
+			"message":     s.Message,
+			"metadata":    cfg.PatternMeta,
+			"timestamp":   time.Now().UTC(),
+		}
+		if err := cfg.KGService.UpdateRelation(ctx, cfg.PatternType, relationPayload); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("Default knowledge graph enrichment failed", zap.Error(err))
+			}
+		}
 	}
 	// 4. Scheduler registration
 	if cfg.SchedulerHook != nil {
@@ -200,9 +218,28 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 				cfg.Log.Warn("SchedulerHook failed", zap.Error(err))
 			}
 		}
-	} else if cfg.PatternMeta != nil && cfg.PatternType != "" && cfg.PatternID != "" {
-		// Default: register with scheduler (stub, implement as needed)
-		errs = append(errs, errors.New("scheduler registration not implemented"))
+	} else if cfg.SchedulerService != nil && cfg.PatternMeta != nil && cfg.PatternType != "" && cfg.PatternID != "" {
+		// Default: register a job with the scheduler to log the successful event.
+		job := &schedulerpb.Job{
+			Id:          fmt.Sprintf("orch-success-%s-%s-%d", cfg.PatternType, cfg.PatternID, time.Now().Unix()),
+			Name:        fmt.Sprintf("Successful orchestration for %s: %s", cfg.PatternType, cfg.PatternID),
+			Schedule:    "", // This is a one-off job, not recurring.
+			Status:      schedulerpb.JobStatus_JOB_STATUS_COMPLETED,
+			Metadata:    cfg.PatternMeta,
+			Owner:       cfg.PatternType,
+			NextRunTime: time.Now().UTC().Unix(),
+			Labels: map[string]string{
+				"orchestration_event": "success",
+				"entity_type":         cfg.PatternType,
+				"entity_id":           cfg.PatternID,
+			},
+		}
+		if err := cfg.SchedulerService.RegisterJob(ctx, job); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("Default scheduler registration failed", zap.Error(err))
+			}
+		}
 	}
 	// 5. Event emission (legacy, not canonical orchestration event)
 	if cfg.EventHook != nil {
@@ -226,19 +263,31 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 				cfg.Log.Warn("NexusHook failed", zap.Error(err))
 			}
 		}
-	} else if cfg.PatternMeta != nil && cfg.PatternType != "" {
-		// Default: register with Nexus (stub, implement as needed)
-		errs = append(errs, errors.New("nexus registration not implemented"))
+	} else if cfg.NexusService != nil && cfg.PatternMeta != nil && cfg.PatternType != "" {
+		// Default: register the successful pattern with Nexus.
+		req := &nexusv1.RegisterPatternRequest{
+			PatternId:   cfg.PatternID,
+			PatternType: cfg.PatternType,
+			Metadata:    cfg.PatternMeta,
+		}
+		if err := cfg.NexusService.RegisterPattern(ctx, req); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("Default nexus registration failed", zap.Error(err))
+			}
+		}
 	}
 
 	// 7. Canonical orchestration event emission (NEW, canonical pattern)
 	if cfg.EventEmitter != nil {
 		correlationID := utils.GetStringFromContext(ctx, "correlation_id")
-		service := cfg.PatternType
-		entityID := cfg.PatternID
+		requestID := utils.GetStringFromContext(ctx, "request_id")
 		if correlationID == "" {
-			correlationID = utils.GetStringFromContext(ctx, "request_id")
+			correlationID = requestID
 		}
+		actorID := utils.GetStringFromContext(ctx, "actor_id")
+		environment := utils.GetStringFromContext(ctx, "environment")
+
 		event := CanonicalOrchestrationEvent{
 			Type: "orchestration.success",
 			Payload: CanonicalOrchestrationPayload{
@@ -247,9 +296,13 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 				Metadata:      cfg.Metadata,
 				YinYang:       "yang",
 				CorrelationID: correlationID,
-				Service:       service,
-				EntityID:      entityID,
+				Service:       cfg.PatternType,
+				EntityID:      cfg.PatternID,
 				Timestamp:     time.Now().UTC().Format(time.RFC3339),
+				Environment:   environment,
+				ActorID:       actorID,
+				RequestID:     requestID,
+				Tags:          cfg.Tags,
 			},
 		}
 		payload, err := utils.MarshalJSON(event)

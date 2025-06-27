@@ -6,10 +6,15 @@ import (
 	"fmt"
 	"time"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+
 	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 // Common errors.
@@ -17,22 +22,41 @@ var (
 	ErrServiceDegraded = fmt.Errorf("service is in degraded mode")
 )
 
+// EventEmitter defines the interface for publishing events to Nexus.
+type EventEmitter interface {
+	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, entityID string, payload []byte) (string, bool)
+}
+
+// EventSubscriber defines the interface for subscribing to Nexus events.
+type EventSubscriber interface {
+	SubscribeEvents(ctx context.Context, eventTypes []string, meta *commonpb.Metadata, handler func(context.Context, *nexusv1.EventResponse)) error
+}
+
+// Provider is an interface that groups event emitting and subscribing capabilities.
+// This is typically implemented by the central service provider.
+type Provider interface {
+	EventEmitter
+	EventSubscriber
+}
+
 // KGService manages the knowledge graph service.
 type KGService struct {
-	hooks    *KGHooks
-	redis    *redis.Client
-	logger   *zap.Logger
-	degraded atomic.Bool
-	kg       *kg.KnowledgeGraph // in-memory knowledge graph
+	hooks        *KGHooks
+	redis        *redis.Client
+	logger       *zap.Logger
+	degraded     atomic.Bool
+	kg           *kg.KnowledgeGraph // in-memory knowledge graph
+	eventEmitter EventEmitter
 }
 
 // NewKGService creates a new KGService instance.
-func NewKGService(redisClient *redis.Client, logger *zap.Logger) *KGService {
+func NewKGService(redisClient *redis.Client, logger *zap.Logger, provider Provider) *KGService {
 	return &KGService{
-		hooks:  NewKGHooks(redisClient, logger),
-		redis:  redisClient,
-		logger: logger,
-		kg:     kg.DefaultKnowledgeGraph(),
+		hooks:        NewKGHooks(redisClient, logger, provider),
+		redis:        redisClient,
+		logger:       logger,
+		kg:           kg.DefaultKnowledgeGraph(),
+		eventEmitter: provider,
 	}
 }
 
@@ -93,7 +117,7 @@ func (s *KGService) Stop() {
 	s.logger.Info("Knowledge graph service stopped")
 }
 
-// PublishUpdate sends an update to the knowledge graph.
+// PublishUpdate sends an update to the knowledge graph via the Nexus event bus.
 func (s *KGService) PublishUpdate(ctx context.Context, update *KGUpdate) error {
 	// Check if service is degraded
 	if s.degraded.Load() {
@@ -109,7 +133,7 @@ func (s *KGService) PublishUpdate(ctx context.Context, update *KGUpdate) error {
 			zap.Error(err),
 			zap.String("update_id", update.ID),
 			zap.String("type", string(update.Type)))
-		return fmt.Errorf("invalid update: %w", err)
+		return graceful.WrapErr(ctx, codes.InvalidArgument, "invalid update", err)
 	}
 
 	// Set timestamp if not set
@@ -124,37 +148,26 @@ func (s *KGService) PublishUpdate(ctx context.Context, update *KGUpdate) error {
 			zap.Error(err),
 			zap.String("update_id", update.ID),
 			zap.String("type", string(update.Type)))
-		return fmt.Errorf("failed to marshal update: %w", err)
+		return graceful.WrapErr(ctx, codes.Internal, "failed to marshal update", err)
 	}
 
-	// Publish to Redis channel with retry
-	var publishErr error
-	for retries := 0; retries < 3; retries++ {
-		if err := s.redis.Publish(ctx, kgUpdateChannel, data).Err(); err != nil {
-			publishErr = err
-			s.logger.Warn("Failed to publish update, retrying",
-				zap.Error(err),
-				zap.String("update_id", update.ID),
-				zap.Int("retry", retries+1))
-			time.Sleep(time.Second * time.Duration(retries+1))
-			continue
-		}
-		publishErr = nil
-		break
-	}
+	// Publish to Nexus event bus
+	eventType := "knowledge_graph.update"
+	entityID := update.ServiceID // Use service ID as the entity ID for routing/analytics
 
-	if publishErr != nil {
-		s.logger.Error("Failed to publish update after retries",
-			zap.Error(publishErr),
+	eventID, ok := s.eventEmitter.EmitRawEventWithLogging(ctx, s.logger, eventType, entityID, data)
+	if !ok {
+		s.logger.Error("Failed to publish knowledge graph update to Nexus event bus",
 			zap.String("update_id", update.ID),
 			zap.String("type", string(update.Type)))
 		s.degraded.Store(true)
-		return fmt.Errorf("failed to publish update: %w", publishErr)
+		return graceful.WrapErr(ctx, codes.Unavailable, "failed to publish update to nexus", nil)
 	}
 
-	s.logger.Debug("Published knowledge graph update",
+	s.logger.Debug("Published knowledge graph update to Nexus",
 		zap.String("id", update.ID),
-		zap.String("type", string(update.Type)))
+		zap.String("type", string(update.Type)),
+		zap.String("nexus_event_id", eventID))
 
 	return nil
 }
@@ -193,10 +206,10 @@ func (s *KGService) RegisterService(ctx context.Context, serviceID string, capab
 
 	err := s.PublishUpdate(ctx, update)
 	if err != nil {
-		return err
+		// Wrap the error from PublishUpdate with more specific context.
+		// PublishUpdate already returns a graceful error, so we just add context.
+		return graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to publish service registration for %s", serviceID), err)
 	}
-	// Persist and backup after update
-	s.persistAndBackup("RegisterService")
 	return nil
 }
 
@@ -214,9 +227,8 @@ func (s *KGService) UpdateSchema(ctx context.Context, serviceID string, schema i
 
 	err := s.PublishUpdate(ctx, update)
 	if err != nil {
-		return err
+		return graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to publish schema update for %s", serviceID), err)
 	}
-	s.persistAndBackup("UpdateSchema")
 	return nil
 }
 
@@ -234,9 +246,8 @@ func (s *KGService) UpdateRelation(ctx context.Context, serviceID string, relati
 
 	err := s.PublishUpdate(ctx, update)
 	if err != nil {
-		return err
+		return graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to publish relation update for %s", serviceID), err)
 	}
-	s.persistAndBackup("UpdateRelation")
 	return nil
 }
 

@@ -271,16 +271,16 @@ func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger)
 
 func setupDIContainer(cfg *config.Config, log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, redisGoClient *redisv9.Client, grpcPort string) *di.Container {
 	container := di.New()
-	// Register KGService
-	if err := container.Register((*kgserver.KGService)(nil), func(_ *di.Container) (interface{}, error) {
-		return kgserver.NewKGService(redisGoClient, log), nil
-	}); err != nil {
-		log.Error("Failed to register KGService in DI container", zap.Error(err))
-	}
-	// Register Provider
+	// Register Provider first, as other services might depend on it
 	provider, err := service.NewProvider(log, db, redisProvider, cfg.NexusGRPCAddr, container, cfg.JWTSecret)
 	if err != nil {
 		log.Error("Failed to initialize service provider", zap.Error(err))
+	}
+	// Register KGService
+	if err := container.Register((*kgserver.KGService)(nil), func(c *di.Container) (interface{}, error) {
+		return kgserver.NewKGService(redisGoClient, log, provider), nil
+	}); err != nil {
+		log.Error("Failed to register KGService in DI container", zap.Error(err))
 	}
 	if err := container.Register((*service.Provider)(nil), func(_ *di.Container) (interface{}, error) {
 		return provider, nil

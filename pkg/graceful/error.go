@@ -7,10 +7,13 @@ import (
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // ContextError wraps an error with context, gRPC code, and structured fields.
@@ -108,17 +111,21 @@ type ErrorOrchestrationConfig struct {
 	CacheKey     string
 	CacheValue   interface{}
 	CacheTTL     time.Duration
-	Metadata     interface{} // Accept *commonpb.Metadata or similar
+	Metadata     *commonpb.Metadata // Accept *commonpb.Metadata or similar
 	EventEmitter interface {
 		EmitEventWithLogging(context.Context, interface{}, *zap.Logger, string, string, *commonpb.Metadata) (string, bool)
 		EmitRawEventWithLogging(context.Context, *zap.Logger, string, string, []byte) (string, bool)
 	}
-	EventEnabled bool
-	EventType    string
-	EventID      string
-	PatternType  string
-	PatternID    string
-	PatternMeta  interface{}
+	EventEnabled     bool
+	EventType        string
+	EventID          string
+	PatternType      string
+	PatternID        string
+	PatternMeta      *commonpb.Metadata
+	Tags             []string
+	KGService        KGUpdater
+	SchedulerService Scheduler
+	NexusService     Nexus
 
 	// Custom orchestration hooks (optional)
 	MetadataHook       func(context.Context) error
@@ -126,7 +133,7 @@ type ErrorOrchestrationConfig struct {
 	SchedulerHook      func(context.Context) error
 	NexusHook          func(context.Context) error
 	EventHook          func(context.Context) error
-	NormalizationHook  func(context.Context, interface{}, string, bool) (interface{}, error)
+	NormalizationHook  func(context.Context, *commonpb.Metadata, string, bool) (*commonpb.Metadata, error)
 	PartialUpdate      bool
 }
 
@@ -134,11 +141,13 @@ type ErrorOrchestrationConfig struct {
 func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchestrationConfig) []error {
 	// 1. Canonical orchestration event emission (yin)
 	correlationID := utils.GetStringFromContext(ctx, "correlation_id")
-	service := cfg.PatternType
-	entityID := cfg.PatternID
+	requestID := utils.GetStringFromContext(ctx, "request_id")
 	if correlationID == "" {
-		correlationID = utils.GetStringFromContext(ctx, "request_id")
+		correlationID = requestID
 	}
+	actorID := utils.GetStringFromContext(ctx, "actor_id")
+	environment := utils.GetStringFromContext(ctx, "environment")
+
 	event := CanonicalOrchestrationEvent{
 		Type: "orchestration.error",
 		Payload: CanonicalOrchestrationPayload{
@@ -147,9 +156,13 @@ func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchest
 			Metadata:      cfg.Metadata,
 			YinYang:       "yin",
 			CorrelationID: correlationID,
-			Service:       service,
-			EntityID:      entityID,
+			Service:       cfg.PatternType,
+			EntityID:      cfg.PatternID,
 			Timestamp:     time.Now().UTC().Format(time.RFC3339),
+			Environment:   environment,
+			ActorID:       actorID,
+			RequestID:     requestID,
+			Tags:          cfg.Tags,
 		},
 	}
 	if cfg.EventEmitter != nil {
@@ -220,6 +233,23 @@ func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchest
 				cfg.Log.Warn("KnowledgeGraphHook failed", zap.Error(err))
 			}
 		}
+	} else if cfg.KGService != nil && cfg.PatternMeta != nil && cfg.PatternType != "" && cfg.PatternID != "" {
+		// Default: enrich knowledge graph by updating a relation on error.
+		relationPayload := map[string]interface{}{
+			"entity_id":     cfg.PatternID,
+			"entity_type":   cfg.PatternType,
+			"event":         "error_orchestration",
+			"error_code":    e.Code.String(),
+			"error_message": e.Message,
+			"metadata":      cfg.PatternMeta,
+			"timestamp":     time.Now().UTC(),
+		}
+		if err := cfg.KGService.UpdateRelation(ctx, cfg.PatternType, relationPayload); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("Default knowledge graph enrichment on error failed", zap.Error(err))
+			}
+		}
 	}
 	if cfg.SchedulerHook != nil {
 		if err := cfg.SchedulerHook(ctx); err != nil {
@@ -228,12 +258,63 @@ func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchest
 				cfg.Log.Warn("SchedulerHook failed", zap.Error(err))
 			}
 		}
+	} else if cfg.SchedulerService != nil && cfg.PatternMeta != nil && cfg.PatternType != "" && cfg.PatternID != "" {
+		// Default: register a job for review/retry on error.
+		job := &schedulerpb.Job{
+			Id:          fmt.Sprintf("orch-error-%s-%s-%d", cfg.PatternType, cfg.PatternID, time.Now().Unix()),
+			Name:        fmt.Sprintf("Failed orchestration for %s: %s", cfg.PatternType, cfg.PatternID),
+			Schedule:    "", // Could be scheduled for retry
+			Status:      schedulerpb.JobStatus_JOB_STATUS_FAILED,
+			Metadata:    cfg.PatternMeta,
+			Owner:       cfg.PatternType,
+			NextRunTime: time.Now().UTC().Add(5 * time.Minute).Unix(), // e.g., retry in 5 mins
+			Labels: map[string]string{
+				"orchestration_event": "error",
+				"error_code":          e.Code.String(),
+				"entity_type":         cfg.PatternType,
+				"entity_id":           cfg.PatternID,
+			},
+		}
+		if err := cfg.SchedulerService.RegisterJob(ctx, job); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("Default scheduler registration on error failed", zap.Error(err))
+			}
+		}
 	}
 	if cfg.NexusHook != nil {
 		if err := cfg.NexusHook(ctx); err != nil {
 			errs = append(errs, err)
 			if cfg.Log != nil {
 				cfg.Log.Warn("NexusHook failed", zap.Error(err))
+			}
+		}
+	} else if cfg.NexusService != nil && cfg.PatternMeta != nil && cfg.PatternType != "" {
+		// Default: register an error pattern with Nexus.
+		// We can enrich the metadata with error details.
+		errorMeta := cfg.PatternMeta
+		if errorMeta == nil {
+			errorMeta = &commonpb.Metadata{}
+		}
+		if errorMeta.ServiceSpecific == nil {
+			errorMeta.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+		}
+		errorDetails, _ := structpb.NewStruct(map[string]interface{}{
+			"code":    e.Code.String(),
+			"message": e.Message,
+			"cause":   e.Error(),
+		})
+		errorMeta.ServiceSpecific.Fields["error_context"] = structpb.NewStructValue(errorDetails)
+
+		req := &nexusv1.RegisterPatternRequest{
+			PatternId:   cfg.PatternID,
+			PatternType: cfg.PatternType + ".error", // Distinguish error patterns
+			Metadata:    errorMeta,
+		}
+		if err := cfg.NexusService.RegisterPattern(ctx, req); err != nil {
+			errs = append(errs, err)
+			if cfg.Log != nil {
+				cfg.Log.Warn("Default nexus registration on error failed", zap.Error(err))
 			}
 		}
 	}
