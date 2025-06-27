@@ -2,13 +2,14 @@ package nexusservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nmxmxh/master-ovasabi/internal/nexus"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -31,22 +32,30 @@ type OperationStep struct {
 	Timeout    time.Duration          `json:"timeout"`
 }
 
+// ExecutionState represents the persisted state of a long-running workflow.
+type ExecutionState struct {
+	Results   map[string]interface{} `json:"results"`
+	Completed map[string]bool        `json:"completed"`
+}
+
 // PatternExecutor handles the execution of operation patterns.
 type PatternExecutor struct {
-	nexusRepo     nexus.Repository
-	masterRepo    repository.MasterRepository
-	patterns      map[string]*OperationPattern
-	patternsMutex sync.RWMutex
-	options       *Options
+	nexusRepo      nexus.Repository
+	masterRepo     repository.MasterRepository
+	patterns       map[string]*OperationPattern
+	actionRegistry ActionRegistry
+	patternsMutex  sync.RWMutex
+	options        *Options
 }
 
 // NewPatternExecutor creates a new pattern executor.
 func NewPatternExecutor(nexusRepo nexus.Repository, masterRepo repository.MasterRepository, opts *Options) *PatternExecutor {
 	return &PatternExecutor{
-		nexusRepo:  nexusRepo,
-		masterRepo: masterRepo,
-		patterns:   make(map[string]*OperationPattern),
-		options:    opts,
+		nexusRepo:      nexusRepo,
+		masterRepo:     masterRepo,
+		patterns:       make(map[string]*OperationPattern),
+		actionRegistry: NewActionRegistry(),
+		options:        opts,
 	}
 }
 
@@ -62,14 +71,36 @@ func (pe *PatternExecutor) RegisterPattern(pattern *OperationPattern) error {
 	return nil
 }
 
-// ExecutePattern runs a registered pattern with provided input data.
-func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID string, input map[string]interface{}) (map[string]interface{}, error) {
+// ExecutePattern runs a registered pattern with provided input data, supporting long-running, stateful workflows.
+func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID, executionID string, input map[string]interface{}) (map[string]interface{}, error) {
 	pe.patternsMutex.RLock()
 	pattern, exists := pe.patterns[patternID]
 	pe.patternsMutex.RUnlock()
 
 	if !exists {
 		return nil, fmt.Errorf("pattern %s not found", patternID)
+	}
+
+	// State object and its mutex for durable, long-running workflows
+	var state ExecutionState
+	var stateMutex sync.RWMutex
+	stateKey := fmt.Sprintf("orchestration:state:%s", executionID)
+
+	// Load existing state from Redis cache if it exists
+	err := pe.options.Cache.Get(ctx, stateKey, "", &state)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, fmt.Errorf("failed to load orchestration state: %w", err)
+	}
+
+	// If state was not found, this is a new execution. Initialize and persist.
+	if errors.Is(err, redis.Nil) {
+		state = ExecutionState{
+			Results:   input,
+			Completed: make(map[string]bool),
+		}
+		if err := pe.saveState(ctx, stateKey, &state); err != nil {
+			return nil, fmt.Errorf("failed to save initial orchestration state: %w", err)
+		}
 	}
 
 	// Create execution context with timeout
@@ -79,20 +110,18 @@ func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID string,
 	// Create error group for concurrent execution
 	g, ctx := errgroup.WithContext(ctx)
 
-	// Results store
-	results := make(map[string]interface{})
-	var resultsMutex sync.RWMutex
-
-	// Track completed steps
-	completed := make(map[string]bool)
-	var completedMutex sync.RWMutex
-
 	// Execute steps based on dependencies
 	for _, step := range pattern.Steps {
 		step := step // Create new variable for goroutine
 
+		stateMutex.RLock()
 		// Check if dependencies are met
-		if !pe.areDependenciesMet(step.DependsOn, completed) {
+		depsMet := pe.areDependenciesMet(step.DependsOn, state.Completed)
+		// Check if step is already completed from a previous run
+		isCompleted := state.Completed[step.Action]
+		stateMutex.RUnlock()
+
+		if !depsMet || isCompleted {
 			continue
 		}
 
@@ -100,34 +129,38 @@ func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID string,
 			stepCtx, stepCancel := context.WithTimeout(ctx, step.Timeout)
 			defer stepCancel()
 
-			// Execute step with retries
+			// Execute step with retries, passing the current results map
 			var stepResult interface{}
 			var err error
 
 			for attempt := 0; attempt <= step.Retries; attempt++ {
-				stepResult, err = pe.executeStep(stepCtx, step, input, results)
+				stateMutex.RLock()
+				currentResults := state.Results
+				stateMutex.RUnlock()
+				stepResult, err = pe.executeStep(stepCtx, step, currentResults, nil)
 				if err == nil {
 					break
 				}
 
 				if attempt < step.Retries {
-					time.Sleep(pe.options.RetryDelay)
+					time.Sleep(pe.options.RetryDelay) // Use configured retry delay
 				}
 			}
 
 			if err != nil {
-				return fmt.Errorf("step %s failed: %w", step.Action, err)
+				return fmt.Errorf("step %s failed after %d retries: %w", step.Action, step.Retries, err)
 			}
 
-			// Store step result
-			resultsMutex.Lock()
-			results[step.Action] = stepResult
-			resultsMutex.Unlock()
+			// Update and persist state atomically
+			stateMutex.Lock()
+			defer stateMutex.Unlock()
 
-			// Mark step as completed
-			completedMutex.Lock()
-			completed[step.Action] = true
-			completedMutex.Unlock()
+			state.Results[step.Action] = stepResult
+			state.Completed[step.Action] = true
+
+			if err := pe.saveState(ctx, stateKey, &state); err != nil {
+				return fmt.Errorf("CRITICAL: failed to save state after step %s: %w", step.Action, err)
+			}
 
 			return nil
 		})
@@ -137,183 +170,41 @@ func (pe *PatternExecutor) ExecutePattern(ctx context.Context, patternID string,
 		return nil, err
 	}
 
-	return results, nil
+	stateMutex.RLock()
+	finalResults := state.Results
+	stateMutex.RUnlock()
+
+	return finalResults, nil
+}
+
+// saveState persists the current execution state to the cache.
+func (pe *PatternExecutor) saveState(ctx context.Context, key string, state *ExecutionState) error {
+	// Use a long TTL for long-running workflows, e.g., 30 days.
+	// This allows workflows to be resumed even after long pauses.
+	const workflowTTL = 30 * 24 * time.Hour
+	return pe.options.Cache.Set(ctx, key, "", state, workflowTTL)
 }
 
 // executeStep executes a single operation step.
 func (pe *PatternExecutor) executeStep(ctx context.Context, step OperationStep, input, _ map[string]interface{}) (interface{}, error) {
-	switch step.Type {
-	case "relationship":
-		return pe.executeRelationshipStep(ctx, step, input)
-	case "event":
-		return pe.executeEventStep(ctx, step, input)
-	case "graph":
-		return pe.executeGraphStep(ctx, step, input)
-	default:
+	// Look up the action handler from the registry.
+	actionType, ok := pe.actionRegistry[step.Type]
+	if !ok {
 		return nil, fmt.Errorf("unknown step type: %s", step.Type)
 	}
-}
-
-// executeRelationshipStep handles relationship operations.
-func (pe *PatternExecutor) executeRelationshipStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
-	switch step.Action {
-	case "create":
-		parentIDVal, ok := input["parent_id"]
-		if !ok {
-			return nil, fmt.Errorf("parent_id missing in input")
-		}
-		parentID, ok := parentIDVal.(int64)
-		if !ok {
-			return nil, fmt.Errorf("parent_id is not int64")
-		}
-		childIDVal, ok := input["child_id"]
-		if !ok {
-			return nil, fmt.Errorf("child_id missing in input")
-		}
-		childID, ok := childIDVal.(int64)
-		if !ok {
-			return nil, fmt.Errorf("child_id is not int64")
-		}
-		relTypeVal, ok := step.Parameters["type"]
-		if !ok {
-			return nil, fmt.Errorf("type missing in step.Parameters")
-		}
-		relTypeStr, ok := relTypeVal.(string)
-		if !ok {
-			return nil, fmt.Errorf("type is not string")
-		}
-		relType := nexus.RelationType(relTypeStr)
-		metadataVal, ok := step.Parameters["metadata"]
-		if !ok {
-			return nil, fmt.Errorf("metadata missing in step.Parameters")
-		}
-		metadata, ok := metadataVal.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("metadata is not map[string]interface{}")
-		}
-		return pe.nexusRepo.CreateRelationship(ctx, parentID, childID, relType, metadata)
-
-	case "list":
-		masterIDVal, ok := input["master_id"]
-		if !ok {
-			return nil, fmt.Errorf("master_id missing in input")
-		}
-		masterID, ok := masterIDVal.(int64)
-		if !ok {
-			return nil, fmt.Errorf("master_id is not int64")
-		}
-		relTypeVal, ok := step.Parameters["type"]
-		if !ok {
-			return nil, fmt.Errorf("type missing in step.Parameters")
-		}
-		relTypeStr, ok := relTypeVal.(string)
-		if !ok {
-			return nil, fmt.Errorf("type is not string")
-		}
-		relType := nexus.RelationType(relTypeStr)
-		return pe.nexusRepo.ListRelationships(ctx, masterID, relType)
-
-	default:
-		return nil, fmt.Errorf("unknown relationship action: %s", step.Action)
+	handler, ok := actionType[step.Action]
+	if !ok {
+		return nil, fmt.Errorf("unknown action '%s' for type '%s'", step.Action, step.Type)
 	}
-}
 
-// executeEventStep handles event operations.
-func (pe *PatternExecutor) executeEventStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
-	switch step.Action {
-	case "publish":
-		masterIDVal, ok := input["master_id"]
-		if !ok {
-			return nil, fmt.Errorf("master_id missing in input")
-		}
-		masterID, ok := masterIDVal.(int64)
-		if !ok {
-			return nil, fmt.Errorf("master_id is not int64")
-		}
-		entityTypeVal, ok := step.Parameters["entity_type"]
-		if !ok {
-			return nil, fmt.Errorf("entity_type missing in step.Parameters")
-		}
-		entityTypeStr, ok := entityTypeVal.(string)
-		if !ok {
-			return nil, fmt.Errorf("entity_type is not string")
-		}
-		eventTypeVal, ok := step.Parameters["event_type"]
-		if !ok {
-			return nil, fmt.Errorf("event_type missing in step.Parameters")
-		}
-		eventType, ok := eventTypeVal.(string)
-		if !ok {
-			return nil, fmt.Errorf("event_type is not string")
-		}
-		payloadVal, ok := step.Parameters["payload"]
-		if !ok {
-			return nil, fmt.Errorf("payload missing in step.Parameters")
-		}
-		payload, ok := payloadVal.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("payload is not map[string]interface{}")
-		}
-		event := &nexus.Event{
-			ID:         uuid.New(),
-			MasterID:   masterID,
-			EntityType: repository.EntityType(entityTypeStr),
-			EventType:  eventType,
-			Payload:    payload,
-			Status:     "pending",
-			CreatedAt:  time.Now(),
-		}
-		return nil, pe.nexusRepo.PublishEvent(ctx, event)
-
-	default:
-		return nil, fmt.Errorf("unknown event action: %s", step.Action)
+	// Extract and validate parameters based on the handler's definition.
+	validatedParams, err := ExtractAndValidateParams(handler, input, step.Parameters)
+	if err != nil {
+		return nil, fmt.Errorf("parameter validation failed for step '%s': %w", step.Action, err)
 	}
-}
 
-// executeGraphStep handles graph operations.
-func (pe *PatternExecutor) executeGraphStep(ctx context.Context, step OperationStep, input map[string]interface{}) (interface{}, error) {
-	switch step.Action {
-	case "get_graph":
-		masterIDVal, ok := input["master_id"]
-		if !ok {
-			return nil, fmt.Errorf("master_id missing in input")
-		}
-		masterID, ok := masterIDVal.(int64)
-		if !ok {
-			return nil, fmt.Errorf("master_id is not int64")
-		}
-		depthVal, ok := step.Parameters["depth"]
-		if !ok {
-			return nil, fmt.Errorf("depth missing in step.Parameters")
-		}
-		depth, ok := depthVal.(int)
-		if !ok {
-			return nil, fmt.Errorf("depth is not int")
-		}
-		return pe.nexusRepo.GetEntityGraph(ctx, masterID, depth)
-
-	case "find_path":
-		fromIDVal, ok := input["from_id"]
-		if !ok {
-			return nil, fmt.Errorf("from_id missing in input")
-		}
-		fromID, ok := fromIDVal.(int64)
-		if !ok {
-			return nil, fmt.Errorf("from_id is not int64")
-		}
-		toIDVal, ok := input["to_id"]
-		if !ok {
-			return nil, fmt.Errorf("to_id missing in input")
-		}
-		toID, ok := toIDVal.(int64)
-		if !ok {
-			return nil, fmt.Errorf("to_id is not int64")
-		}
-		return pe.nexusRepo.FindPath(ctx, fromID, toID)
-
-	default:
-		return nil, fmt.Errorf("unknown graph action: %s", step.Action)
-	}
+	// Execute the action with the validated parameters.
+	return handler.Execute(ctx, pe, validatedParams)
 }
 
 // areDependenciesMet checks if all dependencies for a step are completed.

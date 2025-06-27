@@ -487,9 +487,11 @@ func connectToDatabase(ctx context.Context, log *zap.Logger, cfg *config.Config)
 		err = db.PingContext(ctx)
 		cancel()
 		if err == nil {
-			db.SetMaxOpenConns(25)
-			db.SetMaxIdleConns(5)
-			db.SetConnMaxLifetime(5 * time.Minute)
+			// Use settings from config for better tunability.
+			db.SetMaxOpenConns(cfg.DBMaxOpenConns)
+			db.SetMaxIdleConns(cfg.DBMaxIdleConns)
+			db.SetConnMaxLifetime(time.Duration(cfg.DBConnMaxLifetimeMinutes) * time.Minute)
+
 			log.Info("Database connection established")
 			return db, nil
 		}

@@ -51,13 +51,22 @@ follow the rules in this file.
    Paginate queries to avoid memory and performance issues.
 
 3. **Avoid full table scans and sequential scans (SEQ SCAN).**  
-   Ensure queries use indexes where possible.
+   Ensure queries use indexes where possible. Use PostgreSQL's `EXPLAIN` command to analyze query
+   plans and identify potential bottlenecks.
 
 4. **Avoid temporary tables unless absolutely necessary.**
 
 5. **Avoid aggregations in queries unless justified.**
 
 6. **Design queries to read a single row when possible.**
+
+7. **Use Prepared Statements for frequently executed queries.**  
+   This avoids repeated parsing of SQL and can significantly improve performance. Your repository
+   layer should favor using parameterized queries which leverage prepared statements.
+
+8. **Use Batch Operations for bulk data manipulation.**  
+   For bulk inserts or updates, use batching to reduce network round trips. For high-volume
+   inserts, leverage driver-specific features like `pgx.CopyFrom` for maximum efficiency.
 
 ---
 
@@ -123,18 +132,22 @@ follow the rules in this file.
 
 ---
 
-## Transactions & Consistency
+## Concurrency, Transactions & Connection Management
 
 1. **Use transactions for multi-step operations.**  
    Ensure atomicity and rollback on failure.
 
-2. **Send read-only transactions to the server when possible.**
+2. **Keep transactions as short as possible.**  
+   To minimize lock contention and improve concurrency, ensure transaction blocks only contain
+   the necessary operations and commit or roll back as quickly as possible.
 
 3. **Be mindful of locking and concurrency.**  
    Avoid unnecessary locks and deadlocks.
 
-4. **Start with ACID-compliant design, but consider BASE for scaling.**  
-   Find the right balance for your application.
+4. **Use Connection Pooling.**  
+   To handle Go's high concurrency, all database connections must be managed through a connection
+   pool. The standard `database/sql` package provides this by default. Ensure your repository
+   layer is configured to use it effectively.
 
 5. **Cloud-scale and sharding:**  
    Design for horizontal scaling and partitioning from the start.
@@ -247,9 +260,11 @@ For a comprehensive architectural overview, see
 
 ### Monitoring & Index Review
 
-- Monitor table sizes, partition count, and index bloat.
-- Set up alerts for table growth and slow queries.
-- Periodically analyze and optimize indexes as data grows.
+- **Monitor Query Performance:** Use tools like the `pg_stat_statements` extension to track
+  frequently executed and slow queries.
+- **Monitor Index Usage:** Periodically review index effectiveness with tools like
+  `pg_stat_all_indexes` to identify and remove unused or inefficient indexes.
+- **Monitor Table Health:** Monitor table sizes, partition count, and index bloat. Set up alerts for table growth.
 
 ### Documentation Automation
 
@@ -260,7 +275,7 @@ For a comprehensive architectural overview, see
 **See also:** [Master-Client-Service-Event Pattern](../architecture/master_client_event_pattern.md)
 for rationale, trade-offs, and further best practices.
 
-# Potentially Disastrous Database Operations
+## Potentially Disastrous Database Operations
 
 ## Warning: Destructive Actions
 
@@ -301,7 +316,7 @@ WHERE NOT EXISTS (
 - [PostgreSQL Safe Migration Practices](https://www.postgresql.org/docs/current/sql-altertable.html)
 - [OVASABI Migration Standards](../amadeus/amadeus_context.md)
 
-# Multi-Campaign/Domain Optimization for Fast Lookups and Rich Content
+## Multi-Campaign/Domain Optimization for Fast Lookups and Rich Content
 
 ## Multi-Tenant/Campaign-Aware Data Modeling
 
@@ -388,7 +403,7 @@ CREATE INDEX idx_content_campaign_fts ON service_content_main USING GIN (campaig
 - Keep central services (like User) global.
 - Use metadata for campaign-specific extensions, not for core scoping.
 
-# Migrate to Campaign-Specific Architecture
+## Migrate to Campaign-Specific Architecture
 
 ## Overview
 
@@ -482,7 +497,7 @@ func (r *Repository) ListContent(ctx context.Context, campaignID int64, ...) ([]
 }
 ```
 
-## Recommendation
+## Recommendation (2)
 
 - Migrate all campaign-scoped services to include and use `campaign_id` in protos, tables, queries,
   and business logic.

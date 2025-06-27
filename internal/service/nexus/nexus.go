@@ -366,7 +366,37 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 			return nil, graceful.WrapErr(ctx, 13, "failed to publish event", err)
 		}
 	}
-	return &nexusv1.EventResponse{Success: true, Message: req.EventType, Metadata: req.Metadata, Payload: req.Payload}, nil
+
+	// Also, publish to in-memory gRPC subscribers for real-time streaming.
+	// This bridges events emitted via this RPC to clients subscribed via SubscribeEvents.
+	s.subscribersMu.RLock()
+	// Create a copy of the subscriber channels to avoid holding the lock while sending.
+	subscribersForType := make([]chan *nexusv1.EventResponse, len(s.subscribers[req.EventType]))
+	copy(subscribersForType, s.subscribers[req.EventType])
+	s.subscribersMu.RUnlock()
+
+	if len(subscribersForType) > 0 {
+		// Create the response event once to send to all subscribers.
+		eventResp := &nexusv1.EventResponse{
+			Success:   true,
+			EventId:   req.EventId,
+			EventType: req.EventType,
+			Message:   "Event emitted",
+			Metadata:  req.Metadata,
+			Payload:   req.Payload,
+		}
+		s.broadcastToSubscribers(subscribersForType, eventResp)
+	}
+
+	// The RPC response should also be consistent with the EventResponse message.
+	return &nexusv1.EventResponse{
+		Success:   true,
+		EventId:   req.EventId,
+		EventType: req.EventType,
+		Message:   "Event emitted successfully",
+		Metadata:  req.Metadata,
+		Payload:   req.Payload,
+	}, nil
 }
 
 // SubscribeEvents handles event subscriptions with structured logging and frame dropping for slow clients.
@@ -399,6 +429,20 @@ func (s *Service) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.
 		}
 	}
 	return nil
+}
+
+// broadcastToSubscribers sends an event to a list of subscriber channels without blocking.
+func (s *Service) broadcastToSubscribers(subscribers []chan *nexusv1.EventResponse, event *nexusv1.EventResponse) {
+	for _, ch := range subscribers {
+		select {
+		case ch <- event:
+		// Event sent successfully
+		default:
+			// Subscriber channel is full, drop the event for this subscriber to avoid blocking.
+			// This is a "slow client" scenario.
+			s.log.Warn("Dropping event for slow gRPC subscriber", zap.String("event_type", event.EventType))
+		}
+	}
 }
 
 // extractAuthContext extracts user_id, roles, guest_nickname, device_id from context or metadata.

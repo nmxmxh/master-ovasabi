@@ -28,6 +28,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"go.uber.org/zap"
 )
 
 type campaignMeta struct {
@@ -48,6 +50,7 @@ func parseCampaignMetadata(metaStr string) (campaignMeta, error) {
 }
 
 type CampaignOrchestrator struct {
+	log         *zap.Logger
 	UserService interface {
 		Register(ctx context.Context, email, username string) (interface{}, error)
 	}
@@ -87,31 +90,33 @@ func (o *CampaignOrchestrator) Signup(ctx context.Context, slug, email, username
 	}
 	if meta.Waitlist {
 		if err := o.CampaignService.AddToWaitlist(ctx, userIDField.GetID(), slug); err != nil {
-			// TODO: handle/log error
-			return fmt.Errorf("service not implemented: %w", err)
+			o.log.Warn("Failed to add user to waitlist", zap.Error(err), zap.Int64("user_id", userIDField.GetID()), zap.String("campaign_slug", slug))
+			// Continue execution, as this might be a non-critical step
 		}
 	}
 	if meta.Referral && referral != "" {
 		if err := o.ReferralService.RecordReferral(ctx, referral, userIDField.GetID(), slug); err != nil {
-			// TODO: handle/log error
-			return fmt.Errorf("service not implemented: %w", err)
+			o.log.Warn("Failed to record referral", zap.Error(err), zap.String("referrer", referral), zap.Int64("user_id", userIDField.GetID()))
+			// Continue execution
 		}
 		if err := o.CampaignService.UpdateLeaderboard(ctx, slug); err != nil {
-			// TODO: handle/log error
-			return fmt.Errorf("service not implemented: %w", err)
+			o.log.Warn("Failed to update leaderboard after referral", zap.Error(err), zap.String("campaign_slug", slug))
+			// Continue execution
 		}
 	}
 	if len(meta.I18nKeys) > 0 {
 		if err := o.I18nService.EnsureCampaignTranslations(ctx, slug, locale, meta.I18nKeys); err != nil {
-			// TODO: handle/log error
-			return fmt.Errorf("service not implemented: %w", err)
+			o.log.Warn("Failed to ensure campaign translations", zap.Error(err), zap.String("campaign_slug", slug), zap.String("locale", locale))
+			// Continue execution
 		}
 	}
 	if meta.BroadcastEnabled {
-		if err := o.BroadcastService.Broadcast(ctx, slug, fmt.Sprintf("New user joined: %s", username)); err != nil {
-			// TODO: handle/log error
-			return fmt.Errorf("service not implemented: %w", err)
-		}
+		// Fire-and-forget broadcast, log if it fails but don't block signup
+		go func() {
+			if err := o.BroadcastService.Broadcast(context.Background(), slug, fmt.Sprintf("New user joined: %s", username)); err != nil {
+				o.log.Warn("Failed to send broadcast message", zap.Error(err), zap.String("campaign_slug", slug))
+			}
+		}()
 	}
 	return nil
 }

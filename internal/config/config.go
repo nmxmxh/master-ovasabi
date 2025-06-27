@@ -7,29 +7,32 @@ import (
 )
 
 type Config struct {
-	AppEnv                 string
-	AppName                string
-	DBHost                 string
-	DBPort                 string
-	DBUser                 string
-	DBPassword             string
-	DBName                 string
-	DBSSLMode              string
-	RedisHost              string
-	RedisPort              string
-	RedisPassword          string
-	RedisDB                int
-	RedisPoolSize          int
-	RedisMinIdleConns      int
-	RedisMaxRetries        int
-	AppPort                string
-	MetricsPort            string
-	JWTSecret              string
-	LogLevel               string
-	NexusGRPCAddr          string
-	SchedulerGRPCAddr      string
-	LibreTranslateEndpoint string
-	LibreTranslateTimeout  string // duration as string, e.g. "10s"
+	AppEnv                   string
+	AppName                  string
+	DBHost                   string
+	DBPort                   string
+	DBUser                   string
+	DBPassword               string
+	DBName                   string
+	DBSSLMode                string
+	DBMaxOpenConns           int
+	DBMaxIdleConns           int
+	DBConnMaxLifetimeMinutes int
+	RedisHost                string
+	RedisPort                string
+	RedisPassword            string
+	RedisDB                  int
+	RedisPoolSize            int
+	RedisMinIdleConns        int
+	RedisMaxRetries          int
+	AppPort                  string
+	MetricsPort              string
+	JWTSecret                string
+	LogLevel                 string
+	NexusGRPCAddr            string
+	SchedulerGRPCAddr        string
+	LibreTranslateEndpoint   string
+	LibreTranslateTimeout    string // duration as string, e.g. "10s"
 }
 
 func Load() (*Config, error) {
@@ -70,6 +73,30 @@ func Load() (*Config, error) {
 		cfg.LibreTranslateTimeout = "10s"
 	}
 	var err error
+
+	// Database pool settings with defaults
+	cfg.DBMaxOpenConns = 25 // Default
+	if v := os.Getenv("DB_MAX_OPEN_CONNS"); v != "" {
+		cfg.DBMaxOpenConns, err = strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid DB_MAX_OPEN_CONNS: %w", err)
+		}
+	}
+	cfg.DBMaxIdleConns = 5 // Default
+	if v := os.Getenv("DB_MAX_IDLE_CONNS"); v != "" {
+		cfg.DBMaxIdleConns, err = strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid DB_MAX_IDLE_CONNS: %w", err)
+		}
+	}
+	cfg.DBConnMaxLifetimeMinutes = 5 // Default
+	if v := os.Getenv("DB_CONN_MAX_LIFETIME_MINUTES"); v != "" {
+		cfg.DBConnMaxLifetimeMinutes, err = strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid DB_CONN_MAX_LIFETIME_MINUTES: %w", err)
+		}
+	}
+
 	if v := os.Getenv("REDIS_DB"); v != "" {
 		cfg.RedisDB, err = strconv.Atoi(v)
 		if err != nil {
