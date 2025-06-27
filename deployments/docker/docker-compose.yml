@@ -231,12 +231,11 @@ services:
     ports:
       - '8090:8090'
     environment:
-      REDIS_HOST: '${REDIS_HOST:-redis}'
-      REDIS_PORT: '${REDIS_PORT:-6379}'
-      REDIS_PASSWORD: '${REDIS_PASSWORD}' # Add this line
+      NEXUS_ADDR: 'nexus:50052' # Connect to the Nexus service over the internal Docker network
       LOG_LEVEL: debug
+      WS_ALLOWED_ORIGINS: '*' # For local development, allow all origins
     depends_on:
-      - redis
+      - nexus
     networks:
       - ovasabi-network
     restart: unless-stopped

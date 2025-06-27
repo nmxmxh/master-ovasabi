@@ -1,42 +1,31 @@
 # --- Go WASM Build Stage ---
+# This stage builds the Go WASM binary.
 FROM golang:1.24-alpine AS wasm-builder
 WORKDIR /wasm
 COPY wasm/go.mod wasm/go.sum ./
 RUN go mod download
 COPY wasm/ .
-RUN GOOS=js GOARCH=wasm go build -o /build/main.wasm
-
-# --- Go WebSocket AI Microservice Build Stage ---
-FROM golang:1.24-alpine AS ws-server-builder
-WORKDIR /wasm
-COPY wasm/go.mod wasm/go.sum ./
-RUN go mod download
-COPY wasm/ .
-RUN go build -o /build/ws_server ws_server.go
+# Build the WASM binary and place it in a known location.
+RUN GOOS=js GOARCH=wasm go build -o /build/main.wasm .
 
 # --- Frontend Build Stage ---
+# This stage builds the JavaScript/TypeScript frontend assets.
 FROM node:alpine AS frontend-builder
 WORKDIR /frontend
 COPY frontend/package*.json ./
-RUN yarn
+RUN yarn install --frozen-lockfile
 COPY frontend/ .
+# Copy the compiled WASM binary from the previous stage into the public assets directory.
 COPY --from=wasm-builder /build/main.wasm ./public/
+# Build the production-ready frontend assets.
 RUN yarn build
 
-# --- Production Static Server + WASM AI Microservice ---
-FROM alpine:latest AS prod
-WORKDIR /app
-# Copy static site
+# --- Production Nginx Stage ---
+# This is the final, lean image that will serve the static frontend.
+FROM nginx:alpine AS prod
+# Copy the custom Nginx configuration.
+COPY deployments/docker/nginx.conf /etc/nginx/conf.d/default.conf
+# Copy the built frontend assets from the frontend-builder stage.
 COPY --from=frontend-builder /frontend/dist /usr/share/nginx/html
-# Copy WASM AI microservice
-# Also copy main.wasm to /app so ws_server can find it
-COPY --from=wasm-builder /build/main.wasm /app/main.wasm
-COPY --from=ws-server-builder /build/ws_server ./ws_server
-RUN chmod +x ./ws_server
-# Install nginx and supervisord for static site and process management
-RUN apk add --no-cache nginx supervisor
-COPY deployments/docker/nginx.conf /etc/nginx/nginx.conf
-COPY deployments/docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 EXPOSE 80 8100
-# Use supervisord to manage nginx and ws_server processes
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["nginx", "-g", "daemon off;"]

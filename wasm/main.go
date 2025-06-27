@@ -13,7 +13,6 @@ import (
 
 // --- Constants and Global State ---
 const (
-	DefaultWSBaseURL = "ws://localhost:8090/ws/ovasabi_website/"
 	BinaryMsgVersion = 1
 )
 
@@ -68,13 +67,22 @@ func Embed(input []byte) []float32 {
 }
 
 // --- WebSocket Management ---
-func initWebSocket() {
-	wsBase := js.Global().Get("WS_BASE_URL")
-	wsBaseUrl := DefaultWSBaseURL
-	if wsBase.Truthy() && wsBase.Type() == js.TypeString {
-		wsBaseUrl = wsBase.String()
+
+// getWebSocketURL dynamically constructs the WebSocket URL from the browser's location.
+func getWebSocketURL() string {
+	location := js.Global().Get("location")
+	protocol := "ws:"
+	if location.Get("protocol").String() == "https:" {
+		protocol = "wss:"
 	}
-	wsUrl := wsBaseUrl + userID
+	host := location.Get("host").String()
+	// The path is part of the API contract with the gateway via Nginx
+	path := "/ws/ovasabi_website/"
+	return protocol + "//" + host + path
+}
+
+func initWebSocket() {
+	wsUrl := getWebSocketURL() + userID
 	log("[WASM] Connecting to WebSocket:", wsUrl)
 
 	ws = js.Global().Get("WebSocket").New(wsUrl)
