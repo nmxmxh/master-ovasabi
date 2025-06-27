@@ -565,15 +565,10 @@ api-docs:
 
 # --- WASM/Frontend Build (Vite-centric, progressive threads) ---
 
-# Build single-threaded Go WASM (default)
 wasm-build:
-	cd wasm && GOOS=js GOARCH=wasm go build -o ../frontend/public/main.wasm
-	cp /opt/homebrew/Cellar/go/1.24.3/libexec/lib/wasm/wasm_exec.js frontend/public/
+	@./scripts/build-wasm.sh
 
-# Build multi-threaded Go WASM (WASM threads)
-wasm-threaded:
-	cd wasm && GOOS=js GOARCH=wasm  go build -o ../frontend/public/main.threads.wasm
-	cp /opt/homebrew/Cellar/go/1.24.3/libexec/lib/wasm/wasm_exec.js frontend/public/
+wasm-threaded: wasm-build
 
 # Start Vite dev server (ensure vite.config.js sets COOP/COEP headers for WASM threads)
 vite-wasm:
