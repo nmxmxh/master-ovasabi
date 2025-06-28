@@ -49,9 +49,11 @@ type Metadata struct {
 	Referral       *ReferralMetadata `protobuf:"bytes,10,opt,name=referral,proto3" json:"referral,omitempty"`
 	// System/service/user/environment versioning and traceability
 	// System/service/user/environment versioning and traceability
-	Versioning    *structpb.Struct `protobuf:"bytes,11,opt,name=versioning,proto3" json:"versioning,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Versioning        *structpb.Struct   `protobuf:"bytes,11,opt,name=versioning,proto3" json:"versioning,omitempty"`
+	EntityIndex       map[string]*Entity `protobuf:"bytes,12,rep,name=entity_index,json=entityIndex,proto3" json:"entity_index,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ProminentEntities []*Entity          `protobuf:"bytes,13,rep,name=prominent_entities,json=prominentEntities,proto3" json:"prominent_entities,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Metadata) Reset() {
@@ -157,6 +159,20 @@ func (x *Metadata) GetReferral() *ReferralMetadata {
 func (x *Metadata) GetVersioning() *structpb.Struct {
 	if x != nil {
 		return x.Versioning
+	}
+	return nil
+}
+
+func (x *Metadata) GetEntityIndex() map[string]*Entity {
+	if x != nil {
+		return x.EntityIndex
+	}
+	return nil
+}
+
+func (x *Metadata) GetProminentEntities() []*Entity {
+	if x != nil {
+		return x.ProminentEntities
 	}
 	return nil
 }
@@ -505,7 +521,7 @@ var File_common_v1_metadata_proto protoreflect.FileDescriptor
 
 const file_common_v1_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x18common/v1/metadata.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\"\xaf\x04\n" +
+	"\x18common/v1/metadata.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\x1a\x16common/v1/entity.proto\"\x84\x06\n" +
 	"\bMetadata\x127\n" +
 	"\n" +
 	"scheduling\x18\x01 \x01(\v2\x17.google.protobuf.StructR\n" +
@@ -522,7 +538,12 @@ const file_common_v1_metadata_proto_rawDesc = "" +
 	" \x01(\v2\x18.common.ReferralMetadataR\breferral\x127\n" +
 	"\n" +
 	"versioning\x18\v \x01(\v2\x17.google.protobuf.StructR\n" +
-	"versioning\"q\n" +
+	"versioning\x12D\n" +
+	"\fentity_index\x18\f \x03(\v2!.common.Metadata.EntityIndexEntryR\ventityIndex\x12=\n" +
+	"\x12prominent_entities\x18\r \x03(\v2\x0e.common.EntityR\x11prominentEntities\x1aN\n" +
+	"\x10EntityIndexEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12$\n" +
+	"\x05value\x18\x02 \x01(\v2\x0e.common.EntityR\x05value:\x028\x01\"q\n" +
 	"\tTieredTax\x12!\n" +
 	"\fmin_projects\x18\x01 \x01(\x05R\vminProjects\x12!\n" +
 	"\fmax_projects\x18\x02 \x01(\x05R\vmaxProjects\x12\x1e\n" +
@@ -569,7 +590,7 @@ func file_common_v1_metadata_proto_rawDescGZIP() []byte {
 	return file_common_v1_metadata_proto_rawDescData
 }
 
-var file_common_v1_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_common_v1_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_common_v1_metadata_proto_goTypes = []any{
 	(*Metadata)(nil),          // 0: common.Metadata
 	(*TieredTax)(nil),         // 1: common.TieredTax
@@ -577,25 +598,30 @@ var file_common_v1_metadata_proto_goTypes = []any{
 	(*Taxation)(nil),          // 3: common.Taxation
 	(*OwnerMetadata)(nil),     // 4: common.OwnerMetadata
 	(*ReferralMetadata)(nil),  // 5: common.ReferralMetadata
-	(*structpb.Struct)(nil),   // 6: google.protobuf.Struct
+	nil,                       // 6: common.Metadata.EntityIndexEntry
+	(*structpb.Struct)(nil),   // 7: google.protobuf.Struct
+	(*Entity)(nil),            // 8: common.Entity
 }
 var file_common_v1_metadata_proto_depIdxs = []int32{
-	6,  // 0: common.Metadata.scheduling:type_name -> google.protobuf.Struct
-	6,  // 1: common.Metadata.custom_rules:type_name -> google.protobuf.Struct
-	6,  // 2: common.Metadata.audit:type_name -> google.protobuf.Struct
-	6,  // 3: common.Metadata.service_specific:type_name -> google.protobuf.Struct
-	6,  // 4: common.Metadata.knowledge_graph:type_name -> google.protobuf.Struct
+	7,  // 0: common.Metadata.scheduling:type_name -> google.protobuf.Struct
+	7,  // 1: common.Metadata.custom_rules:type_name -> google.protobuf.Struct
+	7,  // 2: common.Metadata.audit:type_name -> google.protobuf.Struct
+	7,  // 3: common.Metadata.service_specific:type_name -> google.protobuf.Struct
+	7,  // 4: common.Metadata.knowledge_graph:type_name -> google.protobuf.Struct
 	1,  // 5: common.Metadata.taxation:type_name -> common.TieredTax
 	4,  // 6: common.Metadata.owner:type_name -> common.OwnerMetadata
 	5,  // 7: common.Metadata.referral:type_name -> common.ReferralMetadata
-	6,  // 8: common.Metadata.versioning:type_name -> google.protobuf.Struct
-	1,  // 9: common.TaxationConnector.tiereds:type_name -> common.TieredTax
-	2,  // 10: common.Taxation.connectors:type_name -> common.TaxationConnector
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	7,  // 8: common.Metadata.versioning:type_name -> google.protobuf.Struct
+	6,  // 9: common.Metadata.entity_index:type_name -> common.Metadata.EntityIndexEntry
+	8,  // 10: common.Metadata.prominent_entities:type_name -> common.Entity
+	1,  // 11: common.TaxationConnector.tiereds:type_name -> common.TieredTax
+	2,  // 12: common.Taxation.connectors:type_name -> common.TaxationConnector
+	8,  // 13: common.Metadata.EntityIndexEntry.value:type_name -> common.Entity
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_common_v1_metadata_proto_init() }
@@ -603,13 +629,14 @@ func file_common_v1_metadata_proto_init() {
 	if File_common_v1_metadata_proto != nil {
 		return
 	}
+	file_common_v1_entity_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_v1_metadata_proto_rawDesc), len(file_common_v1_metadata_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

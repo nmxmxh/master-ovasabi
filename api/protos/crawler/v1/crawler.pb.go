@@ -411,80 +411,6 @@ func (x *CrawlResult) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-// AIRequest is sent to the AI Enrichment Service for processing.
-// It contains cleaned, context-rich data ready for inference.
-type AIRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Corresponds to the CrawlTask UUID.
-	TaskUuid string `protobuf:"bytes,1,opt,name=task_uuid,json=taskUuid,proto3" json:"task_uuid,omitempty"`
-	// Content after passing through the cleaning pipeline.
-	CleanContent []byte `protobuf:"bytes,2,opt,name=clean_content,json=cleanContent,proto3" json:"clean_content,omitempty"`
-	// Type of content for model selection.
-	ContentType ContentType `protobuf:"varint,3,opt,name=content_type,json=contentType,proto3,enum=crawler.ContentType" json:"content_type,omitempty"`
-	// Contextual metadata (source, language, entities).
-	Metadata      *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AIRequest) Reset() {
-	*x = AIRequest{}
-	mi := &file_crawler_v1_crawler_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AIRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AIRequest) ProtoMessage() {}
-
-func (x *AIRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_crawler_v1_crawler_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AIRequest.ProtoReflect.Descriptor instead.
-func (*AIRequest) Descriptor() ([]byte, []int) {
-	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *AIRequest) GetTaskUuid() string {
-	if x != nil {
-		return x.TaskUuid
-	}
-	return ""
-}
-
-func (x *AIRequest) GetCleanContent() []byte {
-	if x != nil {
-		return x.CleanContent
-	}
-	return nil
-}
-
-func (x *AIRequest) GetContentType() ContentType {
-	if x != nil {
-		return x.ContentType
-	}
-	return ContentType_CONTENT_TYPE_UNSPECIFIED
-}
-
-func (x *AIRequest) GetMetadata() *v1.Metadata {
-	if x != nil {
-		return x.Metadata
-	}
-	return nil
-}
-
 type SubmitTaskRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Task          *CrawlTask             `protobuf:"bytes,1,opt,name=task,proto3" json:"task,omitempty"`
@@ -494,7 +420,7 @@ type SubmitTaskRequest struct {
 
 func (x *SubmitTaskRequest) Reset() {
 	*x = SubmitTaskRequest{}
-	mi := &file_crawler_v1_crawler_proto_msgTypes[3]
+	mi := &file_crawler_v1_crawler_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -506,7 +432,7 @@ func (x *SubmitTaskRequest) String() string {
 func (*SubmitTaskRequest) ProtoMessage() {}
 
 func (x *SubmitTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_crawler_v1_crawler_proto_msgTypes[3]
+	mi := &file_crawler_v1_crawler_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -519,7 +445,7 @@ func (x *SubmitTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitTaskRequest.ProtoReflect.Descriptor instead.
 func (*SubmitTaskRequest) Descriptor() ([]byte, []int) {
-	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{3}
+	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SubmitTaskRequest) GetTask() *CrawlTask {
@@ -540,7 +466,7 @@ type SubmitTaskResponse struct {
 
 func (x *SubmitTaskResponse) Reset() {
 	*x = SubmitTaskResponse{}
-	mi := &file_crawler_v1_crawler_proto_msgTypes[4]
+	mi := &file_crawler_v1_crawler_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -552,7 +478,7 @@ func (x *SubmitTaskResponse) String() string {
 func (*SubmitTaskResponse) ProtoMessage() {}
 
 func (x *SubmitTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_crawler_v1_crawler_proto_msgTypes[4]
+	mi := &file_crawler_v1_crawler_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -565,7 +491,7 @@ func (x *SubmitTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitTaskResponse.ProtoReflect.Descriptor instead.
 func (*SubmitTaskResponse) Descriptor() ([]byte, []int) {
-	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{4}
+	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SubmitTaskResponse) GetUuid() string {
@@ -598,7 +524,7 @@ type GetTaskStatusRequest struct {
 
 func (x *GetTaskStatusRequest) Reset() {
 	*x = GetTaskStatusRequest{}
-	mi := &file_crawler_v1_crawler_proto_msgTypes[5]
+	mi := &file_crawler_v1_crawler_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -610,7 +536,7 @@ func (x *GetTaskStatusRequest) String() string {
 func (*GetTaskStatusRequest) ProtoMessage() {}
 
 func (x *GetTaskStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_crawler_v1_crawler_proto_msgTypes[5]
+	mi := &file_crawler_v1_crawler_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -623,7 +549,7 @@ func (x *GetTaskStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTaskStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetTaskStatusRequest) Descriptor() ([]byte, []int) {
-	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{5}
+	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetTaskStatusRequest) GetUuid() string {
@@ -642,7 +568,7 @@ type StreamResultsRequest struct {
 
 func (x *StreamResultsRequest) Reset() {
 	*x = StreamResultsRequest{}
-	mi := &file_crawler_v1_crawler_proto_msgTypes[6]
+	mi := &file_crawler_v1_crawler_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -654,7 +580,7 @@ func (x *StreamResultsRequest) String() string {
 func (*StreamResultsRequest) ProtoMessage() {}
 
 func (x *StreamResultsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_crawler_v1_crawler_proto_msgTypes[6]
+	mi := &file_crawler_v1_crawler_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -667,7 +593,7 @@ func (x *StreamResultsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamResultsRequest.ProtoReflect.Descriptor instead.
 func (*StreamResultsRequest) Descriptor() ([]byte, []int) {
-	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{6}
+	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *StreamResultsRequest) GetTaskUuid() string {
@@ -700,12 +626,7 @@ const file_crawler_v1_crawler_proto_rawDesc = "" +
 	"\x11extracted_content\x18\x03 \x01(\fR\x10extractedContent\x12'\n" +
 	"\x0fextracted_links\x18\x04 \x03(\tR\x0eextractedLinks\x12#\n" +
 	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\"\xb4\x01\n" +
-	"\tAIRequest\x12\x1b\n" +
-	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid\x12#\n" +
-	"\rclean_content\x18\x02 \x01(\fR\fcleanContent\x127\n" +
-	"\fcontent_type\x18\x03 \x01(\x0e2\x14.crawler.ContentTypeR\vcontentType\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\";\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\";\n" +
 	"\x11SubmitTaskRequest\x12&\n" +
 	"\x04task\x18\x01 \x01(\v2\x12.crawler.CrawlTaskR\x04task\"o\n" +
 	"\x12SubmitTaskResponse\x12\x12\n" +
@@ -758,44 +679,41 @@ func file_crawler_v1_crawler_proto_rawDescGZIP() []byte {
 }
 
 var file_crawler_v1_crawler_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_crawler_v1_crawler_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_crawler_v1_crawler_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_crawler_v1_crawler_proto_goTypes = []any{
 	(TaskType)(0),                 // 0: crawler.TaskType
 	(TaskStatus)(0),               // 1: crawler.TaskStatus
 	(ContentType)(0),              // 2: crawler.ContentType
 	(*CrawlTask)(nil),             // 3: crawler.CrawlTask
 	(*CrawlResult)(nil),           // 4: crawler.CrawlResult
-	(*AIRequest)(nil),             // 5: crawler.AIRequest
-	(*SubmitTaskRequest)(nil),     // 6: crawler.SubmitTaskRequest
-	(*SubmitTaskResponse)(nil),    // 7: crawler.SubmitTaskResponse
-	(*GetTaskStatusRequest)(nil),  // 8: crawler.GetTaskStatusRequest
-	(*StreamResultsRequest)(nil),  // 9: crawler.StreamResultsRequest
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
-	(*v1.Metadata)(nil),           // 11: common.Metadata
+	(*SubmitTaskRequest)(nil),     // 5: crawler.SubmitTaskRequest
+	(*SubmitTaskResponse)(nil),    // 6: crawler.SubmitTaskResponse
+	(*GetTaskStatusRequest)(nil),  // 7: crawler.GetTaskStatusRequest
+	(*StreamResultsRequest)(nil),  // 8: crawler.StreamResultsRequest
+	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
+	(*v1.Metadata)(nil),           // 10: common.Metadata
 }
 var file_crawler_v1_crawler_proto_depIdxs = []int32{
 	0,  // 0: crawler.CrawlTask.type:type_name -> crawler.TaskType
 	1,  // 1: crawler.CrawlTask.status:type_name -> crawler.TaskStatus
-	10, // 2: crawler.CrawlTask.created_at:type_name -> google.protobuf.Timestamp
-	10, // 3: crawler.CrawlTask.updated_at:type_name -> google.protobuf.Timestamp
-	11, // 4: crawler.CrawlTask.metadata:type_name -> common.Metadata
+	9,  // 2: crawler.CrawlTask.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 3: crawler.CrawlTask.updated_at:type_name -> google.protobuf.Timestamp
+	10, // 4: crawler.CrawlTask.metadata:type_name -> common.Metadata
 	1,  // 5: crawler.CrawlResult.status:type_name -> crawler.TaskStatus
-	11, // 6: crawler.CrawlResult.metadata:type_name -> common.Metadata
-	2,  // 7: crawler.AIRequest.content_type:type_name -> crawler.ContentType
-	11, // 8: crawler.AIRequest.metadata:type_name -> common.Metadata
-	3,  // 9: crawler.SubmitTaskRequest.task:type_name -> crawler.CrawlTask
-	1,  // 10: crawler.SubmitTaskResponse.status:type_name -> crawler.TaskStatus
-	6,  // 11: crawler.CrawlerService.SubmitTask:input_type -> crawler.SubmitTaskRequest
-	8,  // 12: crawler.CrawlerService.GetTaskStatus:input_type -> crawler.GetTaskStatusRequest
-	9,  // 13: crawler.CrawlerService.StreamResults:input_type -> crawler.StreamResultsRequest
-	7,  // 14: crawler.CrawlerService.SubmitTask:output_type -> crawler.SubmitTaskResponse
-	3,  // 15: crawler.CrawlerService.GetTaskStatus:output_type -> crawler.CrawlTask
-	4,  // 16: crawler.CrawlerService.StreamResults:output_type -> crawler.CrawlResult
-	14, // [14:17] is the sub-list for method output_type
-	11, // [11:14] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	10, // 6: crawler.CrawlResult.metadata:type_name -> common.Metadata
+	3,  // 7: crawler.SubmitTaskRequest.task:type_name -> crawler.CrawlTask
+	1,  // 8: crawler.SubmitTaskResponse.status:type_name -> crawler.TaskStatus
+	5,  // 9: crawler.CrawlerService.SubmitTask:input_type -> crawler.SubmitTaskRequest
+	7,  // 10: crawler.CrawlerService.GetTaskStatus:input_type -> crawler.GetTaskStatusRequest
+	8,  // 11: crawler.CrawlerService.StreamResults:input_type -> crawler.StreamResultsRequest
+	6,  // 12: crawler.CrawlerService.SubmitTask:output_type -> crawler.SubmitTaskResponse
+	3,  // 13: crawler.CrawlerService.GetTaskStatus:output_type -> crawler.CrawlTask
+	4,  // 14: crawler.CrawlerService.StreamResults:output_type -> crawler.CrawlResult
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_crawler_v1_crawler_proto_init() }
@@ -809,7 +727,7 @@ func file_crawler_v1_crawler_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_crawler_v1_crawler_proto_rawDesc), len(file_crawler_v1_crawler_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   7,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

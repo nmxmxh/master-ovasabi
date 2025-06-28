@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
+
+// EntityType categorizes real-world/conceptual objects
+enum EntityType {
+  ENTITY_TYPE_UNSPECIFIED = 0;
+  
+  // Core semantic types
+  PERSON = 1;
+  ORGANIZATION = 2;
+  LOCATION = 3;
+  EVENT = 4;
+  
+  // Domain-specific
+  TECHNOLOGY = 5;       // e.g., "gRPC", "WebAssembly"
+  METHODOLOGY = 6;      // e.g., "Federated Learning"
+  ARTIFACT = 7;         // e.g., "PDF Document", "Video Stream"
+  
+  // Abstract concepts
+  CONCEPT = 8;          // e.g., "Concurrency", "Security"
+  MEASUREMENT = 9;      // e.g., "Throughput", "Latency"
+}
+
+// Entity represents a distinct real-world/conceptual object
+message Entity {
+  // Canonical name (e.g., "Robert Martin")
+  string name = 1;
+  
+  // Entity classification
+  EntityType type = 2;
+  
+  // Contextual variants (e.g., "Uncle Bob", "Robert C. Martin")
+  repeated string aliases = 3;
+  
+  // Confidence score (0.0-1.0)
+  float confidence = 4;
+  
+  // Provenance within source
+  message Occurrence {
+    int32 start_offset = 1;  // Character position
+    int32 end_offset = 2;
+    string source_field = 3; // e.g., "summary", "chunk3"
+  }
+  repeated Occurrence occurrences = 5;
+  
+  // Knowledge graph relationships
+  message Relationship {
+    string target_entity = 1;  // UUID or canonical name
+    string predicate = 2;       // e.g., "works_at", "author_of"
+    float weight = 3;           // Relationship strength
+  }
+  repeated Relationship relationships = 6;
+  
+  // Cross-references
+  string wikipedia_id = 7;
+  string wikidata_id = 8;
+}

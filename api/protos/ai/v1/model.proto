@@ -1,32 +1,129 @@
 syntax = "proto3";
+
 package ai.v1;
 
 import "common/v1/metadata.proto";
+import "common/v1/entity.proto";
+import "crawler/v1/crawler.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/ai/v1;aipb";
 
-// ModelUpdate represents a federated learning update with metadata and hash
-// for auditability.
-message ModelUpdate {
-  // Model update data (weights, gradients, etc.)
+// --- Core Data Models ---
+
+// ContentChunk represents a processed segment of crawled content
+message ContentChunk {
   bytes data = 1;
-  // Canonical metadata (versioning, peer info, round, etc.)
-  common.Metadata meta = 2;
-  // Unique, tamper-evident identifier
-  string hash = 3;
+  int32 sequence = 2;
+  bool is_last = 3;
+  int32 token_count = 4;  // For context window optimization
+  string content_hash = 5;  // SHA-256 of raw data
 }
 
-// Model represents the current AI model state with metadata and hash for
-// auditability.
-message Model {
-  // Model weights, parameters, or state
-  bytes data = 1;
-  // Canonical metadata (versioning, training params, performance, etc.)
+// SecurityAssessment contains threat analysis results
+message SecurityAssessment {
+  enum ThreatLevel {
+    THREAT_LEVEL_UNKNOWN = 0;
+    THREAT_LEVEL_CLEAN = 1;
+    THREAT_LEVEL_SUSPECT = 2;
+    THREAT_LEVEL_MALICIOUS = 3;
+  }
+
+  ThreatLevel level = 1;
+  repeated string indicators = 2;  // e.g., "PII", "MALWARE", "EXECUTABLE"
+  string quarantine_path = 3;      // Storage path for dangerous content
+}
+
+// --- AI Processing Requests ---
+
+message EnrichmentRequest {
+  string task_uuid = 1;
+  crawler.ContentType content_type = 2;
+  common.Metadata metadata = 3;
+
+  oneof content {
+    bytes raw_data = 4;       // For small content (<1MB)
+    ContentChunk chunk = 5;   // For chunked streaming
+  }
+
+  SecurityAssessment security = 6;  // From cleaning pipeline
+}
+
+// --- AI Processing Responses ---
+
+message TextEnrichment {
+  string summary = 1;
+  repeated common.Entity entities = 2;
+  float sentiment_score = 3;  // -1.0 to 1.0 scale
+  repeated string key_phrases = 4;
+  map<string, float> topic_distribution = 5;  // Topic modeling results
+}
+
+message MediaEnrichment {
+  string caption = 1;
+  repeated common.Entity detected_objects = 2;
+  string transcription = 3;  // For audio/video
+  repeated string keywords = 4;
+}
+
+message EnrichmentResponse {
+  string task_uuid = 1;
+
+  oneof result {
+    TextEnrichment text = 2;
+    MediaEnrichment media = 3;
+  }
+
+  repeated string knowledge_gaps = 4;  // Suggested exploration paths
+  string error_message = 5;
+
+  // Embedding and vector storage
+  message Vector {
+    repeated float values = 1;  // Embedding vector
+    string model = 2;           // e.g., "text-embedding-3-large"
+    int32 dimensions = 3;
+  }
+  Vector vector = 6;
+}
+
+// --- Federated Learning Models ---
+
+message ModelUpdate {
+  bytes delta = 1;  // Weight updates
   common.Metadata meta = 2;
-  // Unique, tamper-evident identifier
-  string hash = 3;
-  // Model version string
-  string version = 4;
-  // (Optional) for lineage/ancestry tracking
-  string parent_hash = 5;
-} 
+  string base_version = 3;
+  string signature = 4;  // Cryptographic signature
+}
+
+message Model {
+  bytes weights = 1;
+  common.Metadata meta = 2;
+  string version = 3;
+  string parent_hash = 4;
+  string integrity_check = 5;  // e.g., "sha256:abc123"
+}
+
+// --- Service Definitions ---
+
+service AIService {
+  // Unified content processing endpoint
+  rpc ProcessContent(stream EnrichmentRequest) returns (EnrichmentResponse);
+
+  // Embedding-specific service
+  rpc GenerateEmbeddings(EnrichmentRequest) returns (EnrichmentResponse.Vector);
+
+  // Model update handling
+  rpc SubmitModelUpdate(ModelUpdate) returns (ModelUpdateAck);
+  rpc GetCurrentModel(ModelRequest) returns (Model);
+}
+
+// --- Support Messages ---
+message ModelUpdateAck {
+  bool accepted = 1;
+  string message = 2;
+}
+
+message ModelRequest {
+  string version = 1;
+  bool include_weights = 2;
+}
+

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package crawler;
 
-import "common/v1/metadata.proto"; // Using the platform's canonical metadata
+import "common/v1/metadata.proto";
 // pattern
 import "google/protobuf/timestamp.proto";
 
@@ -78,19 +78,6 @@ message CrawlResult {
   string error_message = 5;
   // Enriched metadata from the crawl process.
   common.Metadata metadata = 6;
-}
-
-// AIRequest is sent to the AI Enrichment Service for processing.
-// It contains cleaned, context-rich data ready for inference.
-message AIRequest {
-  // Corresponds to the CrawlTask UUID.
-  string task_uuid = 1;
-  // Content after passing through the cleaning pipeline.
-  bytes clean_content = 2;
-  // Type of content for model selection.
-  ContentType content_type = 3;
-  // Contextual metadata (source, language, entities).
-  common.Metadata metadata = 4;
 }
 
 // --- Service Definitions ---

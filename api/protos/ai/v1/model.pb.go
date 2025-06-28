@@ -8,6 +8,7 @@ package aipb
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	crawler "github.com/nmxmxh/master-ovasabi/api/protos/crawler"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -22,23 +23,581 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ModelUpdate represents a federated learning update with metadata and hash
-// for auditability.
+type SecurityAssessment_ThreatLevel int32
+
+const (
+	SecurityAssessment_THREAT_LEVEL_UNKNOWN   SecurityAssessment_ThreatLevel = 0
+	SecurityAssessment_THREAT_LEVEL_CLEAN     SecurityAssessment_ThreatLevel = 1
+	SecurityAssessment_THREAT_LEVEL_SUSPECT   SecurityAssessment_ThreatLevel = 2
+	SecurityAssessment_THREAT_LEVEL_MALICIOUS SecurityAssessment_ThreatLevel = 3
+)
+
+// Enum value maps for SecurityAssessment_ThreatLevel.
+var (
+	SecurityAssessment_ThreatLevel_name = map[int32]string{
+		0: "THREAT_LEVEL_UNKNOWN",
+		1: "THREAT_LEVEL_CLEAN",
+		2: "THREAT_LEVEL_SUSPECT",
+		3: "THREAT_LEVEL_MALICIOUS",
+	}
+	SecurityAssessment_ThreatLevel_value = map[string]int32{
+		"THREAT_LEVEL_UNKNOWN":   0,
+		"THREAT_LEVEL_CLEAN":     1,
+		"THREAT_LEVEL_SUSPECT":   2,
+		"THREAT_LEVEL_MALICIOUS": 3,
+	}
+)
+
+func (x SecurityAssessment_ThreatLevel) Enum() *SecurityAssessment_ThreatLevel {
+	p := new(SecurityAssessment_ThreatLevel)
+	*p = x
+	return p
+}
+
+func (x SecurityAssessment_ThreatLevel) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SecurityAssessment_ThreatLevel) Descriptor() protoreflect.EnumDescriptor {
+	return file_ai_v1_model_proto_enumTypes[0].Descriptor()
+}
+
+func (SecurityAssessment_ThreatLevel) Type() protoreflect.EnumType {
+	return &file_ai_v1_model_proto_enumTypes[0]
+}
+
+func (x SecurityAssessment_ThreatLevel) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SecurityAssessment_ThreatLevel.Descriptor instead.
+func (SecurityAssessment_ThreatLevel) EnumDescriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{1, 0}
+}
+
+// ContentChunk represents a processed segment of crawled content
+type ContentChunk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	Sequence      int32                  `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	IsLast        bool                   `protobuf:"varint,3,opt,name=is_last,json=isLast,proto3" json:"is_last,omitempty"`
+	TokenCount    int32                  `protobuf:"varint,4,opt,name=token_count,json=tokenCount,proto3" json:"token_count,omitempty"`   // For context window optimization
+	ContentHash   string                 `protobuf:"bytes,5,opt,name=content_hash,json=contentHash,proto3" json:"content_hash,omitempty"` // SHA-256 of raw data
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContentChunk) Reset() {
+	*x = ContentChunk{}
+	mi := &file_ai_v1_model_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContentChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContentChunk) ProtoMessage() {}
+
+func (x *ContentChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContentChunk.ProtoReflect.Descriptor instead.
+func (*ContentChunk) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ContentChunk) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *ContentChunk) GetSequence() int32 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+func (x *ContentChunk) GetIsLast() bool {
+	if x != nil {
+		return x.IsLast
+	}
+	return false
+}
+
+func (x *ContentChunk) GetTokenCount() int32 {
+	if x != nil {
+		return x.TokenCount
+	}
+	return 0
+}
+
+func (x *ContentChunk) GetContentHash() string {
+	if x != nil {
+		return x.ContentHash
+	}
+	return ""
+}
+
+// SecurityAssessment contains threat analysis results
+type SecurityAssessment struct {
+	state          protoimpl.MessageState         `protogen:"open.v1"`
+	Level          SecurityAssessment_ThreatLevel `protobuf:"varint,1,opt,name=level,proto3,enum=ai.v1.SecurityAssessment_ThreatLevel" json:"level,omitempty"`
+	Indicators     []string                       `protobuf:"bytes,2,rep,name=indicators,proto3" json:"indicators,omitempty"`                               // e.g., "PII", "MALWARE", "EXECUTABLE"
+	QuarantinePath string                         `protobuf:"bytes,3,opt,name=quarantine_path,json=quarantinePath,proto3" json:"quarantine_path,omitempty"` // Storage path for dangerous content
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SecurityAssessment) Reset() {
+	*x = SecurityAssessment{}
+	mi := &file_ai_v1_model_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SecurityAssessment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SecurityAssessment) ProtoMessage() {}
+
+func (x *SecurityAssessment) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SecurityAssessment.ProtoReflect.Descriptor instead.
+func (*SecurityAssessment) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SecurityAssessment) GetLevel() SecurityAssessment_ThreatLevel {
+	if x != nil {
+		return x.Level
+	}
+	return SecurityAssessment_THREAT_LEVEL_UNKNOWN
+}
+
+func (x *SecurityAssessment) GetIndicators() []string {
+	if x != nil {
+		return x.Indicators
+	}
+	return nil
+}
+
+func (x *SecurityAssessment) GetQuarantinePath() string {
+	if x != nil {
+		return x.QuarantinePath
+	}
+	return ""
+}
+
+type EnrichmentRequest struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	TaskUuid    string                 `protobuf:"bytes,1,opt,name=task_uuid,json=taskUuid,proto3" json:"task_uuid,omitempty"`
+	ContentType crawler.ContentType    `protobuf:"varint,2,opt,name=content_type,json=contentType,proto3,enum=crawler.ContentType" json:"content_type,omitempty"`
+	Metadata    *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// Types that are valid to be assigned to Content:
+	//
+	//	*EnrichmentRequest_RawData
+	//	*EnrichmentRequest_Chunk
+	Content       isEnrichmentRequest_Content `protobuf_oneof:"content"`
+	Security      *SecurityAssessment         `protobuf:"bytes,6,opt,name=security,proto3" json:"security,omitempty"` // From cleaning pipeline
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrichmentRequest) Reset() {
+	*x = EnrichmentRequest{}
+	mi := &file_ai_v1_model_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrichmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrichmentRequest) ProtoMessage() {}
+
+func (x *EnrichmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrichmentRequest.ProtoReflect.Descriptor instead.
+func (*EnrichmentRequest) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *EnrichmentRequest) GetTaskUuid() string {
+	if x != nil {
+		return x.TaskUuid
+	}
+	return ""
+}
+
+func (x *EnrichmentRequest) GetContentType() crawler.ContentType {
+	if x != nil {
+		return x.ContentType
+	}
+	return crawler.ContentType(0)
+}
+
+func (x *EnrichmentRequest) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *EnrichmentRequest) GetContent() isEnrichmentRequest_Content {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *EnrichmentRequest) GetRawData() []byte {
+	if x != nil {
+		if x, ok := x.Content.(*EnrichmentRequest_RawData); ok {
+			return x.RawData
+		}
+	}
+	return nil
+}
+
+func (x *EnrichmentRequest) GetChunk() *ContentChunk {
+	if x != nil {
+		if x, ok := x.Content.(*EnrichmentRequest_Chunk); ok {
+			return x.Chunk
+		}
+	}
+	return nil
+}
+
+func (x *EnrichmentRequest) GetSecurity() *SecurityAssessment {
+	if x != nil {
+		return x.Security
+	}
+	return nil
+}
+
+type isEnrichmentRequest_Content interface {
+	isEnrichmentRequest_Content()
+}
+
+type EnrichmentRequest_RawData struct {
+	RawData []byte `protobuf:"bytes,4,opt,name=raw_data,json=rawData,proto3,oneof"` // For small content (<1MB)
+}
+
+type EnrichmentRequest_Chunk struct {
+	Chunk *ContentChunk `protobuf:"bytes,5,opt,name=chunk,proto3,oneof"` // For chunked streaming
+}
+
+func (*EnrichmentRequest_RawData) isEnrichmentRequest_Content() {}
+
+func (*EnrichmentRequest_Chunk) isEnrichmentRequest_Content() {}
+
+type TextEnrichment struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Summary           string                 `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
+	Entities          []*v1.Entity           `protobuf:"bytes,2,rep,name=entities,proto3" json:"entities,omitempty"`
+	SentimentScore    float32                `protobuf:"fixed32,3,opt,name=sentiment_score,json=sentimentScore,proto3" json:"sentiment_score,omitempty"` // -1.0 to 1.0 scale
+	KeyPhrases        []string               `protobuf:"bytes,4,rep,name=key_phrases,json=keyPhrases,proto3" json:"key_phrases,omitempty"`
+	TopicDistribution map[string]float32     `protobuf:"bytes,5,rep,name=topic_distribution,json=topicDistribution,proto3" json:"topic_distribution,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"fixed32,2,opt,name=value"` // Topic modeling results
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *TextEnrichment) Reset() {
+	*x = TextEnrichment{}
+	mi := &file_ai_v1_model_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TextEnrichment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TextEnrichment) ProtoMessage() {}
+
+func (x *TextEnrichment) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TextEnrichment.ProtoReflect.Descriptor instead.
+func (*TextEnrichment) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TextEnrichment) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *TextEnrichment) GetEntities() []*v1.Entity {
+	if x != nil {
+		return x.Entities
+	}
+	return nil
+}
+
+func (x *TextEnrichment) GetSentimentScore() float32 {
+	if x != nil {
+		return x.SentimentScore
+	}
+	return 0
+}
+
+func (x *TextEnrichment) GetKeyPhrases() []string {
+	if x != nil {
+		return x.KeyPhrases
+	}
+	return nil
+}
+
+func (x *TextEnrichment) GetTopicDistribution() map[string]float32 {
+	if x != nil {
+		return x.TopicDistribution
+	}
+	return nil
+}
+
+type MediaEnrichment struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Caption         string                 `protobuf:"bytes,1,opt,name=caption,proto3" json:"caption,omitempty"`
+	DetectedObjects []*v1.Entity           `protobuf:"bytes,2,rep,name=detected_objects,json=detectedObjects,proto3" json:"detected_objects,omitempty"`
+	Transcription   string                 `protobuf:"bytes,3,opt,name=transcription,proto3" json:"transcription,omitempty"` // For audio/video
+	Keywords        []string               `protobuf:"bytes,4,rep,name=keywords,proto3" json:"keywords,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *MediaEnrichment) Reset() {
+	*x = MediaEnrichment{}
+	mi := &file_ai_v1_model_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MediaEnrichment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MediaEnrichment) ProtoMessage() {}
+
+func (x *MediaEnrichment) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MediaEnrichment.ProtoReflect.Descriptor instead.
+func (*MediaEnrichment) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *MediaEnrichment) GetCaption() string {
+	if x != nil {
+		return x.Caption
+	}
+	return ""
+}
+
+func (x *MediaEnrichment) GetDetectedObjects() []*v1.Entity {
+	if x != nil {
+		return x.DetectedObjects
+	}
+	return nil
+}
+
+func (x *MediaEnrichment) GetTranscription() string {
+	if x != nil {
+		return x.Transcription
+	}
+	return ""
+}
+
+func (x *MediaEnrichment) GetKeywords() []string {
+	if x != nil {
+		return x.Keywords
+	}
+	return nil
+}
+
+type EnrichmentResponse struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	TaskUuid string                 `protobuf:"bytes,1,opt,name=task_uuid,json=taskUuid,proto3" json:"task_uuid,omitempty"`
+	// Types that are valid to be assigned to Result:
+	//
+	//	*EnrichmentResponse_Text
+	//	*EnrichmentResponse_Media
+	Result        isEnrichmentResponse_Result `protobuf_oneof:"result"`
+	KnowledgeGaps []string                    `protobuf:"bytes,4,rep,name=knowledge_gaps,json=knowledgeGaps,proto3" json:"knowledge_gaps,omitempty"` // Suggested exploration paths
+	ErrorMessage  string                      `protobuf:"bytes,5,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	Vector        *EnrichmentResponse_Vector  `protobuf:"bytes,6,opt,name=vector,proto3" json:"vector,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrichmentResponse) Reset() {
+	*x = EnrichmentResponse{}
+	mi := &file_ai_v1_model_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrichmentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrichmentResponse) ProtoMessage() {}
+
+func (x *EnrichmentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrichmentResponse.ProtoReflect.Descriptor instead.
+func (*EnrichmentResponse) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *EnrichmentResponse) GetTaskUuid() string {
+	if x != nil {
+		return x.TaskUuid
+	}
+	return ""
+}
+
+func (x *EnrichmentResponse) GetResult() isEnrichmentResponse_Result {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+func (x *EnrichmentResponse) GetText() *TextEnrichment {
+	if x != nil {
+		if x, ok := x.Result.(*EnrichmentResponse_Text); ok {
+			return x.Text
+		}
+	}
+	return nil
+}
+
+func (x *EnrichmentResponse) GetMedia() *MediaEnrichment {
+	if x != nil {
+		if x, ok := x.Result.(*EnrichmentResponse_Media); ok {
+			return x.Media
+		}
+	}
+	return nil
+}
+
+func (x *EnrichmentResponse) GetKnowledgeGaps() []string {
+	if x != nil {
+		return x.KnowledgeGaps
+	}
+	return nil
+}
+
+func (x *EnrichmentResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *EnrichmentResponse) GetVector() *EnrichmentResponse_Vector {
+	if x != nil {
+		return x.Vector
+	}
+	return nil
+}
+
+type isEnrichmentResponse_Result interface {
+	isEnrichmentResponse_Result()
+}
+
+type EnrichmentResponse_Text struct {
+	Text *TextEnrichment `protobuf:"bytes,2,opt,name=text,proto3,oneof"`
+}
+
+type EnrichmentResponse_Media struct {
+	Media *MediaEnrichment `protobuf:"bytes,3,opt,name=media,proto3,oneof"`
+}
+
+func (*EnrichmentResponse_Text) isEnrichmentResponse_Result() {}
+
+func (*EnrichmentResponse_Media) isEnrichmentResponse_Result() {}
+
 type ModelUpdate struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Model update data (weights, gradients, etc.)
-	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-	// Canonical metadata (versioning, peer info, round, etc.)
-	Meta *v1.Metadata `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
-	// Unique, tamper-evident identifier
-	Hash          string `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Delta         []byte                 `protobuf:"bytes,1,opt,name=delta,proto3" json:"delta,omitempty"` // Weight updates
+	Meta          *v1.Metadata           `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
+	BaseVersion   string                 `protobuf:"bytes,3,opt,name=base_version,json=baseVersion,proto3" json:"base_version,omitempty"`
+	Signature     string                 `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"` // Cryptographic signature
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ModelUpdate) Reset() {
 	*x = ModelUpdate{}
-	mi := &file_ai_v1_model_proto_msgTypes[0]
+	mi := &file_ai_v1_model_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -50,7 +609,7 @@ func (x *ModelUpdate) String() string {
 func (*ModelUpdate) ProtoMessage() {}
 
 func (x *ModelUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_model_proto_msgTypes[0]
+	mi := &file_ai_v1_model_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63,12 +622,12 @@ func (x *ModelUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelUpdate.ProtoReflect.Descriptor instead.
 func (*ModelUpdate) Descriptor() ([]byte, []int) {
-	return file_ai_v1_model_proto_rawDescGZIP(), []int{0}
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ModelUpdate) GetData() []byte {
+func (x *ModelUpdate) GetDelta() []byte {
 	if x != nil {
-		return x.Data
+		return x.Delta
 	}
 	return nil
 }
@@ -80,34 +639,34 @@ func (x *ModelUpdate) GetMeta() *v1.Metadata {
 	return nil
 }
 
-func (x *ModelUpdate) GetHash() string {
+func (x *ModelUpdate) GetBaseVersion() string {
 	if x != nil {
-		return x.Hash
+		return x.BaseVersion
 	}
 	return ""
 }
 
-// Model represents the current AI model state with metadata and hash for
-// auditability.
+func (x *ModelUpdate) GetSignature() string {
+	if x != nil {
+		return x.Signature
+	}
+	return ""
+}
+
 type Model struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Model weights, parameters, or state
-	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-	// Canonical metadata (versioning, training params, performance, etc.)
-	Meta *v1.Metadata `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
-	// Unique, tamper-evident identifier
-	Hash string `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`
-	// Model version string
-	Version string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
-	// (Optional) for lineage/ancestry tracking
-	ParentHash    string `protobuf:"bytes,5,opt,name=parent_hash,json=parentHash,proto3" json:"parent_hash,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Weights        []byte                 `protobuf:"bytes,1,opt,name=weights,proto3" json:"weights,omitempty"`
+	Meta           *v1.Metadata           `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
+	Version        string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	ParentHash     string                 `protobuf:"bytes,4,opt,name=parent_hash,json=parentHash,proto3" json:"parent_hash,omitempty"`
+	IntegrityCheck string                 `protobuf:"bytes,5,opt,name=integrity_check,json=integrityCheck,proto3" json:"integrity_check,omitempty"` // e.g., "sha256:abc123"
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Model) Reset() {
 	*x = Model{}
-	mi := &file_ai_v1_model_proto_msgTypes[1]
+	mi := &file_ai_v1_model_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -119,7 +678,7 @@ func (x *Model) String() string {
 func (*Model) ProtoMessage() {}
 
 func (x *Model) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_model_proto_msgTypes[1]
+	mi := &file_ai_v1_model_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -132,12 +691,12 @@ func (x *Model) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Model.ProtoReflect.Descriptor instead.
 func (*Model) Descriptor() ([]byte, []int) {
-	return file_ai_v1_model_proto_rawDescGZIP(), []int{1}
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *Model) GetData() []byte {
+func (x *Model) GetWeights() []byte {
 	if x != nil {
-		return x.Data
+		return x.Weights
 	}
 	return nil
 }
@@ -147,13 +706,6 @@ func (x *Model) GetMeta() *v1.Metadata {
 		return x.Meta
 	}
 	return nil
-}
-
-func (x *Model) GetHash() string {
-	if x != nil {
-		return x.Hash
-	}
-	return ""
 }
 
 func (x *Model) GetVersion() string {
@@ -170,22 +722,262 @@ func (x *Model) GetParentHash() string {
 	return ""
 }
 
+func (x *Model) GetIntegrityCheck() string {
+	if x != nil {
+		return x.IntegrityCheck
+	}
+	return ""
+}
+
+// --- Support Messages ---
+type ModelUpdateAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accepted      bool                   `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ModelUpdateAck) Reset() {
+	*x = ModelUpdateAck{}
+	mi := &file_ai_v1_model_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ModelUpdateAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ModelUpdateAck) ProtoMessage() {}
+
+func (x *ModelUpdateAck) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ModelUpdateAck.ProtoReflect.Descriptor instead.
+func (*ModelUpdateAck) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ModelUpdateAck) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
+func (x *ModelUpdateAck) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type ModelRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Version        string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	IncludeWeights bool                   `protobuf:"varint,2,opt,name=include_weights,json=includeWeights,proto3" json:"include_weights,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ModelRequest) Reset() {
+	*x = ModelRequest{}
+	mi := &file_ai_v1_model_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ModelRequest) ProtoMessage() {}
+
+func (x *ModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ModelRequest.ProtoReflect.Descriptor instead.
+func (*ModelRequest) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ModelRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ModelRequest) GetIncludeWeights() bool {
+	if x != nil {
+		return x.IncludeWeights
+	}
+	return false
+}
+
+// Embedding and vector storage
+type EnrichmentResponse_Vector struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []float32              `protobuf:"fixed32,1,rep,packed,name=values,proto3" json:"values,omitempty"` // Embedding vector
+	Model         string                 `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`            // e.g., "text-embedding-3-large"
+	Dimensions    int32                  `protobuf:"varint,3,opt,name=dimensions,proto3" json:"dimensions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrichmentResponse_Vector) Reset() {
+	*x = EnrichmentResponse_Vector{}
+	mi := &file_ai_v1_model_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrichmentResponse_Vector) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrichmentResponse_Vector) ProtoMessage() {}
+
+func (x *EnrichmentResponse_Vector) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_model_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrichmentResponse_Vector.ProtoReflect.Descriptor instead.
+func (*EnrichmentResponse_Vector) Descriptor() ([]byte, []int) {
+	return file_ai_v1_model_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *EnrichmentResponse_Vector) GetValues() []float32 {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+func (x *EnrichmentResponse_Vector) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *EnrichmentResponse_Vector) GetDimensions() int32 {
+	if x != nil {
+		return x.Dimensions
+	}
+	return 0
+}
+
 var File_ai_v1_model_proto protoreflect.FileDescriptor
 
 const file_ai_v1_model_proto_rawDesc = "" +
 	"\n" +
-	"\x11ai/v1/model.proto\x12\x05ai.v1\x1a\x18common/v1/metadata.proto\"[\n" +
-	"\vModelUpdate\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\x12$\n" +
-	"\x04meta\x18\x02 \x01(\v2\x10.common.MetadataR\x04meta\x12\x12\n" +
-	"\x04hash\x18\x03 \x01(\tR\x04hash\"\x90\x01\n" +
-	"\x05Model\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\x12$\n" +
-	"\x04meta\x18\x02 \x01(\v2\x10.common.MetadataR\x04meta\x12\x12\n" +
-	"\x04hash\x18\x03 \x01(\tR\x04hash\x12\x18\n" +
-	"\aversion\x18\x04 \x01(\tR\aversion\x12\x1f\n" +
-	"\vparent_hash\x18\x05 \x01(\tR\n" +
-	"parentHashB8Z6github.com/nmxmxh/master-ovasabi/api/protos/ai/v1;aipbb\x06proto3"
+	"\x11ai/v1/model.proto\x12\x05ai.v1\x1a\x18common/v1/metadata.proto\x1a\x16common/v1/entity.proto\x1a\x18crawler/v1/crawler.proto\"\x9b\x01\n" +
+	"\fContentChunk\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\x12\x1a\n" +
+	"\bsequence\x18\x02 \x01(\x05R\bsequence\x12\x17\n" +
+	"\ais_last\x18\x03 \x01(\bR\x06isLast\x12\x1f\n" +
+	"\vtoken_count\x18\x04 \x01(\x05R\n" +
+	"tokenCount\x12!\n" +
+	"\fcontent_hash\x18\x05 \x01(\tR\vcontentHash\"\x91\x02\n" +
+	"\x12SecurityAssessment\x12;\n" +
+	"\x05level\x18\x01 \x01(\x0e2%.ai.v1.SecurityAssessment.ThreatLevelR\x05level\x12\x1e\n" +
+	"\n" +
+	"indicators\x18\x02 \x03(\tR\n" +
+	"indicators\x12'\n" +
+	"\x0fquarantine_path\x18\x03 \x01(\tR\x0equarantinePath\"u\n" +
+	"\vThreatLevel\x12\x18\n" +
+	"\x14THREAT_LEVEL_UNKNOWN\x10\x00\x12\x16\n" +
+	"\x12THREAT_LEVEL_CLEAN\x10\x01\x12\x18\n" +
+	"\x14THREAT_LEVEL_SUSPECT\x10\x02\x12\x1a\n" +
+	"\x16THREAT_LEVEL_MALICIOUS\x10\x03\"\xa3\x02\n" +
+	"\x11EnrichmentRequest\x12\x1b\n" +
+	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid\x127\n" +
+	"\fcontent_type\x18\x02 \x01(\x0e2\x14.crawler.ContentTypeR\vcontentType\x12,\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1b\n" +
+	"\braw_data\x18\x04 \x01(\fH\x00R\arawData\x12+\n" +
+	"\x05chunk\x18\x05 \x01(\v2\x13.ai.v1.ContentChunkH\x00R\x05chunk\x125\n" +
+	"\bsecurity\x18\x06 \x01(\v2\x19.ai.v1.SecurityAssessmentR\bsecurityB\t\n" +
+	"\acontent\"\xc3\x02\n" +
+	"\x0eTextEnrichment\x12\x18\n" +
+	"\asummary\x18\x01 \x01(\tR\asummary\x12*\n" +
+	"\bentities\x18\x02 \x03(\v2\x0e.common.EntityR\bentities\x12'\n" +
+	"\x0fsentiment_score\x18\x03 \x01(\x02R\x0esentimentScore\x12\x1f\n" +
+	"\vkey_phrases\x18\x04 \x03(\tR\n" +
+	"keyPhrases\x12[\n" +
+	"\x12topic_distribution\x18\x05 \x03(\v2,.ai.v1.TextEnrichment.TopicDistributionEntryR\x11topicDistribution\x1aD\n" +
+	"\x16TopicDistributionEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x02R\x05value:\x028\x01\"\xa8\x01\n" +
+	"\x0fMediaEnrichment\x12\x18\n" +
+	"\acaption\x18\x01 \x01(\tR\acaption\x129\n" +
+	"\x10detected_objects\x18\x02 \x03(\v2\x0e.common.EntityR\x0fdetectedObjects\x12$\n" +
+	"\rtranscription\x18\x03 \x01(\tR\rtranscription\x12\x1a\n" +
+	"\bkeywords\x18\x04 \x03(\tR\bkeywords\"\xf6\x02\n" +
+	"\x12EnrichmentResponse\x12\x1b\n" +
+	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid\x12+\n" +
+	"\x04text\x18\x02 \x01(\v2\x15.ai.v1.TextEnrichmentH\x00R\x04text\x12.\n" +
+	"\x05media\x18\x03 \x01(\v2\x16.ai.v1.MediaEnrichmentH\x00R\x05media\x12%\n" +
+	"\x0eknowledge_gaps\x18\x04 \x03(\tR\rknowledgeGaps\x12#\n" +
+	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\x128\n" +
+	"\x06vector\x18\x06 \x01(\v2 .ai.v1.EnrichmentResponse.VectorR\x06vector\x1aV\n" +
+	"\x06Vector\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\x02R\x06values\x12\x14\n" +
+	"\x05model\x18\x02 \x01(\tR\x05model\x12\x1e\n" +
+	"\n" +
+	"dimensions\x18\x03 \x01(\x05R\n" +
+	"dimensionsB\b\n" +
+	"\x06result\"\x8a\x01\n" +
+	"\vModelUpdate\x12\x14\n" +
+	"\x05delta\x18\x01 \x01(\fR\x05delta\x12$\n" +
+	"\x04meta\x18\x02 \x01(\v2\x10.common.MetadataR\x04meta\x12!\n" +
+	"\fbase_version\x18\x03 \x01(\tR\vbaseVersion\x12\x1c\n" +
+	"\tsignature\x18\x04 \x01(\tR\tsignature\"\xab\x01\n" +
+	"\x05Model\x12\x18\n" +
+	"\aweights\x18\x01 \x01(\fR\aweights\x12$\n" +
+	"\x04meta\x18\x02 \x01(\v2\x10.common.MetadataR\x04meta\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1f\n" +
+	"\vparent_hash\x18\x04 \x01(\tR\n" +
+	"parentHash\x12'\n" +
+	"\x0fintegrity_check\x18\x05 \x01(\tR\x0eintegrityCheck\"F\n" +
+	"\x0eModelUpdateAck\x12\x1a\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"Q\n" +
+	"\fModelRequest\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12'\n" +
+	"\x0finclude_weights\x18\x02 \x01(\bR\x0eincludeWeights2\x9c\x02\n" +
+	"\tAIService\x12G\n" +
+	"\x0eProcessContent\x12\x18.ai.v1.EnrichmentRequest\x1a\x19.ai.v1.EnrichmentResponse(\x01\x12P\n" +
+	"\x12GenerateEmbeddings\x12\x18.ai.v1.EnrichmentRequest\x1a .ai.v1.EnrichmentResponse.Vector\x12>\n" +
+	"\x11SubmitModelUpdate\x12\x12.ai.v1.ModelUpdate\x1a\x15.ai.v1.ModelUpdateAck\x124\n" +
+	"\x0fGetCurrentModel\x12\x13.ai.v1.ModelRequest\x1a\f.ai.v1.ModelB8Z6github.com/nmxmxh/master-ovasabi/api/protos/ai/v1;aipbb\x06proto3"
 
 var (
 	file_ai_v1_model_proto_rawDescOnce sync.Once
@@ -199,20 +991,53 @@ func file_ai_v1_model_proto_rawDescGZIP() []byte {
 	return file_ai_v1_model_proto_rawDescData
 }
 
-var file_ai_v1_model_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_ai_v1_model_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ai_v1_model_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_ai_v1_model_proto_goTypes = []any{
-	(*ModelUpdate)(nil), // 0: ai.v1.ModelUpdate
-	(*Model)(nil),       // 1: ai.v1.Model
-	(*v1.Metadata)(nil), // 2: common.Metadata
+	(SecurityAssessment_ThreatLevel)(0), // 0: ai.v1.SecurityAssessment.ThreatLevel
+	(*ContentChunk)(nil),                // 1: ai.v1.ContentChunk
+	(*SecurityAssessment)(nil),          // 2: ai.v1.SecurityAssessment
+	(*EnrichmentRequest)(nil),           // 3: ai.v1.EnrichmentRequest
+	(*TextEnrichment)(nil),              // 4: ai.v1.TextEnrichment
+	(*MediaEnrichment)(nil),             // 5: ai.v1.MediaEnrichment
+	(*EnrichmentResponse)(nil),          // 6: ai.v1.EnrichmentResponse
+	(*ModelUpdate)(nil),                 // 7: ai.v1.ModelUpdate
+	(*Model)(nil),                       // 8: ai.v1.Model
+	(*ModelUpdateAck)(nil),              // 9: ai.v1.ModelUpdateAck
+	(*ModelRequest)(nil),                // 10: ai.v1.ModelRequest
+	nil,                                 // 11: ai.v1.TextEnrichment.TopicDistributionEntry
+	(*EnrichmentResponse_Vector)(nil),   // 12: ai.v1.EnrichmentResponse.Vector
+	(crawler.ContentType)(0),            // 13: crawler.ContentType
+	(*v1.Metadata)(nil),                 // 14: common.Metadata
+	(*v1.Entity)(nil),                   // 15: common.Entity
 }
 var file_ai_v1_model_proto_depIdxs = []int32{
-	2, // 0: ai.v1.ModelUpdate.meta:type_name -> common.Metadata
-	2, // 1: ai.v1.Model.meta:type_name -> common.Metadata
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0,  // 0: ai.v1.SecurityAssessment.level:type_name -> ai.v1.SecurityAssessment.ThreatLevel
+	13, // 1: ai.v1.EnrichmentRequest.content_type:type_name -> crawler.ContentType
+	14, // 2: ai.v1.EnrichmentRequest.metadata:type_name -> common.Metadata
+	1,  // 3: ai.v1.EnrichmentRequest.chunk:type_name -> ai.v1.ContentChunk
+	2,  // 4: ai.v1.EnrichmentRequest.security:type_name -> ai.v1.SecurityAssessment
+	15, // 5: ai.v1.TextEnrichment.entities:type_name -> common.Entity
+	11, // 6: ai.v1.TextEnrichment.topic_distribution:type_name -> ai.v1.TextEnrichment.TopicDistributionEntry
+	15, // 7: ai.v1.MediaEnrichment.detected_objects:type_name -> common.Entity
+	4,  // 8: ai.v1.EnrichmentResponse.text:type_name -> ai.v1.TextEnrichment
+	5,  // 9: ai.v1.EnrichmentResponse.media:type_name -> ai.v1.MediaEnrichment
+	12, // 10: ai.v1.EnrichmentResponse.vector:type_name -> ai.v1.EnrichmentResponse.Vector
+	14, // 11: ai.v1.ModelUpdate.meta:type_name -> common.Metadata
+	14, // 12: ai.v1.Model.meta:type_name -> common.Metadata
+	3,  // 13: ai.v1.AIService.ProcessContent:input_type -> ai.v1.EnrichmentRequest
+	3,  // 14: ai.v1.AIService.GenerateEmbeddings:input_type -> ai.v1.EnrichmentRequest
+	7,  // 15: ai.v1.AIService.SubmitModelUpdate:input_type -> ai.v1.ModelUpdate
+	10, // 16: ai.v1.AIService.GetCurrentModel:input_type -> ai.v1.ModelRequest
+	6,  // 17: ai.v1.AIService.ProcessContent:output_type -> ai.v1.EnrichmentResponse
+	12, // 18: ai.v1.AIService.GenerateEmbeddings:output_type -> ai.v1.EnrichmentResponse.Vector
+	9,  // 19: ai.v1.AIService.SubmitModelUpdate:output_type -> ai.v1.ModelUpdateAck
+	8,  // 20: ai.v1.AIService.GetCurrentModel:output_type -> ai.v1.Model
+	17, // [17:21] is the sub-list for method output_type
+	13, // [13:17] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_ai_v1_model_proto_init() }
@@ -220,18 +1045,27 @@ func file_ai_v1_model_proto_init() {
 	if File_ai_v1_model_proto != nil {
 		return
 	}
+	file_ai_v1_model_proto_msgTypes[2].OneofWrappers = []any{
+		(*EnrichmentRequest_RawData)(nil),
+		(*EnrichmentRequest_Chunk)(nil),
+	}
+	file_ai_v1_model_proto_msgTypes[5].OneofWrappers = []any{
+		(*EnrichmentResponse_Text)(nil),
+		(*EnrichmentResponse_Media)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ai_v1_model_proto_rawDesc), len(file_ai_v1_model_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   2,
+			NumEnums:      1,
+			NumMessages:   12,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_ai_v1_model_proto_goTypes,
 		DependencyIndexes: file_ai_v1_model_proto_depIdxs,
+		EnumInfos:         file_ai_v1_model_proto_enumTypes,
 		MessageInfos:      file_ai_v1_model_proto_msgTypes,
 	}.Build()
 	File_ai_v1_model_proto = out.File

@@ -3,6 +3,7 @@ syntax = "proto3";
 package common;
 
 import "google/protobuf/struct.proto";
+import "common/v1/entity.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
 
@@ -33,6 +34,8 @@ message Metadata {
   // System/service/user/environment versioning and traceability
   // System/service/user/environment versioning and traceability
   google.protobuf.Struct versioning = 11;
+  map<string, common.Entity> entity_index = 12;
+  repeated common.Entity prominent_entities = 13;
 }
 
 message TieredTax {
