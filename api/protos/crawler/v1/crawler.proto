@@ -1,12 +1,11 @@
 syntax = "proto3";
 
-package crawler;
+package crawler.v1;
 
 import "common/v1/metadata.proto";
-// pattern
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/crawler";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/crawler/v1;crawlerpb";
 
 // --- Enums for Task and Content Management ---
 

@@ -7,8 +7,8 @@
 package aipb
 
 import (
-	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	crawler "github.com/nmxmxh/master-ovasabi/api/protos/crawler"
+	v11 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	v1 "github.com/nmxmxh/master-ovasabi/api/protos/crawler/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -216,8 +216,8 @@ func (x *SecurityAssessment) GetQuarantinePath() string {
 type EnrichmentRequest struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	TaskUuid    string                 `protobuf:"bytes,1,opt,name=task_uuid,json=taskUuid,proto3" json:"task_uuid,omitempty"`
-	ContentType crawler.ContentType    `protobuf:"varint,2,opt,name=content_type,json=contentType,proto3,enum=crawler.ContentType" json:"content_type,omitempty"`
-	Metadata    *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	ContentType v1.ContentType         `protobuf:"varint,2,opt,name=content_type,json=contentType,proto3,enum=crawler.v1.ContentType" json:"content_type,omitempty"`
+	Metadata    *v11.Metadata          `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// Types that are valid to be assigned to Content:
 	//
 	//	*EnrichmentRequest_RawData
@@ -265,14 +265,14 @@ func (x *EnrichmentRequest) GetTaskUuid() string {
 	return ""
 }
 
-func (x *EnrichmentRequest) GetContentType() crawler.ContentType {
+func (x *EnrichmentRequest) GetContentType() v1.ContentType {
 	if x != nil {
 		return x.ContentType
 	}
-	return crawler.ContentType(0)
+	return v1.ContentType(0)
 }
 
-func (x *EnrichmentRequest) GetMetadata() *v1.Metadata {
+func (x *EnrichmentRequest) GetMetadata() *v11.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
@@ -330,7 +330,7 @@ func (*EnrichmentRequest_Chunk) isEnrichmentRequest_Content() {}
 type TextEnrichment struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Summary           string                 `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
-	Entities          []*v1.Entity           `protobuf:"bytes,2,rep,name=entities,proto3" json:"entities,omitempty"`
+	Entities          []*v11.Entity          `protobuf:"bytes,2,rep,name=entities,proto3" json:"entities,omitempty"`
 	SentimentScore    float32                `protobuf:"fixed32,3,opt,name=sentiment_score,json=sentimentScore,proto3" json:"sentiment_score,omitempty"` // -1.0 to 1.0 scale
 	KeyPhrases        []string               `protobuf:"bytes,4,rep,name=key_phrases,json=keyPhrases,proto3" json:"key_phrases,omitempty"`
 	TopicDistribution map[string]float32     `protobuf:"bytes,5,rep,name=topic_distribution,json=topicDistribution,proto3" json:"topic_distribution,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"fixed32,2,opt,name=value"` // Topic modeling results
@@ -375,7 +375,7 @@ func (x *TextEnrichment) GetSummary() string {
 	return ""
 }
 
-func (x *TextEnrichment) GetEntities() []*v1.Entity {
+func (x *TextEnrichment) GetEntities() []*v11.Entity {
 	if x != nil {
 		return x.Entities
 	}
@@ -406,7 +406,7 @@ func (x *TextEnrichment) GetTopicDistribution() map[string]float32 {
 type MediaEnrichment struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Caption         string                 `protobuf:"bytes,1,opt,name=caption,proto3" json:"caption,omitempty"`
-	DetectedObjects []*v1.Entity           `protobuf:"bytes,2,rep,name=detected_objects,json=detectedObjects,proto3" json:"detected_objects,omitempty"`
+	DetectedObjects []*v11.Entity          `protobuf:"bytes,2,rep,name=detected_objects,json=detectedObjects,proto3" json:"detected_objects,omitempty"`
 	Transcription   string                 `protobuf:"bytes,3,opt,name=transcription,proto3" json:"transcription,omitempty"` // For audio/video
 	Keywords        []string               `protobuf:"bytes,4,rep,name=keywords,proto3" json:"keywords,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -450,7 +450,7 @@ func (x *MediaEnrichment) GetCaption() string {
 	return ""
 }
 
-func (x *MediaEnrichment) GetDetectedObjects() []*v1.Entity {
+func (x *MediaEnrichment) GetDetectedObjects() []*v11.Entity {
 	if x != nil {
 		return x.DetectedObjects
 	}
@@ -588,7 +588,7 @@ func (*EnrichmentResponse_Media) isEnrichmentResponse_Result() {}
 type ModelUpdate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Delta         []byte                 `protobuf:"bytes,1,opt,name=delta,proto3" json:"delta,omitempty"` // Weight updates
-	Meta          *v1.Metadata           `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
+	Meta          *v11.Metadata          `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	BaseVersion   string                 `protobuf:"bytes,3,opt,name=base_version,json=baseVersion,proto3" json:"base_version,omitempty"`
 	Signature     string                 `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"` // Cryptographic signature
 	unknownFields protoimpl.UnknownFields
@@ -632,7 +632,7 @@ func (x *ModelUpdate) GetDelta() []byte {
 	return nil
 }
 
-func (x *ModelUpdate) GetMeta() *v1.Metadata {
+func (x *ModelUpdate) GetMeta() *v11.Metadata {
 	if x != nil {
 		return x.Meta
 	}
@@ -656,7 +656,7 @@ func (x *ModelUpdate) GetSignature() string {
 type Model struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Weights        []byte                 `protobuf:"bytes,1,opt,name=weights,proto3" json:"weights,omitempty"`
-	Meta           *v1.Metadata           `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
+	Meta           *v11.Metadata          `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
 	Version        string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	ParentHash     string                 `protobuf:"bytes,4,opt,name=parent_hash,json=parentHash,proto3" json:"parent_hash,omitempty"`
 	IntegrityCheck string                 `protobuf:"bytes,5,opt,name=integrity_check,json=integrityCheck,proto3" json:"integrity_check,omitempty"` // e.g., "sha256:abc123"
@@ -701,7 +701,7 @@ func (x *Model) GetWeights() []byte {
 	return nil
 }
 
-func (x *Model) GetMeta() *v1.Metadata {
+func (x *Model) GetMeta() *v11.Metadata {
 	if x != nil {
 		return x.Meta
 	}
@@ -917,10 +917,10 @@ const file_ai_v1_model_proto_rawDesc = "" +
 	"\x14THREAT_LEVEL_UNKNOWN\x10\x00\x12\x16\n" +
 	"\x12THREAT_LEVEL_CLEAN\x10\x01\x12\x18\n" +
 	"\x14THREAT_LEVEL_SUSPECT\x10\x02\x12\x1a\n" +
-	"\x16THREAT_LEVEL_MALICIOUS\x10\x03\"\xa3\x02\n" +
+	"\x16THREAT_LEVEL_MALICIOUS\x10\x03\"\xa6\x02\n" +
 	"\x11EnrichmentRequest\x12\x1b\n" +
-	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid\x127\n" +
-	"\fcontent_type\x18\x02 \x01(\x0e2\x14.crawler.ContentTypeR\vcontentType\x12,\n" +
+	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid\x12:\n" +
+	"\fcontent_type\x18\x02 \x01(\x0e2\x17.crawler.v1.ContentTypeR\vcontentType\x12,\n" +
 	"\bmetadata\x18\x03 \x01(\v2\x10.common.MetadataR\bmetadata\x12\x1b\n" +
 	"\braw_data\x18\x04 \x01(\fH\x00R\arawData\x12+\n" +
 	"\x05chunk\x18\x05 \x01(\v2\x13.ai.v1.ContentChunkH\x00R\x05chunk\x125\n" +
@@ -1007,13 +1007,13 @@ var file_ai_v1_model_proto_goTypes = []any{
 	(*ModelRequest)(nil),                // 10: ai.v1.ModelRequest
 	nil,                                 // 11: ai.v1.TextEnrichment.TopicDistributionEntry
 	(*EnrichmentResponse_Vector)(nil),   // 12: ai.v1.EnrichmentResponse.Vector
-	(crawler.ContentType)(0),            // 13: crawler.ContentType
-	(*v1.Metadata)(nil),                 // 14: common.Metadata
-	(*v1.Entity)(nil),                   // 15: common.Entity
+	(v1.ContentType)(0),                 // 13: crawler.v1.ContentType
+	(*v11.Metadata)(nil),                // 14: common.Metadata
+	(*v11.Entity)(nil),                  // 15: common.Entity
 }
 var file_ai_v1_model_proto_depIdxs = []int32{
 	0,  // 0: ai.v1.SecurityAssessment.level:type_name -> ai.v1.SecurityAssessment.ThreatLevel
-	13, // 1: ai.v1.EnrichmentRequest.content_type:type_name -> crawler.ContentType
+	13, // 1: ai.v1.EnrichmentRequest.content_type:type_name -> crawler.v1.ContentType
 	14, // 2: ai.v1.EnrichmentRequest.metadata:type_name -> common.Metadata
 	1,  // 3: ai.v1.EnrichmentRequest.chunk:type_name -> ai.v1.ContentChunk
 	2,  // 4: ai.v1.EnrichmentRequest.security:type_name -> ai.v1.SecurityAssessment

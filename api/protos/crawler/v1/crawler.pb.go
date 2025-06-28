@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: crawler/v1/crawler.proto
 
-package crawler
+package crawlerpb
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -210,7 +210,7 @@ type CrawlTask struct {
 	// Unique identifier for traceability and idempotency.
 	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	// The type of worker to use for this task.
-	Type TaskType `protobuf:"varint,2,opt,name=type,proto3,enum=crawler.TaskType" json:"type,omitempty"`
+	Type TaskType `protobuf:"varint,2,opt,name=type,proto3,enum=crawler.v1.TaskType" json:"type,omitempty"`
 	// The resource to crawl (URL, file path, magnet link, etc.).
 	Target string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
 	// Recursion depth control. 0 means no recursion.
@@ -218,7 +218,7 @@ type CrawlTask struct {
 	// e.g., ["no-executable", "text-only", "max-size:10MB"]
 	Filters []string `protobuf:"bytes,5,rep,name=filters,proto3" json:"filters,omitempty"`
 	// Current status of the task.
-	Status    TaskStatus             `protobuf:"varint,6,opt,name=status,proto3,enum=crawler.TaskStatus" json:"status,omitempty"`
+	Status    TaskStatus             `protobuf:"varint,6,opt,name=status,proto3,enum=crawler.v1.TaskStatus" json:"status,omitempty"`
 	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	// Canonical metadata for orchestration, context, and extensibility.
@@ -326,7 +326,7 @@ type CrawlResult struct {
 	// Corresponds to the CrawlTask UUID.
 	TaskUuid string `protobuf:"bytes,1,opt,name=task_uuid,json=taskUuid,proto3" json:"task_uuid,omitempty"`
 	// Final status of the task.
-	Status TaskStatus `protobuf:"varint,2,opt,name=status,proto3,enum=crawler.TaskStatus" json:"status,omitempty"`
+	Status TaskStatus `protobuf:"varint,2,opt,name=status,proto3,enum=crawler.v1.TaskStatus" json:"status,omitempty"`
 	// Raw or cleaned content.
 	ExtractedContent []byte `protobuf:"bytes,3,opt,name=extracted_content,json=extractedContent,proto3" json:"extracted_content,omitempty"`
 	// Links discovered during crawl.
@@ -458,7 +458,7 @@ func (x *SubmitTaskRequest) GetTask() *CrawlTask {
 type SubmitTaskResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Uuid          string                 `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	Status        TaskStatus             `protobuf:"varint,2,opt,name=status,proto3,enum=crawler.TaskStatus" json:"status,omitempty"`
+	Status        TaskStatus             `protobuf:"varint,2,opt,name=status,proto3,enum=crawler.v1.TaskStatus" json:"status,omitempty"`
 	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"` // e.g., "Task submitted successfully"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -607,31 +607,32 @@ var File_crawler_v1_crawler_proto protoreflect.FileDescriptor
 
 const file_crawler_v1_crawler_proto_rawDesc = "" +
 	"\n" +
-	"\x18crawler/v1/crawler.proto\x12\acrawler\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdf\x02\n" +
+	"\x18crawler/v1/crawler.proto\x12\n" +
+	"crawler.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe5\x02\n" +
 	"\tCrawlTask\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12%\n" +
-	"\x04type\x18\x02 \x01(\x0e2\x11.crawler.TaskTypeR\x04type\x12\x16\n" +
+	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12(\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x14.crawler.v1.TaskTypeR\x04type\x12\x16\n" +
 	"\x06target\x18\x03 \x01(\tR\x06target\x12\x14\n" +
 	"\x05depth\x18\x04 \x01(\x05R\x05depth\x12\x18\n" +
-	"\afilters\x18\x05 \x03(\tR\afilters\x12+\n" +
-	"\x06status\x18\x06 \x01(\x0e2\x13.crawler.TaskStatusR\x06status\x129\n" +
+	"\afilters\x18\x05 \x03(\tR\afilters\x12.\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x16.crawler.v1.TaskStatusR\x06status\x129\n" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12,\n" +
-	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\"\x80\x02\n" +
+	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\"\x83\x02\n" +
 	"\vCrawlResult\x12\x1b\n" +
-	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid\x12+\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x13.crawler.TaskStatusR\x06status\x12+\n" +
+	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid\x12.\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x16.crawler.v1.TaskStatusR\x06status\x12+\n" +
 	"\x11extracted_content\x18\x03 \x01(\fR\x10extractedContent\x12'\n" +
 	"\x0fextracted_links\x18\x04 \x03(\tR\x0eextractedLinks\x12#\n" +
 	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\";\n" +
-	"\x11SubmitTaskRequest\x12&\n" +
-	"\x04task\x18\x01 \x01(\v2\x12.crawler.CrawlTaskR\x04task\"o\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\">\n" +
+	"\x11SubmitTaskRequest\x12)\n" +
+	"\x04task\x18\x01 \x01(\v2\x15.crawler.v1.CrawlTaskR\x04task\"r\n" +
 	"\x12SubmitTaskResponse\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12+\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x13.crawler.TaskStatusR\x06status\x12\x18\n" +
+	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12.\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x16.crawler.v1.TaskStatusR\x06status\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\"*\n" +
 	"\x14GetTaskStatusRequest\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\"3\n" +
@@ -659,12 +660,12 @@ const file_crawler_v1_crawler_proto_rawDesc = "" +
 	"\x12CONTENT_TYPE_IMAGE\x10\x02\x12\x16\n" +
 	"\x12CONTENT_TYPE_AUDIO\x10\x03\x12\x16\n" +
 	"\x12CONTENT_TYPE_VIDEO\x10\x04\x12\x17\n" +
-	"\x13CONTENT_TYPE_BINARY\x10\x052\xe3\x01\n" +
-	"\x0eCrawlerService\x12E\n" +
+	"\x13CONTENT_TYPE_BINARY\x10\x052\xf5\x01\n" +
+	"\x0eCrawlerService\x12K\n" +
 	"\n" +
-	"SubmitTask\x12\x1a.crawler.SubmitTaskRequest\x1a\x1b.crawler.SubmitTaskResponse\x12B\n" +
-	"\rGetTaskStatus\x12\x1d.crawler.GetTaskStatusRequest\x1a\x12.crawler.CrawlTask\x12F\n" +
-	"\rStreamResults\x12\x1d.crawler.StreamResultsRequest\x1a\x14.crawler.CrawlResult0\x01B5Z3github.com/nmxmxh/master-ovasabi/api/protos/crawlerb\x06proto3"
+	"SubmitTask\x12\x1d.crawler.v1.SubmitTaskRequest\x1a\x1e.crawler.v1.SubmitTaskResponse\x12H\n" +
+	"\rGetTaskStatus\x12 .crawler.v1.GetTaskStatusRequest\x1a\x15.crawler.v1.CrawlTask\x12L\n" +
+	"\rStreamResults\x12 .crawler.v1.StreamResultsRequest\x1a\x17.crawler.v1.CrawlResult0\x01BBZ@github.com/nmxmxh/master-ovasabi/api/protos/crawler/v1;crawlerpbb\x06proto3"
 
 var (
 	file_crawler_v1_crawler_proto_rawDescOnce sync.Once
@@ -681,34 +682,34 @@ func file_crawler_v1_crawler_proto_rawDescGZIP() []byte {
 var file_crawler_v1_crawler_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_crawler_v1_crawler_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_crawler_v1_crawler_proto_goTypes = []any{
-	(TaskType)(0),                 // 0: crawler.TaskType
-	(TaskStatus)(0),               // 1: crawler.TaskStatus
-	(ContentType)(0),              // 2: crawler.ContentType
-	(*CrawlTask)(nil),             // 3: crawler.CrawlTask
-	(*CrawlResult)(nil),           // 4: crawler.CrawlResult
-	(*SubmitTaskRequest)(nil),     // 5: crawler.SubmitTaskRequest
-	(*SubmitTaskResponse)(nil),    // 6: crawler.SubmitTaskResponse
-	(*GetTaskStatusRequest)(nil),  // 7: crawler.GetTaskStatusRequest
-	(*StreamResultsRequest)(nil),  // 8: crawler.StreamResultsRequest
+	(TaskType)(0),                 // 0: crawler.v1.TaskType
+	(TaskStatus)(0),               // 1: crawler.v1.TaskStatus
+	(ContentType)(0),              // 2: crawler.v1.ContentType
+	(*CrawlTask)(nil),             // 3: crawler.v1.CrawlTask
+	(*CrawlResult)(nil),           // 4: crawler.v1.CrawlResult
+	(*SubmitTaskRequest)(nil),     // 5: crawler.v1.SubmitTaskRequest
+	(*SubmitTaskResponse)(nil),    // 6: crawler.v1.SubmitTaskResponse
+	(*GetTaskStatusRequest)(nil),  // 7: crawler.v1.GetTaskStatusRequest
+	(*StreamResultsRequest)(nil),  // 8: crawler.v1.StreamResultsRequest
 	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
 	(*v1.Metadata)(nil),           // 10: common.Metadata
 }
 var file_crawler_v1_crawler_proto_depIdxs = []int32{
-	0,  // 0: crawler.CrawlTask.type:type_name -> crawler.TaskType
-	1,  // 1: crawler.CrawlTask.status:type_name -> crawler.TaskStatus
-	9,  // 2: crawler.CrawlTask.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 3: crawler.CrawlTask.updated_at:type_name -> google.protobuf.Timestamp
-	10, // 4: crawler.CrawlTask.metadata:type_name -> common.Metadata
-	1,  // 5: crawler.CrawlResult.status:type_name -> crawler.TaskStatus
-	10, // 6: crawler.CrawlResult.metadata:type_name -> common.Metadata
-	3,  // 7: crawler.SubmitTaskRequest.task:type_name -> crawler.CrawlTask
-	1,  // 8: crawler.SubmitTaskResponse.status:type_name -> crawler.TaskStatus
-	5,  // 9: crawler.CrawlerService.SubmitTask:input_type -> crawler.SubmitTaskRequest
-	7,  // 10: crawler.CrawlerService.GetTaskStatus:input_type -> crawler.GetTaskStatusRequest
-	8,  // 11: crawler.CrawlerService.StreamResults:input_type -> crawler.StreamResultsRequest
-	6,  // 12: crawler.CrawlerService.SubmitTask:output_type -> crawler.SubmitTaskResponse
-	3,  // 13: crawler.CrawlerService.GetTaskStatus:output_type -> crawler.CrawlTask
-	4,  // 14: crawler.CrawlerService.StreamResults:output_type -> crawler.CrawlResult
+	0,  // 0: crawler.v1.CrawlTask.type:type_name -> crawler.v1.TaskType
+	1,  // 1: crawler.v1.CrawlTask.status:type_name -> crawler.v1.TaskStatus
+	9,  // 2: crawler.v1.CrawlTask.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 3: crawler.v1.CrawlTask.updated_at:type_name -> google.protobuf.Timestamp
+	10, // 4: crawler.v1.CrawlTask.metadata:type_name -> common.Metadata
+	1,  // 5: crawler.v1.CrawlResult.status:type_name -> crawler.v1.TaskStatus
+	10, // 6: crawler.v1.CrawlResult.metadata:type_name -> common.Metadata
+	3,  // 7: crawler.v1.SubmitTaskRequest.task:type_name -> crawler.v1.CrawlTask
+	1,  // 8: crawler.v1.SubmitTaskResponse.status:type_name -> crawler.v1.TaskStatus
+	5,  // 9: crawler.v1.CrawlerService.SubmitTask:input_type -> crawler.v1.SubmitTaskRequest
+	7,  // 10: crawler.v1.CrawlerService.GetTaskStatus:input_type -> crawler.v1.GetTaskStatusRequest
+	8,  // 11: crawler.v1.CrawlerService.StreamResults:input_type -> crawler.v1.StreamResultsRequest
+	6,  // 12: crawler.v1.CrawlerService.SubmitTask:output_type -> crawler.v1.SubmitTaskResponse
+	3,  // 13: crawler.v1.CrawlerService.GetTaskStatus:output_type -> crawler.v1.CrawlTask
+	4,  // 14: crawler.v1.CrawlerService.StreamResults:output_type -> crawler.v1.CrawlResult
 	12, // [12:15] is the sub-list for method output_type
 	9,  // [9:12] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name

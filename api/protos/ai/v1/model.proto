@@ -37,7 +37,7 @@ message SecurityAssessment {
 
 message EnrichmentRequest {
   string task_uuid = 1;
-  crawler.ContentType content_type = 2;
+  crawler.v1.ContentType content_type = 2;
   common.Metadata metadata = 3;
 
   oneof content {

@@ -4,7 +4,7 @@
 // - protoc             v5.29.3
 // source: crawler/v1/crawler.proto
 
-package crawler
+package crawlerpb
 
 import (
 	context "context"
@@ -19,9 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CrawlerService_SubmitTask_FullMethodName    = "/crawler.CrawlerService/SubmitTask"
-	CrawlerService_GetTaskStatus_FullMethodName = "/crawler.CrawlerService/GetTaskStatus"
-	CrawlerService_StreamResults_FullMethodName = "/crawler.CrawlerService/StreamResults"
+	CrawlerService_SubmitTask_FullMethodName    = "/crawler.v1.CrawlerService/SubmitTask"
+	CrawlerService_GetTaskStatus_FullMethodName = "/crawler.v1.CrawlerService/GetTaskStatus"
+	CrawlerService_StreamResults_FullMethodName = "/crawler.v1.CrawlerService/StreamResults"
 )
 
 // CrawlerServiceClient is the client API for CrawlerService service.
@@ -192,7 +192,7 @@ type CrawlerService_StreamResultsServer = grpc.ServerStreamingServer[CrawlResult
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var CrawlerService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "crawler.CrawlerService",
+	ServiceName: "crawler.v1.CrawlerService",
 	HandlerType: (*CrawlerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
