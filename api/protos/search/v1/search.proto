@@ -2,28 +2,29 @@ syntax = "proto3";
 
 package search.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/search";
-
-import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
-// SearchService provides unified, metadata-driven search across all major entities.
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/search";
+
 service SearchService {
   // General search endpoint (full-text, fuzzy, entity)
-  rpc Search (SearchRequest) returns (SearchResponse);
+  rpc Search(SearchRequest) returns (SearchResponse);
 
   // Suggest/autocomplete endpoint
   rpc Suggest (SuggestRequest) returns (SuggestResponse);
 
   // List all searchable fields for all entities
-  rpc ListSearchableFields(google.protobuf.Empty) returns (ListSearchableFieldsResponse);
+  rpc ListSearchableFields(google.protobuf.Empty)
+      returns (ListSearchableFieldsResponse);
 }
 
 // Request for a search query.
 message SearchRequest {
   string query = 1; // The search query string
-  repeated string types = 2; // Entity types to search (e.g., "content", "user", "campaign")
+  repeated string types = 2;
+  // "user", "campaign")
   int32 page_size = 3; // Results per page
   int32 page_number = 4; // Page number (1-based)
   common.Metadata metadata = 5; // Extensible filters, context, etc.
@@ -75,4 +76,4 @@ message SearchableFields {
 
 message ListSearchableFieldsResponse {
   map<string, SearchableFields> entities = 1;
-} 
+}

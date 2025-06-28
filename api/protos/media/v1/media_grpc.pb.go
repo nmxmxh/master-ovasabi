@@ -37,31 +37,20 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// MediaService handles storage and retrieval of media files (images, videos, 3D assets, etc.)
+// MediaService handles storage and retrieval of media files
+// (images, videos, 3D assets, etc.)
 type MediaServiceClient interface {
-	// Upload a small media file (< 500KB) in a single request
 	UploadLightMedia(ctx context.Context, in *UploadLightMediaRequest, opts ...grpc.CallOption) (*UploadLightMediaResponse, error)
-	// Start a heavy media upload session (> 500KB)
 	StartHeavyMediaUpload(ctx context.Context, in *StartHeavyMediaUploadRequest, opts ...grpc.CallOption) (*StartHeavyMediaUploadResponse, error)
-	// Stream chunks for a heavy media upload
 	StreamMediaChunk(ctx context.Context, in *StreamMediaChunkRequest, opts ...grpc.CallOption) (*StreamMediaChunkResponse, error)
-	// Complete a heavy media upload
 	CompleteMediaUpload(ctx context.Context, in *CompleteMediaUploadRequest, opts ...grpc.CallOption) (*CompleteMediaUploadResponse, error)
-	// Get media metadata
 	GetMedia(ctx context.Context, in *GetMediaRequest, opts ...grpc.CallOption) (*GetMediaResponse, error)
-	// Stream media content
 	StreamMediaContent(ctx context.Context, in *StreamMediaContentRequest, opts ...grpc.CallOption) (*StreamMediaContentResponse, error)
-	// Delete a media file
 	DeleteMedia(ctx context.Context, in *DeleteMediaRequest, opts ...grpc.CallOption) (*DeleteMediaResponse, error)
-	// List user media with pagination
 	ListUserMedia(ctx context.Context, in *ListUserMediaRequest, opts ...grpc.CallOption) (*ListUserMediaResponse, error)
-	// List system media with pagination
 	ListSystemMedia(ctx context.Context, in *ListSystemMediaRequest, opts ...grpc.CallOption) (*ListSystemMediaResponse, error)
-	// Subscribe to user media updates stream
 	SubscribeToUserMedia(ctx context.Context, in *SubscribeToUserMediaRequest, opts ...grpc.CallOption) (*SubscribeToUserMediaResponse, error)
-	// Subscribe to system media updates stream
 	SubscribeToSystemMedia(ctx context.Context, in *SubscribeToSystemMediaRequest, opts ...grpc.CallOption) (*SubscribeToSystemMediaResponse, error)
-	// Broadcast a system media file to all subscribers
 	BroadcastSystemMedia(ctx context.Context, in *BroadcastSystemMediaRequest, opts ...grpc.CallOption) (*BroadcastSystemMediaResponse, error)
 }
 
@@ -197,31 +186,20 @@ func (c *mediaServiceClient) BroadcastSystemMedia(ctx context.Context, in *Broad
 // All implementations must embed UnimplementedMediaServiceServer
 // for forward compatibility.
 //
-// MediaService handles storage and retrieval of media files (images, videos, 3D assets, etc.)
+// MediaService handles storage and retrieval of media files
+// (images, videos, 3D assets, etc.)
 type MediaServiceServer interface {
-	// Upload a small media file (< 500KB) in a single request
 	UploadLightMedia(context.Context, *UploadLightMediaRequest) (*UploadLightMediaResponse, error)
-	// Start a heavy media upload session (> 500KB)
 	StartHeavyMediaUpload(context.Context, *StartHeavyMediaUploadRequest) (*StartHeavyMediaUploadResponse, error)
-	// Stream chunks for a heavy media upload
 	StreamMediaChunk(context.Context, *StreamMediaChunkRequest) (*StreamMediaChunkResponse, error)
-	// Complete a heavy media upload
 	CompleteMediaUpload(context.Context, *CompleteMediaUploadRequest) (*CompleteMediaUploadResponse, error)
-	// Get media metadata
 	GetMedia(context.Context, *GetMediaRequest) (*GetMediaResponse, error)
-	// Stream media content
 	StreamMediaContent(context.Context, *StreamMediaContentRequest) (*StreamMediaContentResponse, error)
-	// Delete a media file
 	DeleteMedia(context.Context, *DeleteMediaRequest) (*DeleteMediaResponse, error)
-	// List user media with pagination
 	ListUserMedia(context.Context, *ListUserMediaRequest) (*ListUserMediaResponse, error)
-	// List system media with pagination
 	ListSystemMedia(context.Context, *ListSystemMediaRequest) (*ListSystemMediaResponse, error)
-	// Subscribe to user media updates stream
 	SubscribeToUserMedia(context.Context, *SubscribeToUserMediaRequest) (*SubscribeToUserMediaResponse, error)
-	// Subscribe to system media updates stream
 	SubscribeToSystemMedia(context.Context, *SubscribeToSystemMediaRequest) (*SubscribeToSystemMediaResponse, error)
-	// Broadcast a system media file to all subscribers
 	BroadcastSystemMedia(context.Context, *BroadcastSystemMediaRequest) (*BroadcastSystemMediaResponse, error)
 	mustEmbedUnimplementedMediaServiceServer()
 }

@@ -28,8 +28,6 @@ const (
 // SearchServiceClient is the client API for SearchService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// SearchService provides unified, metadata-driven search across all major entities.
 type SearchServiceClient interface {
 	// General search endpoint (full-text, fuzzy, entity)
 	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
@@ -80,8 +78,6 @@ func (c *searchServiceClient) ListSearchableFields(ctx context.Context, in *empt
 // SearchServiceServer is the server API for SearchService service.
 // All implementations must embed UnimplementedSearchServiceServer
 // for forward compatibility.
-//
-// SearchService provides unified, metadata-driven search across all major entities.
 type SearchServiceServer interface {
 	// General search endpoint (full-text, fuzzy, entity)
 	Search(context.Context, *SearchRequest) (*SearchResponse, error)

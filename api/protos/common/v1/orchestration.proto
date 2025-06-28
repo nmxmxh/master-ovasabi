@@ -2,10 +2,10 @@ syntax = "proto3";
 
 package common;
 
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/any.proto";
 import "common/v1/metadata.proto";
 import "common/v1/payload.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
 
@@ -14,7 +14,8 @@ message OrchestrationEvent {
   string type = 1; // "orchestration.error" or "orchestration.success"
   OrchestrationPayload orchestration = 2;
   string version = 3; // Envelope version for evolution
-  common.Payload payload = 4; // Canonical, extensible payload for event-specific data
+  // Canonical, extensible payload for event-specific data
+  common.Payload payload = 4; 
 }
 
 // The payload for orchestration events.
@@ -31,5 +32,6 @@ message OrchestrationPayload {
   string actor_id = 10; // User or system actor
   string request_id = 11; // For tracing
   repeated string tags = 12; // For analytics, routing, etc.
-  google.protobuf.Any extra = 13; // For future extensibility (e.g., custom payloads)
+  // For future extensibility (e.g., custom payloads)
+  google.protobuf.Any extra = 13; 
 } 

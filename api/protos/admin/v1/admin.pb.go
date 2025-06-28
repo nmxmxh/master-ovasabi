@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: admin/v1/admin.proto
 
-package adminpb
+package v1
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -198,8 +198,8 @@ func (x *AdminNote) GetCreatedAt() int64 {
 type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`       // Internal integer ID reference to master table
-	MasterUuid    string                 `protobuf:"bytes,15,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterUuid    string                 `protobuf:"bytes,15,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
 	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
 	Name          string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
 	Roles         []string               `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
@@ -207,7 +207,7 @@ type User struct {
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	UserId        string                 `protobuf:"bytes,9,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for analytics, orchestration, etc.
+	Metadata      *v1.Metadata           `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -322,11 +322,11 @@ func (x *User) GetMetadata() *v1.Metadata {
 type Role struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // Master ID for analytics/unified queries
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Permissions   []string               `protobuf:"bytes,4,rep,name=permissions,proto3" json:"permissions,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`                       // Extensible metadata for analytics, orchestration, etc.
-	MasterUuid    string                 `protobuf:"bytes,6,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
+	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	MasterUuid    string                 `protobuf:"bytes,6,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -406,13 +406,13 @@ func (x *Role) GetMasterUuid() string {
 type AuditLog struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      string                 `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"` // Master ID for analytics/unified queries
+	MasterId      string                 `protobuf:"bytes,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Action        string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"`
 	Resource      string                 `protobuf:"bytes,5,opt,name=resource,proto3" json:"resource,omitempty"`
 	Details       string                 `protobuf:"bytes,6,opt,name=details,proto3" json:"details,omitempty"`
 	Timestamp     int64                  `protobuf:"varint,7,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for analytics, orchestration, etc.
+	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -506,7 +506,7 @@ func (x *AuditLog) GetMetadata() *v1.Metadata {
 type Settings struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Values        map[string]string      `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for analytics, orchestration, etc.
+	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2037,7 +2037,7 @@ var File_admin_v1_admin_proto protoreflect.FileDescriptor
 
 const file_admin_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x14admin/v1/admin.proto\x12\badmin.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"]\n" +
+	"\x14admin/v1/admin.proto\x12\badmin.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"]\n" +
 	"\x10AdminPreferences\x12\x14\n" +
 	"\x05theme\x18\x01 \x01(\tR\x05theme\x123\n" +
 	"\x15notifications_enabled\x18\x02 \x01(\bR\x14notificationsEnabled\"p\n" +
@@ -2202,7 +2202,7 @@ const file_admin_v1_admin_proto_rawDesc = "" +
 	"\fGetAuditLogs\x12\x1d.admin.v1.GetAuditLogsRequest\x1a\x1e.admin.v1.GetAuditLogsResponse\x12J\n" +
 	"\vGetSettings\x12\x1c.admin.v1.GetSettingsRequest\x1a\x1d.admin.v1.GetSettingsResponse\x12S\n" +
 	"\x0eUpdateSettings\x12\x1f.admin.v1.UpdateSettingsRequest\x1a .admin.v1.UpdateSettingsResponse\x12V\n" +
-	"\x0fCheckPermission\x12 .admin.v1.CheckPermissionRequest\x1a!.admin.v1.CheckPermissionResponseB>Z<github.com/nmxmxh/master-ovasabi/api/protos/admin/v1;adminpbb\x06proto3"
+	"\x0fCheckPermission\x12 .admin.v1.CheckPermissionRequest\x1a!.admin.v1.CheckPermissionResponseB6Z4github.com/nmxmxh/master-ovasabi/api/protos/admin/v1b\x06proto3"
 
 var (
 	file_admin_v1_admin_proto_rawDescOnce sync.Once

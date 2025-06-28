@@ -24,24 +24,34 @@ const (
 
 // Central, robust, extensible metadata for all services
 //
-// - All shared fields are available to every service.
-// - The service_specific field allows each service to store its own custom, structured data under a namespaced key (e.g., "content", "commerce").
-// - The knowledge_graph field is for graph enrichment and relationships.
+//   - All shared fields are available to every service.
+//   - The service_specific field allows each service to store its own custom,
+//     structured data under a namespaced key (e.g., "content", "commerce").
+//   - The knowledge_graph field is for graph enrichment and relationships.
 type Metadata struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Scheduling      *structpb.Struct       `protobuf:"bytes,1,opt,name=scheduling,proto3" json:"scheduling,omitempty"`                                  // General scheduling and orchestration fields
-	Features        []string               `protobuf:"bytes,2,rep,name=features,proto3" json:"features,omitempty"`                                      // Feature toggles (e.g., ["referral", "notification"])
-	CustomRules     *structpb.Struct       `protobuf:"bytes,3,opt,name=custom_rules,json=customRules,proto3" json:"custom_rules,omitempty"`             // Custom rules (e.g., {max_referrals: 10})
-	Audit           *structpb.Struct       `protobuf:"bytes,4,opt,name=audit,proto3" json:"audit,omitempty"`                                            // Audit info (created_by, history, etc.)
-	Tags            []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`                                              // Tags for search, analytics, etc.
-	ServiceSpecific *structpb.Struct       `protobuf:"bytes,6,opt,name=service_specific,json=serviceSpecific,proto3" json:"service_specific,omitempty"` // Service-specific extensions (e.g., {"content": {...}})
-	KnowledgeGraph  *structpb.Struct       `protobuf:"bytes,7,opt,name=knowledge_graph,json=knowledgeGraph,proto3" json:"knowledge_graph,omitempty"`    // For knowledge graph enrichment
-	Taxation        *TieredTax             `protobuf:"bytes,8,opt,name=taxation,proto3" json:"taxation,omitempty"`
-	Owner           *OwnerMetadata         `protobuf:"bytes,9,opt,name=owner,proto3" json:"owner,omitempty"`
-	Referral        *ReferralMetadata      `protobuf:"bytes,10,opt,name=referral,proto3" json:"referral,omitempty"`
-	Versioning      *structpb.Struct       `protobuf:"bytes,11,opt,name=versioning,proto3" json:"versioning,omitempty"` // System/service/user/environment versioning and traceability
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// General scheduling and orchestration fields
+	Scheduling *structpb.Struct `protobuf:"bytes,1,opt,name=scheduling,proto3" json:"scheduling,omitempty"`
+	// Feature toggles (e.g., ["referral", "notification"])
+	Features []string `protobuf:"bytes,2,rep,name=features,proto3" json:"features,omitempty"`
+	// Custom rules (e.g., {max_referrals: 10})
+	CustomRules *structpb.Struct `protobuf:"bytes,3,opt,name=custom_rules,json=customRules,proto3" json:"custom_rules,omitempty"`
+	// Audit info (created_by, history, etc.)
+	Audit *structpb.Struct `protobuf:"bytes,4,opt,name=audit,proto3" json:"audit,omitempty"`
+	// Tags for search, analytics, etc.
+	Tags []string `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
+	// Service-specific extensions (e.g., {"content": {...}})
+	ServiceSpecific *structpb.Struct `protobuf:"bytes,6,opt,name=service_specific,json=serviceSpecific,proto3" json:"service_specific,omitempty"`
+	// For knowledge graph enrichment
+	KnowledgeGraph *structpb.Struct  `protobuf:"bytes,7,opt,name=knowledge_graph,json=knowledgeGraph,proto3" json:"knowledge_graph,omitempty"`
+	Taxation       *TieredTax        `protobuf:"bytes,8,opt,name=taxation,proto3" json:"taxation,omitempty"`
+	Owner          *OwnerMetadata    `protobuf:"bytes,9,opt,name=owner,proto3" json:"owner,omitempty"`
+	Referral       *ReferralMetadata `protobuf:"bytes,10,opt,name=referral,proto3" json:"referral,omitempty"`
+	// System/service/user/environment versioning and traceability
+	// System/service/user/environment versioning and traceability
+	Versioning    *structpb.Struct `protobuf:"bytes,11,opt,name=versioning,proto3" json:"versioning,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Metadata) Reset() {
@@ -217,7 +227,7 @@ type TaxationConnector struct {
 	Recipient       string                 `protobuf:"bytes,2,opt,name=recipient,proto3" json:"recipient,omitempty"` // e.g., "nmxmxh"
 	RecipientWallet string                 `protobuf:"bytes,3,opt,name=recipient_wallet,json=recipientWallet,proto3" json:"recipient_wallet,omitempty"`
 	Percentage      float64                `protobuf:"fixed64,4,opt,name=percentage,proto3" json:"percentage,omitempty"`
-	Tiered          []*TieredTax           `protobuf:"bytes,5,rep,name=tiered,proto3" json:"tiered,omitempty"`
+	Tiereds         []*TieredTax           `protobuf:"bytes,5,rep,name=tiereds,proto3" json:"tiereds,omitempty"`
 	AppliedOn       string                 `protobuf:"bytes,6,opt,name=applied_on,json=appliedOn,proto3" json:"applied_on,omitempty"`
 	Domain          string                 `protobuf:"bytes,7,opt,name=domain,proto3" json:"domain,omitempty"`
 	Default         bool                   `protobuf:"varint,8,opt,name=default,proto3" json:"default,omitempty"`
@@ -285,9 +295,9 @@ func (x *TaxationConnector) GetPercentage() float64 {
 	return 0
 }
 
-func (x *TaxationConnector) GetTiered() []*TieredTax {
+func (x *TaxationConnector) GetTiereds() []*TieredTax {
 	if x != nil {
-		return x.Tiered
+		return x.Tiereds
 	}
 	return nil
 }
@@ -518,15 +528,15 @@ const file_common_v1_metadata_proto_rawDesc = "" +
 	"\fmax_projects\x18\x02 \x01(\x05R\vmaxProjects\x12\x1e\n" +
 	"\n" +
 	"percentage\x18\x03 \x01(\x01R\n" +
-	"percentage\"\xce\x02\n" +
+	"percentage\"\xd0\x02\n" +
 	"\x11TaxationConnector\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1c\n" +
 	"\trecipient\x18\x02 \x01(\tR\trecipient\x12)\n" +
 	"\x10recipient_wallet\x18\x03 \x01(\tR\x0frecipientWallet\x12\x1e\n" +
 	"\n" +
 	"percentage\x18\x04 \x01(\x01R\n" +
-	"percentage\x12)\n" +
-	"\x06tiered\x18\x05 \x03(\v2\x11.common.TieredTaxR\x06tiered\x12\x1d\n" +
+	"percentage\x12+\n" +
+	"\atiereds\x18\x05 \x03(\v2\x11.common.TieredTaxR\atiereds\x12\x1d\n" +
 	"\n" +
 	"applied_on\x18\x06 \x01(\tR\tappliedOn\x12\x16\n" +
 	"\x06domain\x18\a \x01(\tR\x06domain\x12\x18\n" +
@@ -579,7 +589,7 @@ var file_common_v1_metadata_proto_depIdxs = []int32{
 	4,  // 6: common.Metadata.owner:type_name -> common.OwnerMetadata
 	5,  // 7: common.Metadata.referral:type_name -> common.ReferralMetadata
 	6,  // 8: common.Metadata.versioning:type_name -> google.protobuf.Struct
-	1,  // 9: common.TaxationConnector.tiered:type_name -> common.TieredTax
+	1,  // 9: common.TaxationConnector.tiereds:type_name -> common.TieredTax
 	2,  // 10: common.Taxation.connectors:type_name -> common.TaxationConnector
 	11, // [11:11] is the sub-list for method output_type
 	11, // [11:11] is the sub-list for method input_type

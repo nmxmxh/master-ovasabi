@@ -37,8 +37,6 @@ const (
 // NotificationServiceClient is the client API for NotificationService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Unified NotificationService: handles notifications, broadcasts, real-time events, and asset streaming
 type NotificationServiceClient interface {
 	// Generic notification send (channel-agnostic)
 	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
@@ -222,8 +220,6 @@ func (c *notificationServiceClient) ListNotificationEvents(ctx context.Context, 
 // NotificationServiceServer is the server API for NotificationService service.
 // All implementations must embed UnimplementedNotificationServiceServer
 // for forward compatibility.
-//
-// Unified NotificationService: handles notifications, broadcasts, real-time events, and asset streaming
 type NotificationServiceServer interface {
 	// Generic notification send (channel-agnostic)
 	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)

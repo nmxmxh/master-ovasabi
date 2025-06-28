@@ -1,25 +1,28 @@
 // SecurityService proto
-// See docs/services/security.md for full documentation and separation from User Service.
+// See docs/services/security.md for full documentation and
+// separation from User Service.
 syntax = "proto3";
+
 package security.v1;
+
+import "common/v1/metadata.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/security";
 
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/struct.proto";
-import "common/v1/metadata.proto";
-
-// SecurityService: Central authority for platform security (not user CRUD/session mgmt)
 service SecurityService {
   rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
   rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
   rpc IssueSecret(IssueSecretRequest) returns (IssueSecretResponse);
-  rpc ValidateCredential(ValidateCredentialRequest) returns (ValidateCredentialResponse);
+  rpc ValidateCredential(ValidateCredentialRequest)
+      returns (ValidateCredentialResponse);
   rpc QueryEvents(QueryEventsRequest) returns (QueryEventsResponse);
   rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
   rpc SetPolicy(SetPolicyRequest) returns (SetPolicyResponse);
   // Enhanced monitoring and threat detection
-  rpc DetectThreats(DetectThreatsRequest) returns (DetectThreatsResponse);
+  rpc DetectThreats(DetectThreatsRequest)
+      returns (DetectThreatsResponse);
   rpc AuditEvent(AuditEventRequest) returns (AuditEventResponse);
 }
 
@@ -146,4 +149,4 @@ message AuditEventResponse {
   bool success = 1;
   string error = 2;
   common.Metadata metadata = 3;
-} 
+}

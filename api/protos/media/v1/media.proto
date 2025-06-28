@@ -2,95 +2,52 @@ syntax = "proto3";
 
 package media.v1;
 
+import "common/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
+
 option go_package = "master-ovasabi/api/protos/media/v1;mediav1";
 
-import "google/protobuf/timestamp.proto";
-import "common/v1/metadata.proto";
-
-// MediaService handles storage and retrieval of media files (images, videos, 3D assets, etc.)
+// MediaService handles storage and retrieval of media files 
+// (images, videos, 3D assets, etc.)
 service MediaService {
-  // Upload a small media file (< 500KB) in a single request
-  rpc UploadLightMedia(UploadLightMediaRequest) returns (UploadLightMediaResponse);
-
-  // Start a heavy media upload session (> 500KB)
-  rpc StartHeavyMediaUpload(StartHeavyMediaUploadRequest) returns (StartHeavyMediaUploadResponse);
-
-  // Stream chunks for a heavy media upload
-  rpc StreamMediaChunk(StreamMediaChunkRequest) returns (StreamMediaChunkResponse);
-
-  // Complete a heavy media upload
-  rpc CompleteMediaUpload(CompleteMediaUploadRequest) returns (CompleteMediaUploadResponse);
-
-  // Get media metadata
+  rpc UploadLightMedia(UploadLightMediaRequest)
+    returns (UploadLightMediaResponse);
+  rpc StartHeavyMediaUpload(StartHeavyMediaUploadRequest)
+    returns (StartHeavyMediaUploadResponse);
+  rpc StreamMediaChunk(StreamMediaChunkRequest)
+    returns (StreamMediaChunkResponse);
+  rpc CompleteMediaUpload(CompleteMediaUploadRequest)
+    returns (CompleteMediaUploadResponse);
   rpc GetMedia(GetMediaRequest) returns (GetMediaResponse);
-
-  // Stream media content
-  rpc StreamMediaContent(StreamMediaContentRequest) returns (StreamMediaContentResponse);
-
-  // Delete a media file
+  rpc StreamMediaContent(StreamMediaContentRequest)
+    returns (StreamMediaContentResponse);
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
-
-  // List user media with pagination
   rpc ListUserMedia(ListUserMediaRequest) returns (ListUserMediaResponse);
-
-  // List system media with pagination
   rpc ListSystemMedia(ListSystemMediaRequest) returns (ListSystemMediaResponse);
-
-  // Subscribe to user media updates stream
-  rpc SubscribeToUserMedia(SubscribeToUserMediaRequest) returns (SubscribeToUserMediaResponse);
-
-  // Subscribe to system media updates stream
-  rpc SubscribeToSystemMedia(SubscribeToSystemMediaRequest) returns (SubscribeToSystemMediaResponse);
-
-  // Broadcast a system media file to all subscribers
-  rpc BroadcastSystemMedia(BroadcastSystemMediaRequest) returns (BroadcastSystemMediaResponse);
+  rpc SubscribeToUserMedia(SubscribeToUserMediaRequest)
+    returns (SubscribeToUserMediaResponse);
+  rpc SubscribeToSystemMedia(SubscribeToSystemMediaRequest)
+    returns (SubscribeToSystemMediaResponse);
+  rpc BroadcastSystemMedia(BroadcastSystemMediaRequest)
+    returns (BroadcastSystemMediaResponse);
 }
 
 // Media represents a media file and its metadata
 message Media {
-  // Unique identifier
   string id = 1;
-
-  // Internal integer ID reference to master table
   int64 master_id = 2;
-
-  // Global UUID reference to master table
   string master_uuid = 15;
-
-  // Owner user ID
   string user_id = 3;
-
-  // Media type (light/heavy)
   MediaType type = 4;
-
-  // Media name
   string name = 5;
-
-  // MIME type
   string mime_type = 6;
-
-  // Size in bytes
   int64 size = 7;
-
-  // Binary data for light media
   bytes data = 8;
-
-  // URL for heavy media
   string url = 9;
-
-  // Whether this is a system media
   bool is_system = 10;
-
-  // Creation timestamp
   google.protobuf.Timestamp created_at = 11;
-
-  // Last update timestamp
   google.protobuf.Timestamp updated_at = 12;
-
-  // Deletion timestamp (if soft deleted)
   google.protobuf.Timestamp deleted_at = 13;
-
-  // Additional metadata
   common.Metadata metadata = 14;
 }
 

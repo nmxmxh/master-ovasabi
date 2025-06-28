@@ -22,12 +22,16 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ModelUpdate represents a federated learning update with metadata and hash for auditability.
+// ModelUpdate represents a federated learning update with metadata and hash
+// for auditability.
 type ModelUpdate struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"` // Model update data (weights, gradients, etc.)
-	Meta          *v1.Metadata           `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"` // Canonical metadata (versioning, peer info, round, etc.)
-	Hash          string                 `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"` // Unique, tamper-evident identifier
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model update data (weights, gradients, etc.)
+	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	// Canonical metadata (versioning, peer info, round, etc.)
+	Meta *v1.Metadata `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
+	// Unique, tamper-evident identifier
+	Hash          string `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -83,14 +87,20 @@ func (x *ModelUpdate) GetHash() string {
 	return ""
 }
 
-// Model represents the current AI model state with metadata and hash for auditability.
+// Model represents the current AI model state with metadata and hash for
+// auditability.
 type Model struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`                               // Model weights, parameters, or state
-	Meta          *v1.Metadata           `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`                               // Canonical metadata (versioning, training params, performance, etc.)
-	Hash          string                 `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`                               // Unique, tamper-evident identifier
-	Version       string                 `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`                         // Model version string
-	ParentHash    string                 `protobuf:"bytes,5,opt,name=parent_hash,json=parentHash,proto3" json:"parent_hash,omitempty"` // (Optional) for lineage/ancestry tracking
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model weights, parameters, or state
+	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	// Canonical metadata (versioning, training params, performance, etc.)
+	Meta *v1.Metadata `protobuf:"bytes,2,opt,name=meta,proto3" json:"meta,omitempty"`
+	// Unique, tamper-evident identifier
+	Hash string `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`
+	// Model version string
+	Version string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	// (Optional) for lineage/ancestry tracking
+	ParentHash    string `protobuf:"bytes,5,opt,name=parent_hash,json=parentHash,proto3" json:"parent_hash,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

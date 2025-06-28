@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: scheduler/v1/scheduler.proto
 
-package schedulerpb
+package scheduler
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -1557,7 +1557,7 @@ const file_scheduler_v1_scheduler_proto_rawDesc = "" +
 	"\bListJobs\x12\x1d.scheduler.v1.ListJobsRequest\x1a\x1e.scheduler.v1.ListJobsResponse\x12C\n" +
 	"\x06GetJob\x12\x1b.scheduler.v1.GetJobRequest\x1a\x1c.scheduler.v1.GetJobResponse\x12C\n" +
 	"\x06RunJob\x12\x1b.scheduler.v1.RunJobRequest\x1a\x1c.scheduler.v1.RunJobResponse\x12R\n" +
-	"\vListJobRuns\x12 .scheduler.v1.ListJobRunsRequest\x1a!.scheduler.v1.ListJobRunsResponseBFZDgithub.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1;schedulerpbb\x06proto3"
+	"\vListJobRuns\x12 .scheduler.v1.ListJobRunsRequest\x1a!.scheduler.v1.ListJobRunsResponseB7Z5github.com/nmxmxh/master-ovasabi/api/protos/schedulerb\x06proto3"
 
 var (
 	file_scheduler_v1_scheduler_proto_rawDescOnce sync.Once

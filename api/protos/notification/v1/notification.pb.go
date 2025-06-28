@@ -84,10 +84,11 @@ func (NotificationStatus) EnumDescriptor() ([]byte, []int) {
 
 // --- Notification Core ---
 type Notification struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      int64                  `protobuf:"varint,13,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID reference to master table
-	MasterUuid    string                 `protobuf:"bytes,14,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	MasterId   int64                  `protobuf:"varint,13,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID reference to master table
+	MasterUuid string                 `protobuf:"bytes,14,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference
+	// to master table
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	CampaignId    int64                  `protobuf:"varint,15,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
 	Channel       string                 `protobuf:"bytes,4,opt,name=channel,proto3" json:"channel,omitempty"`                           // email, sms, push, in_app, broadcast, etc.
@@ -1942,7 +1943,7 @@ var File_notification_v1_notification_proto protoreflect.FileDescriptor
 
 const file_notification_v1_notification_proto_rawDesc = "" +
 	"\n" +
-	"\"notification/v1/notification.proto\x12\x0fnotification.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xd1\x04\n" +
+	"\"notification/v1/notification.proto\x12\x0fnotification.v1\x1a\x18common/v1/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd1\x04\n" +
 	"\fNotification\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\r \x01(\x03R\bmasterId\x12\x1f\n" +

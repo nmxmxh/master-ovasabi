@@ -31,7 +31,7 @@ type Referral struct {
 	MasterUuid         string                 `protobuf:"bytes,12,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`                           // Global UUID reference to master table
 	ReferrerMasterId   string                 `protobuf:"bytes,2,opt,name=referrer_master_id,json=referrerMasterId,proto3" json:"referrer_master_id,omitempty"`        // UUID of the user who referred
 	ReferrerMasterUuid string                 `protobuf:"bytes,13,opt,name=referrer_master_uuid,json=referrerMasterUuid,proto3" json:"referrer_master_uuid,omitempty"` // Global UUID of the user who referred
-	ReferredMasterId   string                 `protobuf:"bytes,3,opt,name=referred_master_id,json=referredMasterId,proto3" json:"referred_master_id,omitempty"`        // UUID of the user who was referred (if registered)
+	ReferredMasterId   string                 `protobuf:"bytes,3,opt,name=referred_master_id,json=referredMasterId,proto3" json:"referred_master_id,omitempty"`
 	ReferredMasterUuid string                 `protobuf:"bytes,14,opt,name=referred_master_uuid,json=referredMasterUuid,proto3" json:"referred_master_uuid,omitempty"` // Global UUID of the user who was referred
 	CampaignId         int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`                           // Campaign associated with the referral
 	DeviceHash         string                 `protobuf:"bytes,5,opt,name=device_hash,json=deviceHash,proto3" json:"device_hash,omitempty"`                            // Device identifier for fraud prevention
@@ -861,7 +861,7 @@ var File_referral_v1_referral_proto protoreflect.FileDescriptor
 
 const file_referral_v1_referral_proto_rawDesc = "" +
 	"\n" +
-	"\x1areferral/v1/referral.proto\x12\vreferral.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xc3\x04\n" +
+	"\x1areferral/v1/referral.proto\x12\vreferral.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc3\x04\n" +
 	"\bReferral\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\v \x01(\x03R\bmasterId\x12\x1f\n" +

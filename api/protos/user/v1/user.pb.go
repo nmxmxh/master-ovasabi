@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: user/v1/user.proto
 
-package userv1
+package user
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -192,7 +192,7 @@ type User struct {
 	ReferralCode string                 `protobuf:"bytes,6,opt,name=referral_code,json=referralCode,proto3" json:"referral_code,omitempty"`
 	ReferredBy   string                 `protobuf:"bytes,7,opt,name=referred_by,json=referredBy,proto3" json:"referred_by,omitempty"`
 	DeviceHash   string                 `protobuf:"bytes,8,opt,name=device_hash,json=deviceHash,proto3" json:"device_hash,omitempty"`
-	Location     string                 `protobuf:"bytes,9,opt,name=location,proto3" json:"location,omitempty"`
+	UserId       string                 `protobuf:"bytes,9,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // External user ID
 	CreatedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt    *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	PasswordHash string                 `protobuf:"bytes,12,opt,name=password_hash,json=passwordHash,proto3" json:"password_hash,omitempty"`
@@ -202,6 +202,7 @@ type User struct {
 	Status       UserStatus             `protobuf:"varint,16,opt,name=status,proto3,enum=user.v1.UserStatus" json:"status,omitempty"`
 	Tags         []string               `protobuf:"bytes,17,rep,name=tags,proto3" json:"tags,omitempty"`
 	ExternalIds  map[string]string      `protobuf:"bytes,18,rep,name=external_ids,json=externalIds,proto3" json:"external_ids,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Location     []string               `protobuf:"bytes,19,rep,name=location,proto3" json:"location,omitempty"`
 	// --- Social graph fields ---
 	UserGroupIds  []string `protobuf:"bytes,30,rep,name=user_group_ids,json=userGroupIds,proto3" json:"user_group_ids,omitempty"`
 	FriendIds     []string `protobuf:"bytes,31,rep,name=friend_ids,json=friendIds,proto3" json:"friend_ids,omitempty"`
@@ -297,9 +298,9 @@ func (x *User) GetDeviceHash() string {
 	return ""
 }
 
-func (x *User) GetLocation() string {
+func (x *User) GetUserId() string {
 	if x != nil {
-		return x.Location
+		return x.UserId
 	}
 	return ""
 }
@@ -363,6 +364,13 @@ func (x *User) GetTags() []string {
 func (x *User) GetExternalIds() map[string]string {
 	if x != nil {
 		return x.ExternalIds
+	}
+	return nil
+}
+
+func (x *User) GetLocation() []string {
+	if x != nil {
+		return x.Location
 	}
 	return nil
 }
@@ -1176,13 +1184,13 @@ func (x *GetUserByEmailResponse) GetUser() *User {
 }
 
 type UpdateUserRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	User           *User                  `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
-	FieldsToUpdate []string               `protobuf:"bytes,3,rep,name=fields_to_update,json=fieldsToUpdate,proto3" json:"fields_to_update,omitempty"`
-	Metadata       *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	User            *User                  `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	FieldsToUpdates []string               `protobuf:"bytes,3,rep,name=fields_to_updates,json=fieldsToUpdates,proto3" json:"fields_to_updates,omitempty"`
+	Metadata        *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpdateUserRequest) Reset() {
@@ -1229,9 +1237,9 @@ func (x *UpdateUserRequest) GetUser() *User {
 	return nil
 }
 
-func (x *UpdateUserRequest) GetFieldsToUpdate() []string {
+func (x *UpdateUserRequest) GetFieldsToUpdates() []string {
 	if x != nil {
-		return x.FieldsToUpdate
+		return x.FieldsToUpdates
 	}
 	return nil
 }
@@ -1673,12 +1681,12 @@ func (x *UpdatePasswordResponse) GetUpdatedAt() int64 {
 }
 
 type UpdateProfileRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Profile        *UserProfile           `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
-	FieldsToUpdate []string               `protobuf:"bytes,3,rep,name=fields_to_update,json=fieldsToUpdate,proto3" json:"fields_to_update,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Profile         *UserProfile           `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	FieldsToUpdates []string               `protobuf:"bytes,3,rep,name=fields_to_updates,json=fieldsToUpdates,proto3" json:"fields_to_updates,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpdateProfileRequest) Reset() {
@@ -1725,9 +1733,9 @@ func (x *UpdateProfileRequest) GetProfile() *UserProfile {
 	return nil
 }
 
-func (x *UpdateProfileRequest) GetFieldsToUpdate() []string {
+func (x *UpdateProfileRequest) GetFieldsToUpdates() []string {
 	if x != nil {
-		return x.FieldsToUpdate
+		return x.FieldsToUpdates
 	}
 	return nil
 }
@@ -2850,8 +2858,8 @@ func (x *ListAuditLogsResponse) GetTotalCount() int32 {
 type UserEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID for analytics/unified queries
-	MasterUuid    string                 `protobuf:"bytes,3,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID for external APIs and global uniqueness
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterUuid    string                 `protobuf:"bytes,3,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
 	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	EventType     string                 `protobuf:"bytes,5,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	Description   string                 `protobuf:"bytes,6,opt,name=description,proto3" json:"description,omitempty"`
@@ -2958,8 +2966,8 @@ func (x *UserEvent) GetPayload() map[string]string {
 type AuditLog struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`      // Internal integer ID for analytics/unified queries
-	MasterUuid    string                 `protobuf:"bytes,3,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID for external APIs and global uniqueness
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterUuid    string                 `protobuf:"bytes,3,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
 	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Action        string                 `protobuf:"bytes,5,opt,name=action,proto3" json:"action,omitempty"`
 	Resource      string                 `protobuf:"bytes,6,opt,name=resource,proto3" json:"resource,omitempty"`
@@ -4111,7 +4119,7 @@ func (x *ListFollowingRequest) GetMetadata() *v1.Metadata {
 
 type ListFollowingResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Following     []*User                `protobuf:"bytes,1,rep,name=following,proto3" json:"following,omitempty"`
+	Followings    []*User                `protobuf:"bytes,1,rep,name=followings,proto3" json:"followings,omitempty"`
 	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
 	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
 	TotalPages    int32                  `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
@@ -4149,9 +4157,9 @@ func (*ListFollowingResponse) Descriptor() ([]byte, []int) {
 	return file_user_v1_user_proto_rawDescGZIP(), []int{65}
 }
 
-func (x *ListFollowingResponse) GetFollowing() []*User {
+func (x *ListFollowingResponse) GetFollowings() []*User {
 	if x != nil {
-		return x.Following
+		return x.Followings
 	}
 	return nil
 }
@@ -4299,13 +4307,13 @@ func (x *CreateUserGroupResponse) GetUserGroup() *UserGroup {
 }
 
 type UpdateUserGroupRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserGroupId    string                 `protobuf:"bytes,1,opt,name=user_group_id,json=userGroupId,proto3" json:"user_group_id,omitempty"`
-	UserGroup      *UserGroup             `protobuf:"bytes,2,opt,name=user_group,json=userGroup,proto3" json:"user_group,omitempty"`
-	FieldsToUpdate []string               `protobuf:"bytes,3,rep,name=fields_to_update,json=fieldsToUpdate,proto3" json:"fields_to_update,omitempty"`
-	Metadata       *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserGroupId     string                 `protobuf:"bytes,1,opt,name=user_group_id,json=userGroupId,proto3" json:"user_group_id,omitempty"`
+	UserGroup       *UserGroup             `protobuf:"bytes,2,opt,name=user_group,json=userGroup,proto3" json:"user_group,omitempty"`
+	FieldsToUpdates []string               `protobuf:"bytes,3,rep,name=fields_to_updates,json=fieldsToUpdates,proto3" json:"fields_to_updates,omitempty"`
+	Metadata        *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpdateUserGroupRequest) Reset() {
@@ -4352,9 +4360,9 @@ func (x *UpdateUserGroupRequest) GetUserGroup() *UserGroup {
 	return nil
 }
 
-func (x *UpdateUserGroupRequest) GetFieldsToUpdate() []string {
+func (x *UpdateUserGroupRequest) GetFieldsToUpdates() []string {
 	if x != nil {
-		return x.FieldsToUpdate
+		return x.FieldsToUpdates
 	}
 	return nil
 }
@@ -5872,10 +5880,10 @@ func (x *MuteGroupContentResponse) GetSuccess() bool {
 // Mute all members of a group for a user (optionally, with a duration)
 type MuteGroupIndividualsRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                             // The user performing the mute
-	GroupId         string                 `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`                          // The group whose members are to be muted
-	DurationMinutes int32                  `protobuf:"varint,3,opt,name=duration_minutes,json=durationMinutes,proto3" json:"duration_minutes,omitempty"` // Optional: mute duration
-	Metadata        *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`                                       // Extensible metadata
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	GroupId         string                 `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	DurationMinutes int32                  `protobuf:"varint,3,opt,name=duration_minutes,json=durationMinutes,proto3" json:"duration_minutes,omitempty"`
+	Metadata        *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -5941,7 +5949,7 @@ func (x *MuteGroupIndividualsRequest) GetMetadata() *v1.Metadata {
 type MuteGroupIndividualsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	MutedUserIds  []string               `protobuf:"bytes,2,rep,name=muted_user_ids,json=mutedUserIds,proto3" json:"muted_user_ids,omitempty"` // List of muted individuals
+	MutedUserIds  []string               `protobuf:"bytes,2,rep,name=muted_user_ids,json=mutedUserIds,proto3" json:"muted_user_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5990,13 +5998,12 @@ func (x *MuteGroupIndividualsResponse) GetMutedUserIds() []string {
 	return nil
 }
 
-// Block all members of a group for a user (optionally, with a duration)
 type BlockGroupIndividualsRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                             // The user performing the block
-	GroupId         string                 `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`                          // The group whose members are to be blocked
-	DurationMinutes int32                  `protobuf:"varint,3,opt,name=duration_minutes,json=durationMinutes,proto3" json:"duration_minutes,omitempty"` // Optional: block duration
-	Metadata        *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`                                       // Extensible metadata
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	GroupId         string                 `protobuf:"bytes,2,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	DurationMinutes int32                  `protobuf:"varint,3,opt,name=duration_minutes,json=durationMinutes,proto3" json:"duration_minutes,omitempty"`
+	Metadata        *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -6062,7 +6069,7 @@ func (x *BlockGroupIndividualsRequest) GetMetadata() *v1.Metadata {
 type BlockGroupIndividualsResponse struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Success        bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	BlockedUserIds []string               `protobuf:"bytes,2,rep,name=blocked_user_ids,json=blockedUserIds,proto3" json:"blocked_user_ids,omitempty"` // List of blocked individuals
+	BlockedUserIds []string               `protobuf:"bytes,2,rep,name=blocked_user_ids,json=blockedUserIds,proto3" json:"blocked_user_ids,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -6723,7 +6730,7 @@ var File_user_v1_user_proto protoreflect.FileDescriptor
 
 const file_user_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"\x12user/v1/user.proto\x12\auser.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xf5\x06\n" +
+	"\x12user/v1/user.proto\x12\auser.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8e\a\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
@@ -6735,8 +6742,8 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\vreferred_by\x18\a \x01(\tR\n" +
 	"referredBy\x12\x1f\n" +
 	"\vdevice_hash\x18\b \x01(\tR\n" +
-	"deviceHash\x12\x1a\n" +
-	"\blocation\x18\t \x01(\tR\blocation\x129\n" +
+	"deviceHash\x12\x17\n" +
+	"\auser_id\x18\t \x01(\tR\x06userId\x129\n" +
 	"\n" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
@@ -6748,7 +6755,8 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x05roles\x18\x0f \x03(\tR\x05roles\x12+\n" +
 	"\x06status\x18\x10 \x01(\x0e2\x13.user.v1.UserStatusR\x06status\x12\x12\n" +
 	"\x04tags\x18\x11 \x03(\tR\x04tags\x12A\n" +
-	"\fexternal_ids\x18\x12 \x03(\v2\x1e.user.v1.User.ExternalIdsEntryR\vexternalIds\x12$\n" +
+	"\fexternal_ids\x18\x12 \x03(\v2\x1e.user.v1.User.ExternalIdsEntryR\vexternalIds\x12\x1a\n" +
+	"\blocation\x18\x13 \x03(\tR\blocation\x12$\n" +
 	"\x0euser_group_ids\x18\x1e \x03(\tR\fuserGroupIds\x12\x1d\n" +
 	"\n" +
 	"friend_ids\x18\x1f \x03(\tR\tfriendIds\x12!\n" +
@@ -6756,7 +6764,7 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\rfollowing_ids\x18! \x03(\tR\ffollowingIds\x1a>\n" +
 	"\x10ExternalIdsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x13\x10\x1eJ\x04\b\"\x10(\"\xe9\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x14\x10\x1eJ\x04\b\"\x10(\"\xe9\x02\n" +
 	"\vUserProfile\x12\x1d\n" +
 	"\n" +
 	"first_name\x18\x01 \x01(\tR\tfirstName\x12\x1b\n" +
@@ -6831,11 +6839,11 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x15GetUserByEmailRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\";\n" +
 	"\x16GetUserByEmailResponse\x12!\n" +
-	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\"\xa7\x01\n" +
+	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\"\xa9\x01\n" +
 	"\x11UpdateUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
-	"\x04user\x18\x02 \x01(\v2\r.user.v1.UserR\x04user\x12(\n" +
-	"\x10fields_to_update\x18\x03 \x03(\tR\x0efieldsToUpdate\x12,\n" +
+	"\x04user\x18\x02 \x01(\v2\r.user.v1.UserR\x04user\x12*\n" +
+	"\x11fields_to_updates\x18\x03 \x03(\tR\x0ffieldsToUpdates\x12,\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"7\n" +
 	"\x12UpdateUserResponse\x12!\n" +
 	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\"{\n" +
@@ -6869,11 +6877,11 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x16UpdatePasswordResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x02 \x01(\x03R\tupdatedAt\"\x89\x01\n" +
+	"updated_at\x18\x02 \x01(\x03R\tupdatedAt\"\x8b\x01\n" +
 	"\x14UpdateProfileRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12.\n" +
-	"\aprofile\x18\x02 \x01(\v2\x14.user.v1.UserProfileR\aprofile\x12(\n" +
-	"\x10fields_to_update\x18\x03 \x03(\tR\x0efieldsToUpdate\":\n" +
+	"\aprofile\x18\x02 \x01(\v2\x14.user.v1.UserProfileR\aprofile\x12*\n" +
+	"\x11fields_to_updates\x18\x03 \x03(\tR\x0ffieldsToUpdates\":\n" +
 	"\x15UpdateProfileResponse\x12!\n" +
 	"\x04user\x18\x01 \x01(\v2\r.user.v1.UserR\x04user\"l\n" +
 	"\x14CreateSessionRequest\x12\x17\n" +
@@ -7052,9 +7060,11 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12,\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\x9a\x01\n" +
-	"\x15ListFollowingResponse\x12+\n" +
-	"\tfollowing\x18\x01 \x03(\v2\r.user.v1.UserR\tfollowing\x12\x1f\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\x9c\x01\n" +
+	"\x15ListFollowingResponse\x12-\n" +
+	"\n" +
+	"followings\x18\x01 \x03(\v2\r.user.v1.UserR\n" +
+	"followings\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
@@ -7073,12 +7083,12 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"L\n" +
 	"\x17CreateUserGroupResponse\x121\n" +
 	"\n" +
-	"user_group\x18\x01 \x01(\v2\x12.user.v1.UserGroupR\tuserGroup\"\xc7\x01\n" +
+	"user_group\x18\x01 \x01(\v2\x12.user.v1.UserGroupR\tuserGroup\"\xc9\x01\n" +
 	"\x16UpdateUserGroupRequest\x12\"\n" +
 	"\ruser_group_id\x18\x01 \x01(\tR\vuserGroupId\x121\n" +
 	"\n" +
-	"user_group\x18\x02 \x01(\v2\x12.user.v1.UserGroupR\tuserGroup\x12(\n" +
-	"\x10fields_to_update\x18\x03 \x03(\tR\x0efieldsToUpdate\x12,\n" +
+	"user_group\x18\x02 \x01(\v2\x12.user.v1.UserGroupR\tuserGroup\x12*\n" +
+	"\x11fields_to_updates\x18\x03 \x03(\tR\x0ffieldsToUpdates\x12,\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"L\n" +
 	"\x17UpdateUserGroupResponse\x121\n" +
 	"\n" +
@@ -7310,7 +7320,7 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\vUnmuteGroup\x12\x1b.user.v1.UnmuteGroupRequest\x1a\x1c.user.v1.UnmuteGroupResponse\x12i\n" +
 	"\x16UnmuteGroupIndividuals\x12&.user.v1.UnmuteGroupIndividualsRequest\x1a'.user.v1.UnmuteGroupIndividualsResponse\x12l\n" +
 	"\x17UnblockGroupIndividuals\x12'.user.v1.UnblockGroupIndividualsRequest\x1a(.user.v1.UnblockGroupIndividualsResponse\x12Q\n" +
-	"\x0eRefreshSession\x12\x1e.user.v1.RefreshSessionRequest\x1a\x1f.user.v1.RefreshSessionResponseB*Z(master-ovasabi/api/protos/user/v1;userv1b\x06proto3"
+	"\x0eRefreshSession\x12\x1e.user.v1.RefreshSessionRequest\x1a\x1f.user.v1.RefreshSessionResponseB Z\x1emaster-ovasabi/api/protos/userb\x06proto3"
 
 var (
 	file_user_v1_user_proto_rawDescOnce sync.Once
@@ -7511,7 +7521,7 @@ var file_user_v1_user_proto_depIdxs = []int32{
 	122, // 56: user.v1.ListFollowersRequest.metadata:type_name -> common.Metadata
 	3,   // 57: user.v1.ListFollowersResponse.followers:type_name -> user.v1.User
 	122, // 58: user.v1.ListFollowingRequest.metadata:type_name -> common.Metadata
-	3,   // 59: user.v1.ListFollowingResponse.following:type_name -> user.v1.User
+	3,   // 59: user.v1.ListFollowingResponse.followings:type_name -> user.v1.User
 	120, // 60: user.v1.CreateUserGroupRequest.roles:type_name -> user.v1.CreateUserGroupRequest.RolesEntry
 	122, // 61: user.v1.CreateUserGroupRequest.metadata:type_name -> common.Metadata
 	5,   // 62: user.v1.CreateUserGroupResponse.user_group:type_name -> user.v1.UserGroup

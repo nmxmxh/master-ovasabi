@@ -22,17 +22,25 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// IntegrationPattern defines a structured, reusable workflow composed of multiple steps.
-// This formalizes the JSON-based patterns for machine readability and validation,
+// IntegrationPattern defines a structured, reusable workflow composed of
+// multiple steps.
+// This formalizes the JSON-based patterns for machine readability and
+// validation,
 // replacing the informal definitions in documentation.
 type IntegrationPattern struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                   // Unique identifier for the pattern (e.g., "identity_unification_pattern").
-	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`         // Version of the pattern schema.
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"` // Human-readable description of what the pattern does.
-	Steps         []*PatternStep         `protobuf:"bytes,4,rep,name=steps,proto3" json:"steps,omitempty"`             // The sequence of actions that make up the workflow.
-	Metadata      *Metadata              `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`       // Canonical metadata for orchestration, scheduling, and context.
-	Payload       *Payload               `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`         // A default or initial payload for the pattern.
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Unique identifier for the pattern (e.g., "identity_unification_pattern").
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Version of the pattern schema.
+	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// Human-readable description of what the pattern does.
+	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	// The sequence of actions that make up the workflow.
+	Steps []*PatternStep `protobuf:"bytes,4,rep,name=steps,proto3" json:"steps,omitempty"`
+	// Canonical metadata for orchestration, scheduling, and context.
+	Metadata *Metadata `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// A default or initial payload for the pattern.
+	Payload       *Payload `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -111,11 +119,15 @@ func (x *IntegrationPattern) GetPayload() *Payload {
 
 // PatternStep represents a single action within an IntegrationPattern.
 type PatternStep struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`                            // The service responsible for the action (e.g., "user", "auth").
-	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`                        // The specific action to perform (e.g., "create_identity").
-	Parameters    *structpb.Struct       `protobuf:"bytes,3,opt,name=parameters,proto3" json:"parameters,omitempty"`                // Structured parameters for the action.
-	DependsOn     []string               `protobuf:"bytes,4,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"` // A list of step actions this step depends on.
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service responsible for the action (e.g., "user", "auth").
+	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	// The specific action to perform (e.g., "create_identity").
+	Action string `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	// Structured parameters for the action.
+	Parameters *structpb.Struct `protobuf:"bytes,3,opt,name=parameters,proto3" json:"parameters,omitempty"`
+	// A list of step actions this step depends on.
+	DependsOns    []string `protobuf:"bytes,4,rep,name=depends_ons,json=dependsOns,proto3" json:"depends_ons,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -171,9 +183,9 @@ func (x *PatternStep) GetParameters() *structpb.Struct {
 	return nil
 }
 
-func (x *PatternStep) GetDependsOn() []string {
+func (x *PatternStep) GetDependsOns() []string {
 	if x != nil {
-		return x.DependsOn
+		return x.DependsOns
 	}
 	return nil
 }
@@ -182,22 +194,22 @@ var File_common_v1_patterns_proto protoreflect.FileDescriptor
 
 const file_common_v1_patterns_proto_rawDesc = "" +
 	"\n" +
-	"\x18common/v1/patterns.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\x1a\x17common/v1/payload.proto\"\xe4\x01\n" +
+	"\x18common/v1/patterns.proto\x12\x06common\x1a\x18common/v1/metadata.proto\x1a\x17common/v1/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xe4\x01\n" +
 	"\x12IntegrationPattern\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12)\n" +
 	"\x05steps\x18\x04 \x03(\v2\x13.common.PatternStepR\x05steps\x12,\n" +
 	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12)\n" +
-	"\apayload\x18\x06 \x01(\v2\x0f.common.PayloadR\apayload\"\x91\x01\n" +
+	"\apayload\x18\x06 \x01(\v2\x0f.common.PayloadR\apayload\"\x93\x01\n" +
 	"\vPatternStep\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\x127\n" +
 	"\n" +
 	"parameters\x18\x03 \x01(\v2\x17.google.protobuf.StructR\n" +
-	"parameters\x12\x1d\n" +
-	"\n" +
-	"depends_on\x18\x04 \x03(\tR\tdependsOnB@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
+	"parameters\x12\x1f\n" +
+	"\vdepends_ons\x18\x04 \x03(\tR\n" +
+	"dependsOnsB@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
 
 var (
 	file_common_v1_patterns_proto_rawDescOnce sync.Once

@@ -2750,7 +2750,8 @@ type Balance struct {
 	Currency  string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
 	Amount    float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
 	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	// Robust, extensible metadata for balances (see docs/amadeus/amadeus_context.md)
+	// Robust, extensible metadata for balances
+	// (see docs/amadeus/amadeus_context.md)
 	Metadata      *v1.Metadata `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CampaignId    int64        `protobuf:"varint,6,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2966,7 +2967,8 @@ type CommerceEvent struct {
 	EventType  string                 `protobuf:"bytes,4,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	Payload    *structpb.Struct       `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
 	CreatedAt  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	// Robust, extensible metadata for analytics/audit (see docs/amadeus/amadeus_context.md)
+	// Robust, extensible metadata for analytics/audit
+	// (see docs/amadeus/amadeus_context.md)
 	Metadata      *v1.Metadata `protobuf:"bytes,7,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CampaignId    int64        `protobuf:"varint,8,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -6648,7 +6650,7 @@ var File_commerce_v1_commerce_proto protoreflect.FileDescriptor
 
 const file_commerce_v1_commerce_proto_rawDesc = "" +
 	"\n" +
-	"\x1acommerce/v1/commerce.proto\x12\vcommerce.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xcf\x01\n" +
+	"\x1acommerce/v1/commerce.proto\x12\vcommerce.v1\x1a\x18common/v1/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcf\x01\n" +
 	"\x12CreateQuoteRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +

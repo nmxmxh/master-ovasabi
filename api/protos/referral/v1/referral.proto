@@ -2,23 +2,26 @@ syntax = "proto3";
 
 package referral.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/referral";
-
-import "google/protobuf/timestamp.proto";
 import "common/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/referral";
 
 // Robust, extensible metadata for all services
 
 // ReferralService manages user referrals and rewards
 service ReferralService {
   // CreateReferral creates a new referral code for a user
-  rpc CreateReferral(CreateReferralRequest) returns (CreateReferralResponse) {}
+  rpc CreateReferral(CreateReferralRequest)
+      returns (CreateReferralResponse) {}
   // GetReferral retrieves a referral by referral code
   rpc GetReferral(GetReferralRequest) returns (GetReferralResponse) {}
   // GetReferralStats retrieves referral statistics
-  rpc GetReferralStats(GetReferralStatsRequest) returns (GetReferralStatsResponse) {}
+  rpc GetReferralStats(GetReferralStatsRequest)
+      returns (GetReferralStatsResponse) {}
   // RegisterReferral registers a new referral
-  rpc RegisterReferral(RegisterReferralRequest) returns (RegisterReferralResponse) {}
+  rpc RegisterReferral(RegisterReferralRequest)
+      returns (RegisterReferralResponse) {}
   // RewardReferral rewards a referral
   rpc RewardReferral(RewardReferralRequest) returns (RewardReferralResponse) {}
 }
@@ -30,7 +33,7 @@ message Referral {
   string master_uuid = 12; // Global UUID reference to master table
   string referrer_master_id = 2; // UUID of the user who referred
   string referrer_master_uuid = 13; // Global UUID of the user who referred
-  string referred_master_id = 3; // UUID of the user who was referred (if registered)
+  string referred_master_id = 3;
   string referred_master_uuid = 14; // Global UUID of the user who was referred
   int64 campaign_id = 4; // Campaign associated with the referral
   string device_hash = 5; // Device identifier for fraud prevention
@@ -116,4 +119,4 @@ message RewardReferralRequest {
 message RewardReferralResponse {
   Referral referral = 1;
   bool success = 2;
-} 
+}

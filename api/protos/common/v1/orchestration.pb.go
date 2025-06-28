@@ -29,7 +29,8 @@ type OrchestrationEvent struct {
 	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"` // "orchestration.error" or "orchestration.success"
 	Orchestration *OrchestrationPayload  `protobuf:"bytes,2,opt,name=orchestration,proto3" json:"orchestration,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"` // Envelope version for evolution
-	Payload       *Payload               `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"` // Canonical, extensible payload for event-specific data
+	// Canonical, extensible payload for event-specific data
+	Payload       *Payload `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -107,7 +108,8 @@ type OrchestrationPayload struct {
 	ActorId       string                 `protobuf:"bytes,10,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`       // User or system actor
 	RequestId     string                 `protobuf:"bytes,11,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"` // For tracing
 	Tags          []string               `protobuf:"bytes,12,rep,name=tags,proto3" json:"tags,omitempty"`                            // For analytics, routing, etc.
-	Extra         *anypb.Any             `protobuf:"bytes,13,opt,name=extra,proto3" json:"extra,omitempty"`                          // For future extensibility (e.g., custom payloads)
+	// For future extensibility (e.g., custom payloads)
+	Extra         *anypb.Any `protobuf:"bytes,13,opt,name=extra,proto3" json:"extra,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -237,7 +239,7 @@ var File_common_v1_orchestration_proto protoreflect.FileDescriptor
 
 const file_common_v1_orchestration_proto_rawDesc = "" +
 	"\n" +
-	"\x1dcommon/v1/orchestration.proto\x12\x06common\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x19google/protobuf/any.proto\x1a\x18common/v1/metadata.proto\x1a\x17common/v1/payload.proto\"\xb1\x01\n" +
+	"\x1dcommon/v1/orchestration.proto\x12\x06common\x1a\x18common/v1/metadata.proto\x1a\x17common/v1/payload.proto\x1a\x19google/protobuf/any.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb1\x01\n" +
 	"\x12OrchestrationEvent\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12B\n" +
 	"\rorchestration\x18\x02 \x01(\v2\x1c.common.OrchestrationPayloadR\rorchestration\x12\x18\n" +

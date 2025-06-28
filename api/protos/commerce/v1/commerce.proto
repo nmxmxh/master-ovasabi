@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package commerce.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1;commercepb";
-
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1;commercepb";
 
 // Robust, extensible metadata for all services
 
@@ -20,7 +20,8 @@ service CommerceService {
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
-  rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (UpdateOrderStatusResponse);
+  rpc UpdateOrderStatus(UpdateOrderStatusRequest)
+    returns (UpdateOrderStatusResponse);
 
   // Payments
   rpc InitiatePayment(InitiatePaymentRequest) returns (InitiatePaymentResponse);
@@ -29,7 +30,8 @@ service CommerceService {
 
   // Transactions
   rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
-  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+  rpc ListTransactions(ListTransactionsRequest)
+    returns (ListTransactionsResponse);
 
   // Balances
   rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
@@ -39,30 +41,41 @@ service CommerceService {
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
 
   // Investment
-  rpc CreateInvestmentAccount(CreateInvestmentAccountRequest) returns (CreateInvestmentAccountResponse);
-  rpc GetInvestmentAccount(GetInvestmentAccountRequest) returns (GetInvestmentAccountResponse);
-  rpc PlaceInvestmentOrder(PlaceInvestmentOrderRequest) returns (PlaceInvestmentOrderResponse);
+  rpc CreateInvestmentAccount(CreateInvestmentAccountRequest)
+    returns (CreateInvestmentAccountResponse);
+  rpc GetInvestmentAccount(GetInvestmentAccountRequest)
+    returns (GetInvestmentAccountResponse);
+  rpc PlaceInvestmentOrder(PlaceInvestmentOrderRequest)
+    returns (PlaceInvestmentOrderResponse);
   rpc GetPortfolio(GetPortfolioRequest) returns (GetPortfolioResponse);
   rpc ListAssets(ListAssetsRequest) returns (ListAssetsResponse);
   rpc ListPortfolios(ListPortfoliosRequest) returns (ListPortfoliosResponse);
 
   // Banking
-  rpc CreateBankAccount(CreateBankAccountRequest) returns (CreateBankAccountResponse);
-  rpc InitiateBankTransfer(InitiateBankTransferRequest) returns (InitiateBankTransferResponse);
-  rpc GetBankStatement(GetBankStatementRequest) returns (GetBankStatementResponse);
+  rpc CreateBankAccount(CreateBankAccountRequest)
+    returns (CreateBankAccountResponse);
+  rpc InitiateBankTransfer(InitiateBankTransferRequest)
+    returns (InitiateBankTransferResponse);
+  rpc GetBankStatement(GetBankStatementRequest)
+    returns (GetBankStatementResponse);
 
   // Marketplace
   rpc CreateListing(CreateListingRequest) returns (CreateListingResponse);
-  rpc PlaceMarketplaceOrder(PlaceMarketplaceOrderRequest) returns (PlaceMarketplaceOrderResponse);
+  rpc PlaceMarketplaceOrder(PlaceMarketplaceOrderRequest)
+    returns (PlaceMarketplaceOrderResponse);
   rpc MakeOffer(MakeOfferRequest) returns (MakeOfferResponse);
   rpc ListListings(ListListingsRequest) returns (ListListingsResponse);
 
   // Exchange
-  rpc PlaceExchangeOrder(PlaceExchangeOrderRequest) returns (PlaceExchangeOrderResponse);
+  rpc PlaceExchangeOrder(PlaceExchangeOrderRequest)
+    returns (PlaceExchangeOrderResponse);
   rpc GetExchangeRate(GetExchangeRateRequest) returns (GetExchangeRateResponse);
-  rpc ListExchangePairs(ListExchangePairsRequest) returns (ListExchangePairsResponse);
-  rpc CreateExchangePair(CreateExchangePairRequest) returns (CreateExchangePairResponse);
-  rpc CreateExchangeRate(CreateExchangeRateRequest) returns (CreateExchangeRateResponse);
+  rpc ListExchangePairs(ListExchangePairsRequest)
+    returns (ListExchangePairsResponse);
+  rpc CreateExchangePair(CreateExchangePairRequest)
+    returns (CreateExchangePairResponse);
+  rpc CreateExchangeRate(CreateExchangeRateRequest)
+    returns (CreateExchangeRateResponse);
 }
 
 // --- Quotes ---
@@ -296,7 +309,8 @@ message Balance {
   string currency = 2;
   double amount = 3;
   google.protobuf.Timestamp updated_at = 4;
-  // Robust, extensible metadata for balances (see docs/amadeus/amadeus_context.md)
+  // Robust, extensible metadata for balances 
+  // (see docs/amadeus/amadeus_context.md)
   common.Metadata metadata = 5;
   int64 campaign_id = 6;
 }
@@ -320,7 +334,8 @@ message CommerceEvent {
   string event_type = 4;
   google.protobuf.Struct payload = 5;
   google.protobuf.Timestamp created_at = 6;
-  // Robust, extensible metadata for analytics/audit (see docs/amadeus/amadeus_context.md)
+  // Robust, extensible metadata for analytics/audit 
+  // (see docs/amadeus/amadeus_context.md)
   common.Metadata metadata = 7;
   int64 campaign_id = 8;
 }
@@ -533,8 +548,6 @@ message ExchangeRate {
   common.Metadata metadata = 4;
   int64 campaign_id = 5;
 }
-
-// Add request/response messages for new RPCs as needed (scaffold only, fill in details as you implement)
 
 // Investment
 message CreateInvestmentAccountRequest {
@@ -749,4 +762,4 @@ message CreateExchangeRateRequest {
 
 message CreateExchangeRateResponse {
   ExchangeRate rate = 1;
-} 
+}

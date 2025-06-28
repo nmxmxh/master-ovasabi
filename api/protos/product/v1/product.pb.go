@@ -132,15 +132,15 @@ func (ProductStatus) EnumDescriptor() ([]byte, []int) {
 type Product struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId         int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`       // Internal integer ID reference to master table
-	MasterUuid       string                 `protobuf:"bytes,14,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID reference to master table
+	MasterId         int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterUuid       string                 `protobuf:"bytes,14,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
 	Name             string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Description      string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
 	Type             ProductType            `protobuf:"varint,5,opt,name=type,proto3,enum=product.v1.ProductType" json:"type,omitempty"`
 	Status           ProductStatus          `protobuf:"varint,6,opt,name=status,proto3,enum=product.v1.ProductStatus" json:"status,omitempty"`
 	Tags             []string               `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty"`
 	Variants         []*ProductVariant      `protobuf:"bytes,8,rep,name=variants,proto3" json:"variants,omitempty"`
-	Metadata         *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for orchestration, AI/ML, etc.
+	Metadata         *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	CreatedAt        int64                  `protobuf:"varint,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt        int64                  `protobuf:"varint,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	MainImageUrl     string                 `protobuf:"bytes,12,opt,name=main_image_url,json=mainImageUrl,proto3" json:"main_image_url,omitempty"`
@@ -308,7 +308,7 @@ type ProductVariant struct {
 	CompareAtPrice float64                `protobuf:"fixed64,11,opt,name=compare_at_price,json=compareAtPrice,proto3" json:"compare_at_price,omitempty"`
 	CreatedAt      int64                  `protobuf:"varint,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt      int64                  `protobuf:"varint,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Metadata       *v1.Metadata           `protobuf:"bytes,14,opt,name=metadata,proto3" json:"metadata,omitempty"` // Extensible metadata for orchestration, AI/ML, etc.
+	Metadata       *v1.Metadata           `protobuf:"bytes,14,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }

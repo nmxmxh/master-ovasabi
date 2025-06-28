@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package campaign.v1;
 
-import "google/protobuf/timestamp.proto";
 import "common/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/campaign";
 

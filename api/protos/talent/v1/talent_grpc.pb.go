@@ -4,7 +4,7 @@
 // - protoc             v5.29.3
 // source: talent/v1/talent.proto
 
-package talentpb
+package talent
 
 import (
 	context "context"

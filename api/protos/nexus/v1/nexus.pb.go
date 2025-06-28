@@ -30,12 +30,12 @@ const (
 type RegisterPatternRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PatternId     string                 `protobuf:"bytes,1,opt,name=pattern_id,json=patternId,proto3" json:"pattern_id,omitempty"`
-	PatternType   string                 `protobuf:"bytes,2,opt,name=pattern_type,json=patternType,proto3" json:"pattern_type,omitempty"` // workflow, data, ai, etc.
+	PatternType   string                 `protobuf:"bytes,2,opt,name=pattern_type,json=patternType,proto3" json:"pattern_type,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	Origin        string                 `protobuf:"bytes,4,opt,name=origin,proto3" json:"origin,omitempty"`         // manual, mined, imported
-	Definition    *v1.IntegrationPattern `protobuf:"bytes,5,opt,name=definition,proto3" json:"definition,omitempty"` // Formalized pattern definition
+	Origin        string                 `protobuf:"bytes,4,opt,name=origin,proto3" json:"origin,omitempty"`
+	Definition    *v1.IntegrationPattern `protobuf:"bytes,5,opt,name=definition,proto3" json:"definition,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	CampaignId    int64                  `protobuf:"varint,7,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -183,7 +183,7 @@ type ListPatternsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PatternType   string                 `protobuf:"bytes,1,opt,name=pattern_type,json=patternType,proto3" json:"pattern_type,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -297,11 +297,11 @@ type Pattern struct {
 	PatternType   string                 `protobuf:"bytes,2,opt,name=pattern_type,json=patternType,proto3" json:"pattern_type,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	Origin        string                 `protobuf:"bytes,4,opt,name=origin,proto3" json:"origin,omitempty"`
-	Definition    *v1.IntegrationPattern `protobuf:"bytes,5,opt,name=definition,proto3" json:"definition,omitempty"` // Formalized pattern definition
+	Definition    *v1.IntegrationPattern `protobuf:"bytes,5,opt,name=definition,proto3" json:"definition,omitempty"`
 	UsageCount    int64                  `protobuf:"varint,6,opt,name=usage_count,json=usageCount,proto3" json:"usage_count,omitempty"`
 	LastUsed      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_used,json=lastUsed,proto3" json:"last_used,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,8,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,9,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	CampaignId    int64                  `protobuf:"varint,9,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -404,7 +404,7 @@ type OrchestrateRequest struct {
 	PatternId     string                 `protobuf:"bytes,1,opt,name=pattern_id,json=patternId,proto3" json:"pattern_id,omitempty"`
 	Input         *structpb.Struct       `protobuf:"bytes,2,opt,name=input,proto3" json:"input,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -709,9 +709,9 @@ func (x *TraceStep) GetDetails() *structpb.Struct {
 
 type MinePatternsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"` // events, logs, metadata, etc.
+	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -825,7 +825,7 @@ type FeedbackRequest struct {
 	Score         float32                `protobuf:"fixed32,2,opt,name=score,proto3" json:"score,omitempty"`
 	Comments      string                 `protobuf:"bytes,3,opt,name=comments,proto3" json:"comments,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -957,10 +957,10 @@ func (x *FeedbackResponse) GetMetadata() *v1.Metadata {
 
 type HandleOpsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Op            string                 `protobuf:"bytes,1,opt,name=op,proto3" json:"op,omitempty"`                                                                                   // e.g., "reload", "diagnostics", "stats"
-	Params        map[string]string      `protobuf:"bytes,2,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // operation-specific parameters
-	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                                       // for context, auth, etc.
-	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`                                                // campaign/tenant context
+	Op            string                 `protobuf:"bytes,1,opt,name=op,proto3" json:"op,omitempty"`
+	Params        map[string]string      `protobuf:"bytes,2,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CampaignId    int64                  `protobuf:"varint,4,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1027,7 +1027,7 @@ type HandleOpsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Data          *structpb.Struct       `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"` // optional, operation-specific result
+	Data          *structpb.Struct       `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1093,12 +1093,12 @@ func (x *HandleOpsResponse) GetMetadata() *v1.Metadata {
 
 type EventRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"` // Unique event identifier (new)
+	EventId       string                 `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
 	EventType     string                 `protobuf:"bytes,2,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	EntityId      string                 `protobuf:"bytes,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
-	Payload       *v1.Payload            `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`                          // Canonical business data (see common/v1/payload.proto)
+	CampaignId    int64                  `protobuf:"varint,5,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
+	Payload       *v1.Payload            `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1178,11 +1178,11 @@ func (x *EventRequest) GetPayload() *v1.Payload {
 type EventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	EventId       string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`       // Unique event identifier (new)
-	EventType     string                 `protobuf:"bytes,3,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"` // Canonical event type (new)
+	EventId       string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	EventType     string                 `protobuf:"bytes,3,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Payload       *v1.Payload            `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"` // Canonical business data (see common/v1/payload.proto)
+	Payload       *v1.Payload            `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1263,7 +1263,7 @@ type SubscribeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	EventTypes    []string               `protobuf:"bytes,1,rep,name=event_types,json=eventTypes,proto3" json:"event_types,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	CampaignId    int64                  `protobuf:"varint,3,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1322,7 +1322,7 @@ func (x *SubscribeRequest) GetCampaignId() int64 {
 type Nexus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// ... existing fields ...
-	CampaignId    int64 `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	CampaignId    int64 `protobuf:"varint,10,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1368,7 +1368,7 @@ var File_nexus_v1_nexus_proto protoreflect.FileDescriptor
 
 const file_nexus_v1_nexus_proto_rawDesc = "" +
 	"\n" +
-	"\x14nexus/v1/nexus.proto\x12\bnexus.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\x1a\x18common/v1/patterns.proto\x1a\x17common/v1/payload.proto\"\x97\x02\n" +
+	"\x14nexus/v1/nexus.proto\x12\bnexus.v1\x1a\x18common/v1/metadata.proto\x1a\x18common/v1/patterns.proto\x1a\x17common/v1/payload.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x97\x02\n" +
 	"\x16RegisterPatternRequest\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x01 \x01(\tR\tpatternId\x12!\n" +

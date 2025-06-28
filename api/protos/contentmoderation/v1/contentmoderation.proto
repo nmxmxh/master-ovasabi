@@ -7,9 +7,12 @@ import "common/v1/metadata.proto";
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1;contentmoderationpb";
 
 service ContentModerationService {
-  rpc SubmitContentForModeration(SubmitContentForModerationRequest) returns (SubmitContentForModerationResponse);
-  rpc GetModerationResult(GetModerationResultRequest) returns (GetModerationResultResponse);
-  rpc ListFlaggedContent(ListFlaggedContentRequest) returns (ListFlaggedContentResponse);
+  rpc SubmitContentForModeration(SubmitContentForModerationRequest)
+    returns (SubmitContentForModerationResponse);
+  rpc GetModerationResult(GetModerationResultRequest)
+    returns (GetModerationResultResponse);
+  rpc ListFlaggedContent(ListFlaggedContentRequest)
+    returns (ListFlaggedContentResponse);
   rpc ApproveContent(ApproveContentRequest) returns (ApproveContentResponse);
   rpc RejectContent(RejectContentRequest) returns (RejectContentResponse);
 }

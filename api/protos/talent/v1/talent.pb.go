@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: talent/v1/talent.proto
 
-package talentpb
+package talent
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -1671,7 +1671,7 @@ const file_talent_v1_talent_proto_rawDesc = "" +
 	"\x14SearchTalentProfiles\x12&.talent.v1.SearchTalentProfilesRequest\x1a'.talent.v1.SearchTalentProfilesResponse\x12I\n" +
 	"\n" +
 	"BookTalent\x12\x1c.talent.v1.BookTalentRequest\x1a\x1d.talent.v1.BookTalentResponse\x12O\n" +
-	"\fListBookings\x12\x1e.talent.v1.ListBookingsRequest\x1a\x1f.talent.v1.ListBookingsResponseB@Z>github.com/nmxmxh/master-ovasabi/api/protos/talent/v1;talentpbb\x06proto3"
+	"\fListBookings\x12\x1e.talent.v1.ListBookingsRequest\x1a\x1f.talent.v1.ListBookingsResponseB4Z2github.com/nmxmxh/master-ovasabi/api/protos/talentb\x06proto3"
 
 var (
 	file_talent_v1_talent_proto_rawDescOnce sync.Once

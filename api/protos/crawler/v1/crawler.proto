@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package crawler;
+
+import "common/v1/metadata.proto"; // Using the platform's canonical metadata
+// pattern
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/crawler";
+
+// --- Enums for Task and Content Management ---
+
+// TaskType defines the kind of resource the crawler should process.
+enum TaskType {
+  TASK_TYPE_UNSPECIFIED = 0;
+  TASK_TYPE_HTML = 1;
+  TASK_TYPE_TORRENT = 2;
+  TASK_TYPE_API = 3;
+  TASK_TYPE_FILE = 4;
+  TASK_TYPE_SOCKET = 5;
+  TASK_TYPE_BROWSER = 6; // For browser emulation
+}
+
+// TaskStatus represents the lifecycle of a crawl task.
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_PENDING = 1;
+  TASK_STATUS_PROCESSING = 2;
+  TASK_STATUS_COMPLETED = 3;
+  TASK_STATUS_FAILED = 4;
+  TASK_STATUS_QUARANTINED = 5; // For tasks that fail security/cleaning
+}
+
+// ContentType describes the nature of the extracted content.
+enum ContentType {
+  CONTENT_TYPE_UNSPECIFIED = 0;
+  CONTENT_TYPE_TEXT = 1;
+  CONTENT_TYPE_IMAGE = 2;
+  CONTENT_TYPE_AUDIO = 3;
+  CONTENT_TYPE_VIDEO = 4;
+  CONTENT_TYPE_BINARY = 5;
+}
+
+// --- Core Messages ---
+
+// CrawlTask represents a job for a worker to execute.
+// It is designed to be traceable, secure, and extensible.
+message CrawlTask {
+  // Unique identifier for traceability and idempotency.
+  string uuid = 1;
+  // The type of worker to use for this task.
+  TaskType type = 2;
+  // The resource to crawl (URL, file path, magnet link, etc.).
+  string target = 3;
+  // Recursion depth control. 0 means no recursion.
+  int32 depth = 4;
+  // e.g., ["no-executable", "text-only", "max-size:10MB"]
+  repeated string filters = 5;
+  // Current status of the task.
+  TaskStatus status = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  // Canonical metadata for orchestration, context, and extensibility.
+  common.Metadata metadata = 9;
+}
+
+// CrawlResult is the output from a worker after processing a task.
+message CrawlResult {
+  // Corresponds to the CrawlTask UUID.
+  string task_uuid = 1;
+  // Final status of the task.
+  TaskStatus status = 2;
+  // Raw or cleaned content.
+  bytes extracted_content = 3;
+  // Links discovered during crawl.
+  repeated string extracted_links = 4;
+  // Details on failure.
+  string error_message = 5;
+  // Enriched metadata from the crawl process.
+  common.Metadata metadata = 6;
+}
+
+// AIRequest is sent to the AI Enrichment Service for processing.
+// It contains cleaned, context-rich data ready for inference.
+message AIRequest {
+  // Corresponds to the CrawlTask UUID.
+  string task_uuid = 1;
+  // Content after passing through the cleaning pipeline.
+  bytes clean_content = 2;
+  // Type of content for model selection.
+  ContentType content_type = 3;
+  // Contextual metadata (source, language, entities).
+  common.Metadata metadata = 4;
+}
+
+// --- Service Definitions ---
+
+// CrawlerService defines the gRPC interface for the Devourer Crawler System.
+service CrawlerService {
+  // SubmitTask sends a new crawl task to the orchestrator.
+  // Returns a response with the task UUID and initial status.
+  rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
+
+  // GetTaskStatus retrieves the current status of a crawl task.
+  rpc GetTaskStatus(GetTaskStatusRequest) returns (CrawlTask);
+
+  // StreamResults provides a real-time stream of results for a given task.
+  // This is ideal for long-running crawls or monitoring.
+  rpc StreamResults(StreamResultsRequest) returns (stream CrawlResult);
+}
+
+// --- Request/Response Messages for RPCs ---
+
+message SubmitTaskRequest {
+  CrawlTask task = 1;
+}
+
+message SubmitTaskResponse {
+  string uuid = 1;
+  TaskStatus status = 2;
+  string message = 3; // e.g., "Task submitted successfully"
+}
+
+message GetTaskStatusRequest {
+  string uuid = 1;
+}
+
+message StreamResultsRequest {
+  string task_uuid = 1;
+}

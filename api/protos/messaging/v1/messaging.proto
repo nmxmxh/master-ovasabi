@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package messaging.v1;
 
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1;messagingpb";
 
@@ -12,7 +12,8 @@ option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1;me
 service MessagingService {
   // --- Direct & Group Messaging ---
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse) {}
-  rpc SendGroupMessage(SendGroupMessageRequest) returns (SendGroupMessageResponse) {}
+  rpc SendGroupMessage(SendGroupMessageRequest)
+    returns (SendGroupMessageResponse) {}
   rpc EditMessage(EditMessageRequest) returns (EditMessageResponse) {}
   rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse) {}
   rpc ReactToMessage(ReactToMessageRequest) returns (ReactToMessageResponse) {}
@@ -21,7 +22,8 @@ service MessagingService {
   rpc GetMessage(GetMessageRequest) returns (GetMessageResponse) {}
   rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {}
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse) {}
-  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse) {}
+  rpc ListConversations(ListConversationsRequest)
+    returns (ListConversationsResponse) {}
 
   // --- Real-Time Streaming ---
   rpc StreamMessages(StreamMessagesRequest) returns (stream MessageEvent) {}
@@ -30,20 +32,28 @@ service MessagingService {
 
   // --- Read/Delivery/Ack ---
   rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse) {}
-  rpc MarkAsDelivered(MarkAsDeliveredRequest) returns (MarkAsDeliveredResponse) {}
-  rpc AcknowledgeMessage(AcknowledgeMessageRequest) returns (AcknowledgeMessageResponse) {}
+  rpc MarkAsDelivered(MarkAsDeliveredRequest)
+    returns (MarkAsDeliveredResponse) {}
+  rpc AcknowledgeMessage(AcknowledgeMessageRequest)
+    returns (AcknowledgeMessageResponse) {}
 
   // --- Group Management ---
-  rpc CreateChatGroup(CreateChatGroupRequest) returns (CreateChatGroupResponse) {}
-  rpc AddChatGroupMember(AddChatGroupMemberRequest) returns (AddChatGroupMemberResponse) {}
-  rpc RemoveChatGroupMember(RemoveChatGroupMemberRequest) returns (RemoveChatGroupMemberResponse) {}
-  rpc ListChatGroupMembers(ListChatGroupMembersRequest) returns (ListChatGroupMembersResponse) {}
+  rpc CreateChatGroup(CreateChatGroupRequest)
+    returns (CreateChatGroupResponse) {}
+  rpc AddChatGroupMember(AddChatGroupMemberRequest)
+    returns (AddChatGroupMemberResponse) {}
+  rpc RemoveChatGroupMember(RemoveChatGroupMemberRequest)
+    returns (RemoveChatGroupMemberResponse) {}
+  rpc ListChatGroupMembers(ListChatGroupMembersRequest)
+    returns (ListChatGroupMembersResponse) {}
 
   // --- Preferences ---
-  rpc UpdateMessagingPreferences(UpdateMessagingPreferencesRequest) returns (UpdateMessagingPreferencesResponse) {}
+  rpc UpdateMessagingPreferences(UpdateMessagingPreferencesRequest)
+    returns (UpdateMessagingPreferencesResponse) {}
 
   // --- Analytics/Events ---
-  rpc ListMessageEvents(ListMessageEventsRequest) returns (ListMessageEventsResponse) {}
+  rpc ListMessageEvents(ListMessageEventsRequest)
+    returns (ListMessageEventsResponse) {}
 }
 
 // --- Core Entities ---
@@ -149,7 +159,9 @@ message SendMessageRequest {
   string campaign_id = 11; // optional
   string talent_id = 12; // optional
 }
-message SendMessageResponse { Message message = 1; }
+message SendMessageResponse {
+  Message message = 1;
+}
 
 message SendGroupMessageRequest {
   string chat_group_id = 1;
@@ -162,7 +174,9 @@ message SendGroupMessageRequest {
   string campaign_id = 8; // optional
   string talent_id = 9; // optional
 }
-message SendGroupMessageResponse { Message message = 1; }
+message SendGroupMessageResponse {
+  Message message = 1;
+}
 
 message EditMessageRequest {
   string message_id = 1;
@@ -174,7 +188,9 @@ message EditMessageRequest {
   string campaign_id = 7; // optional
   string talent_id = 8; // optional
 }
-message EditMessageResponse { Message message = 1; }
+message EditMessageResponse {
+  Message message = 1;
+}
 
 message DeleteMessageRequest {
   string message_id = 1;
@@ -184,7 +200,9 @@ message DeleteMessageRequest {
   string campaign_id = 5; // optional
   string talent_id = 6; // optional
 }
-message DeleteMessageResponse { bool success = 1; }
+message DeleteMessageResponse {
+  bool success = 1;
+}
 
 message ReactToMessageRequest {
   string message_id = 1;
@@ -195,10 +213,16 @@ message ReactToMessageRequest {
   string campaign_id = 6; // optional
   string talent_id = 7; // optional
 }
-message ReactToMessageResponse { Message message = 1; }
+message ReactToMessageResponse {
+  Message message = 1;
+}
 
-message GetMessageRequest { string message_id = 1; }
-message GetMessageResponse { Message message = 1; }
+message GetMessageRequest {
+  string message_id = 1;
+}
+message GetMessageResponse {
+  Message message = 1;
+}
 
 message ListMessagesRequest {
   string thread_id = 1;
@@ -270,7 +294,7 @@ message MessageEvent {
   string thread_id = 3;
   string conversation_id = 4;
   string chat_group_id = 5;
-  string event_type = 6; // sent, delivered, read, edited, deleted, reaction, etc.
+  string event_type = 6;
   google.protobuf.Struct payload = 7;
   google.protobuf.Timestamp created_at = 8;
   string product_id = 9; // optional
@@ -323,7 +347,9 @@ message MarkAsReadRequest {
   string campaign_id = 5; // optional
   string talent_id = 6; // optional
 }
-message MarkAsReadResponse { bool success = 1; }
+message MarkAsReadResponse {
+  bool success = 1;
+}
 
 message MarkAsDeliveredRequest {
   string message_id = 1;
@@ -333,7 +359,9 @@ message MarkAsDeliveredRequest {
   string campaign_id = 5; // optional
   string talent_id = 6; // optional
 }
-message MarkAsDeliveredResponse { bool success = 1; }
+message MarkAsDeliveredResponse {
+  bool success = 1;
+}
 
 message AcknowledgeMessageRequest {
   string message_id = 1;
@@ -343,7 +371,9 @@ message AcknowledgeMessageRequest {
   string campaign_id = 5; // optional
   string talent_id = 6; // optional
 }
-message AcknowledgeMessageResponse { bool success = 1; }
+message AcknowledgeMessageResponse {
+  bool success = 1;
+}
 
 // --- Group Management ---
 message CreateChatGroupRequest {
@@ -356,7 +386,9 @@ message CreateChatGroupRequest {
   string campaign_id = 11; // optional
   string talent_id = 12; // optional
 }
-message CreateChatGroupResponse { ChatGroup chat_group = 1; }
+message CreateChatGroupResponse {
+  ChatGroup chat_group = 1;
+}
 message AddChatGroupMemberRequest {
   string chat_group_id = 1;
   string user_id = 2;
@@ -366,7 +398,9 @@ message AddChatGroupMemberRequest {
   string campaign_id = 6; // optional
   string talent_id = 7; // optional
 }
-message AddChatGroupMemberResponse { ChatGroup chat_group = 1; }
+message AddChatGroupMemberResponse {
+  ChatGroup chat_group = 1;
+}
 message RemoveChatGroupMemberRequest {
   string chat_group_id = 1;
   string user_id = 2;
@@ -375,7 +409,9 @@ message RemoveChatGroupMemberRequest {
   string campaign_id = 5; // optional
   string talent_id = 6; // optional
 }
-message RemoveChatGroupMemberResponse { ChatGroup chat_group = 1; }
+message RemoveChatGroupMemberResponse {
+  ChatGroup chat_group = 1;
+}
 message ListChatGroupMembersRequest {
   string chat_group_id = 1;
   int32 page = 2;

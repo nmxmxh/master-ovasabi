@@ -2,27 +2,31 @@ syntax = "proto3";
 
 package localization.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1;localizationpb";
-
-import "google/protobuf/timestamp.proto";
 import "common/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1;localizationpb";
 
 service LocalizationService {
   // Translation
   rpc Translate(TranslateRequest) returns (TranslateResponse);
   rpc BatchTranslate(BatchTranslateRequest) returns (BatchTranslateResponse);
-  rpc CreateTranslation(CreateTranslationRequest) returns (CreateTranslationResponse);
+  rpc CreateTranslation(CreateTranslationRequest)
+    returns (CreateTranslationResponse);
   rpc GetTranslation(GetTranslationRequest) returns (GetTranslationResponse);
-  rpc ListTranslations(ListTranslationsRequest) returns (ListTranslationsResponse);
+  rpc ListTranslations(ListTranslationsRequest)
+    returns (ListTranslationsResponse);
 
   // Pricing
   rpc GetPricingRule(GetPricingRuleRequest) returns (GetPricingRuleResponse);
   rpc SetPricingRule(SetPricingRuleRequest) returns (SetPricingRuleResponse);
-  rpc ListPricingRules(ListPricingRulesRequest) returns (ListPricingRulesResponse);
+  rpc ListPricingRules(ListPricingRulesRequest)
+    returns (ListPricingRulesResponse);
 
   // Locale metadata
   rpc ListLocales(ListLocalesRequest) returns (ListLocalesResponse);
-  rpc GetLocaleMetadata(GetLocaleMetadataRequest) returns (GetLocaleMetadataResponse);
+  rpc GetLocaleMetadata(GetLocaleMetadataRequest)
+    returns (GetLocaleMetadataResponse);
 }
 
 message TranslateRequest {
@@ -124,7 +128,8 @@ message PricingRule {
   google.protobuf.Timestamp updated_at = 14;
 }
 
-message ListLocalesRequest {}
+message ListLocalesRequest {
+}
 message ListLocalesResponse {
   repeated Locale locales = 1;
 }
@@ -151,4 +156,4 @@ message Localization {
   common.Metadata metadata = 5;
   google.protobuf.Timestamp created_at = 6;
   int64 campaign_id = 7;
-} 
+}

@@ -78,9 +78,15 @@ message CreateContentRequest {
   Content content = 2;
 }
 
-message GetContentRequest { string id = 1; }
-message UpdateContentRequest { Content content = 1; }
-message DeleteContentRequest { string id = 1; }
+message GetContentRequest {
+  string id = 1;
+}
+message UpdateContentRequest {
+  Content content = 1;
+}
+message DeleteContentRequest {
+  string id = 1;
+}
 message ListContentRequest {
   int64 campaign_id = 1; // NEW: campaign/tenant context
   string author_id = 2;
@@ -103,26 +109,75 @@ message SearchContentRequest {
   int32 page_size = 6;
   reserved 7 to 19;
 }
-message ListContentResponse { repeated Content contents = 1; int32 total = 2; }
+message ListContentResponse {
+  repeated Content contents = 1;
+  int32 total = 2;
+}
 
-message AddCommentRequest { string content_id = 1; string author_id = 2; string body = 3; common.Metadata metadata = 4; }
-message CommentResponse { Comment comment = 1; }
-message ListCommentsRequest { string content_id = 1; int32 page = 2; int32 page_size = 3; }
-message ListCommentsResponse { repeated Comment comments = 1; int32 total = 2; }
-message DeleteCommentRequest { string comment_id = 1; }
-message DeleteCommentResponse { bool success = 1; }
+message AddCommentRequest {
+  string content_id = 1;
+  string author_id = 2;
+  string body = 3;
+  common.Metadata metadata = 4;
+}
+message CommentResponse {
+  Comment comment = 1;
+}
+message ListCommentsRequest {
+  string content_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+message ListCommentsResponse {
+  repeated Comment comments = 1;
+  int32 total = 2;
+}
+message DeleteCommentRequest {
+  string comment_id = 1;
+}
+message DeleteCommentResponse {
+  bool success = 1;
+}
 
-message AddReactionRequest { string content_id = 1; string user_id = 2; string reaction = 3; }
-message ReactionResponse { string content_id = 1; string reaction = 2; int32 count = 3; }
-message ListReactionsRequest { string content_id = 1; }
-message ListReactionsResponse { repeated ReactionResponse reactions = 1; }
+message AddReactionRequest {
+  string content_id = 1;
+  string user_id = 2;
+  string reaction = 3;
+}
+message ReactionResponse {
+  string content_id = 1;
+  string reaction = 2;
+  int32 count = 3;
+}
+message ListReactionsRequest {
+  string content_id = 1;
+}
+message ListReactionsResponse {
+  repeated ReactionResponse reactions = 1;
+}
 
-message LogContentEventRequest { ContentEvent event = 1; }
-message LogContentEventResponse { bool success = 1; }
+message LogContentEventRequest {
+  ContentEvent event = 1;
+}
+message LogContentEventResponse {
+  bool success = 1;
+}
 
 // Moderation hooks (stub)
-message ModerateContentRequest { string content_id = 1; string action = 2; string moderator_id = 3; string reason = 4; }
-message ModerateContentResponse { bool success = 1; string status = 2; }
+message ModerateContentRequest {
+  string content_id = 1;
+  string action = 2;
+  string moderator_id = 3;
+  string reason = 4;
+}
+message ModerateContentResponse {
+  bool success = 1;
+  string status = 2;
+}
 
-message ContentResponse { Content content = 1; }
-message DeleteContentResponse { bool success = 1; } 
+message ContentResponse {
+  Content content = 1;
+}
+message DeleteContentResponse {
+  bool success = 1;
+}

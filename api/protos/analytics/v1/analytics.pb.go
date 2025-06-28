@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: analytics/v1/analytics.proto
 
-package analyticspb
+package v1
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -24,18 +24,22 @@ const (
 )
 
 type Event struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`       // Internal integer ID for analytics/unified queries
-	MasterUuid    string                 `protobuf:"bytes,10,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"` // Global UUID for external APIs and global uniqueness
-	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	EventType     string                 `protobuf:"bytes,4,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
-	EntityId      string                 `protobuf:"bytes,5,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
-	EntityType    string                 `protobuf:"bytes,6,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
-	Properties    map[string]string      `protobuf:"bytes,7,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Timestamp     int64                  `protobuf:"varint,8,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Metadata      *v1.Metadata           `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`                         // Robust, extensible metadata
-	CampaignId    int64                  `protobuf:"varint,11,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // campaign/tenant context
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Internal integer ID for analytics/unified queries
+	MasterId int64 `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	// Global UUID for external APIs and global uniqueness
+	MasterUuid string            `protobuf:"bytes,10,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
+	UserId     string            `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	EventType  string            `protobuf:"bytes,4,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	EntityId   string            `protobuf:"bytes,5,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	EntityType string            `protobuf:"bytes,6,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
+	Properties map[string]string `protobuf:"bytes,7,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Timestamp  int64             `protobuf:"varint,8,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Robust, extensible metadata
+	Metadata *v1.Metadata `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// campaign/tenant context
+	CampaignId    int64 `protobuf:"varint,11,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1303,7 +1307,7 @@ var File_analytics_v1_analytics_proto protoreflect.FileDescriptor
 
 const file_analytics_v1_analytics_proto_rawDesc = "" +
 	"\n" +
-	"\x1canalytics/v1/analytics.proto\x12\fanalytics.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xbc\x03\n" +
+	"\x1canalytics/v1/analytics.proto\x12\fanalytics.v1\x1a\x18common/v1/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xbc\x03\n" +
 	"\x05Event\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
@@ -1440,7 +1444,7 @@ const file_analytics_v1_analytics_proto_rawDesc = "" +
 	"\fCaptureEvent\x12!.analytics.v1.CaptureEventRequest\x1a\".analytics.v1.CaptureEventResponse\x12O\n" +
 	"\n" +
 	"ListEvents\x12\x1f.analytics.v1.ListEventsRequest\x1a .analytics.v1.ListEventsResponse\x12j\n" +
-	"\x13EnrichEventMetadata\x12(.analytics.v1.EnrichEventMetadataRequest\x1a).analytics.v1.EnrichEventMetadataResponseBFZDgithub.com/nmxmxh/master-ovasabi/api/protos/analytics/v1;analyticspbb\x06proto3"
+	"\x13EnrichEventMetadata\x12(.analytics.v1.EnrichEventMetadataRequest\x1a).analytics.v1.EnrichEventMetadataResponseB:Z8github.com/nmxmxh/master-ovasabi/api/protos/analytics/v1b\x06proto3"
 
 var (
 	file_analytics_v1_analytics_proto_rawDescOnce sync.Once

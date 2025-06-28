@@ -2,44 +2,54 @@ syntax = "proto3";
 
 package notification.v1;
 
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/notification/v1;notificationpb";
 
 // Robust, extensible metadata for all services
 
-// Unified NotificationService: handles notifications, broadcasts, real-time events, and asset streaming
 service NotificationService {
   // Generic notification send (channel-agnostic)
-  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse) {}
+  rpc SendNotification(SendNotificationRequest)
+      returns (SendNotificationResponse) {}
   // Channel-specific sends (for compatibility)
   rpc SendEmail(SendEmailRequest) returns (SendEmailResponse) {}
   rpc SendSMS(SendSMSRequest) returns (SendSMSResponse) {}
-  rpc SendPushNotification(SendPushNotificationRequest) returns (SendPushNotificationResponse) {}
+  rpc SendPushNotification(SendPushNotificationRequest)
+      returns (SendPushNotificationResponse) {}
   // Broadcasts
   rpc BroadcastEvent(BroadcastEventRequest) returns (BroadcastEventResponse) {}
   // Real-time pub/sub
-  rpc SubscribeToEvents(SubscribeToEventsRequest) returns (stream NotificationEvent) {}
+  rpc SubscribeToEvents(SubscribeToEventsRequest)
+      returns (stream NotificationEvent) {}
   // Asset streaming (for live events/media)
-  rpc StreamAssetChunks(StreamAssetChunksRequest) returns (stream AssetChunk) {}
-  rpc PublishAssetChunk(PublishAssetChunkRequest) returns (PublishAssetChunkResponse) {}
+  rpc StreamAssetChunks(StreamAssetChunksRequest) 
+      returns (stream AssetChunk) {}
+  rpc PublishAssetChunk(PublishAssetChunkRequest)
+      returns (PublishAssetChunkResponse) {}
   // Notification management
-  rpc GetNotification(GetNotificationRequest) returns (GetNotificationResponse) {}
-  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse) {}
-  rpc AcknowledgeNotification(AcknowledgeNotificationRequest) returns (AcknowledgeNotificationResponse) {}
+  rpc GetNotification(GetNotificationRequest) 
+      returns (GetNotificationResponse) {}
+  rpc ListNotifications(ListNotificationsRequest)
+      returns (ListNotificationsResponse) {}
+  rpc AcknowledgeNotification(AcknowledgeNotificationRequest)
+      returns (AcknowledgeNotificationResponse) {}
   // Preferences
-  rpc UpdateNotificationPreferences(UpdateNotificationPreferencesRequest) returns (UpdateNotificationPreferencesResponse) {}
+  rpc UpdateNotificationPreferences(UpdateNotificationPreferencesRequest)
+      returns (UpdateNotificationPreferencesResponse) {}
   // Analytics/events
-  rpc ListNotificationEvents(ListNotificationEventsRequest) returns (ListNotificationEventsResponse) {}
+  rpc ListNotificationEvents(ListNotificationEventsRequest)
+      returns (ListNotificationEventsResponse) {}
 }
 
 // --- Notification Core ---
 message Notification {
   string id = 1;
   int64 master_id = 13; // Internal integer ID reference to master table
-  string master_uuid = 14; // Global UUID reference to master table
+  string master_uuid = 14; // Global UUID reference
+  // to master table
   string user_id = 2;
   int64 campaign_id = 15; // campaign/tenant context
   string channel = 4; // email, sms, push, in_app, broadcast, etc.

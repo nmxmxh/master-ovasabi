@@ -2208,7 +2208,7 @@ type MessageEvent struct {
 	ThreadId       string                 `protobuf:"bytes,3,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
 	ConversationId string                 `protobuf:"bytes,4,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
 	ChatGroupId    string                 `protobuf:"bytes,5,opt,name=chat_group_id,json=chatGroupId,proto3" json:"chat_group_id,omitempty"`
-	EventType      string                 `protobuf:"bytes,6,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"` // sent, delivered, read, edited, deleted, reaction, etc.
+	EventType      string                 `protobuf:"bytes,6,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	Payload        *structpb.Struct       `protobuf:"bytes,7,opt,name=payload,proto3" json:"payload,omitempty"`
 	CreatedAt      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	ProductId      string                 `protobuf:"bytes,9,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`     // optional
@@ -4041,7 +4041,7 @@ var File_messaging_v1_messaging_proto protoreflect.FileDescriptor
 
 const file_messaging_v1_messaging_proto_rawDesc = "" +
 	"\n" +
-	"\x1cmessaging/v1/messaging.proto\x12\fmessaging.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x18common/v1/metadata.proto\"\xac\x05\n" +
+	"\x1cmessaging/v1/messaging.proto\x12\fmessaging.v1\x1a\x18common/v1/metadata.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xac\x05\n" +
 	"\aMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tthread_id\x18\x02 \x01(\tR\bthreadId\x12'\n" +

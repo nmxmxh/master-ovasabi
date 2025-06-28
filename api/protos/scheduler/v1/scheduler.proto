@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package scheduler.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1;schedulerpb";
-
 import "common/v1/metadata.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/scheduler";
 
 service SchedulerService {
   rpc CreateJob(CreateJobRequest) returns (CreateJobResponse);
@@ -155,4 +155,4 @@ message JobRun {
   common.Metadata metadata = 8;
   string master_uuid = 9; // Master UUID
   int64 campaign_id = 10; // campaign/tenant context
-} 
+}

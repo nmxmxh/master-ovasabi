@@ -75,37 +75,22 @@ func (MediaType) EnumDescriptor() ([]byte, []int) {
 
 // Media represents a media file and its metadata
 type Media struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Unique identifier
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Internal integer ID reference to master table
-	MasterId int64 `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
-	// Global UUID reference to master table
-	MasterUuid string `protobuf:"bytes,15,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
-	// Owner user ID
-	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// Media type (light/heavy)
-	Type MediaType `protobuf:"varint,4,opt,name=type,proto3,enum=media.v1.MediaType" json:"type,omitempty"`
-	// Media name
-	Name string `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
-	// MIME type
-	MimeType string `protobuf:"bytes,6,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
-	// Size in bytes
-	Size int64 `protobuf:"varint,7,opt,name=size,proto3" json:"size,omitempty"`
-	// Binary data for light media
-	Data []byte `protobuf:"bytes,8,opt,name=data,proto3" json:"data,omitempty"`
-	// URL for heavy media
-	Url string `protobuf:"bytes,9,opt,name=url,proto3" json:"url,omitempty"`
-	// Whether this is a system media
-	IsSystem bool `protobuf:"varint,10,opt,name=is_system,json=isSystem,proto3" json:"is_system,omitempty"`
-	// Creation timestamp
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	// Last update timestamp
-	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	// Deletion timestamp (if soft deleted)
-	DeletedAt *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
-	// Additional metadata
-	Metadata      *v1.Metadata `protobuf:"bytes,14,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	MasterId      int64                  `protobuf:"varint,2,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterUuid    string                 `protobuf:"bytes,15,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Type          MediaType              `protobuf:"varint,4,opt,name=type,proto3,enum=media.v1.MediaType" json:"type,omitempty"`
+	Name          string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
+	MimeType      string                 `protobuf:"bytes,6,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
+	Size          int64                  `protobuf:"varint,7,opt,name=size,proto3" json:"size,omitempty"`
+	Data          []byte                 `protobuf:"bytes,8,opt,name=data,proto3" json:"data,omitempty"`
+	Url           string                 `protobuf:"bytes,9,opt,name=url,proto3" json:"url,omitempty"`
+	IsSystem      bool                   `protobuf:"varint,10,opt,name=is_system,json=isSystem,proto3" json:"is_system,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	DeletedAt     *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,14,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1830,7 +1815,7 @@ var File_media_v1_media_proto protoreflect.FileDescriptor
 
 const file_media_v1_media_proto_rawDesc = "" +
 	"\n" +
-	"\x14media/v1/media.proto\x12\bmedia.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xfe\x03\n" +
+	"\x14media/v1/media.proto\x12\bmedia.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfe\x03\n" +
 	"\x05Media\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +

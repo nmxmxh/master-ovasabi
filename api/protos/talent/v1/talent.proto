@@ -4,15 +4,21 @@ package talent.v1;
 
 import "common/v1/metadata.proto";
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/talent/v1;talentpb";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/talent";
 
 service TalentService {
-  rpc CreateTalentProfile(CreateTalentProfileRequest) returns (CreateTalentProfileResponse);
-  rpc UpdateTalentProfile(UpdateTalentProfileRequest) returns (UpdateTalentProfileResponse);
-  rpc DeleteTalentProfile(DeleteTalentProfileRequest) returns (DeleteTalentProfileResponse);
-  rpc GetTalentProfile(GetTalentProfileRequest) returns (GetTalentProfileResponse);
-  rpc ListTalentProfiles(ListTalentProfilesRequest) returns (ListTalentProfilesResponse);
-  rpc SearchTalentProfiles(SearchTalentProfilesRequest) returns (SearchTalentProfilesResponse);
+  rpc CreateTalentProfile(CreateTalentProfileRequest)
+      returns (CreateTalentProfileResponse);
+  rpc UpdateTalentProfile(UpdateTalentProfileRequest)
+      returns (UpdateTalentProfileResponse);
+  rpc DeleteTalentProfile(DeleteTalentProfileRequest)
+      returns (DeleteTalentProfileResponse);
+  rpc GetTalentProfile(GetTalentProfileRequest)
+      returns (GetTalentProfileResponse);
+  rpc ListTalentProfiles(ListTalentProfilesRequest)
+      returns (ListTalentProfilesResponse);
+  rpc SearchTalentProfiles(SearchTalentProfilesRequest) 
+      returns (SearchTalentProfilesResponse);
   rpc BookTalent(BookTalentRequest) returns (BookTalentResponse);
   rpc ListBookings(ListBookingsRequest) returns (ListBookingsResponse);
 }
@@ -68,18 +74,69 @@ message Booking {
   int64 campaign_id = 10;
 }
 
-message CreateTalentProfileRequest { TalentProfile profile = 1; int64 campaign_id = 2; }
-message CreateTalentProfileResponse { TalentProfile profile = 1; int64 campaign_id = 2; }
-message UpdateTalentProfileRequest { TalentProfile profile = 1; int64 campaign_id = 2; }
-message UpdateTalentProfileResponse { TalentProfile profile = 1; int64 campaign_id = 2; }
-message DeleteTalentProfileRequest { string profile_id = 1; int64 campaign_id = 2; }
-message DeleteTalentProfileResponse { bool success = 1; int64 campaign_id = 2; }
-message GetTalentProfileRequest { string profile_id = 1; int64 campaign_id = 2; }
-message GetTalentProfileResponse { TalentProfile profile = 1; int64 campaign_id = 2; }
-message ListTalentProfilesRequest { int32 page = 1; int32 page_size = 2; repeated string skills = 3; repeated string tags = 4; string location = 5; int64 campaign_id = 6; }
-message ListTalentProfilesResponse { repeated TalentProfile profiles = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; int64 campaign_id = 5; }
-message SearchTalentProfilesRequest { string query = 1; int32 page = 2; int32 page_size = 3; repeated string skills = 4; repeated string tags = 5; string location = 6; int64 campaign_id = 7; }
-message SearchTalentProfilesResponse { repeated TalentProfile profiles = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; int64 campaign_id = 5; }
+message CreateTalentProfileRequest {
+  TalentProfile profile = 1;
+  int64 campaign_id = 2;
+}
+message CreateTalentProfileResponse {
+  TalentProfile profile = 1;
+  int64 campaign_id = 2;
+}
+message UpdateTalentProfileRequest {
+  TalentProfile profile = 1;
+  int64 campaign_id = 2;
+}
+message UpdateTalentProfileResponse {
+  TalentProfile profile = 1;
+  int64 campaign_id = 2;
+}
+message DeleteTalentProfileRequest {
+  string profile_id = 1;
+  int64 campaign_id = 2;
+}
+message DeleteTalentProfileResponse {
+  bool success = 1;
+  int64 campaign_id = 2;
+}
+message GetTalentProfileRequest {
+  string profile_id = 1;
+  int64 campaign_id = 2;
+}
+message GetTalentProfileResponse {
+  TalentProfile profile = 1;
+  int64 campaign_id = 2;
+}
+message ListTalentProfilesRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  repeated string skills = 3;
+  repeated string tags = 4;
+  string location = 5;
+  int64 campaign_id = 6;
+}
+message ListTalentProfilesResponse {
+  repeated TalentProfile profiles = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+  int64 campaign_id = 5;
+}
+message SearchTalentProfilesRequest {
+  string query = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  repeated string skills = 4;
+  repeated string tags = 5;
+  string location = 6;
+  int64 campaign_id = 7;
+}
+message SearchTalentProfilesResponse {
+  repeated TalentProfile profiles = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+  int64 campaign_id = 5;
+}
 message BookTalentRequest {
   string talent_id = 1;
   string user_id = 2;
@@ -89,6 +146,20 @@ message BookTalentRequest {
   common.Metadata metadata = 6;
   int64 campaign_id = 7;
 }
-message BookTalentResponse { Booking booking = 1; int64 campaign_id = 2; }
-message ListBookingsRequest { string user_id = 1; int32 page = 2; int32 page_size = 3; int64 campaign_id = 4; }
-message ListBookingsResponse { repeated Booking bookings = 1; int32 total_count = 2; int32 page = 3; int32 total_pages = 4; int64 campaign_id = 5; } 
+message BookTalentResponse {
+  Booking booking = 1;
+  int64 campaign_id = 2;
+}
+message ListBookingsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 campaign_id = 4;
+}
+message ListBookingsResponse {
+  repeated Booking bookings = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+  int64 campaign_id = 5;
+}

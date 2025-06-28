@@ -1491,7 +1491,7 @@ var File_localization_v1_localization_proto protoreflect.FileDescriptor
 
 const file_localization_v1_localization_proto_rawDesc = "" +
 	"\n" +
-	"\"localization/v1/localization.proto\x12\x0flocalization.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"<\n" +
+	"\"localization/v1/localization.proto\x12\x0flocalization.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"<\n" +
 	"\x10TranslateRequest\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x16\n" +
 	"\x06locale\x18\x02 \x01(\tR\x06locale\")\n" +

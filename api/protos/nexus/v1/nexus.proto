@@ -1,15 +1,16 @@
 // NexusService proto
 // See docs/services/nexus.md for full documentation and research inspirations.
 syntax = "proto3";
+
 package nexus.v1;
 
-option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/nexus";
-
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/struct.proto";
 import "common/v1/metadata.proto";
 import "common/v1/patterns.proto"; // Import the IntegrationPattern definition
 import "common/v1/payload.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/nexus";
 
 // NexusService: High-level composer, orchestrator, and pattern identifier
 service NexusService {
@@ -28,12 +29,12 @@ service NexusService {
 
 message RegisterPatternRequest {
   string pattern_id = 1;
-  string pattern_type = 2; // workflow, data, ai, etc.
+  string pattern_type = 2;
   string version = 3;
-  string origin = 4; // manual, mined, imported
-  common.IntegrationPattern definition = 5; // Formalized pattern definition
+  string origin = 4;
+  common.IntegrationPattern definition = 5;
   common.Metadata metadata = 6;
-  int64 campaign_id = 7; // campaign/tenant context
+  int64 campaign_id = 7;
 }
 
 message RegisterPatternResponse {
@@ -45,7 +46,7 @@ message RegisterPatternResponse {
 message ListPatternsRequest {
   string pattern_type = 1;
   common.Metadata metadata = 2;
-  int64 campaign_id = 3; // campaign/tenant context
+  int64 campaign_id = 3;
 }
 
 message ListPatternsResponse {
@@ -58,18 +59,18 @@ message Pattern {
   string pattern_type = 2;
   string version = 3;
   string origin = 4;
-  common.IntegrationPattern definition = 5; // Formalized pattern definition
+  common.IntegrationPattern definition = 5;
   int64 usage_count = 6;
   google.protobuf.Timestamp last_used = 7;
   common.Metadata metadata = 8;
-  int64 campaign_id = 9; // campaign/tenant context
+  int64 campaign_id = 9;
 }
 
 message OrchestrateRequest {
   string pattern_id = 1;
   google.protobuf.Struct input = 2;
   common.Metadata metadata = 3;
-  int64 campaign_id = 4; // campaign/tenant context
+  int64 campaign_id = 4;
 }
 
 message OrchestrateResponse {
@@ -97,9 +98,9 @@ message TraceStep {
 }
 
 message MinePatternsRequest {
-  string source = 1; // events, logs, metadata, etc.
+  string source = 1;
   common.Metadata metadata = 2;
-  int64 campaign_id = 3; // campaign/tenant context
+  int64 campaign_id = 3;
 }
 
 message MinePatternsResponse {
@@ -112,7 +113,7 @@ message FeedbackRequest {
   float score = 2;
   string comments = 3;
   common.Metadata metadata = 4;
-  int64 campaign_id = 5; // campaign/tenant context
+  int64 campaign_id = 5;
 }
 
 message FeedbackResponse {
@@ -122,45 +123,44 @@ message FeedbackResponse {
 }
 
 message HandleOpsRequest {
-  string op = 1; // e.g., "reload", "diagnostics", "stats"
-  map<string, string> params = 2; // operation-specific parameters
-  common.Metadata metadata = 3;   // for context, auth, etc.
-  int64 campaign_id = 4; // campaign/tenant context
+  string op = 1;
+  map<string, string> params = 2;
+  common.Metadata metadata = 3;
+  int64 campaign_id = 4;
 }
 
 message HandleOpsResponse {
   bool success = 1;
   string message = 2;
-  google.protobuf.Struct data = 3; // optional, operation-specific result
+  google.protobuf.Struct data = 3;
   common.Metadata metadata = 4;
 }
 
 message EventRequest {
-  string event_id = 1; // Unique event identifier (new)
+  string event_id = 1;
   string event_type = 2;
   string entity_id = 3;
   common.Metadata metadata = 4;
-  int64 campaign_id = 5; // campaign/tenant context
-  common.Payload payload = 6; // Canonical business data (see common/v1/payload.proto)
+  int64 campaign_id = 5;
+  common.Payload payload = 6;
 }
 
 message EventResponse {
   bool success = 1;
-  string event_id = 2; // Unique event identifier (new)
-  string event_type = 3; // Canonical event type (new)
+  string event_id = 2;
+  string event_type = 3;
   string message = 4;
   common.Metadata metadata = 5;
-  common.Payload payload = 6; // Canonical business data (see common/v1/payload.proto)
+  common.Payload payload = 6;
 }
 
 message SubscribeRequest {
   repeated string event_types = 1;
   common.Metadata metadata = 2;
-  int64 campaign_id = 3; // campaign/tenant context
+  int64 campaign_id = 3;
 }
 
 message Nexus {
   // ... existing fields ...
-  int64 campaign_id = 10; // campaign/tenant context
-  // ...
-} 
+  int64 campaign_id = 10;
+}

@@ -4,7 +4,7 @@
 // - protoc             v5.29.3
 // source: analytics/v1/analytics.proto
 
-package analyticspb
+package v1
 
 import (
 	context "context"
