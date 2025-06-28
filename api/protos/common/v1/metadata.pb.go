@@ -521,7 +521,7 @@ var File_common_v1_metadata_proto protoreflect.FileDescriptor
 
 const file_common_v1_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x18common/v1/metadata.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\x1a\x16common/v1/entity.proto\"\x84\x06\n" +
+	"\x18common/v1/metadata.proto\x12\x06common\x1a\x16common/v1/entity.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x84\x06\n" +
 	"\bMetadata\x127\n" +
 	"\n" +
 	"scheduling\x18\x01 \x01(\v2\x17.google.protobuf.StructR\n" +

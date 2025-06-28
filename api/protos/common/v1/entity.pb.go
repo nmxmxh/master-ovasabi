@@ -27,44 +27,44 @@ type EntityType int32
 const (
 	EntityType_ENTITY_TYPE_UNSPECIFIED EntityType = 0
 	// Core semantic types
-	EntityType_PERSON       EntityType = 1
-	EntityType_ORGANIZATION EntityType = 2
-	EntityType_LOCATION     EntityType = 3
-	EntityType_EVENT        EntityType = 4
+	EntityType_ENTITY_TYPE_PERSON       EntityType = 1
+	EntityType_ENTITY_TYPE_ORGANIZATION EntityType = 2
+	EntityType_ENTITY_TYPE_LOCATION     EntityType = 3
+	EntityType_ENTITY_TYPE_EVENT        EntityType = 4
 	// Domain-specific
-	EntityType_TECHNOLOGY  EntityType = 5 // e.g., "gRPC", "WebAssembly"
-	EntityType_METHODOLOGY EntityType = 6 // e.g., "Federated Learning"
-	EntityType_ARTIFACT    EntityType = 7 // e.g., "PDF Document", "Video Stream"
+	EntityType_ENTITY_TYPE_TECHNOLOGY  EntityType = 5 // e.g., "gRPC", "WebAssembly"
+	EntityType_ENTITY_TYPE_METHODOLOGY EntityType = 6 // e.g., "Federated Learning"
+	EntityType_ENTITY_TYPE_ARTIFACT    EntityType = 7 // e.g., "PDF Document", "Video Stream"
 	// Abstract concepts
-	EntityType_CONCEPT     EntityType = 8 // e.g., "Concurrency", "Security"
-	EntityType_MEASUREMENT EntityType = 9 // e.g., "Throughput", "Latency"
+	EntityType_ENTITY_TYPE_CONCEPT     EntityType = 8 // e.g., "Concurrency", "Security"
+	EntityType_ENTITY_TYPE_MEASUREMENT EntityType = 9 // e.g., "Throughput", "Latency"
 )
 
 // Enum value maps for EntityType.
 var (
 	EntityType_name = map[int32]string{
 		0: "ENTITY_TYPE_UNSPECIFIED",
-		1: "PERSON",
-		2: "ORGANIZATION",
-		3: "LOCATION",
-		4: "EVENT",
-		5: "TECHNOLOGY",
-		6: "METHODOLOGY",
-		7: "ARTIFACT",
-		8: "CONCEPT",
-		9: "MEASUREMENT",
+		1: "ENTITY_TYPE_PERSON",
+		2: "ENTITY_TYPE_ORGANIZATION",
+		3: "ENTITY_TYPE_LOCATION",
+		4: "ENTITY_TYPE_EVENT",
+		5: "ENTITY_TYPE_TECHNOLOGY",
+		6: "ENTITY_TYPE_METHODOLOGY",
+		7: "ENTITY_TYPE_ARTIFACT",
+		8: "ENTITY_TYPE_CONCEPT",
+		9: "ENTITY_TYPE_MEASUREMENT",
 	}
 	EntityType_value = map[string]int32{
-		"ENTITY_TYPE_UNSPECIFIED": 0,
-		"PERSON":                  1,
-		"ORGANIZATION":            2,
-		"LOCATION":                3,
-		"EVENT":                   4,
-		"TECHNOLOGY":              5,
-		"METHODOLOGY":             6,
-		"ARTIFACT":                7,
-		"CONCEPT":                 8,
-		"MEASUREMENT":             9,
+		"ENTITY_TYPE_UNSPECIFIED":  0,
+		"ENTITY_TYPE_PERSON":       1,
+		"ENTITY_TYPE_ORGANIZATION": 2,
+		"ENTITY_TYPE_LOCATION":     3,
+		"ENTITY_TYPE_EVENT":        4,
+		"ENTITY_TYPE_TECHNOLOGY":   5,
+		"ENTITY_TYPE_METHODOLOGY":  6,
+		"ENTITY_TYPE_ARTIFACT":     7,
+		"ENTITY_TYPE_CONCEPT":      8,
+		"ENTITY_TYPE_MEASUREMENT":  9,
 	}
 )
 
@@ -349,21 +349,19 @@ const file_common_v1_entity_proto_rawDesc = "" +
 	"\fRelationship\x12#\n" +
 	"\rtarget_entity\x18\x01 \x01(\tR\ftargetEntity\x12\x1c\n" +
 	"\tpredicate\x18\x02 \x01(\tR\tpredicate\x12\x16\n" +
-	"\x06weight\x18\x03 \x01(\x02R\x06weight*\xad\x01\n" +
+	"\x06weight\x18\x03 \x01(\x02R\x06weight*\x99\x02\n" +
 	"\n" +
 	"EntityType\x12\x1b\n" +
-	"\x17ENTITY_TYPE_UNSPECIFIED\x10\x00\x12\n" +
-	"\n" +
-	"\x06PERSON\x10\x01\x12\x10\n" +
-	"\fORGANIZATION\x10\x02\x12\f\n" +
-	"\bLOCATION\x10\x03\x12\t\n" +
-	"\x05EVENT\x10\x04\x12\x0e\n" +
-	"\n" +
-	"TECHNOLOGY\x10\x05\x12\x0f\n" +
-	"\vMETHODOLOGY\x10\x06\x12\f\n" +
-	"\bARTIFACT\x10\a\x12\v\n" +
-	"\aCONCEPT\x10\b\x12\x0f\n" +
-	"\vMEASUREMENT\x10\tB@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
+	"\x17ENTITY_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12ENTITY_TYPE_PERSON\x10\x01\x12\x1c\n" +
+	"\x18ENTITY_TYPE_ORGANIZATION\x10\x02\x12\x18\n" +
+	"\x14ENTITY_TYPE_LOCATION\x10\x03\x12\x15\n" +
+	"\x11ENTITY_TYPE_EVENT\x10\x04\x12\x1a\n" +
+	"\x16ENTITY_TYPE_TECHNOLOGY\x10\x05\x12\x1b\n" +
+	"\x17ENTITY_TYPE_METHODOLOGY\x10\x06\x12\x18\n" +
+	"\x14ENTITY_TYPE_ARTIFACT\x10\a\x12\x17\n" +
+	"\x13ENTITY_TYPE_CONCEPT\x10\b\x12\x1b\n" +
+	"\x17ENTITY_TYPE_MEASUREMENT\x10\tB@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
 
 var (
 	file_common_v1_entity_proto_rawDescOnce sync.Once

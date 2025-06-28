@@ -26,25 +26,25 @@ const (
 type SecurityAssessment_ThreatLevel int32
 
 const (
-	SecurityAssessment_THREAT_LEVEL_UNKNOWN   SecurityAssessment_ThreatLevel = 0
-	SecurityAssessment_THREAT_LEVEL_CLEAN     SecurityAssessment_ThreatLevel = 1
-	SecurityAssessment_THREAT_LEVEL_SUSPECT   SecurityAssessment_ThreatLevel = 2
-	SecurityAssessment_THREAT_LEVEL_MALICIOUS SecurityAssessment_ThreatLevel = 3
+	SecurityAssessment_THREAT_LEVEL_UNKNOWN_UNSPECIFIED SecurityAssessment_ThreatLevel = 0
+	SecurityAssessment_THREAT_LEVEL_CLEAN               SecurityAssessment_ThreatLevel = 1
+	SecurityAssessment_THREAT_LEVEL_SUSPECT             SecurityAssessment_ThreatLevel = 2
+	SecurityAssessment_THREAT_LEVEL_MALICIOUS           SecurityAssessment_ThreatLevel = 3
 )
 
 // Enum value maps for SecurityAssessment_ThreatLevel.
 var (
 	SecurityAssessment_ThreatLevel_name = map[int32]string{
-		0: "THREAT_LEVEL_UNKNOWN",
+		0: "THREAT_LEVEL_UNKNOWN_UNSPECIFIED",
 		1: "THREAT_LEVEL_CLEAN",
 		2: "THREAT_LEVEL_SUSPECT",
 		3: "THREAT_LEVEL_MALICIOUS",
 	}
 	SecurityAssessment_ThreatLevel_value = map[string]int32{
-		"THREAT_LEVEL_UNKNOWN":   0,
-		"THREAT_LEVEL_CLEAN":     1,
-		"THREAT_LEVEL_SUSPECT":   2,
-		"THREAT_LEVEL_MALICIOUS": 3,
+		"THREAT_LEVEL_UNKNOWN_UNSPECIFIED": 0,
+		"THREAT_LEVEL_CLEAN":               1,
+		"THREAT_LEVEL_SUSPECT":             2,
+		"THREAT_LEVEL_MALICIOUS":           3,
 	}
 )
 
@@ -196,7 +196,7 @@ func (x *SecurityAssessment) GetLevel() SecurityAssessment_ThreatLevel {
 	if x != nil {
 		return x.Level
 	}
-	return SecurityAssessment_THREAT_LEVEL_UNKNOWN
+	return SecurityAssessment_THREAT_LEVEL_UNKNOWN_UNSPECIFIED
 }
 
 func (x *SecurityAssessment) GetIndicators() []string {
@@ -899,22 +899,22 @@ var File_ai_v1_model_proto protoreflect.FileDescriptor
 
 const file_ai_v1_model_proto_rawDesc = "" +
 	"\n" +
-	"\x11ai/v1/model.proto\x12\x05ai.v1\x1a\x18common/v1/metadata.proto\x1a\x16common/v1/entity.proto\x1a\x18crawler/v1/crawler.proto\"\x9b\x01\n" +
+	"\x11ai/v1/model.proto\x12\x05ai.v1\x1a\x16common/v1/entity.proto\x1a\x18common/v1/metadata.proto\x1a\x18crawler/v1/crawler.proto\"\x9b\x01\n" +
 	"\fContentChunk\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\x12\x1a\n" +
 	"\bsequence\x18\x02 \x01(\x05R\bsequence\x12\x17\n" +
 	"\ais_last\x18\x03 \x01(\bR\x06isLast\x12\x1f\n" +
 	"\vtoken_count\x18\x04 \x01(\x05R\n" +
 	"tokenCount\x12!\n" +
-	"\fcontent_hash\x18\x05 \x01(\tR\vcontentHash\"\x91\x02\n" +
+	"\fcontent_hash\x18\x05 \x01(\tR\vcontentHash\"\x9e\x02\n" +
 	"\x12SecurityAssessment\x12;\n" +
 	"\x05level\x18\x01 \x01(\x0e2%.ai.v1.SecurityAssessment.ThreatLevelR\x05level\x12\x1e\n" +
 	"\n" +
 	"indicators\x18\x02 \x03(\tR\n" +
 	"indicators\x12'\n" +
-	"\x0fquarantine_path\x18\x03 \x01(\tR\x0equarantinePath\"u\n" +
-	"\vThreatLevel\x12\x18\n" +
-	"\x14THREAT_LEVEL_UNKNOWN\x10\x00\x12\x16\n" +
+	"\x0fquarantine_path\x18\x03 \x01(\tR\x0equarantinePath\"\x81\x01\n" +
+	"\vThreatLevel\x12$\n" +
+	" THREAT_LEVEL_UNKNOWN_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12THREAT_LEVEL_CLEAN\x10\x01\x12\x18\n" +
 	"\x14THREAT_LEVEL_SUSPECT\x10\x02\x12\x1a\n" +
 	"\x16THREAT_LEVEL_MALICIOUS\x10\x03\"\xa6\x02\n" +

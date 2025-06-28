@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package ai.v1;
 
-import "common/v1/metadata.proto";
 import "common/v1/entity.proto";
+import "common/v1/metadata.proto";
 import "crawler/v1/crawler.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/ai/v1;aipb";
@@ -22,7 +22,7 @@ message ContentChunk {
 // SecurityAssessment contains threat analysis results
 message SecurityAssessment {
   enum ThreatLevel {
-    THREAT_LEVEL_UNKNOWN = 0;
+    THREAT_LEVEL_UNKNOWN_UNSPECIFIED = 0;
     THREAT_LEVEL_CLEAN = 1;
     THREAT_LEVEL_SUSPECT = 2;
     THREAT_LEVEL_MALICIOUS = 3;

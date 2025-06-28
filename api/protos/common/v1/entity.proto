@@ -9,19 +9,19 @@ enum EntityType {
   ENTITY_TYPE_UNSPECIFIED = 0;
   
   // Core semantic types
-  PERSON = 1;
-  ORGANIZATION = 2;
-  LOCATION = 3;
-  EVENT = 4;
+  ENTITY_TYPE_PERSON = 1;
+  ENTITY_TYPE_ORGANIZATION = 2;
+  ENTITY_TYPE_LOCATION = 3;
+  ENTITY_TYPE_EVENT = 4;
   
   // Domain-specific
-  TECHNOLOGY = 5;       // e.g., "gRPC", "WebAssembly"
-  METHODOLOGY = 6;      // e.g., "Federated Learning"
-  ARTIFACT = 7;         // e.g., "PDF Document", "Video Stream"
+  ENTITY_TYPE_TECHNOLOGY = 5;       // e.g., "gRPC", "WebAssembly"
+  ENTITY_TYPE_METHODOLOGY = 6;      // e.g., "Federated Learning"
+  ENTITY_TYPE_ARTIFACT = 7;         // e.g., "PDF Document", "Video Stream"
   
   // Abstract concepts
-  CONCEPT = 8;          // e.g., "Concurrency", "Security"
-  MEASUREMENT = 9;      // e.g., "Throughput", "Latency"
+  ENTITY_TYPE_CONCEPT = 8;          // e.g., "Concurrency", "Security"
+  ENTITY_TYPE_MEASUREMENT = 9;      // e.g., "Throughput", "Latency"
 }
 
 // Entity represents a distinct real-world/conceptual object

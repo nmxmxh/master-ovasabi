@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package common;
 
-import "google/protobuf/struct.proto";
 import "common/v1/entity.proto";
+import "google/protobuf/struct.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
 
