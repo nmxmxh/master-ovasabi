@@ -249,9 +249,9 @@ func handleUpdatePreferences(w http.ResponseWriter, ctx context.Context, log *za
 	user.Metadata.ServiceSpecific.Fields["user"] = structpb.NewStructValue(userStruct)
 
 	updateReq := &userv1.UpdateUserRequest{
-		UserId:         userID,
-		User:           user,
-		FieldsToUpdate: []string{"metadata"},
+		UserId:          userID,
+		User:            user,
+		FieldsToUpdates: []string{"metadata"},
 	}
 
 	handleUserAction(w, ctx, log, reqMap, updateReq, userSvc.UpdateUser)

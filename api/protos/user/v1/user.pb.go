@@ -202,7 +202,7 @@ type User struct {
 	Status       UserStatus             `protobuf:"varint,16,opt,name=status,proto3,enum=user.v1.UserStatus" json:"status,omitempty"`
 	Tags         []string               `protobuf:"bytes,17,rep,name=tags,proto3" json:"tags,omitempty"`
 	ExternalIds  map[string]string      `protobuf:"bytes,18,rep,name=external_ids,json=externalIds,proto3" json:"external_ids,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Location     []string               `protobuf:"bytes,19,rep,name=location,proto3" json:"location,omitempty"`
+	Locations    []string               `protobuf:"bytes,19,rep,name=locations,proto3" json:"locations,omitempty"`
 	// --- Social graph fields ---
 	UserGroupIds  []string `protobuf:"bytes,30,rep,name=user_group_ids,json=userGroupIds,proto3" json:"user_group_ids,omitempty"`
 	FriendIds     []string `protobuf:"bytes,31,rep,name=friend_ids,json=friendIds,proto3" json:"friend_ids,omitempty"`
@@ -368,9 +368,9 @@ func (x *User) GetExternalIds() map[string]string {
 	return nil
 }
 
-func (x *User) GetLocation() []string {
+func (x *User) GetLocations() []string {
 	if x != nil {
-		return x.Location
+		return x.Locations
 	}
 	return nil
 }
@@ -6730,7 +6730,7 @@ var File_user_v1_user_proto protoreflect.FileDescriptor
 
 const file_user_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"\x12user/v1/user.proto\x12\auser.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8e\a\n" +
+	"\x12user/v1/user.proto\x12\auser.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x90\a\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tmaster_id\x18\x02 \x01(\x03R\bmasterId\x12\x1f\n" +
@@ -6755,8 +6755,8 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x05roles\x18\x0f \x03(\tR\x05roles\x12+\n" +
 	"\x06status\x18\x10 \x01(\x0e2\x13.user.v1.UserStatusR\x06status\x12\x12\n" +
 	"\x04tags\x18\x11 \x03(\tR\x04tags\x12A\n" +
-	"\fexternal_ids\x18\x12 \x03(\v2\x1e.user.v1.User.ExternalIdsEntryR\vexternalIds\x12\x1a\n" +
-	"\blocation\x18\x13 \x03(\tR\blocation\x12$\n" +
+	"\fexternal_ids\x18\x12 \x03(\v2\x1e.user.v1.User.ExternalIdsEntryR\vexternalIds\x12\x1c\n" +
+	"\tlocations\x18\x13 \x03(\tR\tlocations\x12$\n" +
 	"\x0euser_group_ids\x18\x1e \x03(\tR\fuserGroupIds\x12\x1d\n" +
 	"\n" +
 	"friend_ids\x18\x1f \x03(\tR\tfriendIds\x12!\n" +

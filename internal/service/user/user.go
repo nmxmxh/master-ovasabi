@@ -397,8 +397,8 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 		if req.User.DeviceHash != "" {
 			repoUser.DeviceHash = req.User.DeviceHash
 		}
-		if req.User.Location != "" {
-			repoUser.Location = req.User.Location
+		if req.User.Locations != nil {
+			repoUser.Locations = req.User.Locations
 		}
 		if req.User.Profile != nil {
 			repoUser.Profile = protoProfileToRepo(req.User.Profile)
@@ -740,22 +740,6 @@ func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRe
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound))
 	}
 	// Update fields based on FieldsToUpdate and Profile.CustomFields
-	for _, field := range req.FieldsToUpdate {
-		if req.Profile != nil && req.Profile.CustomFields != nil {
-			switch field {
-			case "email":
-				if v, ok := req.Profile.CustomFields["email"]; ok {
-					repoUser.Email = v
-				}
-			case "referral_code":
-				// Not present in repository.User, skip or handle as needed
-			case "device_hash":
-				// Not present in repository.User, skip or handle as needed
-			case "location":
-				// Not present in repository.User, skip or handle as needed
-			}
-		}
-	}
 	if req.Profile != nil {
 		repoUser.Profile = protoProfileToRepo(req.Profile)
 	}
@@ -1644,7 +1628,7 @@ func (s *Service) ListFollowing(ctx context.Context, req *userpb.ListFollowingRe
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to list following", codes.Internal))
 	}
 	resp := &userpb.ListFollowingResponse{
-		Following:  following,
+		Followings: following,
 		TotalCount: utils.ToInt32(total),
 		Page:       req.Page,
 		TotalPages: utils.ToInt32((total + int(req.PageSize) - 1) / int(req.PageSize)),
@@ -1687,7 +1671,7 @@ func (s *Service) UpdateUserGroup(ctx context.Context, req *userpb.UpdateUserGro
 	if !isAdmin && !isGroupAdmin {
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, errors.New("cannot update group you do not own or admin"), "cannot update group you do not own or admin", codes.PermissionDenied))
 	}
-	updated, err := s.repo.UpdateUserGroup(ctx, req.UserGroupId, req.UserGroup, req.FieldsToUpdate)
+	updated, err := s.repo.UpdateUserGroup(ctx, req.UserGroupId, req.UserGroup, req.FieldsToUpdates)
 	if err != nil {
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user group", codes.Internal))
 	}

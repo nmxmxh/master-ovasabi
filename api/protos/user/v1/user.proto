@@ -125,7 +125,7 @@ message User {
   UserStatus status = 16;
   repeated string tags = 17;
   map<string, string> external_ids = 18;
-  repeated string location = 19;
+  repeated string locations = 19;
   // --- Social graph fields ---
   repeated string user_group_ids = 30;
   repeated string friend_ids = 31;

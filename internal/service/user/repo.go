@@ -71,7 +71,7 @@ type User struct {
 	ReferralCode string             `db:"referral_code"`
 	ReferredBy   string             `db:"referred_by"`
 	DeviceHash   string             `db:"device_hash"`
-	Location     string             `db:"location"`
+	Locations    []string           `db:"location"`
 	Profile      Profile            `db:"profile"`
 	Roles        []string           `db:"roles"`
 	Status       int32              `db:"status"`
@@ -208,7 +208,7 @@ func (r *Repository) Create(ctx context.Context, user *User) (*User, error) {
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()
 		) RETURNING id, created_at, updated_at`,
-		user.MasterID, user.MasterUUID, user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, user.Location, user.Profile, user.Roles, user.Status, user.Metadata, // Arguments
+		user.MasterID, user.MasterUUID, user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, pq.Array(user.Locations), user.Profile, pq.Array(user.Roles), user.Status, user.Metadata, // Arguments
 	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt) // Scan results
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
@@ -249,7 +249,7 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*User,
 		strings.ToLower(username),
 	).Scan(
 		&user.ID, &user.MasterID, &user.MasterUUID, &user.Username,
-		&user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, &user.Location, &user.Profile, &user.Roles, &user.Status, &user.Metadata,
+		&user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, pq.Array(&user.Locations), &user.Profile, pq.Array(&user.Roles), &user.Status, &user.Metadata,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
@@ -273,7 +273,7 @@ func (r *Repository) GetByEmail(ctx context.Context, email string) (*User, error
 		email,
 	).Scan(
 		&user.ID, &user.MasterID, &user.MasterUUID, &user.Username,
-		&user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, &user.Location, &user.Profile, &user.Roles, &user.Status, &user.Metadata,
+		&user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, pq.Array(&user.Locations), &user.Profile, pq.Array(&user.Roles), &user.Status, &user.Metadata,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
@@ -297,7 +297,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*User, error) {
 		id,
 	).Scan(
 		&user.ID, &user.MasterID, &user.MasterUUID, &user.Username,
-		&user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, &user.Location, &user.Profile, &user.Roles, &user.Status, &user.Metadata,
+		&user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, pq.Array(&user.Locations), &user.Profile, pq.Array(&user.Roles), &user.Status, &user.Metadata,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
@@ -346,7 +346,7 @@ func (r *Repository) Update(ctx context.Context, user *User) error {
 		`UPDATE service_user 
 		SET username = $1, email = $2, password_hash = $3, referral_code = $4, referred_by = $5, device_hash = $6, location = $7, profile = $8, roles = $9, status = $10, metadata = $11, updated_at = NOW()
 		WHERE id = $12`,
-		user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, user.Location, user.Profile, user.Roles, user.Status, user.Metadata, user.ID,
+		user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, pq.Array(user.Locations), user.Profile, pq.Array(user.Roles), user.Status, user.Metadata, user.ID,
 	)
 	if err != nil {
 		return err
@@ -401,7 +401,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*User, erro
 		user := &User{}
 		err := rows.Scan(
 			&user.ID, &user.MasterID, &user.MasterUUID, &user.Username,
-			&user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, &user.Location, &user.Profile, &user.Roles, &user.Status, &user.Metadata,
+			&user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, pq.Array(&user.Locations), &user.Profile, pq.Array(&user.Roles), &user.Status, &user.Metadata,
 			&user.CreatedAt, &user.UpdatedAt,
 		)
 		if err != nil {
@@ -467,7 +467,7 @@ func (r *Repository) ListFlexible(ctx context.Context, req *userv1.ListUsersRequ
 		user := &User{}
 		var metaRaw, tagsRaw, extIDsRaw []byte
 		if err := rows.Scan(
-			&user.ID, &user.MasterID, &user.MasterUUID, &user.Username, &user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, &user.Location, &user.Profile, &user.Roles, &user.Status, &metaRaw, &tagsRaw, &extIDsRaw, &user.CreatedAt, &user.UpdatedAt,
+			&user.ID, &user.MasterID, &user.MasterUUID, &user.Username, &user.Email, &user.PasswordHash, &user.ReferralCode, &user.ReferredBy, &user.DeviceHash, pq.Array(&user.Locations), pq.Array(&user.Roles), &user.Status, &metaRaw, &tagsRaw, &extIDsRaw, &user.CreatedAt, &user.UpdatedAt,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -1970,7 +1970,7 @@ func (r *Repository) UpdateTx(ctx context.Context, tx *sql.Tx, user *User) error
 		`UPDATE service_user 
 		SET username = $1, email = $2, password_hash = $3, referral_code = $4, referred_by = $5, device_hash = $6, location = $7, profile = $8, roles = $9, status = $10, metadata = $11, updated_at = NOW()
 		WHERE id = $12`,
-		user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, user.Location, user.Profile, user.Roles, user.Status, user.Metadata, user.ID,
+		user.Username, user.Email, user.PasswordHash, user.ReferralCode, user.ReferredBy, user.DeviceHash, pq.Array(user.Locations), user.Profile, pq.Array(user.Roles), user.Status, user.Metadata, user.ID,
 	)
 	if err != nil {
 		return err
