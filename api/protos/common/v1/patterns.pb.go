@@ -22,25 +22,14 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// IntegrationPattern defines a structured, reusable workflow composed of
-// multiple steps.
-// This formalizes the JSON-based patterns for machine readability and
-// validation,
-// replacing the informal definitions in documentation.
 type IntegrationPattern struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Unique identifier for the pattern (e.g., "identity_unification_pattern").
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Version of the pattern schema.
-	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	// Human-readable description of what the pattern does.
-	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	// The sequence of actions that make up the workflow.
-	Steps []*PatternStep `protobuf:"bytes,4,rep,name=steps,proto3" json:"steps,omitempty"`
-	// Canonical metadata for orchestration, scheduling, and context.
-	Metadata *Metadata `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// A default or initial payload for the pattern.
-	Payload       *Payload `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Steps         []*PatternStep         `protobuf:"bytes,4,rep,name=steps,proto3" json:"steps,omitempty"`
+	Metadata      *Metadata              `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Payload       *Payload               `protobuf:"bytes,6,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -119,15 +108,11 @@ func (x *IntegrationPattern) GetPayload() *Payload {
 
 // PatternStep represents a single action within an IntegrationPattern.
 type PatternStep struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The service responsible for the action (e.g., "user", "auth").
-	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	// The specific action to perform (e.g., "create_identity").
-	Action string `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
-	// Structured parameters for the action.
-	Parameters *structpb.Struct `protobuf:"bytes,3,opt,name=parameters,proto3" json:"parameters,omitempty"`
-	// A list of step actions this step depends on.
-	DependsOns    []string `protobuf:"bytes,4,rep,name=depends_ons,json=dependsOns,proto3" json:"depends_ons,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	Parameters    *structpb.Struct       `protobuf:"bytes,3,opt,name=parameters,proto3" json:"parameters,omitempty"`
+	DependsOns    []string               `protobuf:"bytes,4,rep,name=depends_ons,json=dependsOns,proto3" json:"depends_ons,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

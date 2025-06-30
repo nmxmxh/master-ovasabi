@@ -2,40 +2,25 @@ syntax = "proto3";
 
 package common;
 
-import "common/v1/metadata.proto"; // Assuming this refers to common.Metadata
-import "common/v1/payload.proto";  // Assuming this refers to common.Payload
+import "common/v1/metadata.proto";
+import "common/v1/payload.proto";
 import "google/protobuf/struct.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
 
-// IntegrationPattern defines a structured, reusable workflow composed of
-// multiple steps.
-// This formalizes the JSON-based patterns for machine readability and
-// validation,
-// replacing the informal definitions in documentation.
 message IntegrationPattern {
-  // Unique identifier for the pattern (e.g., "identity_unification_pattern").
   string id = 1;
-  // Version of the pattern schema.
   string version = 2;
-  // Human-readable description of what the pattern does.
   string description = 3;
-  // The sequence of actions that make up the workflow.
   repeated PatternStep steps = 4;
-  // Canonical metadata for orchestration, scheduling, and context.
   common.Metadata metadata = 5;
-  // A default or initial payload for the pattern.
   common.Payload payload = 6;
 }
 
 // PatternStep represents a single action within an IntegrationPattern.
 message PatternStep {
-  // The service responsible for the action (e.g., "user", "auth").
   string type = 1;
-  // The specific action to perform (e.g., "create_identity").
   string action = 2;
-  // Structured parameters for the action.
   google.protobuf.Struct parameters = 3;
-  // A list of step actions this step depends on.
   repeated string depends_ons = 4;
 }

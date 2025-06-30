@@ -39,14 +39,10 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Canonical Payload message for all event-driven and cross-service
-// communication.
 type Payload struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Arbitrary business data (hydrated state, results, etc.)
-	Data *structpb.Struct `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-	// Versioning and traceability (mirrors Metadata pattern)
-	Versioning    *structpb.Struct `protobuf:"bytes,2,opt,name=versioning,proto3" json:"versioning,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          *structpb.Struct       `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	Versioning    *structpb.Struct       `protobuf:"bytes,2,opt,name=versioning,proto3" json:"versioning,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

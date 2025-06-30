@@ -23,19 +23,21 @@ const (
 	AIService_GenerateEmbeddings_FullMethodName = "/ai.v1.AIService/GenerateEmbeddings"
 	AIService_SubmitModelUpdate_FullMethodName  = "/ai.v1.AIService/SubmitModelUpdate"
 	AIService_GetCurrentModel_FullMethodName    = "/ai.v1.AIService/GetCurrentModel"
+	AIService_HandleClientEvent_FullMethodName  = "/ai.v1.AIService/HandleClientEvent"
 )
 
 // AIServiceClient is the client API for AIService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// --- Service Definitions ---
 type AIServiceClient interface {
-	// Unified content processing endpoint
 	ProcessContent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[EnrichmentRequest, EnrichmentResponse], error)
-	// Embedding-specific service
 	GenerateEmbeddings(ctx context.Context, in *EnrichmentRequest, opts ...grpc.CallOption) (*EnrichmentResponse_Vector, error)
-	// Model update handling
 	SubmitModelUpdate(ctx context.Context, in *ModelUpdate, opts ...grpc.CallOption) (*ModelUpdateAck, error)
 	GetCurrentModel(ctx context.Context, in *ModelRequest, opts ...grpc.CallOption) (*Model, error)
+	// New client feedback endpoint
+	HandleClientEvent(ctx context.Context, in *ClientEvent, opts ...grpc.CallOption) (*ClientEventAck, error)
 }
 
 type aIServiceClient struct {
@@ -89,17 +91,28 @@ func (c *aIServiceClient) GetCurrentModel(ctx context.Context, in *ModelRequest,
 	return out, nil
 }
 
+func (c *aIServiceClient) HandleClientEvent(ctx context.Context, in *ClientEvent, opts ...grpc.CallOption) (*ClientEventAck, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClientEventAck)
+	err := c.cc.Invoke(ctx, AIService_HandleClientEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AIServiceServer is the server API for AIService service.
 // All implementations must embed UnimplementedAIServiceServer
 // for forward compatibility.
+//
+// --- Service Definitions ---
 type AIServiceServer interface {
-	// Unified content processing endpoint
 	ProcessContent(grpc.ClientStreamingServer[EnrichmentRequest, EnrichmentResponse]) error
-	// Embedding-specific service
 	GenerateEmbeddings(context.Context, *EnrichmentRequest) (*EnrichmentResponse_Vector, error)
-	// Model update handling
 	SubmitModelUpdate(context.Context, *ModelUpdate) (*ModelUpdateAck, error)
 	GetCurrentModel(context.Context, *ModelRequest) (*Model, error)
+	// New client feedback endpoint
+	HandleClientEvent(context.Context, *ClientEvent) (*ClientEventAck, error)
 	mustEmbedUnimplementedAIServiceServer()
 }
 
@@ -121,6 +134,9 @@ func (UnimplementedAIServiceServer) SubmitModelUpdate(context.Context, *ModelUpd
 }
 func (UnimplementedAIServiceServer) GetCurrentModel(context.Context, *ModelRequest) (*Model, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentModel not implemented")
+}
+func (UnimplementedAIServiceServer) HandleClientEvent(context.Context, *ClientEvent) (*ClientEventAck, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HandleClientEvent not implemented")
 }
 func (UnimplementedAIServiceServer) mustEmbedUnimplementedAIServiceServer() {}
 func (UnimplementedAIServiceServer) testEmbeddedByValue()                   {}
@@ -204,6 +220,24 @@ func _AIService_GetCurrentModel_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AIService_HandleClientEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientEvent)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AIServiceServer).HandleClientEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AIService_HandleClientEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AIServiceServer).HandleClientEvent(ctx, req.(*ClientEvent))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AIService_ServiceDesc is the grpc.ServiceDesc for AIService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -222,6 +256,10 @@ var AIService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCurrentModel",
 			Handler:    _AIService_GetCurrentModel_Handler,
+		},
+		{
+			MethodName: "HandleClientEvent",
+			Handler:    _AIService_HandleClientEvent_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

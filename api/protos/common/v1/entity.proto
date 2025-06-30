@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package common;
 
+import "common/v1/metadata.proto";
+
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
 
 // EntityType categorizes real-world/conceptual objects
@@ -24,6 +26,14 @@ enum EntityType {
   ENTITY_TYPE_MEASUREMENT = 9;      // e.g., "Throughput", "Latency"
 }
 
+// Core relationship definition for knowledge graph
+message Relation {
+  string type = 1;         // "related", "child", "similar", etc.
+  string target_uri = 2;   // URI reference to other entity
+  float strength = 3;      // Relationship confidence (0.0-1.0)
+  int64 last_updated = 4;  // Unix timestamp for GC
+}
+
 // Entity represents a distinct real-world/conceptual object
 message Entity {
   // Canonical name (e.g., "Robert Martin")
@@ -40,21 +50,25 @@ message Entity {
   
   // Provenance within source
   message Occurrence {
-    int32 start_offset = 1;  // Character position
-    int32 end_offset = 2;
-    string source_field = 3; // e.g., "summary", "chunk3"
+    string source_uri = 1;  // URI of source document
+    int32 start_offset = 2;  // Character position
+    int32 end_offset = 3;
+    string source_field = 4; // e.g., "summary", "chunk3"
   }
   repeated Occurrence occurrences = 5;
   
   // Knowledge graph relationships
-  message Relationship {
-    string target_entity = 1;  // UUID or canonical name
-    string predicate = 2;       // e.g., "works_at", "author_of"
-    float weight = 3;           // Relationship strength
-  }
-  repeated Relationship relationships = 6;
+  repeated Relation relations = 6;
   
   // Cross-references
   string wikipedia_id = 7;
   string wikidata_id = 8;
+  string uri = 9;           // Canonical entity URI
+}
+
+// Lightweight reference for graph storage
+message Reference {
+  string uri = 1;                   // Unique resource identifier
+  common.Metadata metadata = 2;   // Standard metadata
+  repeated Relation relations = 3;   // Knowledge graph connections
 }

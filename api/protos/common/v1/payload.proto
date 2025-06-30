@@ -23,12 +23,8 @@ import "google/protobuf/struct.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
 
-// Canonical Payload message for all event-driven and cross-service 
-// communication.
-message Payload {
-  // Arbitrary business data (hydrated state, results, etc.)
-  google.protobuf.Struct data = 1;
 
-  // Versioning and traceability (mirrors Metadata pattern)
+message Payload {
+  google.protobuf.Struct data = 1;
   google.protobuf.Struct versioning = 2;
 }

@@ -10,6 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -22,165 +23,10 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Central, robust, extensible metadata for all services
-//
-//   - All shared fields are available to every service.
-//   - The service_specific field allows each service to store its own custom,
-//     structured data under a namespaced key (e.g., "content", "commerce").
-//   - The knowledge_graph field is for graph enrichment and relationships.
-type Metadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// General scheduling and orchestration fields
-	Scheduling *structpb.Struct `protobuf:"bytes,1,opt,name=scheduling,proto3" json:"scheduling,omitempty"`
-	// Feature toggles (e.g., ["referral", "notification"])
-	Features []string `protobuf:"bytes,2,rep,name=features,proto3" json:"features,omitempty"`
-	// Custom rules (e.g., {max_referrals: 10})
-	CustomRules *structpb.Struct `protobuf:"bytes,3,opt,name=custom_rules,json=customRules,proto3" json:"custom_rules,omitempty"`
-	// Audit info (created_by, history, etc.)
-	Audit *structpb.Struct `protobuf:"bytes,4,opt,name=audit,proto3" json:"audit,omitempty"`
-	// Tags for search, analytics, etc.
-	Tags []string `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
-	// Service-specific extensions (e.g., {"content": {...}})
-	ServiceSpecific *structpb.Struct `protobuf:"bytes,6,opt,name=service_specific,json=serviceSpecific,proto3" json:"service_specific,omitempty"`
-	// For knowledge graph enrichment
-	KnowledgeGraph *structpb.Struct  `protobuf:"bytes,7,opt,name=knowledge_graph,json=knowledgeGraph,proto3" json:"knowledge_graph,omitempty"`
-	Taxation       *TieredTax        `protobuf:"bytes,8,opt,name=taxation,proto3" json:"taxation,omitempty"`
-	Owner          *OwnerMetadata    `protobuf:"bytes,9,opt,name=owner,proto3" json:"owner,omitempty"`
-	Referral       *ReferralMetadata `protobuf:"bytes,10,opt,name=referral,proto3" json:"referral,omitempty"`
-	// System/service/user/environment versioning and traceability
-	// System/service/user/environment versioning and traceability
-	Versioning        *structpb.Struct   `protobuf:"bytes,11,opt,name=versioning,proto3" json:"versioning,omitempty"`
-	EntityIndex       map[string]*Entity `protobuf:"bytes,12,rep,name=entity_index,json=entityIndex,proto3" json:"entity_index,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	ProminentEntities []*Entity          `protobuf:"bytes,13,rep,name=prominent_entities,json=prominentEntities,proto3" json:"prominent_entities,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *Metadata) Reset() {
-	*x = Metadata{}
-	mi := &file_common_v1_metadata_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Metadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Metadata) ProtoMessage() {}
-
-func (x *Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_metadata_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
-func (*Metadata) Descriptor() ([]byte, []int) {
-	return file_common_v1_metadata_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *Metadata) GetScheduling() *structpb.Struct {
-	if x != nil {
-		return x.Scheduling
-	}
-	return nil
-}
-
-func (x *Metadata) GetFeatures() []string {
-	if x != nil {
-		return x.Features
-	}
-	return nil
-}
-
-func (x *Metadata) GetCustomRules() *structpb.Struct {
-	if x != nil {
-		return x.CustomRules
-	}
-	return nil
-}
-
-func (x *Metadata) GetAudit() *structpb.Struct {
-	if x != nil {
-		return x.Audit
-	}
-	return nil
-}
-
-func (x *Metadata) GetTags() []string {
-	if x != nil {
-		return x.Tags
-	}
-	return nil
-}
-
-func (x *Metadata) GetServiceSpecific() *structpb.Struct {
-	if x != nil {
-		return x.ServiceSpecific
-	}
-	return nil
-}
-
-func (x *Metadata) GetKnowledgeGraph() *structpb.Struct {
-	if x != nil {
-		return x.KnowledgeGraph
-	}
-	return nil
-}
-
-func (x *Metadata) GetTaxation() *TieredTax {
-	if x != nil {
-		return x.Taxation
-	}
-	return nil
-}
-
-func (x *Metadata) GetOwner() *OwnerMetadata {
-	if x != nil {
-		return x.Owner
-	}
-	return nil
-}
-
-func (x *Metadata) GetReferral() *ReferralMetadata {
-	if x != nil {
-		return x.Referral
-	}
-	return nil
-}
-
-func (x *Metadata) GetVersioning() *structpb.Struct {
-	if x != nil {
-		return x.Versioning
-	}
-	return nil
-}
-
-func (x *Metadata) GetEntityIndex() map[string]*Entity {
-	if x != nil {
-		return x.EntityIndex
-	}
-	return nil
-}
-
-func (x *Metadata) GetProminentEntities() []*Entity {
-	if x != nil {
-		return x.ProminentEntities
-	}
-	return nil
-}
-
 type TieredTax struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MinProjects   int32                  `protobuf:"varint,1,opt,name=min_projects,json=minProjects,proto3" json:"min_projects,omitempty"`
-	MaxProjects   int32                  `protobuf:"varint,2,opt,name=max_projects,json=maxProjects,proto3" json:"max_projects,omitempty"` // null = unlimited
+	MaxProjects   int32                  `protobuf:"varint,2,opt,name=max_projects,json=maxProjects,proto3" json:"max_projects,omitempty"`
 	Percentage    float64                `protobuf:"fixed64,3,opt,name=percentage,proto3" json:"percentage,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -188,7 +34,7 @@ type TieredTax struct {
 
 func (x *TieredTax) Reset() {
 	*x = TieredTax{}
-	mi := &file_common_v1_metadata_proto_msgTypes[1]
+	mi := &file_common_v1_metadata_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -200,7 +46,7 @@ func (x *TieredTax) String() string {
 func (*TieredTax) ProtoMessage() {}
 
 func (x *TieredTax) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_metadata_proto_msgTypes[1]
+	mi := &file_common_v1_metadata_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -213,7 +59,7 @@ func (x *TieredTax) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TieredTax.ProtoReflect.Descriptor instead.
 func (*TieredTax) Descriptor() ([]byte, []int) {
-	return file_common_v1_metadata_proto_rawDescGZIP(), []int{1}
+	return file_common_v1_metadata_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *TieredTax) GetMinProjects() int32 {
@@ -239,8 +85,8 @@ func (x *TieredTax) GetPercentage() float64 {
 
 type TaxationConnector struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	Type            string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`           // "creator" or "referral"
-	Recipient       string                 `protobuf:"bytes,2,opt,name=recipient,proto3" json:"recipient,omitempty"` // e.g., "nmxmxh"
+	Type            string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Recipient       string                 `protobuf:"bytes,2,opt,name=recipient,proto3" json:"recipient,omitempty"`
 	RecipientWallet string                 `protobuf:"bytes,3,opt,name=recipient_wallet,json=recipientWallet,proto3" json:"recipient_wallet,omitempty"`
 	Percentage      float64                `protobuf:"fixed64,4,opt,name=percentage,proto3" json:"percentage,omitempty"`
 	Tiereds         []*TieredTax           `protobuf:"bytes,5,rep,name=tiereds,proto3" json:"tiereds,omitempty"`
@@ -255,7 +101,7 @@ type TaxationConnector struct {
 
 func (x *TaxationConnector) Reset() {
 	*x = TaxationConnector{}
-	mi := &file_common_v1_metadata_proto_msgTypes[2]
+	mi := &file_common_v1_metadata_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -267,7 +113,7 @@ func (x *TaxationConnector) String() string {
 func (*TaxationConnector) ProtoMessage() {}
 
 func (x *TaxationConnector) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_metadata_proto_msgTypes[2]
+	mi := &file_common_v1_metadata_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,7 +126,7 @@ func (x *TaxationConnector) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaxationConnector.ProtoReflect.Descriptor instead.
 func (*TaxationConnector) Descriptor() ([]byte, []int) {
-	return file_common_v1_metadata_proto_rawDescGZIP(), []int{2}
+	return file_common_v1_metadata_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *TaxationConnector) GetType() string {
@@ -364,7 +210,7 @@ type Taxation struct {
 
 func (x *Taxation) Reset() {
 	*x = Taxation{}
-	mi := &file_common_v1_metadata_proto_msgTypes[3]
+	mi := &file_common_v1_metadata_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -376,7 +222,7 @@ func (x *Taxation) String() string {
 func (*Taxation) ProtoMessage() {}
 
 func (x *Taxation) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_metadata_proto_msgTypes[3]
+	mi := &file_common_v1_metadata_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -389,7 +235,7 @@ func (x *Taxation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Taxation.ProtoReflect.Descriptor instead.
 func (*Taxation) Descriptor() ([]byte, []int) {
-	return file_common_v1_metadata_proto_rawDescGZIP(), []int{3}
+	return file_common_v1_metadata_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Taxation) GetConnectors() []*TaxationConnector {
@@ -417,13 +263,14 @@ type OwnerMetadata struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Wallet        string                 `protobuf:"bytes,2,opt,name=wallet,proto3" json:"wallet,omitempty"`
+	Uri           string                 `protobuf:"bytes,3,opt,name=uri,proto3" json:"uri,omitempty"` // Added URI reference
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *OwnerMetadata) Reset() {
 	*x = OwnerMetadata{}
-	mi := &file_common_v1_metadata_proto_msgTypes[4]
+	mi := &file_common_v1_metadata_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -435,7 +282,7 @@ func (x *OwnerMetadata) String() string {
 func (*OwnerMetadata) ProtoMessage() {}
 
 func (x *OwnerMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_metadata_proto_msgTypes[4]
+	mi := &file_common_v1_metadata_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -448,7 +295,7 @@ func (x *OwnerMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OwnerMetadata.ProtoReflect.Descriptor instead.
 func (*OwnerMetadata) Descriptor() ([]byte, []int) {
-	return file_common_v1_metadata_proto_rawDescGZIP(), []int{4}
+	return file_common_v1_metadata_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *OwnerMetadata) GetId() string {
@@ -465,17 +312,25 @@ func (x *OwnerMetadata) GetWallet() string {
 	return ""
 }
 
+func (x *OwnerMetadata) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
 type ReferralMetadata struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Wallet        string                 `protobuf:"bytes,2,opt,name=wallet,proto3" json:"wallet,omitempty"`
+	Uri           string                 `protobuf:"bytes,3,opt,name=uri,proto3" json:"uri,omitempty"` // Added URI reference
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ReferralMetadata) Reset() {
 	*x = ReferralMetadata{}
-	mi := &file_common_v1_metadata_proto_msgTypes[5]
+	mi := &file_common_v1_metadata_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -487,7 +342,7 @@ func (x *ReferralMetadata) String() string {
 func (*ReferralMetadata) ProtoMessage() {}
 
 func (x *ReferralMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_metadata_proto_msgTypes[5]
+	mi := &file_common_v1_metadata_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -500,7 +355,7 @@ func (x *ReferralMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReferralMetadata.ProtoReflect.Descriptor instead.
 func (*ReferralMetadata) Descriptor() ([]byte, []int) {
-	return file_common_v1_metadata_proto_rawDescGZIP(), []int{5}
+	return file_common_v1_metadata_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ReferralMetadata) GetId() string {
@@ -517,33 +372,270 @@ func (x *ReferralMetadata) GetWallet() string {
 	return ""
 }
 
+func (x *ReferralMetadata) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
+// Central metadata with scheduler enhancements
+type Metadata struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// --- Core Fields ---
+	Scheduling      *structpb.Struct  `protobuf:"bytes,1,opt,name=scheduling,proto3" json:"scheduling,omitempty"`
+	Features        []string          `protobuf:"bytes,2,rep,name=features,proto3" json:"features,omitempty"`
+	CustomRules     *structpb.Struct  `protobuf:"bytes,3,opt,name=custom_rules,json=customRules,proto3" json:"custom_rules,omitempty"`
+	Audit           *structpb.Struct  `protobuf:"bytes,4,opt,name=audit,proto3" json:"audit,omitempty"`
+	Tags            []string          `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
+	ServiceSpecific *structpb.Struct  `protobuf:"bytes,6,opt,name=service_specific,json=serviceSpecific,proto3" json:"service_specific,omitempty"`
+	KnowledgeGraph  *structpb.Struct  `protobuf:"bytes,7,opt,name=knowledge_graph,json=knowledgeGraph,proto3" json:"knowledge_graph,omitempty"`
+	Taxation        *TieredTax        `protobuf:"bytes,8,opt,name=taxation,proto3" json:"taxation,omitempty"`
+	Owner           *OwnerMetadata    `protobuf:"bytes,9,opt,name=owner,proto3" json:"owner,omitempty"`
+	Referral        *ReferralMetadata `protobuf:"bytes,10,opt,name=referral,proto3" json:"referral,omitempty"`
+	Versioning      *structpb.Struct  `protobuf:"bytes,11,opt,name=versioning,proto3" json:"versioning,omitempty"`
+	// --- Intelligence System Fields ---
+	AiConfidence  float32                   `protobuf:"fixed32,14,opt,name=ai_confidence,json=aiConfidence,proto3" json:"ai_confidence,omitempty"`
+	EmbeddingId   string                    `protobuf:"bytes,15,opt,name=embedding_id,json=embeddingId,proto3" json:"embedding_id,omitempty"`
+	Categories    []string                  `protobuf:"bytes,16,rep,name=categories,proto3" json:"categories,omitempty"`
+	LastAccessed  *timestamppb.Timestamp    `protobuf:"bytes,17,opt,name=last_accessed,json=lastAccessed,proto3" json:"last_accessed,omitempty"`
+	NexusChannel  string                    `protobuf:"bytes,18,opt,name=nexus_channel,json=nexusChannel,proto3" json:"nexus_channel,omitempty"`
+	SourceUri     string                    `protobuf:"bytes,19,opt,name=source_uri,json=sourceUri,proto3" json:"source_uri,omitempty"`
+	Scheduler     *Metadata_SchedulerConfig `protobuf:"bytes,20,opt,name=scheduler,proto3" json:"scheduler,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Metadata) Reset() {
+	*x = Metadata{}
+	mi := &file_common_v1_metadata_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Metadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Metadata) ProtoMessage() {}
+
+func (x *Metadata) ProtoReflect() protoreflect.Message {
+	mi := &file_common_v1_metadata_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
+func (*Metadata) Descriptor() ([]byte, []int) {
+	return file_common_v1_metadata_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Metadata) GetScheduling() *structpb.Struct {
+	if x != nil {
+		return x.Scheduling
+	}
+	return nil
+}
+
+func (x *Metadata) GetFeatures() []string {
+	if x != nil {
+		return x.Features
+	}
+	return nil
+}
+
+func (x *Metadata) GetCustomRules() *structpb.Struct {
+	if x != nil {
+		return x.CustomRules
+	}
+	return nil
+}
+
+func (x *Metadata) GetAudit() *structpb.Struct {
+	if x != nil {
+		return x.Audit
+	}
+	return nil
+}
+
+func (x *Metadata) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *Metadata) GetServiceSpecific() *structpb.Struct {
+	if x != nil {
+		return x.ServiceSpecific
+	}
+	return nil
+}
+
+func (x *Metadata) GetKnowledgeGraph() *structpb.Struct {
+	if x != nil {
+		return x.KnowledgeGraph
+	}
+	return nil
+}
+
+func (x *Metadata) GetTaxation() *TieredTax {
+	if x != nil {
+		return x.Taxation
+	}
+	return nil
+}
+
+func (x *Metadata) GetOwner() *OwnerMetadata {
+	if x != nil {
+		return x.Owner
+	}
+	return nil
+}
+
+func (x *Metadata) GetReferral() *ReferralMetadata {
+	if x != nil {
+		return x.Referral
+	}
+	return nil
+}
+
+func (x *Metadata) GetVersioning() *structpb.Struct {
+	if x != nil {
+		return x.Versioning
+	}
+	return nil
+}
+
+func (x *Metadata) GetAiConfidence() float32 {
+	if x != nil {
+		return x.AiConfidence
+	}
+	return 0
+}
+
+func (x *Metadata) GetEmbeddingId() string {
+	if x != nil {
+		return x.EmbeddingId
+	}
+	return ""
+}
+
+func (x *Metadata) GetCategories() []string {
+	if x != nil {
+		return x.Categories
+	}
+	return nil
+}
+
+func (x *Metadata) GetLastAccessed() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastAccessed
+	}
+	return nil
+}
+
+func (x *Metadata) GetNexusChannel() string {
+	if x != nil {
+		return x.NexusChannel
+	}
+	return ""
+}
+
+func (x *Metadata) GetSourceUri() string {
+	if x != nil {
+		return x.SourceUri
+	}
+	return ""
+}
+
+func (x *Metadata) GetScheduler() *Metadata_SchedulerConfig {
+	if x != nil {
+		return x.Scheduler
+	}
+	return nil
+}
+
+// --- Scheduler Optimizations ---
+type Metadata_SchedulerConfig struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	IsEphemeral     bool                   `protobuf:"varint,1,opt,name=is_ephemeral,json=isEphemeral,proto3" json:"is_ephemeral,omitempty"`            // Marks data for automatic deletion
+	Expiry          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expiry,proto3" json:"expiry,omitempty"`                                          // Scheduled deletion time
+	JobDependencies []string               `protobuf:"bytes,3,rep,name=job_dependencies,json=jobDependencies,proto3" json:"job_dependencies,omitempty"` // Scheduler job IDs that use this
+	RetentionPolicy string                 `protobuf:"bytes,4,opt,name=retention_policy,json=retentionPolicy,proto3" json:"retention_policy,omitempty"` // e.g., "post-process", "temp-only"
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *Metadata_SchedulerConfig) Reset() {
+	*x = Metadata_SchedulerConfig{}
+	mi := &file_common_v1_metadata_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Metadata_SchedulerConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Metadata_SchedulerConfig) ProtoMessage() {}
+
+func (x *Metadata_SchedulerConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_common_v1_metadata_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Metadata_SchedulerConfig.ProtoReflect.Descriptor instead.
+func (*Metadata_SchedulerConfig) Descriptor() ([]byte, []int) {
+	return file_common_v1_metadata_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *Metadata_SchedulerConfig) GetIsEphemeral() bool {
+	if x != nil {
+		return x.IsEphemeral
+	}
+	return false
+}
+
+func (x *Metadata_SchedulerConfig) GetExpiry() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expiry
+	}
+	return nil
+}
+
+func (x *Metadata_SchedulerConfig) GetJobDependencies() []string {
+	if x != nil {
+		return x.JobDependencies
+	}
+	return nil
+}
+
+func (x *Metadata_SchedulerConfig) GetRetentionPolicy() string {
+	if x != nil {
+		return x.RetentionPolicy
+	}
+	return ""
+}
+
 var File_common_v1_metadata_proto protoreflect.FileDescriptor
 
 const file_common_v1_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x18common/v1/metadata.proto\x12\x06common\x1a\x16common/v1/entity.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x84\x06\n" +
-	"\bMetadata\x127\n" +
-	"\n" +
-	"scheduling\x18\x01 \x01(\v2\x17.google.protobuf.StructR\n" +
-	"scheduling\x12\x1a\n" +
-	"\bfeatures\x18\x02 \x03(\tR\bfeatures\x12:\n" +
-	"\fcustom_rules\x18\x03 \x01(\v2\x17.google.protobuf.StructR\vcustomRules\x12-\n" +
-	"\x05audit\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x05audit\x12\x12\n" +
-	"\x04tags\x18\x05 \x03(\tR\x04tags\x12B\n" +
-	"\x10service_specific\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x0fserviceSpecific\x12@\n" +
-	"\x0fknowledge_graph\x18\a \x01(\v2\x17.google.protobuf.StructR\x0eknowledgeGraph\x12-\n" +
-	"\btaxation\x18\b \x01(\v2\x11.common.TieredTaxR\btaxation\x12+\n" +
-	"\x05owner\x18\t \x01(\v2\x15.common.OwnerMetadataR\x05owner\x124\n" +
-	"\breferral\x18\n" +
-	" \x01(\v2\x18.common.ReferralMetadataR\breferral\x127\n" +
-	"\n" +
-	"versioning\x18\v \x01(\v2\x17.google.protobuf.StructR\n" +
-	"versioning\x12D\n" +
-	"\fentity_index\x18\f \x03(\v2!.common.Metadata.EntityIndexEntryR\ventityIndex\x12=\n" +
-	"\x12prominent_entities\x18\r \x03(\v2\x0e.common.EntityR\x11prominentEntities\x1aN\n" +
-	"\x10EntityIndexEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12$\n" +
-	"\x05value\x18\x02 \x01(\v2\x0e.common.EntityR\x05value:\x028\x01\"q\n" +
+	"\x18common/v1/metadata.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"q\n" +
 	"\tTieredTax\x12!\n" +
 	"\fmin_projects\x18\x01 \x01(\x05R\vminProjects\x12!\n" +
 	"\fmax_projects\x18\x02 \x01(\x05R\vmaxProjects\x12\x1e\n" +
@@ -570,13 +662,47 @@ const file_common_v1_metadata_proto_rawDesc = "" +
 	"connectors\x18\x01 \x03(\v2\x19.common.TaxationConnectorR\n" +
 	"connectors\x12#\n" +
 	"\rproject_count\x18\x02 \x01(\x05R\fprojectCount\x12\x1b\n" +
-	"\ttotal_tax\x18\x03 \x01(\x01R\btotalTax\"7\n" +
+	"\ttotal_tax\x18\x03 \x01(\x01R\btotalTax\"I\n" +
 	"\rOwnerMetadata\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
-	"\x06wallet\x18\x02 \x01(\tR\x06wallet\":\n" +
+	"\x06wallet\x18\x02 \x01(\tR\x06wallet\x12\x10\n" +
+	"\x03uri\x18\x03 \x01(\tR\x03uri\"L\n" +
 	"\x10ReferralMetadata\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
-	"\x06wallet\x18\x02 \x01(\tR\x06walletB@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
+	"\x06wallet\x18\x02 \x01(\tR\x06wallet\x12\x10\n" +
+	"\x03uri\x18\x03 \x01(\tR\x03uri\"\x9d\b\n" +
+	"\bMetadata\x127\n" +
+	"\n" +
+	"scheduling\x18\x01 \x01(\v2\x17.google.protobuf.StructR\n" +
+	"scheduling\x12\x1a\n" +
+	"\bfeatures\x18\x02 \x03(\tR\bfeatures\x12:\n" +
+	"\fcustom_rules\x18\x03 \x01(\v2\x17.google.protobuf.StructR\vcustomRules\x12-\n" +
+	"\x05audit\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x05audit\x12\x12\n" +
+	"\x04tags\x18\x05 \x03(\tR\x04tags\x12B\n" +
+	"\x10service_specific\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x0fserviceSpecific\x12@\n" +
+	"\x0fknowledge_graph\x18\a \x01(\v2\x17.google.protobuf.StructR\x0eknowledgeGraph\x12-\n" +
+	"\btaxation\x18\b \x01(\v2\x11.common.TieredTaxR\btaxation\x12+\n" +
+	"\x05owner\x18\t \x01(\v2\x15.common.OwnerMetadataR\x05owner\x124\n" +
+	"\breferral\x18\n" +
+	" \x01(\v2\x18.common.ReferralMetadataR\breferral\x127\n" +
+	"\n" +
+	"versioning\x18\v \x01(\v2\x17.google.protobuf.StructR\n" +
+	"versioning\x12#\n" +
+	"\rai_confidence\x18\x0e \x01(\x02R\faiConfidence\x12!\n" +
+	"\fembedding_id\x18\x0f \x01(\tR\vembeddingId\x12\x1e\n" +
+	"\n" +
+	"categories\x18\x10 \x03(\tR\n" +
+	"categories\x12?\n" +
+	"\rlast_accessed\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\flastAccessed\x12#\n" +
+	"\rnexus_channel\x18\x12 \x01(\tR\fnexusChannel\x12\x1d\n" +
+	"\n" +
+	"source_uri\x18\x13 \x01(\tR\tsourceUri\x12>\n" +
+	"\tscheduler\x18\x14 \x01(\v2 .common.Metadata.SchedulerConfigR\tscheduler\x1a\xbe\x01\n" +
+	"\x0fSchedulerConfig\x12!\n" +
+	"\fis_ephemeral\x18\x01 \x01(\bR\visEphemeral\x122\n" +
+	"\x06expiry\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06expiry\x12)\n" +
+	"\x10job_dependencies\x18\x03 \x03(\tR\x0fjobDependencies\x12)\n" +
+	"\x10retention_policy\x18\x04 \x01(\tR\x0fretentionPolicyB@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
 
 var (
 	file_common_v1_metadata_proto_rawDescOnce sync.Once
@@ -592,31 +718,31 @@ func file_common_v1_metadata_proto_rawDescGZIP() []byte {
 
 var file_common_v1_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_common_v1_metadata_proto_goTypes = []any{
-	(*Metadata)(nil),          // 0: common.Metadata
-	(*TieredTax)(nil),         // 1: common.TieredTax
-	(*TaxationConnector)(nil), // 2: common.TaxationConnector
-	(*Taxation)(nil),          // 3: common.Taxation
-	(*OwnerMetadata)(nil),     // 4: common.OwnerMetadata
-	(*ReferralMetadata)(nil),  // 5: common.ReferralMetadata
-	nil,                       // 6: common.Metadata.EntityIndexEntry
-	(*structpb.Struct)(nil),   // 7: google.protobuf.Struct
-	(*Entity)(nil),            // 8: common.Entity
+	(*TieredTax)(nil),                // 0: common.TieredTax
+	(*TaxationConnector)(nil),        // 1: common.TaxationConnector
+	(*Taxation)(nil),                 // 2: common.Taxation
+	(*OwnerMetadata)(nil),            // 3: common.OwnerMetadata
+	(*ReferralMetadata)(nil),         // 4: common.ReferralMetadata
+	(*Metadata)(nil),                 // 5: common.Metadata
+	(*Metadata_SchedulerConfig)(nil), // 6: common.Metadata.SchedulerConfig
+	(*structpb.Struct)(nil),          // 7: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),    // 8: google.protobuf.Timestamp
 }
 var file_common_v1_metadata_proto_depIdxs = []int32{
-	7,  // 0: common.Metadata.scheduling:type_name -> google.protobuf.Struct
-	7,  // 1: common.Metadata.custom_rules:type_name -> google.protobuf.Struct
-	7,  // 2: common.Metadata.audit:type_name -> google.protobuf.Struct
-	7,  // 3: common.Metadata.service_specific:type_name -> google.protobuf.Struct
-	7,  // 4: common.Metadata.knowledge_graph:type_name -> google.protobuf.Struct
-	1,  // 5: common.Metadata.taxation:type_name -> common.TieredTax
-	4,  // 6: common.Metadata.owner:type_name -> common.OwnerMetadata
-	5,  // 7: common.Metadata.referral:type_name -> common.ReferralMetadata
-	7,  // 8: common.Metadata.versioning:type_name -> google.protobuf.Struct
-	6,  // 9: common.Metadata.entity_index:type_name -> common.Metadata.EntityIndexEntry
-	8,  // 10: common.Metadata.prominent_entities:type_name -> common.Entity
-	1,  // 11: common.TaxationConnector.tiereds:type_name -> common.TieredTax
-	2,  // 12: common.Taxation.connectors:type_name -> common.TaxationConnector
-	8,  // 13: common.Metadata.EntityIndexEntry.value:type_name -> common.Entity
+	0,  // 0: common.TaxationConnector.tiereds:type_name -> common.TieredTax
+	1,  // 1: common.Taxation.connectors:type_name -> common.TaxationConnector
+	7,  // 2: common.Metadata.scheduling:type_name -> google.protobuf.Struct
+	7,  // 3: common.Metadata.custom_rules:type_name -> google.protobuf.Struct
+	7,  // 4: common.Metadata.audit:type_name -> google.protobuf.Struct
+	7,  // 5: common.Metadata.service_specific:type_name -> google.protobuf.Struct
+	7,  // 6: common.Metadata.knowledge_graph:type_name -> google.protobuf.Struct
+	0,  // 7: common.Metadata.taxation:type_name -> common.TieredTax
+	3,  // 8: common.Metadata.owner:type_name -> common.OwnerMetadata
+	4,  // 9: common.Metadata.referral:type_name -> common.ReferralMetadata
+	7,  // 10: common.Metadata.versioning:type_name -> google.protobuf.Struct
+	8,  // 11: common.Metadata.last_accessed:type_name -> google.protobuf.Timestamp
+	6,  // 12: common.Metadata.scheduler:type_name -> common.Metadata.SchedulerConfig
+	8,  // 13: common.Metadata.SchedulerConfig.expiry:type_name -> google.protobuf.Timestamp
 	14, // [14:14] is the sub-list for method output_type
 	14, // [14:14] is the sub-list for method input_type
 	14, // [14:14] is the sub-list for extension type_name
@@ -629,7 +755,6 @@ func file_common_v1_metadata_proto_init() {
 	if File_common_v1_metadata_proto != nil {
 		return
 	}
-	file_common_v1_entity_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

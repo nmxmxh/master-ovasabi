@@ -9,17 +9,22 @@ import "crawler/v1/crawler.proto";
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/ai/v1;aipb";
 
 // --- Core Data Models ---
-
-// ContentChunk represents a processed segment of crawled content
 message ContentChunk {
   bytes data = 1;
   int32 sequence = 2;
   bool is_last = 3;
-  int32 token_count = 4;  // For context window optimization
-  string content_hash = 5;  // SHA-256 of raw data
+  int32 token_count = 4;
+  string content_hash = 5;  // SHA-256
+  string source_uri = 6;    // Added for reference
 }
 
-// SecurityAssessment contains threat analysis results
+message Relation {
+  string type = 1;         // "related", "child", "similar", etc.
+  string target_uri = 2;   // URI reference to other entity
+  float strength = 3;      // Relationship confidence (0.0-1.0)
+  int64 last_updated = 4;  // Unix timestamp for GC
+}
+
 message SecurityAssessment {
   enum ThreatLevel {
     THREAT_LEVEL_UNKNOWN_UNSPECIFIED = 0;
@@ -29,39 +34,36 @@ message SecurityAssessment {
   }
 
   ThreatLevel level = 1;
-  repeated string indicators = 2;  // e.g., "PII", "MALWARE", "EXECUTABLE"
-  string quarantine_path = 3;      // Storage path for dangerous content
+  repeated string indicators = 2;
+  string quarantine_path = 3;
 }
 
-// --- AI Processing Requests ---
-
+// --- AI Processing ---
 message EnrichmentRequest {
   string task_uuid = 1;
   crawler.v1.ContentType content_type = 2;
-  common.Metadata metadata = 3;
+  common.Metadata metadata = 3;  // Enhanced metadata
 
   oneof content {
-    bytes raw_data = 4;       // For small content (<1MB)
-    ContentChunk chunk = 5;   // For chunked streaming
+    bytes raw_data = 4;     
+    ContentChunk chunk = 5;  
   }
 
-  SecurityAssessment security = 6;  // From cleaning pipeline
+  SecurityAssessment security = 6;
 }
-
-// --- AI Processing Responses ---
 
 message TextEnrichment {
   string summary = 1;
   repeated common.Entity entities = 2;
-  float sentiment_score = 3;  // -1.0 to 1.0 scale
+  float sentiment_score = 3; 
   repeated string key_phrases = 4;
-  map<string, float> topic_distribution = 5;  // Topic modeling results
+  map<string, float> topic_distribution = 5;
 }
 
 message MediaEnrichment {
   string caption = 1;
   repeated common.Entity detected_objects = 2;
-  string transcription = 3;  // For audio/video
+  string transcription = 3; 
   repeated string keywords = 4;
 }
 
@@ -73,25 +75,28 @@ message EnrichmentResponse {
     MediaEnrichment media = 3;
   }
 
-  repeated string knowledge_gaps = 4;  // Suggested exploration paths
+  repeated string knowledge_gaps = 4;
   string error_message = 5;
-
-  // Embedding and vector storage
+  
   message Vector {
-    repeated float values = 1;  // Embedding vector
-    string model = 2;           // e.g., "text-embedding-3-large"
+    repeated float values = 1;
+    string model = 2; 
     int32 dimensions = 3;
   }
   Vector vector = 6;
+  
+  // Added knowledge graph relations
+  repeated Relation relations = 7;
 }
 
-// --- Federated Learning Models ---
-
+// --- Federated Learning with P2P ---
 message ModelUpdate {
-  bytes delta = 1;  // Weight updates
+  bytes delta = 1;  
   common.Metadata meta = 2;
   string base_version = 3;
-  string signature = 4;  // Cryptographic signature
+  string signature = 4;
+  string peer_id = 5;          // P2P identifier
+  bool is_aggregator = 6;      // Federation role
 }
 
 message Model {
@@ -99,21 +104,18 @@ message Model {
   common.Metadata meta = 2;
   string version = 3;
   string parent_hash = 4;
-  string integrity_check = 5;  // e.g., "sha256:abc123"
+  string integrity_check = 5;
 }
 
 // --- Service Definitions ---
-
 service AIService {
-  // Unified content processing endpoint
   rpc ProcessContent(stream EnrichmentRequest) returns (EnrichmentResponse);
-
-  // Embedding-specific service
   rpc GenerateEmbeddings(EnrichmentRequest) returns (EnrichmentResponse.Vector);
-
-  // Model update handling
   rpc SubmitModelUpdate(ModelUpdate) returns (ModelUpdateAck);
   rpc GetCurrentModel(ModelRequest) returns (Model);
+  
+  // New client feedback endpoint
+  rpc HandleClientEvent(ClientEvent) returns (ClientEventAck);
 }
 
 // --- Support Messages ---
@@ -127,3 +129,14 @@ message ModelRequest {
   bool include_weights = 2;
 }
 
+// Client feedback mechanism
+message ClientEvent {
+  string task_uuid = 1;
+  string event_type = 2;  // e.g., "feedback", "correction"
+  map<string, string> payload = 3;
+  string source_uri = 4;  // Reference URI
+}
+
+message ClientEventAck {
+  bool processed = 1;
+}

@@ -95,6 +95,75 @@ func (EntityType) EnumDescriptor() ([]byte, []int) {
 	return file_common_v1_entity_proto_rawDescGZIP(), []int{0}
 }
 
+// Core relationship definition for knowledge graph
+type Relation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`                                   // "related", "child", "similar", etc.
+	TargetUri     string                 `protobuf:"bytes,2,opt,name=target_uri,json=targetUri,proto3" json:"target_uri,omitempty"`        // URI reference to other entity
+	Strength      float32                `protobuf:"fixed32,3,opt,name=strength,proto3" json:"strength,omitempty"`                         // Relationship confidence (0.0-1.0)
+	LastUpdated   int64                  `protobuf:"varint,4,opt,name=last_updated,json=lastUpdated,proto3" json:"last_updated,omitempty"` // Unix timestamp for GC
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Relation) Reset() {
+	*x = Relation{}
+	mi := &file_common_v1_entity_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Relation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Relation) ProtoMessage() {}
+
+func (x *Relation) ProtoReflect() protoreflect.Message {
+	mi := &file_common_v1_entity_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Relation.ProtoReflect.Descriptor instead.
+func (*Relation) Descriptor() ([]byte, []int) {
+	return file_common_v1_entity_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Relation) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Relation) GetTargetUri() string {
+	if x != nil {
+		return x.TargetUri
+	}
+	return ""
+}
+
+func (x *Relation) GetStrength() float32 {
+	if x != nil {
+		return x.Strength
+	}
+	return 0
+}
+
+func (x *Relation) GetLastUpdated() int64 {
+	if x != nil {
+		return x.LastUpdated
+	}
+	return 0
+}
+
 // Entity represents a distinct real-world/conceptual object
 type Entity struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -105,19 +174,21 @@ type Entity struct {
 	// Contextual variants (e.g., "Uncle Bob", "Robert C. Martin")
 	Aliases []string `protobuf:"bytes,3,rep,name=aliases,proto3" json:"aliases,omitempty"`
 	// Confidence score (0.0-1.0)
-	Confidence    float32                `protobuf:"fixed32,4,opt,name=confidence,proto3" json:"confidence,omitempty"`
-	Occurrences   []*Entity_Occurrence   `protobuf:"bytes,5,rep,name=occurrences,proto3" json:"occurrences,omitempty"`
-	Relationships []*Entity_Relationship `protobuf:"bytes,6,rep,name=relationships,proto3" json:"relationships,omitempty"`
+	Confidence  float32              `protobuf:"fixed32,4,opt,name=confidence,proto3" json:"confidence,omitempty"`
+	Occurrences []*Entity_Occurrence `protobuf:"bytes,5,rep,name=occurrences,proto3" json:"occurrences,omitempty"`
+	// Knowledge graph relationships
+	Relations []*Relation `protobuf:"bytes,6,rep,name=relations,proto3" json:"relations,omitempty"`
 	// Cross-references
 	WikipediaId   string `protobuf:"bytes,7,opt,name=wikipedia_id,json=wikipediaId,proto3" json:"wikipedia_id,omitempty"`
 	WikidataId    string `protobuf:"bytes,8,opt,name=wikidata_id,json=wikidataId,proto3" json:"wikidata_id,omitempty"`
+	Uri           string `protobuf:"bytes,9,opt,name=uri,proto3" json:"uri,omitempty"` // Canonical entity URI
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Entity) Reset() {
 	*x = Entity{}
-	mi := &file_common_v1_entity_proto_msgTypes[0]
+	mi := &file_common_v1_entity_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -129,7 +200,7 @@ func (x *Entity) String() string {
 func (*Entity) ProtoMessage() {}
 
 func (x *Entity) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_entity_proto_msgTypes[0]
+	mi := &file_common_v1_entity_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -142,7 +213,7 @@ func (x *Entity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entity.ProtoReflect.Descriptor instead.
 func (*Entity) Descriptor() ([]byte, []int) {
-	return file_common_v1_entity_proto_rawDescGZIP(), []int{0}
+	return file_common_v1_entity_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Entity) GetName() string {
@@ -180,9 +251,9 @@ func (x *Entity) GetOccurrences() []*Entity_Occurrence {
 	return nil
 }
 
-func (x *Entity) GetRelationships() []*Entity_Relationship {
+func (x *Entity) GetRelations() []*Relation {
 	if x != nil {
-		return x.Relationships
+		return x.Relations
 	}
 	return nil
 }
@@ -201,19 +272,88 @@ func (x *Entity) GetWikidataId() string {
 	return ""
 }
 
+func (x *Entity) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
+// Lightweight reference for graph storage
+type Reference struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uri           string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`             // Unique resource identifier
+	Metadata      *Metadata              `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`   // Standard metadata
+	Relations     []*Relation            `protobuf:"bytes,3,rep,name=relations,proto3" json:"relations,omitempty"` // Knowledge graph connections
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Reference) Reset() {
+	*x = Reference{}
+	mi := &file_common_v1_entity_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Reference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Reference) ProtoMessage() {}
+
+func (x *Reference) ProtoReflect() protoreflect.Message {
+	mi := &file_common_v1_entity_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Reference.ProtoReflect.Descriptor instead.
+func (*Reference) Descriptor() ([]byte, []int) {
+	return file_common_v1_entity_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Reference) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
+func (x *Reference) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *Reference) GetRelations() []*Relation {
+	if x != nil {
+		return x.Relations
+	}
+	return nil
+}
+
 // Provenance within source
 type Entity_Occurrence struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	StartOffset   int32                  `protobuf:"varint,1,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"` // Character position
-	EndOffset     int32                  `protobuf:"varint,2,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
-	SourceField   string                 `protobuf:"bytes,3,opt,name=source_field,json=sourceField,proto3" json:"source_field,omitempty"` // e.g., "summary", "chunk3"
+	SourceUri     string                 `protobuf:"bytes,1,opt,name=source_uri,json=sourceUri,proto3" json:"source_uri,omitempty"`        // URI of source document
+	StartOffset   int32                  `protobuf:"varint,2,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"` // Character position
+	EndOffset     int32                  `protobuf:"varint,3,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
+	SourceField   string                 `protobuf:"bytes,4,opt,name=source_field,json=sourceField,proto3" json:"source_field,omitempty"` // e.g., "summary", "chunk3"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Entity_Occurrence) Reset() {
 	*x = Entity_Occurrence{}
-	mi := &file_common_v1_entity_proto_msgTypes[1]
+	mi := &file_common_v1_entity_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -225,7 +365,7 @@ func (x *Entity_Occurrence) String() string {
 func (*Entity_Occurrence) ProtoMessage() {}
 
 func (x *Entity_Occurrence) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_entity_proto_msgTypes[1]
+	mi := &file_common_v1_entity_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -238,7 +378,14 @@ func (x *Entity_Occurrence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entity_Occurrence.ProtoReflect.Descriptor instead.
 func (*Entity_Occurrence) Descriptor() ([]byte, []int) {
-	return file_common_v1_entity_proto_rawDescGZIP(), []int{0, 0}
+	return file_common_v1_entity_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *Entity_Occurrence) GetSourceUri() string {
+	if x != nil {
+		return x.SourceUri
+	}
+	return ""
 }
 
 func (x *Entity_Occurrence) GetStartOffset() int32 {
@@ -262,72 +409,17 @@ func (x *Entity_Occurrence) GetSourceField() string {
 	return ""
 }
 
-// Knowledge graph relationships
-type Entity_Relationship struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TargetEntity  string                 `protobuf:"bytes,1,opt,name=target_entity,json=targetEntity,proto3" json:"target_entity,omitempty"` // UUID or canonical name
-	Predicate     string                 `protobuf:"bytes,2,opt,name=predicate,proto3" json:"predicate,omitempty"`                           // e.g., "works_at", "author_of"
-	Weight        float32                `protobuf:"fixed32,3,opt,name=weight,proto3" json:"weight,omitempty"`                               // Relationship strength
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Entity_Relationship) Reset() {
-	*x = Entity_Relationship{}
-	mi := &file_common_v1_entity_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Entity_Relationship) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Entity_Relationship) ProtoMessage() {}
-
-func (x *Entity_Relationship) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_entity_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Entity_Relationship.ProtoReflect.Descriptor instead.
-func (*Entity_Relationship) Descriptor() ([]byte, []int) {
-	return file_common_v1_entity_proto_rawDescGZIP(), []int{0, 1}
-}
-
-func (x *Entity_Relationship) GetTargetEntity() string {
-	if x != nil {
-		return x.TargetEntity
-	}
-	return ""
-}
-
-func (x *Entity_Relationship) GetPredicate() string {
-	if x != nil {
-		return x.Predicate
-	}
-	return ""
-}
-
-func (x *Entity_Relationship) GetWeight() float32 {
-	if x != nil {
-		return x.Weight
-	}
-	return 0
-}
-
 var File_common_v1_entity_proto protoreflect.FileDescriptor
 
 const file_common_v1_entity_proto_rawDesc = "" +
 	"\n" +
-	"\x16common/v1/entity.proto\x12\x06common\"\xa0\x04\n" +
+	"\x16common/v1/entity.proto\x12\x06common\x1a\x18common/v1/metadata.proto\"|\n" +
+	"\bRelation\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1d\n" +
+	"\n" +
+	"target_uri\x18\x02 \x01(\tR\ttargetUri\x12\x1a\n" +
+	"\bstrength\x18\x03 \x01(\x02R\bstrength\x12!\n" +
+	"\flast_updated\x18\x04 \x01(\x03R\vlastUpdated\"\xd4\x03\n" +
 	"\x06Entity\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12&\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x12.common.EntityTypeR\x04type\x12\x18\n" +
@@ -335,21 +427,24 @@ const file_common_v1_entity_proto_rawDesc = "" +
 	"\n" +
 	"confidence\x18\x04 \x01(\x02R\n" +
 	"confidence\x12;\n" +
-	"\voccurrences\x18\x05 \x03(\v2\x19.common.Entity.OccurrenceR\voccurrences\x12A\n" +
-	"\rrelationships\x18\x06 \x03(\v2\x1b.common.Entity.RelationshipR\rrelationships\x12!\n" +
+	"\voccurrences\x18\x05 \x03(\v2\x19.common.Entity.OccurrenceR\voccurrences\x12.\n" +
+	"\trelations\x18\x06 \x03(\v2\x10.common.RelationR\trelations\x12!\n" +
 	"\fwikipedia_id\x18\a \x01(\tR\vwikipediaId\x12\x1f\n" +
 	"\vwikidata_id\x18\b \x01(\tR\n" +
-	"wikidataId\x1aq\n" +
+	"wikidataId\x12\x10\n" +
+	"\x03uri\x18\t \x01(\tR\x03uri\x1a\x90\x01\n" +
 	"\n" +
-	"Occurrence\x12!\n" +
-	"\fstart_offset\x18\x01 \x01(\x05R\vstartOffset\x12\x1d\n" +
+	"Occurrence\x12\x1d\n" +
 	"\n" +
-	"end_offset\x18\x02 \x01(\x05R\tendOffset\x12!\n" +
-	"\fsource_field\x18\x03 \x01(\tR\vsourceField\x1ai\n" +
-	"\fRelationship\x12#\n" +
-	"\rtarget_entity\x18\x01 \x01(\tR\ftargetEntity\x12\x1c\n" +
-	"\tpredicate\x18\x02 \x01(\tR\tpredicate\x12\x16\n" +
-	"\x06weight\x18\x03 \x01(\x02R\x06weight*\x99\x02\n" +
+	"source_uri\x18\x01 \x01(\tR\tsourceUri\x12!\n" +
+	"\fstart_offset\x18\x02 \x01(\x05R\vstartOffset\x12\x1d\n" +
+	"\n" +
+	"end_offset\x18\x03 \x01(\x05R\tendOffset\x12!\n" +
+	"\fsource_field\x18\x04 \x01(\tR\vsourceField\"{\n" +
+	"\tReference\x12\x10\n" +
+	"\x03uri\x18\x01 \x01(\tR\x03uri\x12,\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x10.common.MetadataR\bmetadata\x12.\n" +
+	"\trelations\x18\x03 \x03(\v2\x10.common.RelationR\trelations*\x99\x02\n" +
 	"\n" +
 	"EntityType\x12\x1b\n" +
 	"\x17ENTITY_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -376,22 +471,26 @@ func file_common_v1_entity_proto_rawDescGZIP() []byte {
 }
 
 var file_common_v1_entity_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_common_v1_entity_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_common_v1_entity_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_common_v1_entity_proto_goTypes = []any{
-	(EntityType)(0),             // 0: common.EntityType
-	(*Entity)(nil),              // 1: common.Entity
-	(*Entity_Occurrence)(nil),   // 2: common.Entity.Occurrence
-	(*Entity_Relationship)(nil), // 3: common.Entity.Relationship
+	(EntityType)(0),           // 0: common.EntityType
+	(*Relation)(nil),          // 1: common.Relation
+	(*Entity)(nil),            // 2: common.Entity
+	(*Reference)(nil),         // 3: common.Reference
+	(*Entity_Occurrence)(nil), // 4: common.Entity.Occurrence
+	(*Metadata)(nil),          // 5: common.Metadata
 }
 var file_common_v1_entity_proto_depIdxs = []int32{
 	0, // 0: common.Entity.type:type_name -> common.EntityType
-	2, // 1: common.Entity.occurrences:type_name -> common.Entity.Occurrence
-	3, // 2: common.Entity.relationships:type_name -> common.Entity.Relationship
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 1: common.Entity.occurrences:type_name -> common.Entity.Occurrence
+	1, // 2: common.Entity.relations:type_name -> common.Relation
+	5, // 3: common.Reference.metadata:type_name -> common.Metadata
+	1, // 4: common.Reference.relations:type_name -> common.Relation
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_common_v1_entity_proto_init() }
@@ -399,13 +498,14 @@ func file_common_v1_entity_proto_init() {
 	if File_common_v1_entity_proto != nil {
 		return
 	}
+	file_common_v1_metadata_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_v1_entity_proto_rawDesc), len(file_common_v1_entity_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
