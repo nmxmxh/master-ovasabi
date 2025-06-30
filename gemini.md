@@ -160,3 +160,71 @@ Services self-register with a central provider and **MUST** start the `hello-wor
 * **Metadata is Economic Fuel:** Treat the `common.Metadata` field as the critical data packet that drives the entire economy. Ensure it is rich and accurate.
 * **Use the `graceful` Package:** All service logic, especially logic that could have economic consequences, must be wrapped in the `graceful` package's orchestration methods.
 * **Keep it DRY:** Always look for opportunities to use shared patterns and helpers.
+
+---
+
+## 8. Error Handling Standard (Platform-Wide)
+
+**All errors must be handled explicitly. Never ignore errors or assign them to underscore (`_`).**
+
+* Every error returned by a function, especially in business logic, event emission, and integration points, must be checked and handled appropriately.
+* Log all errors with sufficient context for observability and debugging.
+* If an error is non-fatal but important, log it at the appropriate level (warn, info, etc.).
+* If an error is fatal, propagate it with context using error wrapping or gRPC status codes.
+* This standard applies to all Go code, service logic, event bus usage, and orchestration flows.
+* **Rationale:** Ignoring errors leads to silent failures, poor observability, and unreliable systems. Robust error handling is required for production-grade, maintainable, and auditable services.
+
+---
+
+## 9. Platform Standard: Graceful Error and Success Handling
+
+All services must use the `graceful` package for robust, context-aware error and success handling. This includes:
+
+**Extensible Error Maps:**
+
+* Register all service-specific error mappings at startup using `graceful.RegisterErrorMap`.
+* Use `graceful.MapAndWrapErr` to map errors to gRPC codes/messages and wrap with context, eliminating repetitive switch/case logic.
+* Ensures consistent, DRY, and observable error handling across the platform.
+
+**Success Orchestration:**
+
+* Use `graceful.WrapSuccess` and `StandardOrchestrate` for all post-success activities (caching, event emission, knowledge graph enrichment, etc.).
+* Centralizes and standardizes all post-success flows, reducing repetition and improving maintainability.
+
+**Error Orchestration:**
+
+* Use `graceful.ContextError.StandardOrchestrate` for audit logging, alerting, and fallback on error flows.
+* Supports conditional/switch-based orchestration for advanced error handling patterns.
+
+### Success Orchestration
+
+```go
+success := graceful.WrapSuccess(ctx, codes.OK, "user updated", response, nil)
+success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+    Log:          logger,
+    Cache:        cache,
+    CacheKey:     user.ID,
+    CacheValue:   response,
+    CacheTTL:     10 * time.Minute,
+    Metadata:     user.Metadata,
+    EventEmitter: eventEmitter,
+    EventEnabled: eventEnabled,
+    EventType:    "user_updated",
+    EventID:      user.ID,
+    PatternType:  "user",
+    PatternID:    user.ID,
+    PatternMeta:  user.Metadata,
+    // Optionally override any step with a custom hook
+    // MetadataHook: func(ctx context.Context) error { ... },
+})
+```
+
+### Error Orchestration
+
+```go
+err := graceful.WrapErr(ctx, codes.Internal, "something failed", cause)
+err.StandardOrchestrate(graceful.ErrorOrchestrationConfig{
+    Log: logger,
+    // Optionally override with custom audit, alert, fallback, etc.
+})
+```
