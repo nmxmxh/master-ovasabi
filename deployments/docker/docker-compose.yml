@@ -240,9 +240,19 @@ services:
       - ovasabi-network
     restart: unless-stopped
 
+  clamav:
+    image: clamav/clamav:latest
+    ports:
+      - '3310:3310'
+    volumes:
+      - clamdb:/var/lib/clamav
+    environment:
+      - CLAMAV_NO_FRESHCLAMD=false
+
 volumes:
   postgres_data:
   redis_data:
+  clamdb:
 
 networks:
   ovasabi-network:

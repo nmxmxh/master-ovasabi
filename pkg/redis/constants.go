@@ -44,6 +44,7 @@ const (
 	ContextProduct           = "product"
 	ContextMedia             = "media"
 	ContextCommerce          = "commerce"
+	ContextCrawler           = "crawler"
 )
 
 // TTL constants defines the time-to-live durations for different types of data.

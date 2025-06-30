@@ -19,6 +19,7 @@ import (
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
 	contentpb "github.com/nmxmxh/master-ovasabi/api/protos/content/v1"
 	contentmoderationpb "github.com/nmxmxh/master-ovasabi/api/protos/contentmoderation/v1"
+	crawlerpb "github.com/nmxmxh/master-ovasabi/api/protos/crawler/v1"
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
 	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
@@ -232,4 +233,5 @@ func registerGRPCServices(grpcServer *grpc.Server, container *di.Container, log 
 	registerService(grpcServer, container, log, messagingpb.RegisterMessagingServiceServer)
 	registerService(grpcServer, container, log, securitypb.RegisterSecurityServiceServer)
 	registerService(grpcServer, container, log, adminpb.RegisterAdminServiceServer)
+	registerService(grpcServer, container, log, crawlerpb.RegisterCrawlerServiceServer)
 }

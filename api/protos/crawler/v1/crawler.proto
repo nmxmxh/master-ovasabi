@@ -18,6 +18,9 @@ enum TaskType {
   TASK_TYPE_FILE = 4;
   TASK_TYPE_SOCKET = 5;
   TASK_TYPE_BROWSER = 6; // For browser emulation
+  TASK_TYPE_ARCHIVE = 7; // For archive files (.zip, .tar.gz, etc.)
+  TASK_TYPE_VIDEO = 8;   // For video files
+  TASK_TYPE_SHELL = 9;   // For executing shell commands
 }
 
 // TaskStatus represents the lifecycle of a crawl task.
@@ -38,6 +41,8 @@ enum ContentType {
   CONTENT_TYPE_AUDIO = 3;
   CONTENT_TYPE_VIDEO = 4;
   CONTENT_TYPE_BINARY = 5;
+  CONTENT_TYPE_HTML = 6;
+  CONTENT_TYPE_PDF = 7;
 }
 
 // --- Core Messages ---
@@ -45,38 +50,46 @@ enum ContentType {
 // CrawlTask represents a job for a worker to execute.
 // It is designed to be traceable, secure, and extensible.
 message CrawlTask {
-  // Unique identifier for traceability and idempotency.
-  string uuid = 1;
+  int64 id = 1;
+  string uuid = 2;
+  int64 master_id = 3;
+  string master_uuid = 4;
   // The type of worker to use for this task.
-  TaskType type = 2;
+  TaskType type = 5;
   // The resource to crawl (URL, file path, magnet link, etc.).
-  string target = 3;
+  string target = 6;
   // Recursion depth control. 0 means no recursion.
-  int32 depth = 4;
+  int32 depth = 7;
   // e.g., ["no-executable", "text-only", "max-size:10MB"]
-  repeated string filters = 5;
+  repeated string filters = 8;
   // Current status of the task.
-  TaskStatus status = 6;
-  google.protobuf.Timestamp created_at = 7;
-  google.protobuf.Timestamp updated_at = 8;
+  TaskStatus status = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
   // Canonical metadata for orchestration, context, and extensibility.
-  common.Metadata metadata = 9;
+  common.Metadata metadata = 12;
 }
 
 // CrawlResult is the output from a worker after processing a task.
 message CrawlResult {
+  int64 id = 1;
+  string uuid = 2;
+  int64 master_id = 3;
+  string master_uuid = 4;
   // Corresponds to the CrawlTask UUID.
-  string task_uuid = 1;
+  string task_uuid = 5;
   // Final status of the task.
-  TaskStatus status = 2;
+  TaskStatus status = 6;
   // Raw or cleaned content.
-  bytes extracted_content = 3;
+  bytes extracted_content = 7;
   // Links discovered during crawl.
-  repeated string extracted_links = 4;
+  repeated string extracted_links = 8;
   // Details on failure.
-  string error_message = 5;
+  string error_message = 9;
   // Enriched metadata from the crawl process.
-  common.Metadata metadata = 6;
+  common.Metadata metadata = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
 }
 
 // --- Service Definitions ---

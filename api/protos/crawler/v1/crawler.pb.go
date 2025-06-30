@@ -34,6 +34,9 @@ const (
 	TaskType_TASK_TYPE_FILE        TaskType = 4
 	TaskType_TASK_TYPE_SOCKET      TaskType = 5
 	TaskType_TASK_TYPE_BROWSER     TaskType = 6 // For browser emulation
+	TaskType_TASK_TYPE_ARCHIVE     TaskType = 7 // For archive files (.zip, .tar.gz, etc.)
+	TaskType_TASK_TYPE_VIDEO       TaskType = 8 // For video files
+	TaskType_TASK_TYPE_SHELL       TaskType = 9 // For executing shell commands
 )
 
 // Enum value maps for TaskType.
@@ -46,6 +49,9 @@ var (
 		4: "TASK_TYPE_FILE",
 		5: "TASK_TYPE_SOCKET",
 		6: "TASK_TYPE_BROWSER",
+		7: "TASK_TYPE_ARCHIVE",
+		8: "TASK_TYPE_VIDEO",
+		9: "TASK_TYPE_SHELL",
 	}
 	TaskType_value = map[string]int32{
 		"TASK_TYPE_UNSPECIFIED": 0,
@@ -55,6 +61,9 @@ var (
 		"TASK_TYPE_FILE":        4,
 		"TASK_TYPE_SOCKET":      5,
 		"TASK_TYPE_BROWSER":     6,
+		"TASK_TYPE_ARCHIVE":     7,
+		"TASK_TYPE_VIDEO":       8,
+		"TASK_TYPE_SHELL":       9,
 	}
 )
 
@@ -154,6 +163,8 @@ const (
 	ContentType_CONTENT_TYPE_AUDIO       ContentType = 3
 	ContentType_CONTENT_TYPE_VIDEO       ContentType = 4
 	ContentType_CONTENT_TYPE_BINARY      ContentType = 5
+	ContentType_CONTENT_TYPE_HTML        ContentType = 6
+	ContentType_CONTENT_TYPE_PDF         ContentType = 7
 )
 
 // Enum value maps for ContentType.
@@ -165,6 +176,8 @@ var (
 		3: "CONTENT_TYPE_AUDIO",
 		4: "CONTENT_TYPE_VIDEO",
 		5: "CONTENT_TYPE_BINARY",
+		6: "CONTENT_TYPE_HTML",
+		7: "CONTENT_TYPE_PDF",
 	}
 	ContentType_value = map[string]int32{
 		"CONTENT_TYPE_UNSPECIFIED": 0,
@@ -173,6 +186,8 @@ var (
 		"CONTENT_TYPE_AUDIO":       3,
 		"CONTENT_TYPE_VIDEO":       4,
 		"CONTENT_TYPE_BINARY":      5,
+		"CONTENT_TYPE_HTML":        6,
+		"CONTENT_TYPE_PDF":         7,
 	}
 )
 
@@ -206,23 +221,25 @@ func (ContentType) EnumDescriptor() ([]byte, []int) {
 // CrawlTask represents a job for a worker to execute.
 // It is designed to be traceable, secure, and extensible.
 type CrawlTask struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Unique identifier for traceability and idempotency.
-	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Uuid       string                 `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	MasterId   int64                  `protobuf:"varint,3,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterUuid string                 `protobuf:"bytes,4,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
 	// The type of worker to use for this task.
-	Type TaskType `protobuf:"varint,2,opt,name=type,proto3,enum=crawler.v1.TaskType" json:"type,omitempty"`
+	Type TaskType `protobuf:"varint,5,opt,name=type,proto3,enum=crawler.v1.TaskType" json:"type,omitempty"`
 	// The resource to crawl (URL, file path, magnet link, etc.).
-	Target string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	Target string `protobuf:"bytes,6,opt,name=target,proto3" json:"target,omitempty"`
 	// Recursion depth control. 0 means no recursion.
-	Depth int32 `protobuf:"varint,4,opt,name=depth,proto3" json:"depth,omitempty"`
+	Depth int32 `protobuf:"varint,7,opt,name=depth,proto3" json:"depth,omitempty"`
 	// e.g., ["no-executable", "text-only", "max-size:10MB"]
-	Filters []string `protobuf:"bytes,5,rep,name=filters,proto3" json:"filters,omitempty"`
+	Filters []string `protobuf:"bytes,8,rep,name=filters,proto3" json:"filters,omitempty"`
 	// Current status of the task.
-	Status    TaskStatus             `protobuf:"varint,6,opt,name=status,proto3,enum=crawler.v1.TaskStatus" json:"status,omitempty"`
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Status    TaskStatus             `protobuf:"varint,9,opt,name=status,proto3,enum=crawler.v1.TaskStatus" json:"status,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	// Canonical metadata for orchestration, context, and extensibility.
-	Metadata      *v1.Metadata `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Metadata      *v1.Metadata `protobuf:"bytes,12,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -257,9 +274,30 @@ func (*CrawlTask) Descriptor() ([]byte, []int) {
 	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{0}
 }
 
+func (x *CrawlTask) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
 func (x *CrawlTask) GetUuid() string {
 	if x != nil {
 		return x.Uuid
+	}
+	return ""
+}
+
+func (x *CrawlTask) GetMasterId() int64 {
+	if x != nil {
+		return x.MasterId
+	}
+	return 0
+}
+
+func (x *CrawlTask) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
 	}
 	return ""
 }
@@ -322,19 +360,25 @@ func (x *CrawlTask) GetMetadata() *v1.Metadata {
 
 // CrawlResult is the output from a worker after processing a task.
 type CrawlResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Uuid       string                 `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	MasterId   int64                  `protobuf:"varint,3,opt,name=master_id,json=masterId,proto3" json:"master_id,omitempty"`
+	MasterUuid string                 `protobuf:"bytes,4,opt,name=master_uuid,json=masterUuid,proto3" json:"master_uuid,omitempty"`
 	// Corresponds to the CrawlTask UUID.
-	TaskUuid string `protobuf:"bytes,1,opt,name=task_uuid,json=taskUuid,proto3" json:"task_uuid,omitempty"`
+	TaskUuid string `protobuf:"bytes,5,opt,name=task_uuid,json=taskUuid,proto3" json:"task_uuid,omitempty"`
 	// Final status of the task.
-	Status TaskStatus `protobuf:"varint,2,opt,name=status,proto3,enum=crawler.v1.TaskStatus" json:"status,omitempty"`
+	Status TaskStatus `protobuf:"varint,6,opt,name=status,proto3,enum=crawler.v1.TaskStatus" json:"status,omitempty"`
 	// Raw or cleaned content.
-	ExtractedContent []byte `protobuf:"bytes,3,opt,name=extracted_content,json=extractedContent,proto3" json:"extracted_content,omitempty"`
+	ExtractedContent []byte `protobuf:"bytes,7,opt,name=extracted_content,json=extractedContent,proto3" json:"extracted_content,omitempty"`
 	// Links discovered during crawl.
-	ExtractedLinks []string `protobuf:"bytes,4,rep,name=extracted_links,json=extractedLinks,proto3" json:"extracted_links,omitempty"`
+	ExtractedLinks []string `protobuf:"bytes,8,rep,name=extracted_links,json=extractedLinks,proto3" json:"extracted_links,omitempty"`
 	// Details on failure.
-	ErrorMessage string `protobuf:"bytes,5,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	ErrorMessage string `protobuf:"bytes,9,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	// Enriched metadata from the crawl process.
-	Metadata      *v1.Metadata `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Metadata      *v1.Metadata           `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -367,6 +411,34 @@ func (x *CrawlResult) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CrawlResult.ProtoReflect.Descriptor instead.
 func (*CrawlResult) Descriptor() ([]byte, []int) {
 	return file_crawler_v1_crawler_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CrawlResult) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *CrawlResult) GetUuid() string {
+	if x != nil {
+		return x.Uuid
+	}
+	return ""
+}
+
+func (x *CrawlResult) GetMasterId() int64 {
+	if x != nil {
+		return x.MasterId
+	}
+	return 0
+}
+
+func (x *CrawlResult) GetMasterUuid() string {
+	if x != nil {
+		return x.MasterUuid
+	}
+	return ""
 }
 
 func (x *CrawlResult) GetTaskUuid() string {
@@ -407,6 +479,20 @@ func (x *CrawlResult) GetErrorMessage() string {
 func (x *CrawlResult) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
+	}
+	return nil
+}
+
+func (x *CrawlResult) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *CrawlResult) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
 	}
 	return nil
 }
@@ -608,26 +694,41 @@ var File_crawler_v1_crawler_proto protoreflect.FileDescriptor
 const file_crawler_v1_crawler_proto_rawDesc = "" +
 	"\n" +
 	"\x18crawler/v1/crawler.proto\x12\n" +
-	"crawler.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe5\x02\n" +
-	"\tCrawlTask\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12(\n" +
-	"\x04type\x18\x02 \x01(\x0e2\x14.crawler.v1.TaskTypeR\x04type\x12\x16\n" +
-	"\x06target\x18\x03 \x01(\tR\x06target\x12\x14\n" +
-	"\x05depth\x18\x04 \x01(\x05R\x05depth\x12\x18\n" +
-	"\afilters\x18\x05 \x03(\tR\afilters\x12.\n" +
-	"\x06status\x18\x06 \x01(\x0e2\x16.crawler.v1.TaskStatusR\x06status\x129\n" +
+	"crawler.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb3\x03\n" +
+	"\tCrawlTask\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x1b\n" +
+	"\tmaster_id\x18\x03 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x04 \x01(\tR\n" +
+	"masterUuid\x12(\n" +
+	"\x04type\x18\x05 \x01(\x0e2\x14.crawler.v1.TaskTypeR\x04type\x12\x16\n" +
+	"\x06target\x18\x06 \x01(\tR\x06target\x12\x14\n" +
+	"\x05depth\x18\a \x01(\x05R\x05depth\x12\x18\n" +
+	"\afilters\x18\b \x03(\tR\afilters\x12.\n" +
+	"\x06status\x18\t \x01(\x0e2\x16.crawler.v1.TaskStatusR\x06status\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"created_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12,\n" +
-	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\"\x83\x02\n" +
-	"\vCrawlResult\x12\x1b\n" +
-	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid\x12.\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x16.crawler.v1.TaskStatusR\x06status\x12+\n" +
-	"\x11extracted_content\x18\x03 \x01(\fR\x10extractedContent\x12'\n" +
-	"\x0fextracted_links\x18\x04 \x03(\tR\x0eextractedLinks\x12#\n" +
-	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\">\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12,\n" +
+	"\bmetadata\x18\f \x01(\v2\x10.common.MetadataR\bmetadata\"\xdb\x03\n" +
+	"\vCrawlResult\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x1b\n" +
+	"\tmaster_id\x18\x03 \x01(\x03R\bmasterId\x12\x1f\n" +
+	"\vmaster_uuid\x18\x04 \x01(\tR\n" +
+	"masterUuid\x12\x1b\n" +
+	"\ttask_uuid\x18\x05 \x01(\tR\btaskUuid\x12.\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x16.crawler.v1.TaskStatusR\x06status\x12+\n" +
+	"\x11extracted_content\x18\a \x01(\fR\x10extractedContent\x12'\n" +
+	"\x0fextracted_links\x18\b \x03(\tR\x0eextractedLinks\x12#\n" +
+	"\rerror_message\x18\t \x01(\tR\ferrorMessage\x12,\n" +
+	"\bmetadata\x18\n" +
+	" \x01(\v2\x10.common.MetadataR\bmetadata\x129\n" +
+	"\n" +
+	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\">\n" +
 	"\x11SubmitTaskRequest\x12)\n" +
 	"\x04task\x18\x01 \x01(\v2\x15.crawler.v1.CrawlTaskR\x04task\"r\n" +
 	"\x12SubmitTaskResponse\x12\x12\n" +
@@ -637,7 +738,7 @@ const file_crawler_v1_crawler_proto_rawDesc = "" +
 	"\x14GetTaskStatusRequest\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\"3\n" +
 	"\x14StreamResultsRequest\x12\x1b\n" +
-	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid*\xa4\x01\n" +
+	"\ttask_uuid\x18\x01 \x01(\tR\btaskUuid*\xe5\x01\n" +
 	"\bTaskType\x12\x19\n" +
 	"\x15TASK_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eTASK_TYPE_HTML\x10\x01\x12\x15\n" +
@@ -645,7 +746,10 @@ const file_crawler_v1_crawler_proto_rawDesc = "" +
 	"\rTASK_TYPE_API\x10\x03\x12\x12\n" +
 	"\x0eTASK_TYPE_FILE\x10\x04\x12\x14\n" +
 	"\x10TASK_TYPE_SOCKET\x10\x05\x12\x15\n" +
-	"\x11TASK_TYPE_BROWSER\x10\x06*\xae\x01\n" +
+	"\x11TASK_TYPE_BROWSER\x10\x06\x12\x15\n" +
+	"\x11TASK_TYPE_ARCHIVE\x10\a\x12\x13\n" +
+	"\x0fTASK_TYPE_VIDEO\x10\b\x12\x13\n" +
+	"\x0fTASK_TYPE_SHELL\x10\t*\xae\x01\n" +
 	"\n" +
 	"TaskStatus\x12\x1b\n" +
 	"\x17TASK_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -653,14 +757,16 @@ const file_crawler_v1_crawler_proto_rawDesc = "" +
 	"\x16TASK_STATUS_PROCESSING\x10\x02\x12\x19\n" +
 	"\x15TASK_STATUS_COMPLETED\x10\x03\x12\x16\n" +
 	"\x12TASK_STATUS_FAILED\x10\x04\x12\x1b\n" +
-	"\x17TASK_STATUS_QUARANTINED\x10\x05*\xa3\x01\n" +
+	"\x17TASK_STATUS_QUARANTINED\x10\x05*\xd0\x01\n" +
 	"\vContentType\x12\x1c\n" +
 	"\x18CONTENT_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11CONTENT_TYPE_TEXT\x10\x01\x12\x16\n" +
 	"\x12CONTENT_TYPE_IMAGE\x10\x02\x12\x16\n" +
 	"\x12CONTENT_TYPE_AUDIO\x10\x03\x12\x16\n" +
 	"\x12CONTENT_TYPE_VIDEO\x10\x04\x12\x17\n" +
-	"\x13CONTENT_TYPE_BINARY\x10\x052\xf5\x01\n" +
+	"\x13CONTENT_TYPE_BINARY\x10\x05\x12\x15\n" +
+	"\x11CONTENT_TYPE_HTML\x10\x06\x12\x14\n" +
+	"\x10CONTENT_TYPE_PDF\x10\a2\xf5\x01\n" +
 	"\x0eCrawlerService\x12K\n" +
 	"\n" +
 	"SubmitTask\x12\x1d.crawler.v1.SubmitTaskRequest\x1a\x1e.crawler.v1.SubmitTaskResponse\x12H\n" +
@@ -702,19 +808,21 @@ var file_crawler_v1_crawler_proto_depIdxs = []int32{
 	10, // 4: crawler.v1.CrawlTask.metadata:type_name -> common.Metadata
 	1,  // 5: crawler.v1.CrawlResult.status:type_name -> crawler.v1.TaskStatus
 	10, // 6: crawler.v1.CrawlResult.metadata:type_name -> common.Metadata
-	3,  // 7: crawler.v1.SubmitTaskRequest.task:type_name -> crawler.v1.CrawlTask
-	1,  // 8: crawler.v1.SubmitTaskResponse.status:type_name -> crawler.v1.TaskStatus
-	5,  // 9: crawler.v1.CrawlerService.SubmitTask:input_type -> crawler.v1.SubmitTaskRequest
-	7,  // 10: crawler.v1.CrawlerService.GetTaskStatus:input_type -> crawler.v1.GetTaskStatusRequest
-	8,  // 11: crawler.v1.CrawlerService.StreamResults:input_type -> crawler.v1.StreamResultsRequest
-	6,  // 12: crawler.v1.CrawlerService.SubmitTask:output_type -> crawler.v1.SubmitTaskResponse
-	3,  // 13: crawler.v1.CrawlerService.GetTaskStatus:output_type -> crawler.v1.CrawlTask
-	4,  // 14: crawler.v1.CrawlerService.StreamResults:output_type -> crawler.v1.CrawlResult
-	12, // [12:15] is the sub-list for method output_type
-	9,  // [9:12] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	9,  // 7: crawler.v1.CrawlResult.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 8: crawler.v1.CrawlResult.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 9: crawler.v1.SubmitTaskRequest.task:type_name -> crawler.v1.CrawlTask
+	1,  // 10: crawler.v1.SubmitTaskResponse.status:type_name -> crawler.v1.TaskStatus
+	5,  // 11: crawler.v1.CrawlerService.SubmitTask:input_type -> crawler.v1.SubmitTaskRequest
+	7,  // 12: crawler.v1.CrawlerService.GetTaskStatus:input_type -> crawler.v1.GetTaskStatusRequest
+	8,  // 13: crawler.v1.CrawlerService.StreamResults:input_type -> crawler.v1.StreamResultsRequest
+	6,  // 14: crawler.v1.CrawlerService.SubmitTask:output_type -> crawler.v1.SubmitTaskResponse
+	3,  // 15: crawler.v1.CrawlerService.GetTaskStatus:output_type -> crawler.v1.CrawlTask
+	4,  // 16: crawler.v1.CrawlerService.StreamResults:output_type -> crawler.v1.CrawlResult
+	14, // [14:17] is the sub-list for method output_type
+	11, // [11:14] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_crawler_v1_crawler_proto_init() }
