@@ -86,9 +86,7 @@ func (s *Service) SubmitTask(ctx context.Context, req *crawlerpb.SubmitTaskReque
 			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 			EventEnabled: s.eventEnabled,
 			EventType:    "crawler.task_submit_error",
-			EventID:      "",
 			PatternType:  "crawler_task",
-			PatternID:    "",
 		})
 		return nil, graceful.ToStatusError(errCtx)
 	}
@@ -174,9 +172,7 @@ func (s *Service) GetTaskStatus(ctx context.Context, req *crawlerpb.GetTaskStatu
 			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 			EventEnabled: s.eventEnabled,
 			EventType:    "crawler.task_status_error",
-			EventID:      "",
 			PatternType:  "crawler_task",
-			PatternID:    "",
 		})
 		return nil, graceful.ToStatusError(errCtx)
 	}
@@ -211,9 +207,7 @@ func (s *Service) StreamResults(req *crawlerpb.StreamResultsRequest, stream craw
 			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
 			EventEnabled: s.eventEnabled,
 			EventType:    "crawler.stream_results_error",
-			EventID:      "",
 			PatternType:  "crawler_task",
-			PatternID:    "",
 		})
 		return graceful.ToStatusError(errCtx)
 	}
