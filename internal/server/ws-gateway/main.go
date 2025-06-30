@@ -111,7 +111,7 @@ func main() {
 
 	nexusAddr := os.Getenv("NEXUS_ADDR")
 	if nexusAddr == "" {
-		nexusAddr = "inos-nexus:50051" // Default Nexus service address from compose
+		nexusAddr = "nexus:50052" // Default Nexus service address from compose
 	}
 
 	// --- Initialization ---
