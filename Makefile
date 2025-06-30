@@ -592,3 +592,53 @@ helm-status:
 
 helm-dry-run:
 	helm install ovasabi deployments/kubernetes --dry-run --debug
+
+# Knowledge Graph CLI Commands
+.PHONY: kg-backup kg-list-backups kg-restore kg-clean kg-validate kg-sync-backup
+
+# Create a backup of the knowledge graph (prunes and validates before saving)
+kg-backup:
+	@bin/kgcli backup --desc "Manual backup via Makefile"
+
+# List all available knowledge graph backups
+kg-list-backups:
+	@bin/kgcli list-backups --format text
+
+# Restore the main knowledge graph from a specified backup file
+# Usage: make kg-restore BACKUP=amadeus/backups/knowledge_graph_YYYYMMDD_HHMMSS.json
+kg-restore:
+	@if [ -z "$(BACKUP)" ]; then \
+		echo "Usage: make kg-restore BACKUP=amadeus/backups/knowledge_graph_YYYYMMDD_HHMMSS.json"; \
+		exit 1; \
+	fi; \
+	bin/kgcli restore --path $(BACKUP)
+
+# Clean/prune the knowledge graph (removes empty/obsolete fields)
+kg-clean:
+	@bin/kgcli clean
+
+# Validate the knowledge graph schema and required fields
+kg-validate:
+	@bin/kgcli validate
+
+# Sync the main knowledge graph from the latest backup
+kg-sync-backup:
+	@bin/kgcli sync-backup
+
+# Help descriptions for KG CLI
+kg-help:
+	   @echo "Knowledge Graph CLI Commands:";
+	   @echo "  kg-backup        - Create a backup of the knowledge graph (prunes and validates before saving)";
+	   @echo "  kg-list-backups  - List all available knowledge graph backups";
+	   @echo "  kg-restore       - Restore the main knowledge graph from a specified backup file (use BACKUP=...)";
+	   @echo "  kg-clean         - Clean/prune the knowledge graph (removes empty/obsolete fields)";
+	   @echo "  kg-validate      - Validate the knowledge graph schema and required fields";
+	   @echo "  kg-sync-backup   - Sync the main knowledge graph from the latest backup";
+	   @echo "  kg-describe      - Output a summary of the knowledge graph structure (agent/AI-friendly)";
+	   @echo "  kg-validate-full - Perform deep validation of the knowledge graph (cross-references, etc)";
+	   @echo "  kg-list-services - List all service names in the knowledge graph";
+	   @echo "  kg-list-patterns - List all pattern names in the knowledge graph";
+	   @echo "  kg-get-service   - Output a specific service by name (use NAME=...)";
+	   @echo "  kg-get-pattern   - Output a specific pattern by name (use NAME=...)";
+	   @echo "  kg-delete-service - Delete a service by name (use NAME=...)";
+	   @echo "  kg-delete-pattern - Delete a pattern by name (use NAME=...)";

@@ -12,6 +12,21 @@ import (
 	"go.uber.org/zap"
 )
 
+// ServiceInfo represents a service in the knowledge graph.
+type ServiceInfo struct {
+	Name         string                 `json:"name"`
+	Category     string                 `json:"category"`
+	Dependencies []string               `json:"dependencies,omitempty"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// PatternInfo represents a pattern in the knowledge graph.
+type PatternInfo struct {
+	Name     string                 `json:"name"`
+	Category string                 `json:"category"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+}
+
 // KnowledgeGraph represents the core structure of the OVASABI knowledge graph.
 type KnowledgeGraph struct {
 	Version     string    `json:"version"`
@@ -19,9 +34,9 @@ type KnowledgeGraph struct {
 
 	SystemComponents    map[string]interface{} `json:"system_components"`
 	RepositoryStructure map[string]interface{} `json:"repository_structure"`
-	Services            map[string]interface{} `json:"services"`
+	Services            map[string]ServiceInfo `json:"services"`
 	Nexus               map[string]interface{} `json:"nexus"`
-	Patterns            map[string]interface{} `json:"patterns"`
+	Patterns            map[string]PatternInfo `json:"patterns"`
 	DatabasePractices   map[string]interface{} `json:"database_practices"`
 	RedisPractices      map[string]interface{} `json:"redis_practices"`
 	AmadeusIntegration  map[string]interface{} `json:"amadeus_integration"`
@@ -48,9 +63,9 @@ func DefaultKnowledgeGraph() *KnowledgeGraph {
 			defaultKG.LastUpdated = time.Now().UTC()
 			defaultKG.SystemComponents = make(map[string]interface{})
 			defaultKG.RepositoryStructure = make(map[string]interface{})
-			defaultKG.Services = make(map[string]interface{})
+			defaultKG.Services = make(map[string]ServiceInfo)
 			defaultKG.Nexus = make(map[string]interface{})
-			defaultKG.Patterns = make(map[string]interface{})
+			defaultKG.Patterns = make(map[string]PatternInfo)
 			defaultKG.DatabasePractices = make(map[string]interface{})
 			defaultKG.RedisPractices = make(map[string]interface{})
 			defaultKG.AmadeusIntegration = make(map[string]interface{})
@@ -58,6 +73,117 @@ func DefaultKnowledgeGraph() *KnowledgeGraph {
 		}
 	})
 	return defaultKG
+}
+
+// Prune removes empty or obsolete fields from the knowledge graph, including typed sections.
+func (kg *KnowledgeGraph) Prune() {
+	kg.mu.Lock()
+	defer kg.mu.Unlock()
+
+	pruneMap := func(m map[string]interface{}) map[string]interface{} {
+		if m == nil {
+			return nil
+		}
+		cleaned := make(map[string]interface{})
+		for k, v := range m {
+			switch vv := v.(type) {
+			case nil:
+				continue
+			case string:
+				if vv == "" {
+					continue
+				}
+			case map[string]interface{}:
+				if len(vv) == 0 {
+					continue
+				}
+			}
+			cleaned[k] = v
+		}
+		if len(cleaned) == 0 {
+			return nil
+		}
+		return cleaned
+	}
+
+	pruneServices := func(m map[string]ServiceInfo) map[string]ServiceInfo {
+		if m == nil {
+			return nil
+		}
+		cleaned := make(map[string]ServiceInfo)
+		for k, v := range m {
+			if v.Name == "" && v.Category == "" && len(v.Dependencies) == 0 && len(v.Metadata) == 0 {
+				continue
+			}
+			cleaned[k] = v
+		}
+		if len(cleaned) == 0 {
+			return nil
+		}
+		return cleaned
+	}
+
+	prunePatterns := func(m map[string]PatternInfo) map[string]PatternInfo {
+		if m == nil {
+			return nil
+		}
+		cleaned := make(map[string]PatternInfo)
+		for k, v := range m {
+			if v.Name == "" && v.Category == "" && len(v.Details) == 0 {
+				continue
+			}
+			cleaned[k] = v
+		}
+		if len(cleaned) == 0 {
+			return nil
+		}
+		return cleaned
+	}
+
+	kg.SystemComponents = pruneMap(kg.SystemComponents)
+	kg.RepositoryStructure = pruneMap(kg.RepositoryStructure)
+	kg.Services = pruneServices(kg.Services)
+	kg.Nexus = pruneMap(kg.Nexus)
+	kg.Patterns = prunePatterns(kg.Patterns)
+	kg.DatabasePractices = pruneMap(kg.DatabasePractices)
+	kg.RedisPractices = pruneMap(kg.RedisPractices)
+	kg.AmadeusIntegration = pruneMap(kg.AmadeusIntegration)
+}
+
+// Validate checks the knowledge graph for required fields and correct types.
+func (kg *KnowledgeGraph) Validate() error {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+	if kg.Version == "" {
+		return fmt.Errorf("missing version")
+	}
+	if kg.LastUpdated.IsZero() {
+		return fmt.Errorf("missing last_updated")
+	}
+	// Optionally add more schema checks here
+	return nil
+}
+
+// SyncFromLatestBackup loads the most recent backup and updates the main graph file.
+func (kg *KnowledgeGraph) SyncFromLatestBackup() error {
+	backups, err := ListBackups()
+	if err != nil {
+		return err
+	}
+	if len(backups) == 0 {
+		return fmt.Errorf("no backups found")
+	}
+	// Find the latest backup by timestamp
+	latest := backups[0]
+	for _, b := range backups {
+		if b.Timestamp.After(latest.Timestamp) {
+			latest = b
+		}
+	}
+	if err := kg.RestoreFromBackup(latest.FilePath); err != nil {
+		return err
+	}
+	return kg.Save(defaultPath)
 }
 
 // Load reads the knowledge graph from the specified file.
@@ -181,10 +307,10 @@ func (kg *KnowledgeGraph) UpdateNode(path string, value interface{}) error {
 			return errors.New("UpdateNode: value for repository_structure must be map[string]interface{}")
 		}
 	case "services":
-		if m, ok := value.(map[string]interface{}); ok {
+		if m, ok := value.(map[string]ServiceInfo); ok {
 			kg.Services = m
 		} else {
-			return errors.New("UpdateNode: value for services must be map[string]interface{}")
+			return errors.New("UpdateNode: value for services must be map[string]ServiceInfo")
 		}
 	case "nexus":
 		if m, ok := value.(map[string]interface{}); ok {
@@ -193,10 +319,10 @@ func (kg *KnowledgeGraph) UpdateNode(path string, value interface{}) error {
 			return errors.New("UpdateNode: value for nexus must be map[string]interface{}")
 		}
 	case "patterns":
-		if m, ok := value.(map[string]interface{}); ok {
+		if m, ok := value.(map[string]PatternInfo); ok {
 			kg.Patterns = m
 		} else {
-			return errors.New("UpdateNode: value for patterns must be map[string]interface{}")
+			return errors.New("UpdateNode: value for patterns must be map[string]PatternInfo")
 		}
 	case "database_practices":
 		if m, ok := value.(map[string]interface{}); ok {
@@ -234,26 +360,28 @@ func (kg *KnowledgeGraph) AddService(category, name string, serviceInfo map[stri
 	}
 
 	if kg.Services == nil {
-		kg.Services = make(map[string]interface{})
+		kg.Services = make(map[string]ServiceInfo)
 	}
 
-	// Check if category exists
-	categoryMap, ok := kg.Services[category]
-	if !ok || categoryMap == nil {
-		// Create new category map
-		kg.Services[category] = make(map[string]interface{})
+	svc := ServiceInfo{
+		Name:     name,
+		Category: category,
+		Metadata: make(map[string]interface{}),
 	}
-
-	// Get category as a map
-	categoryServices, ok := kg.Services[category].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("category %s is not a map", category)
+	if meta, ok := serviceInfo["metadata"].(map[string]interface{}); ok {
+		svc.Metadata = meta
 	}
-
-	// Add the service to the category
-	categoryServices[name] = serviceInfo
+	if deps, ok := serviceInfo["dependencies"].([]string); ok {
+		svc.Dependencies = deps
+	} else if depsIface, ok := serviceInfo["dependencies"].([]interface{}); ok {
+		for _, d := range depsIface {
+			if s, ok := d.(string); ok {
+				svc.Dependencies = append(svc.Dependencies, s)
+			}
+		}
+	}
+	kg.Services[name] = svc
 	kg.LastUpdated = time.Now().UTC()
-
 	return nil
 }
 
@@ -267,26 +395,19 @@ func (kg *KnowledgeGraph) AddPattern(category, name string, patternInfo map[stri
 	}
 
 	if kg.Patterns == nil {
-		kg.Patterns = make(map[string]interface{})
+		kg.Patterns = make(map[string]PatternInfo)
 	}
 
-	// Check if category exists
-	categoryMap, ok := kg.Patterns[category]
-	if !ok || categoryMap == nil {
-		// Create new category map
-		kg.Patterns[category] = make(map[string]interface{})
+	pat := PatternInfo{
+		Name:     name,
+		Category: category,
+		Details:  make(map[string]interface{}),
 	}
-
-	// Get category as a map
-	categoryPatterns, ok := kg.Patterns[category].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("category %s is not a map", category)
+	if details, ok := patternInfo["details"].(map[string]interface{}); ok {
+		pat.Details = details
 	}
-
-	// Add the pattern to the category
-	categoryPatterns[name] = patternInfo
+	kg.Patterns[name] = pat
 	kg.LastUpdated = time.Now().UTC()
-
 	return nil
 }
 
@@ -305,49 +426,208 @@ func (kg *KnowledgeGraph) GenerateVisualization(format, section string) ([]byte,
 	}
 
 	if format == "mermaid" && section == "services" {
-		kg.log.Debug("kg.Services", zap.Any("services", kg.Services))
+		if kg.log != nil {
+			kg.log.Debug("kg.Services", zap.Any("services", kg.Services))
+		}
 		var out string
 		out += "graph TD\n"
 		serviceNodeMap := make(map[string]string) // Map service name to node id
-		// Only handle 'core_services' for now
-		coreServicesRaw, ok := kg.Services["core_services"]
-		if ok {
-			coreServices, ok := coreServicesRaw.(map[string]interface{})
-			if ok {
-				// First pass: create all nodes and build map
-				for svcName := range coreServices {
-					nodeID := fmt.Sprintf("core_services_%s", svcName)
-					serviceNodeMap[svcName] = nodeID
-					out += fmt.Sprintf("    %s[%q]\n", nodeID, svcName)
+		// Create all nodes and build map
+		for svcName := range kg.Services {
+			nodeID := fmt.Sprintf("service_%s", svcName)
+			serviceNodeMap[svcName] = nodeID
+			out += fmt.Sprintf("    %s[%q]\n", nodeID, svcName)
+		}
+		// Draw edges for dependencies
+		for svcName, svc := range kg.Services {
+			nodeID := serviceNodeMap[svcName]
+			for _, dep := range svc.Dependencies {
+				depNodeID, found := serviceNodeMap[dep]
+				if !found {
+					// Fallback: create a generic node for the dependency
+					depNodeID = dep
+					out += fmt.Sprintf("    %s[%q]\n", depNodeID, dep)
 				}
-				// Second pass: draw edges
-				for svcName, svcRaw := range coreServices {
-					nodeID := serviceNodeMap[svcName]
-					if svc, ok := svcRaw.(map[string]interface{}); ok {
-						if deps, ok := svc["dependencies"].([]interface{}); ok {
-							for _, dep := range deps {
-								depStr, ok := dep.(string)
-								if !ok {
-									kg.log.Warn("Dependency is not a string", zap.Any("dep", dep))
-									continue
-								}
-								if depStr != "" {
-									depNodeID, found := serviceNodeMap[depStr]
-									if !found {
-										// Fallback: create a generic node for the dependency
-										depNodeID = depStr
-										out += fmt.Sprintf("    %s[%q]\n", depNodeID, depStr)
-									}
-									out += fmt.Sprintf("    %s --> %s\n", nodeID, depNodeID)
-								}
-							}
-						}
-					}
-				}
+				out += fmt.Sprintf("    %s --> %s\n", nodeID, depNodeID)
 			}
 		}
-		kg.log.Debug("Mermaid output", zap.String("output", out))
+		if kg.log != nil {
+			kg.log.Debug("Mermaid output", zap.String("output", out))
+		}
 		return []byte(out), nil
 	}
 	return nil, fmt.Errorf("GenerateVisualization: format '%s' and section '%s' not implemented", format, section)
+}
+
+// --- Type-safe CRUD for Services ---
+
+// GetService retrieves a service by name.
+func (kg *KnowledgeGraph) GetService(name string) (ServiceInfo, bool) {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+	svc, ok := kg.Services[name]
+	return svc, ok
+}
+
+// UpdateService updates an existing service by name.
+func (kg *KnowledgeGraph) UpdateService(name string, info ServiceInfo) error {
+	kg.mu.Lock()
+	defer kg.mu.Unlock()
+	if _, ok := kg.Services[name]; !ok {
+		return fmt.Errorf("service %q not found", name)
+	}
+	kg.Services[name] = info
+	kg.LastUpdated = time.Now().UTC()
+	return nil
+}
+
+// DeleteService removes a service by name.
+func (kg *KnowledgeGraph) DeleteService(name string) error {
+	kg.mu.Lock()
+	defer kg.mu.Unlock()
+	if _, ok := kg.Services[name]; !ok {
+		return fmt.Errorf("service %q not found", name)
+	}
+	delete(kg.Services, name)
+	kg.LastUpdated = time.Now().UTC()
+	return nil
+}
+
+// ListServiceNames returns all service names.
+func (kg *KnowledgeGraph) ListServiceNames() []string {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+	names := make([]string, 0, len(kg.Services))
+	for name := range kg.Services {
+		names = append(names, name)
+	}
+	return names
+}
+
+// --- Type-safe CRUD for Patterns ---
+
+// GetPattern retrieves a pattern by name.
+func (kg *KnowledgeGraph) GetPattern(name string) (PatternInfo, bool) {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+	pat, ok := kg.Patterns[name]
+	return pat, ok
+}
+
+// UpdatePattern updates an existing pattern by name.
+func (kg *KnowledgeGraph) UpdatePattern(name string, info PatternInfo) error {
+	kg.mu.Lock()
+	defer kg.mu.Unlock()
+	if _, ok := kg.Patterns[name]; !ok {
+		return fmt.Errorf("pattern %q not found", name)
+	}
+	kg.Patterns[name] = info
+	kg.LastUpdated = time.Now().UTC()
+	return nil
+}
+
+// DeletePattern removes a pattern by name.
+func (kg *KnowledgeGraph) DeletePattern(name string) error {
+	kg.mu.Lock()
+	defer kg.mu.Unlock()
+	if _, ok := kg.Patterns[name]; !ok {
+		return fmt.Errorf("pattern %q not found", name)
+	}
+	delete(kg.Patterns, name)
+	kg.LastUpdated = time.Now().UTC()
+	return nil
+}
+
+// ListPatternNames returns all pattern names.
+func (kg *KnowledgeGraph) ListPatternNames() []string {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+	names := make([]string, 0, len(kg.Patterns))
+	for name := range kg.Patterns {
+		names = append(names, name)
+	}
+	return names
+}
+
+// --- Agent/AI Introspection APIs ---
+
+// Describe returns a summary of the knowledge graph structure for agents/AI.
+func (kg *KnowledgeGraph) Describe() map[string]interface{} {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+	return map[string]interface{}{
+		"version":            kg.Version,
+		"last_updated":       kg.LastUpdated,
+		"service_count":      len(kg.Services),
+		"pattern_count":      len(kg.Patterns),
+		"service_names":      kg.ListServiceNames(),
+		"pattern_names":      kg.ListPatternNames(),
+		"service_categories": kg.listServiceCategories(),
+		"pattern_categories": kg.listPatternCategories(),
+	}
+}
+
+func (kg *KnowledgeGraph) listServiceCategories() []string {
+	cats := make(map[string]struct{})
+	for _, svc := range kg.Services {
+		if svc.Category != "" {
+			cats[svc.Category] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(cats))
+	for c := range cats {
+		out = append(out, c)
+	}
+	return out
+}
+
+func (kg *KnowledgeGraph) listPatternCategories() []string {
+	cats := make(map[string]struct{})
+	for _, pat := range kg.Patterns {
+		if pat.Category != "" {
+			cats[pat.Category] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(cats))
+	for c := range cats {
+		out = append(out, c)
+	}
+	return out
+}
+
+// --- Richer Validation ---
+
+// ValidateFull performs deep validation of the knowledge graph.
+func (kg *KnowledgeGraph) ValidateFull() error {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+	if kg.Version == "" {
+		return fmt.Errorf("missing version")
+	}
+	if kg.LastUpdated.IsZero() {
+		return fmt.Errorf("missing last_updated")
+	}
+	// Check for duplicate service names (shouldn't happen with map, but check for empty names)
+	for name, svc := range kg.Services {
+		if name == "" || svc.Name == "" {
+			return fmt.Errorf("service with empty name detected")
+		}
+	}
+	for name, pat := range kg.Patterns {
+		if name == "" || pat.Name == "" {
+			return fmt.Errorf("pattern with empty name detected")
+		}
+	}
+	// Check that all service dependencies refer to existing services
+	for name, svc := range kg.Services {
+		for _, dep := range svc.Dependencies {
+			if dep == name {
+				return fmt.Errorf("service %q cannot depend on itself", name)
+			}
+			if _, ok := kg.Services[dep]; !ok {
+				return fmt.Errorf("service %q dependency %q does not exist", name, dep)
+			}
+		}
+	}
+	return nil
 }

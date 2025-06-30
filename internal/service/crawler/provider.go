@@ -55,15 +55,25 @@ func Register(
 		return fmt.Errorf("failed to create crawler repository")
 	}
 
+	// Canonical event emitter injection: inject raw events.EventEmitter into the service struct.
 	crawlerService, err := NewService(ctx, log, repository, cache, eventEmitter, eventEnabled, map[crawlerpb.TaskType]WorkerFactory{})
 	if err != nil {
 		return fmt.Errorf("failed to create crawler service: %w", err)
 	}
 
+	// Register the gRPC interface for the crawler service
 	if err := container.Register((*crawlerpb.CrawlerServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return crawlerService, nil
 	}); err != nil {
 		log.Error("Failed to register crawler service", zap.Error(err))
+		return err
+	}
+
+	// Register the concrete service for DI/event handler use (canonical pattern)
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return crawlerService, nil
+	}); err != nil {
+		log.Error("Failed to register concrete crawler service", zap.Error(err))
 		return err
 	}
 

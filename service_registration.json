@@ -1430,5 +1430,100 @@
         "rest_required_fields": ["job_id", "page", "page_size"]
       }
     }
+  },
+  {
+    "name": "crawler",
+    "version": "v1",
+    "capabilities": [
+      "web_crawling",
+      "task_queue",
+      "distributed_workers",
+      "event_emission",
+      "metadata_enrichment"
+    ],
+    "dependencies": ["content", "search", "analytics"],
+    "schema": {
+      "proto_path": "api/protos/crawler/v1/crawler.proto",
+      "methods": [
+        "EnqueueTask",
+        "GetTaskStatus",
+        "ListTasks",
+        "CancelTask",
+        "GetCrawlResult",
+        "ListCrawlResults"
+      ]
+    },
+    "endpoints": [
+      {
+        "path": "/api/crawler_ops",
+        "method": "POST",
+        "actions": [
+          "enqueue_task",
+          "get_task_status",
+          "list_tasks",
+          "cancel_task",
+          "get_crawl_result",
+          "list_crawl_results"
+        ],
+        "description": "Composable crawler operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
+      }
+    ],
+    "models": [
+      "CrawlTask",
+      "CrawlResult",
+      "EnqueueTaskRequest",
+      "EnqueueTaskResponse",
+      "GetTaskStatusRequest",
+      "GetTaskStatusResponse",
+      "ListTasksRequest",
+      "ListTasksResponse",
+      "CancelTaskRequest",
+      "CancelTaskResponse",
+      "GetCrawlResultRequest",
+      "GetCrawlResultResponse",
+      "ListCrawlResultsRequest",
+      "ListCrawlResultsResponse"
+    ],
+    "health_check": "/health/crawler",
+    "metrics": "/metrics/crawler",
+    "metadata_enrichment": true,
+    "action_map": {
+      "enqueue_task": {
+        "proto_method": "EnqueueTask",
+        "request_model": "EnqueueTaskRequest",
+        "response_model": "EnqueueTaskResponse",
+        "rest_required_fields": ["url", "task_type", "metadata"]
+      },
+      "get_task_status": {
+        "proto_method": "GetTaskStatus",
+        "request_model": "GetTaskStatusRequest",
+        "response_model": "GetTaskStatusResponse",
+        "rest_required_fields": ["task_id"]
+      },
+      "list_tasks": {
+        "proto_method": "ListTasks",
+        "request_model": "ListTasksRequest",
+        "response_model": "ListTasksResponse",
+        "rest_required_fields": ["status", "page", "page_size"]
+      },
+      "cancel_task": {
+        "proto_method": "CancelTask",
+        "request_model": "CancelTaskRequest",
+        "response_model": "CancelTaskResponse",
+        "rest_required_fields": ["task_id"]
+      },
+      "get_crawl_result": {
+        "proto_method": "GetCrawlResult",
+        "request_model": "GetCrawlResultRequest",
+        "response_model": "GetCrawlResultResponse",
+        "rest_required_fields": ["task_id"]
+      },
+      "list_crawl_results": {
+        "proto_method": "ListCrawlResults",
+        "request_model": "ListCrawlResultsRequest",
+        "response_model": "ListCrawlResultsResponse",
+        "rest_required_fields": ["page", "page_size"]
+      }
+    }
   }
 ]

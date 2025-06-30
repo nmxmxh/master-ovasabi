@@ -8,20 +8,38 @@ import (
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	crawlerpb "github.com/nmxmxh/master-ovasabi/api/protos/crawler/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service/crawler/workers"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 )
 
-const (
-	DefaultWorkerCount = 10
-	DefaultQueueSize   = 100
-	RateLimit          = 1 * time.Second
-)
+// --- Graceful Orchestration Adapter for EventEmitter (for DRY orchestration) ---
+type EventEmitterAdapter struct {
+	Emitter events.EventEmitter
+}
 
-// Service implements the gRPC server for the crawler service.
+func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
+	if a.Emitter == nil {
+		log.Warn("Event emitter not configured", zap.String("event_type", eventType))
+		return "", false
+	}
+	return a.Emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
+}
+
+func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
+	if a.Emitter == nil {
+		log.Warn("Event emitter not configured", zap.String("event_type", eventType))
+		return "", false
+	}
+	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
+}
+
+// --- Service and Dispatcher Types ---
 type Service struct {
 	crawlerpb.UnimplementedCrawlerServiceServer
 	log          *zap.Logger
@@ -33,7 +51,6 @@ type Service struct {
 	shutdown     chan struct{}
 }
 
-// Dispatcher manages the worker pool and task distribution.
 type Dispatcher struct {
 	log          *zap.Logger
 	repo         *Repository
@@ -45,8 +62,198 @@ type Dispatcher struct {
 	shutdownOnce sync.Once
 }
 
-// WorkerFactory creates workers for specific task types
 type WorkerFactory func() workers.Worker
+
+// --- Constants for worker pool ---
+const (
+	DefaultWorkerCount = 4
+	DefaultQueueSize   = 100
+	RateLimit          = 100 * time.Millisecond
+)
+
+// --- CrawlerService gRPC Methods ---
+
+// Ensure gRPC interface compliance
+var _ crawlerpb.CrawlerServiceServer = (*Service)(nil)
+
+// SubmitTask submits a new crawl task and orchestrates via graceful
+func (s *Service) SubmitTask(ctx context.Context, req *crawlerpb.SubmitTaskRequest) (*crawlerpb.SubmitTaskResponse, error) {
+	if req == nil || req.Task == nil {
+		errCtx := graceful.WrapErr(ctx, codes.InvalidArgument, "missing task in request", nil)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:          s.log,
+			Context:      ctx,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "crawler.task_submit_error",
+			EventID:      "",
+			PatternType:  "crawler_task",
+			PatternID:    "",
+		})
+		return nil, graceful.ToStatusError(errCtx)
+	}
+
+	// Normalize and version metadata
+	if req.Task.Metadata == nil {
+		req.Task.Metadata = &commonpb.Metadata{}
+	}
+	// Optionally: set versioning fields here if needed
+
+	req.Task.Status = crawlerpb.TaskStatus_TASK_STATUS_PENDING
+	createdTask, err := s.repo.CreateCrawlTask(ctx, req.Task)
+	if err != nil {
+		s.log.Error("failed to create crawl task", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to create crawl task", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:          s.log,
+			Context:      ctx,
+			Metadata:     req.Task.Metadata,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "crawler.task_submit_error",
+			EventID:      req.Task.Uuid,
+			PatternType:  "crawler_task",
+			PatternID:    req.Task.Uuid,
+			PatternMeta:  req.Task.Metadata,
+		})
+		return nil, graceful.ToStatusError(errCtx)
+	}
+
+	// Enqueue the task for processing
+	select {
+	case s.dispatcher.jobQueue <- createdTask:
+		// ok
+	default:
+		errCtx := graceful.WrapErr(ctx, codes.ResourceExhausted, "task queue is full", nil)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:          s.log,
+			Context:      ctx,
+			Metadata:     createdTask.Metadata,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "crawler.task_queue_full",
+			EventID:      createdTask.Uuid,
+			PatternType:  "crawler_task",
+			PatternID:    createdTask.Uuid,
+			PatternMeta:  createdTask.Metadata,
+		})
+		return nil, graceful.ToStatusError(errCtx)
+	}
+
+	resp := &crawlerpb.SubmitTaskResponse{
+		Uuid:    createdTask.Uuid,
+		Status:  createdTask.Status,
+		Message: "Task submitted successfully",
+	}
+	success := graceful.WrapSuccess(ctx, codes.OK, "crawler task submitted", resp, nil)
+	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
+		Log:          s.log,
+		Cache:        s.cache,
+		CacheKey:     createdTask.Uuid,
+		CacheValue:   createdTask,
+		CacheTTL:     10 * time.Minute,
+		Metadata:     createdTask.Metadata,
+		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+		EventEnabled: s.eventEnabled,
+		EventType:    "crawler.task_submitted",
+		EventID:      createdTask.Uuid,
+		PatternType:  "crawler_task",
+		PatternID:    createdTask.Uuid,
+		PatternMeta:  createdTask.Metadata,
+	})
+	return resp, nil
+}
+
+// GetTaskStatus returns the current status of a crawl task
+func (s *Service) GetTaskStatus(ctx context.Context, req *crawlerpb.GetTaskStatusRequest) (*crawlerpb.CrawlTask, error) {
+	if req == nil || req.Uuid == "" {
+		errCtx := graceful.WrapErr(ctx, codes.InvalidArgument, "missing uuid in request", nil)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:          s.log,
+			Context:      ctx,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "crawler.task_status_error",
+			EventID:      "",
+			PatternType:  "crawler_task",
+			PatternID:    "",
+		})
+		return nil, graceful.ToStatusError(errCtx)
+	}
+	task, err := s.repo.GetCrawlTask(ctx, req.Uuid)
+	if err != nil {
+		s.log.Error("failed to get crawl task", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.NotFound, "crawl task not found", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:          s.log,
+			Context:      ctx,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "crawler.task_status_error",
+			EventID:      req.Uuid,
+			PatternType:  "crawler_task",
+			PatternID:    req.Uuid,
+		})
+		return nil, graceful.ToStatusError(errCtx)
+	}
+	// Optionally orchestrate success (not always needed for read-only)
+	return task, nil
+}
+
+// StreamResults streams crawl results for a given task UUID
+func (s *Service) StreamResults(req *crawlerpb.StreamResultsRequest, stream crawlerpb.CrawlerService_StreamResultsServer) error {
+	ctx := stream.Context()
+	if req == nil || req.TaskUuid == "" {
+		errCtx := graceful.WrapErr(ctx, codes.InvalidArgument, "missing task_uuid in request", nil)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:          s.log,
+			Context:      ctx,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "crawler.stream_results_error",
+			EventID:      "",
+			PatternType:  "crawler_task",
+			PatternID:    "",
+		})
+		return graceful.ToStatusError(errCtx)
+	}
+
+	// For demo: just send the latest result (extend to real streaming if needed)
+	result, err := s.repo.GetCrawlResult(ctx, req.TaskUuid)
+	if err != nil {
+		s.log.Error("failed to get crawl result", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.NotFound, "crawl result not found", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:          s.log,
+			Context:      ctx,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "crawler.stream_results_error",
+			EventID:      req.TaskUuid,
+			PatternType:  "crawler_task",
+			PatternID:    req.TaskUuid,
+		})
+		return graceful.ToStatusError(errCtx)
+	}
+
+	if err := stream.Send(result); err != nil {
+		s.log.Error("failed to stream result", zap.Error(err))
+		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to stream result", err)
+		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+			Log:          s.log,
+			Context:      ctx,
+			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			EventEnabled: s.eventEnabled,
+			EventType:    "crawler.stream_results_error",
+			EventID:      req.TaskUuid,
+			PatternType:  "crawler_task",
+			PatternID:    req.TaskUuid,
+		})
+		return graceful.ToStatusError(errCtx)
+	}
+	// Optionally orchestrate success (not always needed for streaming)
+	return nil
+}
 
 // NewService creates a new crawler service with proper dependency injection
 func NewService(
@@ -130,7 +337,6 @@ func (d *Dispatcher) worker(id int) {
 
 		// Create worker context with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
 
 		worker, exists := d.workerMap[task.Type]
 		if !exists {
@@ -147,6 +353,7 @@ func (d *Dispatcher) worker(id int) {
 			}
 
 			d.results <- result
+			cancel()
 			continue
 		}
 
@@ -178,6 +385,7 @@ func (d *Dispatcher) worker(id int) {
 		}
 
 		d.results <- result
+		cancel()
 	}
 }
 

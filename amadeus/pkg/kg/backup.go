@@ -36,6 +36,12 @@ func (kg *KnowledgeGraph) Backup(description string) (*BackupInfo, error) {
 	backupFile := fmt.Sprintf("knowledge_graph_%s.json", timestamp.Format("20060102_150405"))
 	backupPath := filepath.Join(backupDir, backupFile)
 
+	// Prune and validate before backup
+	kg.Prune()
+	if err := kg.Validate(); err != nil {
+		return nil, fmt.Errorf("knowledge graph validation failed: %w", err)
+	}
+
 	// Marshal the knowledge graph to JSON
 	data, err := kg.marshalWithIndent()
 	if err != nil {

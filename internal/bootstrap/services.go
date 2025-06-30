@@ -18,6 +18,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service/commerce"
 	"github.com/nmxmxh/master-ovasabi/internal/service/content"
 	"github.com/nmxmxh/master-ovasabi/internal/service/contentmoderation"
+	"github.com/nmxmxh/master-ovasabi/internal/service/crawler"
 	"github.com/nmxmxh/master-ovasabi/internal/service/localization"
 	"github.com/nmxmxh/master-ovasabi/internal/service/media"
 	"github.com/nmxmxh/master-ovasabi/internal/service/messaging"
@@ -92,6 +93,7 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 		"campaign":          createRegisterAdapter(campaign.Register),
 		"localization":      createRegisterAdapter(localization.Register),
 		"search":            createRegisterAdapter(search.Register),
+		"crawler":           createRegisterAdapter(crawler.Register),
 	}
 	// Use the JSON-driven registration from the shared registration package.
 	return registration.RegisterAllFromJSON(
@@ -104,7 +106,7 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 		b.Logger,
 		b.EventEnabled,
 		b.Provider,
-		"service_registration.json", // Ensure this file contains an entry for "media".
+		"service_registration.json",
 		registerFuncs,
 	)
 }
