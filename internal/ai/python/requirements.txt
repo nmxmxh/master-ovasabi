@@ -1,0 +1,40 @@
+numpy<2
+pandas==2.3.0
+scikit-learn
+# Static/code analysis
+astroid
+flake8
+libcst
+tree-sitter
+# Vector DBs
+faiss-cpu
+qdrant-client
+psycopg2-binary
+# Logging/observability
+loguru
+structlog
+opentelemetry-api
+opentelemetry-sdk
+# Profiling
+viztracer
+pyinstrument
+# Experiment tracking
+mlflow
+ # LLM/transformers
+transformers
+torch
+tensorflow
+flax
+python-dateutil==2.9.0.post0
+pytz==2025.2
+six==1.17.0
+tzdata==2025.2
+# Core dependencies for CLI and service operation
+pydantic
+typer
+pytest
+pytest-asyncio
+wasmtime
+asyncpg
+networkx
+sentence_transformers

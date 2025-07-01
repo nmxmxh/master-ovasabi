@@ -1,0 +1,2 @@
+# Add missing runtime dependencies for AI service
+networkx

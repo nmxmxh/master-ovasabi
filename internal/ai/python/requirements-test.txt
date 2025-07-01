@@ -1,0 +1,5 @@
+# Test requirements for OVASABI AI/Knowledge Graph Python stack
+pytest
+pytest-asyncio
+pydantic
+typer
