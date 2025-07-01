@@ -44,6 +44,15 @@ message ReferralMetadata {
   string uri = 3;  // Added URI reference
 }
 
+// KnowledgeGraph message for graph-based metadata
+message KnowledgeGraph {
+  string id = 1;
+  string name = 2;
+  repeated string nodes = 3;
+  repeated string edges = 4;
+  string description = 5;
+}
+
 // Central metadata with scheduler enhancements
 message Metadata {
   // --- Core Fields ---
@@ -53,7 +62,7 @@ message Metadata {
   google.protobuf.Struct audit = 4;
   repeated string tags = 5;
   google.protobuf.Struct service_specific = 6;
-  google.protobuf.Struct knowledge_graph = 7;
+  KnowledgeGraph knowledge_graph = 7;
   TieredTax taxation = 8;
   OwnerMetadata owner = 9;
   ReferralMetadata referral = 10;
