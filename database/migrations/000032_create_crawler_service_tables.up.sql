@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS service_crawler_tasks (
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_master_id FOREIGN KEY (master_id) REFERENCES master_records(id) ON DELETE SET NULL
+    CONSTRAINT fk_master_id FOREIGN KEY (master_id) REFERENCES master(id) ON DELETE SET NULL
 );
 
 COMMENT ON TABLE service_crawler_tasks IS 'Stores crawl jobs submitted to the system, including their type, target, and status.';
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS service_crawler_results (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT fk_task_uuid FOREIGN KEY (task_uuid) REFERENCES service_crawler_tasks(uuid) ON DELETE CASCADE,
-    CONSTRAINT fk_master_id FOREIGN KEY (master_id) REFERENCES master_records(id) ON DELETE SET NULL
+    CONSTRAINT fk_master_id FOREIGN KEY (master_id) REFERENCES master(id) ON DELETE SET NULL
 );
 
 COMMENT ON TABLE service_crawler_results IS 'Stores the output from completed crawl tasks, including extracted content and links.';
