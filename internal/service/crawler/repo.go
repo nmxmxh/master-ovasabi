@@ -22,7 +22,7 @@ import (
 )
 
 // Repository manages crawler data in the database, ensuring transactional integrity
-// for all operations that span multiple tables (e.g., master_records and service_crawler_tasks).
+// for all operations that span multiple tables (e.g., master and service_crawler_tasks).
 // This approach adheres to the database practices outlined in the project's gemini.md guide.
 type Repository struct {
 	db         *sql.DB

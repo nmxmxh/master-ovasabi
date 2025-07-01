@@ -16,7 +16,6 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	searchpb "github.com/nmxmxh/master-ovasabi/api/protos/search/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/ai"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
@@ -1192,44 +1191,21 @@ func (a *AcademicsSearchAdapter) searchArxiv(ctx context.Context, req *Request) 
 // AIProcessResults processes search results with AI enrichment.
 func AIProcessResults(ctx context.Context, results []*Result, eventEmitter events.EventEmitter, log *zap.Logger) []*Result {
 	seen := make(map[string]*Result)
-	observer := ai.NewObserverAI()
 	for _, r := range results {
 		if r == nil || r.ID == "" {
 			continue
 		}
 		if _, ok := seen[r.ID]; !ok {
-			if title, ok := r.Fields["title"].(string); ok {
-				emb, err := observer.Embedding.Embed([]byte(title))
+			// Instead of direct AI plugin call, emit event to Nexus for enrichment
+			if eventEmitter != nil {
+				payload, err := json.Marshal(r)
 				if err != nil {
-					log.Error("Failed to generate embedding",
-						zap.Error(err),
-						zap.String("title", title))
+					log.Error("Failed to marshal result for AI enrichment", zap.Error(err), zap.String("id", r.ID))
 					continue
 				}
-				summary, err := observer.Summarize([]byte(title))
-				if err != nil {
-					log.Error("Failed to generate summary",
-						zap.Error(err),
-						zap.String("title", title))
-					continue
-				}
-				r.Fields["embedding"] = emb
-				r.Fields["ai_summary"] = summary
-
-				if eventEmitter != nil {
-					payload, err := json.Marshal(r)
-					if err != nil {
-						log.Error("Failed to marshal response",
-							zap.Error(err),
-							zap.String("id", r.ID))
-						continue
-					}
-					eventID, emitted := eventEmitter.EmitRawEventWithLogging(ctx, log, "search.ai_enriched", r.ID, payload)
-					if !emitted {
-						log.Warn("Failed to emit AI enrichment event",
-							zap.String("event_id", eventID),
-							zap.String("id", r.ID))
-					}
+				eventID, emitted := eventEmitter.EmitRawEventWithLogging(ctx, log, "search.ai_enrichment_requested", r.ID, payload)
+				if !emitted {
+					log.Warn("Failed to emit AI enrichment request event", zap.String("event_id", eventID), zap.String("id", r.ID))
 				}
 			}
 			seen[r.ID] = r
