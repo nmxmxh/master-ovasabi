@@ -28,8 +28,12 @@ PROTO_GO_OPT=paths=source_relative
 PROTO_GRPC_OUT=.
 PROTO_GRPC_OPT=paths=source_relative
 
+## Python proto generation parameters (output in internal/ai/python/protos for clear separation)
+PY_PROTO_OUT=internal/ai/python
+PY_PROTO_FILES=api/protos/ai/v1/model.proto api/protos/common/v1/metadata.proto api/protos/common/v1/orchestration.proto api/protos/common/v1/entity.proto api/protos/common/v1/patterns.proto api/protos/common/v1/payload.proto api/protos/nexus/v1/nexus.proto
+
 # Setup development environment
-setup: install-tools
+setup: install-tools py-proto
 	$(GOMOD) download
 	$(GOMOD) tidy
 
@@ -40,7 +44,7 @@ install-tools:
 
 # Build the binary
 build: proto
-	$(GOBUILD) -o $(BINARY_NAME) ./cmd/server
+	GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BINARY_NAME) ./cmd/server
 
 # Run all tests
 test: test-unit test-integration
@@ -160,19 +164,20 @@ trivy-scan-ci:
 	@echo "Scanning Docker images with Trivy (CI mode)..."
 	@$(DOCKER_COMPOSE) images -q | xargs -I {} trivy image --exit-code 1 --severity CRITICAL {}
 
-# Build and scan Docker image
-docker-build-scan: docker-build trivy-scan
 
-# Build and scan Docker image (CI mode)
-docker-build-scan-ci: docker-build trivy-scan-ci
+docker-build-scan: proto docker-build trivy-scan
+
+docker-build-scan-ci: proto docker-build trivy-scan-ci
 
 # Generate protobuf code using protoc
 # This command generates Go code only for the latest version (v*) directory in each service directory under api/protos.
 # This avoids generating code for old/unused proto versions and keeps generated code up-to-date.
 # For each service, only the latest version's .proto files are processed.
 # Always run this from the repo root.
+
+# Generate Go protobuf code only (no Python)
 proto:
-	@echo "Generating protobuf code for latest proto versions only..."
+	@echo "Generating Go protobuf code for latest proto versions only..."
 	@for proto_dir in $(shell find $(PROTO_PATH) -mindepth 1 -maxdepth 1 -type d); do \
 		latest_version_dir=$$(ls -d $$proto_dir/v*/ 2>/dev/null | sort -V | tail -n 1); \
 		if [ -d "$$latest_version_dir" ]; then \
@@ -185,10 +190,10 @@ proto:
 					--go-grpc_out=$(PROTO_PATH) \
 					--go-grpc_opt=paths=source_relative \
 					$$proto_file; \
-				done; \
+			done; \
 		fi \
 	done
-	@echo "Protobuf code generation complete"
+	@echo "Go protobuf code generation complete"
 # This ensures generated Go files are placed alongside their proto files (in-place)
 
 # Generate swagger documentation
@@ -200,6 +205,20 @@ deps: install-tools
 	$(GOGET) -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
 	$(GOGET) -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 	$(GOGET) -u github.com/go-swagger/go-swagger/cmd/swagger
+
+# Generate Python protobufs for AI enrichment module (output in internal/ai/python/protos)
+py-proto:
+	@echo "Generating Python protobufs for AI and common contracts (Python output: $(PY_PROTO_OUT))..."
+	@mkdir -p $(PY_PROTO_OUT)
+	@for proto_file in $(PY_PROTO_FILES); do \
+		python -m grpc_tools.protoc -I=$(PROTO_PATH) \
+			--python_out=$(PY_PROTO_OUT) \
+			--grpc_python_out=$(PY_PROTO_OUT) \
+			$$proto_file; \
+	done
+	@echo "Ensuring __init__.py files for Python proto importability..."
+	@find $(PY_PROTO_OUT) -type d \( -path '*/ai*' -o -path '*/common*' -o -path '*/nexus*' \) -exec touch {}/__init__.py \;
+	@echo "Python protobuf generation complete. Output in $(PY_PROTO_OUT)"
 
 # Kubernetes Commands
 k8s-create-namespace:
@@ -335,7 +354,8 @@ help:
 	@echo "  benchmark           - Run benchmarks"
 	@echo "  clean               - Clean build files"
 	@echo "  dev                 - Run in development mode"
-	@echo "  proto               - Generate protobuf code"
+	@echo "  proto               - Generate Go protobuf code (latest versions only)"
+	@echo "  py-proto            - Generate Python protobufs for AI and common contracts (internal/ai/protos)"
 	@echo "  swagger             - Generate swagger documentation"
 	@echo "  deps                - Install dependencies"
 

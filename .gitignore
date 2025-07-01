@@ -1,3 +1,5 @@
+# Exclude all GGUF model files
+internal/ai/python/models/*.gguf
 # Environment files
 .env
 .env.*
