@@ -78,7 +78,7 @@ services:
       - ovasabi-network
 
   postgres:
-    image: postgres:15-alpine
+    image: ankane/pgvector:latest
     ports:
       - '5432:5432'
     environment:
@@ -100,6 +100,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
+      - internal-only
       - ovasabi-network
     env_file:
       - ../../.env
@@ -120,7 +121,7 @@ services:
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
 
   postgres-init:
-    image: postgres:15-alpine
+    image: ankane/pgvector:latest
     environment:
       POSTGRES_USER: '${POSTGRES_USER:-postgres}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
@@ -240,6 +241,40 @@ services:
       - ovasabi-network
     restart: unless-stopped
 
+  ai:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.ai
+    environment:
+      APP_ENV: '${APP_ENV:-development}'
+      LOG_LEVEL: debug
+      DB_HOST: postgres
+      DB_PORT: '${DB_PORT:-5432}'
+      DB_USER: 'postgres'
+      DB_PASSWORD: 'postgres'
+      DB_NAME: 'master_ovasabi'
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+      REDIS_PORT: '${REDIS_PORT:-6379}'
+      NEXUS_GRPC_ADDR: 'nexus:50052'
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ./config:/app/config:ro
+      - ./amadeus/knowledge_graph.json:/app/amadeus/knowledge_graph.json
+      - ./amadeus/backups:/app/amadeus/backups
+    depends_on:
+      - migrate
+      - postgres-init
+      - redis
+      - nexus
+    networks:
+      - internal-only
+      - ovasabi-network
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    ports:
+      - '9000:9000' # Example port for AI service (adjust as needed)
+
   # clamav:
   #   image: clamav/clamav:latest
   #   ports:
@@ -256,3 +291,6 @@ volumes:
 
 networks:
   ovasabi-network:
+
+  internal-only:
+    internal: true
