@@ -44,8 +44,8 @@ type Orchestrator struct {
 	pluginMu       sync.RWMutex
 }
 
-func NewAIOrchestrator(eventBus NexusBus, kg KnowledgeGraphClient, audit AuditLogger, federated FederatedLearner, crdt CRDT, registry ModelRegistry) *Orchestrator {
-	return &Orchestrator{
+func NewAIOrchestrator(eventBus NexusBus, kg KnowledgeGraphClient, audit AuditLogger, federated FederatedLearner, crdt CRDT, registry ModelRegistry, pythonAIEndpoint string) *Orchestrator {
+	orch := &Orchestrator{
 		plugins:        make(map[string]Plugin),
 		federated:      federated,
 		crdt:           crdt,
@@ -54,6 +54,11 @@ func NewAIOrchestrator(eventBus NexusBus, kg KnowledgeGraphClient, audit AuditLo
 		auditLogger:    audit,
 		modelRegistry:  registry,
 	}
+	// Register the PythonBridgePlugin as the main observer plugin
+	if pythonAIEndpoint != "" {
+		orch.RegisterPlugin("observer", NewPythonBridgePlugin(pythonAIEndpoint))
+	}
+	return orch
 }
 
 func (orch *Orchestrator) RegisterPlugin(name string, plugin Plugin) {
