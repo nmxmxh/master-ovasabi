@@ -8,6 +8,91 @@ follow the rules in this file.
 
 ---
 
+## PostgreSQL 18 Enhancements and Modern Practices
+
+This section covers PostgreSQL 18 specific features and how to leverage them for better performance, concurrency, and maintainability in our system.
+
+### New Performance Features
+
+1. **Asynchronous I/O Subsystem**
+   - PostgreSQL 18 introduces a new async I/O system that can significantly improve performance
+   - Configure `io_method`, `io_combine_limit`, and `io_max_combine_limit` for optimal performance
+   - Monitor async I/O using the new `pg_aios` system view
+   - Consider increasing `effective_io_concurrency` and `maintenance_io_concurrency` from default 16
+
+2. **Skip Scans for B-tree Indexes**
+   - New skip scan feature can optimize queries with missing leading column predicates
+   - Design composite indexes with this in mind - put high-cardinality columns first when possible
+   - Monitor query plans with `EXPLAIN` to verify skip scan usage
+
+3. **Improved Hash Join Performance**
+   - Hash joins and GROUP BY operations are more memory efficient
+   - Particularly beneficial for our event processing and analytics queries
+   - Review existing queries that use INTERSECT, EXCEPT, and window aggregates
+
+4. **Parallel GIN Index Creation**
+   - For our full-text search indexes, enable parallel creation for faster builds
+   - Especially important for search_vector columns in content and product tables
+
+### Concurrency and Locking Improvements
+
+1. **Improved Locking Performance**
+   - PostgreSQL 18 has better performance for queries accessing many relations
+   - Beneficial for our multi-service queries and complex joins across master/service tables
+   - Review current connection pooling and consider increasing pool sizes if needed
+
+2. **Partition Pruning Enhancements**
+   - More efficient partition pruning and reduced locking of pruned partitions
+   - Consider partitioning large tables by `campaign_id` as recommended in our practices
+   - Use `EXPLAIN` to verify partition pruning is working effectively
+
+### Monitoring and Observability
+
+1. **Enhanced pg_stat_io**
+   - New byte-level I/O statistics (`read_bytes`, `write_bytes`, `extend_bytes`)
+   - WAL I/O activity tracking
+   - Use for monitoring our event-heavy workloads
+
+2. **Improved EXPLAIN Output**
+   - Automatic BUFFERS output in EXPLAIN ANALYZE
+   - WAL, CPU, and memory statistics in VERBOSE mode
+   - Update our query optimization practices to leverage these insights
+
+3. **Enhanced Vacuum Monitoring**
+   - New vacuum timing columns in `pg_stat_all_tables`
+   - Track vacuum delays with `track_cost_delay_timing`
+   - Monitor vacuum effectiveness for our high-write event tables
+
+4. **Connection Pool Optimization**
+   - Leverage Async I/O Features
+   - Configure connection pools to take advantage of PostgreSQL 18's async I/O
+   - Consider connection pool sizes that match `max_connections` and async I/O settings
+   - Monitor `pg_stat_activity` for connection utilization patterns
+
+5. **Prepared Statement Caching**
+   - Use prepared statements more aggressively with PostgreSQL 18's improved plan caching
+   - Implement prepared statement pools in our Go database layer
+   - Cache plans for frequently executed queries across services
+
+### Virtual Generated Columns (New Default)
+
+1. **Leverage Virtual Generated Columns**
+   - Replace computed columns in application code with virtual generated columns
+   - Particularly useful for search vectors, computed aggregations, and derived fields
+   - Example for content search:
+
+   ```sql
+   ALTER TABLE service_content_main 
+   ADD COLUMN search_vector_computed tsvector 
+   GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || body)) VIRTUAL;
+   ```
+
+2. **Campaign-Specific Virtual Columns**
+   - Use virtual columns for campaign-specific computed fields
+   - Reduces storage overhead while maintaining query performance
+
+---
+
 ## General Principles
 
 1. **Do not make unnecessary or risky changes to the database.**  

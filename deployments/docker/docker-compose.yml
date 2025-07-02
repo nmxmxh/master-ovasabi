@@ -64,7 +64,7 @@ services:
     environment:
       REDIS_PASSWORD: '${REDIS_PASSWORD}'
     volumes:
-      - ../../redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis_data:/data
     command:
       ['redis-server', '/usr/local/etc/redis/redis.conf', '--requirepass', '${REDIS_PASSWORD}']
@@ -78,7 +78,9 @@ services:
       - ovasabi-network
 
   postgres:
-    image: ankane/pgvector:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres18
     ports:
       - '5432:5432'
     environment:
@@ -92,7 +94,6 @@ services:
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    command: ['postgres', '-c', 'listen_addresses=*', '-c', 'max_connections=100']
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 10s
@@ -121,7 +122,9 @@ services:
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
 
   postgres-init:
-    image: ankane/pgvector:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres18
     environment:
       POSTGRES_USER: '${POSTGRES_USER:-postgres}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'

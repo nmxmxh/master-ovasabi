@@ -4,7 +4,7 @@
 DEPRECATED=("auth" "finance" "oldservice")
 
 # Output file
-OUT="service_registration.json"
+OUT="config/service_registration.json"
 
 echo "[" > "$OUT"
 FIRST=1

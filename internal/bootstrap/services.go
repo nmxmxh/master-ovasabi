@@ -106,7 +106,7 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 		b.Logger,
 		b.EventEnabled,
 		b.Provider,
-		"service_registration.json",
+		"config/service_registration.json",
 		registerFuncs,
 	)
 }

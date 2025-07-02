@@ -43,12 +43,12 @@ redis:
 postgres:
   image:
     repository: postgres
-    tag: 15
+    tag: 18
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 5432
-  dbPassword: "supersecure"
+  dbPassword: 'supersecure'
 
 resources: {}
 
@@ -56,7 +56,7 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-platformMetadata: "system_version=2.0.0,orchestration=enabled"
-featureFlags: "search,ai,orchestration"
+platformMetadata: 'system_version=2.0.0,orchestration=enabled'
+featureFlags: 'search,ai,orchestration'
 ingress:
-  host: "yourdomain.com" 
+  host: 'yourdomain.com'

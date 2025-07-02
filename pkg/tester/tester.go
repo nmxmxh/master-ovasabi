@@ -91,7 +91,7 @@ func NewTester(name string, nexus NexusSpeaker, announcer *thecathasnoname.TheCa
 // SetupPostgres starts a Postgres testcontainer, assigns DB and connection string, and runs optional migration.
 func (t *Tester) SetupPostgres(ctx context.Context, migration func(db *sql.DB) error) error {
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:14-alpine",
+		Image:        "postgres:18-alpine",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_DB":       "test_db",

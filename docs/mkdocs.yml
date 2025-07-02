@@ -24,29 +24,29 @@ theme:
 nav:
   - Home: index.md
   - Architecture:
-    - Overview: architecture/README.md
-    - Nexus: architecture/nexus.md
-    - Patterns: architecture/patterns.md
-    - Integration Patterns: architecture/integration_patterns.md
-    - Use Cases: architecture/use_cases.md
+      - Overview: architecture/README.md
+      - Nexus: architecture/nexus.md
+      - Patterns: architecture/patterns.md
+      - Integration Patterns: architecture/integration_patterns.md
+      - Use Cases: architecture/use_cases.md
   - Amadeus:
-    - Overview: amadeus/index.md
-    - Architecture: amadeus/architecture.md
-    - Implementation Guide: amadeus/implementation_guide.md
-    - API Reference: amadeus/api_reference.md
-    - Integration Examples: amadeus/integration_examples.md
-    - Backup & Restore: amadeus/backup_restore.md
-    - Consistent Updates: amadeus/consistent_updates.md
+      - Overview: amadeus/index.md
+      - Architecture: amadeus/architecture.md
+      - Implementation Guide: amadeus/implementation_guide.md
+      - API Reference: amadeus/api_reference.md
+      - Integration Examples: amadeus/integration_examples.md
+      - Backup & Restore: amadeus/backup_restore.md
+      - Consistent Updates: amadeus/consistent_updates.md
   - Development:
-    - Overview: development/README.md
-    - Database Practices: development/database_practices.md
-    - Redis Practices: development/redis_practices.md
-    - Asset Practices: development/asset_practices.md
-    - Testing: development/testing.md
+      - Overview: development/README.md
+      - Database Practices: development/database_practices.md
+      - Redis Practices: development/redis_practices.md
+      - Asset Practices: development/asset_practices.md
+      - Testing: development/testing.md
   - Deployment:
-    - Overview: deployment/README.md
+      - Overview: deployment/README.md
   - Tools:
-    - Documentation: tools/documentation-tooling.md
+      - Documentation: tools/documentation-tooling.md
 
 markdown_extensions:
   - admonition
@@ -76,4 +76,4 @@ extra_css:
 plugins:
   - search
   - minify:
-      minify_html: true 
+      minify_html: true

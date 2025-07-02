@@ -1,0 +1,18 @@
+# Custom PostgreSQL 17 with pgvector for OVASABI (will upgrade to 18 when stable)
+FROM pgvector/pgvector:0.8.0-pg17
+
+# Note: PostgreSQL 18 is currently in beta. Using PG17 with latest pgvector.
+# This image already includes pgvector extension pre-installed.
+
+# Set PostgreSQL configuration (optimized for modern versions)
+COPY postgresql18.conf /etc/postgresql/postgresql.conf
+
+# Add PostgreSQL optimization script (compatible with PG17/18)
+# Note: pgvector extension is already available in the base image
+COPY 02-optimize-pg18.sql /docker-entrypoint-initdb.d/
+
+# Expose port
+EXPOSE 5432
+
+# Use optimized configuration
+CMD ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
