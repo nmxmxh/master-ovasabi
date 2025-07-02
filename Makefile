@@ -110,6 +110,9 @@ dev:
 docker-build: proto
 	$(DOCKER_COMPOSE) build
 
+docker-slim-all:
+	$(MAKE) -f deployments/docker/docker-slim.mk docker-slim-all
+
 docker-up:
 	$(DOCKER_COMPOSE) up -d
 

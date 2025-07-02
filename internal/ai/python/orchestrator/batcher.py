@@ -36,7 +36,7 @@ class EventBatcher:
         db=None,
     ):
         if db is None:
-            import db as db_module
+            from db import db as db_module
             self.db = db_module.AsyncEnrichmentDB()
         else:
             self.db = db

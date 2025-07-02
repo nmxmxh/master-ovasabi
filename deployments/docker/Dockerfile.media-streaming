@@ -1,25 +1,25 @@
 # ----------- Build Stage -----------
 FROM golang:1.24-alpine AS builder
 
-WORKDIR /app
+WORKDIR /media
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
 
 # Build the media-streaming binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/media-streaming ./cmd/media-streaming/main.go
+RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /media/media-streaming ./cmd/media-streaming/main.go
 
 # ----------- Final Stage (Distroless) -----------
 FROM gcr.io/distroless/base-debian11
 
-WORKDIR /app
+WORKDIR /media
 
-COPY --from=builder /app/media-streaming .
+COPY --from=builder /media/media-streaming .
 
 USER nonroot:nonroot
 
 EXPOSE 8085
 
-ENTRYPOINT ["/app/media-streaming"]
+ENTRYPOINT ["/media/media-streaming"]

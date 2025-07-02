@@ -6,8 +6,8 @@ Covers event-driven crawling, validation, enrichment, DB integration, and vector
 import pytest
 from crawler import devourer
 from knowledge import graph
-import ai_web
-import vector_db
+from db import ai_web
+from db import vector_db
 
 
 @pytest.mark.asyncio

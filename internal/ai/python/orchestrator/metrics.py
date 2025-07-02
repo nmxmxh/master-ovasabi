@@ -35,7 +35,7 @@ class MetricsCollector:
         self._window_seconds = window_seconds
         self._hooks: List[Callable[[str, float, Dict[str, Any]], None]] = []
         if db is None:
-            import db as db_module
+            from db import db as db_module
             self.db = db_module.AsyncEnrichmentDB()
         else:
             self.db = db

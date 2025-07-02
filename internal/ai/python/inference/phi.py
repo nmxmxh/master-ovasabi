@@ -1,15 +1,38 @@
 
 # phi.py: Production-grade Phi-3/4 inference for Python & WASM (transformers/ONNX/edge)
+import os
 from utils import get_logger
 from typing import List
 
 
 try:
-    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-except ImportError:
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    TRANSFORMERS_BASIC_AVAILABLE = True
+except (ImportError, Exception) as e:
     AutoModelForCausalLM = None
     AutoTokenizer = None
+    TRANSFORMERS_BASIC_AVAILABLE = False
+    print(f"Warning: Basic transformers components not available: {e}")
+
+try:
+    from transformers import pipeline
+    TRANSFORMERS_PIPELINE_AVAILABLE = True
+except (ImportError, Exception) as e:
     pipeline = None
+    TRANSFORMERS_PIPELINE_AVAILABLE = False
+    print(f"Warning: Transformers pipeline not available: {e}")
+
+# Overall transformers availability
+TRANSFORMERS_AVAILABLE = TRANSFORMERS_BASIC_AVAILABLE and TRANSFORMERS_PIPELINE_AVAILABLE
+
+if not TRANSFORMERS_AVAILABLE:
+    # Log the specific error for debugging
+    if not TRANSFORMERS_BASIC_AVAILABLE and not TRANSFORMERS_PIPELINE_AVAILABLE:
+        print("PhiEngine will run in fallback mode - transformers library not functional")
+    elif not TRANSFORMERS_PIPELINE_AVAILABLE:
+        print("PhiEngine will run in fallback mode - transformers pipeline not available")
+    else:
+        print("PhiEngine will run in fallback mode - transformers dependency issues")
 
 
 class PhiEngine:
@@ -21,17 +44,49 @@ class PhiEngine:
         self.logger = logger or get_logger("PhiEngine")
         self.model_name = model_name
         self.device = device
-        if AutoModelForCausalLM and AutoTokenizer:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForCausalLM.from_pretrained(model_name)
-            self.pipe = pipeline(
-                "text-generation",
-                model=self.model,
-                tokenizer=self.tokenizer,
-                device=0 if device == "cuda" else -1
-            )
+        self.model = None
+        self.tokenizer = None
+        self.pipe = None
+
+        # Check for offline mode or local models
+        offline_mode = os.getenv("HF_HUB_OFFLINE", "false").lower() == "true"
+        local_files_only = os.getenv("TRANSFORMERS_OFFLINE", "false").lower() == "true"
+
+        # Check for local model directory first
+        model_dir = os.path.join(os.path.dirname(__file__), "..", "models")
+        local_model_path = os.path.join(model_dir, model_name.replace("/", "_"))
+
+        if TRANSFORMERS_AVAILABLE and AutoModelForCausalLM and AutoTokenizer:
+            try:
+                # Try local model first
+                if os.path.exists(local_model_path):
+                    self.logger.info(f"Loading model from local path: {local_model_path}")
+                    self.tokenizer = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
+                    self.model = AutoModelForCausalLM.from_pretrained(local_model_path, local_files_only=True)
+                elif offline_mode or local_files_only:
+                    self.logger.warning(f"Offline mode enabled but no local model found at {local_model_path}")
+                    self.logger.warning("PhiEngine will run in fallback mode without model inference")
+                    return
+                else:
+                    # Try to download from HuggingFace
+                    self.logger.info(f"Downloading model from HuggingFace: {model_name}")
+                    self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+                    self.model = AutoModelForCausalLM.from_pretrained(model_name)
+
+                if self.model and self.tokenizer:
+                    self.pipe = pipeline(
+                        "text-generation",
+                        model=self.model,
+                        tokenizer=self.tokenizer,
+                        device=0 if device == "cuda" else -1
+                    )
+                    self.logger.info("PhiEngine initialized successfully with transformers pipeline")
+
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize PhiEngine with transformers: {e}")
+                self.logger.info("PhiEngine will run in fallback mode")
         else:
-            self.pipe = None
+            self.logger.warning("Transformers library not available. PhiEngine running in fallback mode")
 
     def infer(self, prompt: str, max_tokens: int = 128) -> str:
         if self.pipe:

@@ -35,6 +35,7 @@ typer
 pytest
 pytest-asyncio
 wasmtime
+protobuf<4
 asyncpg
 networkx
 sentence_transformers

@@ -137,3 +137,4 @@ docs-site.tar.gz
 
 # Vendor directory
 vendor/ 
+*ovasabi_ai_env

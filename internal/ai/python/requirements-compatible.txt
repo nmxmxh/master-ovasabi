@@ -1,0 +1,52 @@
+# Compatible requirements for OVASABI AI system
+# This file ensures NumPy 1.x compatibility and avoids conflicts
+
+# Core numerical computing (pin to avoid 2.x conflicts)
+numpy>=1.21.0,<2.2.0  # Allow NumPy 2.x up to 2.1.x for TensorFlow compatibility
+pandas>=2.0.0,<3.0.0
+scikit-learn>=1.3.0
+
+# Machine Learning and AI
+transformers>=4.30.0,<5.0.0
+torch>=2.0.0
+sentence-transformers>=2.2.0
+
+# JAX ecosystem (compatible with NumPy 1.x)
+jax[cpu]>=0.4.0
+ml-dtypes>=0.2.0,<0.6.0
+
+# Optional ML frameworks
+tensorflow>=2.13.0,<3.0.0
+tf-keras>=2.13.0  # Backwards compatibility for transformers with Keras 3
+flax>=0.7.0
+
+# Core utilities
+pydantic>=2.0.0
+typer>=0.9.0
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# Development and testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Database and vector operations
+faiss-cpu>=1.7.0
+qdrant-client>=1.6.0
+psycopg2-binary>=2.9.0
+
+# Logging and monitoring
+loguru>=0.7.0
+structlog>=23.0.0
+
+# Optional: WebAssembly support
+wasmtime>=1.0.0
+
+# Protocol buffers (pin to avoid conflicts)
+protobuf>=3.20.0,<4.0.0
+
+# Async database
+asyncpg>=0.28.0
+
+# Graph operations
+networkx>=3.0.0

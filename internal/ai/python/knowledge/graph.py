@@ -13,7 +13,7 @@ class KnowledgeGraphEnricher:
         """
         Semantic search over knowledge graph node embeddings using vector DB (FAISS/Qdrant).
         """
-        import vector_db
+        from db import vector_db
         import numpy as np
         # Example: get node embeddings (assume as numpy array)
         # In production, extract real embeddings from graph nodes/entities
@@ -41,7 +41,7 @@ class KnowledgeGraphEnricher:
         self.graph = self._load_graph(graph_source)
         self.introspector = KnowledgeGraphIntrospector(logger=self.logger)
         if db is None:
-            import db as db_module
+            from db import db as db_module
             self.db = db_module.AsyncEnrichmentDB()
         else:
             self.db = db

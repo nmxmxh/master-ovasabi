@@ -1,10 +1,12 @@
 # Dockerfile for ws-gateway (central WebSocket gateway)
 FROM golang:1.24-alpine AS builder
-WORKDIR /app
+WORKDIR /ws
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-RUN go build -o ws-gateway ./internal/server/ws-gateway
+RUN --mount=type=cache,target=/go/pkg/mod go build -o ws-gateway ./internal/server/ws-gateway
 
 FROM alpine:3.19
-WORKDIR /app
-COPY --from=builder /app/ws-gateway /app/ws-gateway
-CMD ["/app/ws-gateway"]
+WORKDIR /ws
+COPY --from=builder /ws/ws-gateway /ws/ws-gateway
+CMD ["/ws/ws-gateway"]

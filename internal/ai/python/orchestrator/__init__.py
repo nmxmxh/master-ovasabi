@@ -1,7 +1,7 @@
 from utils import get_logger
 from typing import Any, Dict, List
-import db as db_module
-import ai_web
+from db import db as db_module
+from db import ai_web
 from . import fallback
 from cognition.manager import CognitiveManager
 from cognition.optimizer import Optimizer

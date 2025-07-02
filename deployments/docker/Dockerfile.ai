@@ -1,8 +1,10 @@
+
 # Dockerfile for OVASABI AI Python service
 # Use a specific, up-to-date slim image
+
 FROM python:3.11.9-slim-bookworm AS builder
 
-WORKDIR /app
+WORKDIR /ai
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,55 +15,63 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies (cache layer)
 COPY internal/ai/python/requirements.txt ./
-RUN pip install --upgrade pip && \
+# Force protobuf<4 regardless of requirements.txt resolution
+RUN --mount=type=cache,target=/root/.cache/pip \
+  pip install --upgrade pip && \
   pip install --no-cache-dir --upgrade setuptools wheel && \
-  pip install --no-cache-dir -r requirements.txt
+  pip install --no-cache-dir -r requirements.txt && \
+  pip install --no-cache-dir 'protobuf<4' && \
+  pip install --no-cache-dir wasmtime grpcio-tools
 
-# Install WASM runtime for local execution (wasmtime)
-RUN pip install --no-cache-dir wasmtime
 
-# Install grpcio-tools for proto generation
-RUN pip install --no-cache-dir grpcio-tools
 
-# Copy proto files and generate Python stubs
-COPY api/protos /app/api/protos
+# Copy Python source code (after deps for cache efficiency, flattened)
+COPY internal/ai/python /ai/python
 
-# Ensure output directory for generated protos exists
-RUN mkdir -p /app/internal/ai/python/protos
+# --- Resource limits for AI engine ---
+# Limit Python, numpy, torch, OpenBLAS, and thread usage to 1/4 of available CPUs
+ENV OMP_NUM_THREADS=2
+ENV OPENBLAS_NUM_THREADS=2
+ENV MKL_NUM_THREADS=2
+ENV NUMEXPR_NUM_THREADS=2
+ENV VECLIB_MAXIMUM_THREADS=2
+ENV NUMBA_NUM_THREADS=2
+ENV PYTORCH_NUM_THREADS=2
+ENV TF_NUM_INTEROP_THREADS=2
+ENV TF_NUM_INTRAOP_THREADS=2
+ENV TRANSFORMERS_NUM_THREADS=2
 
-RUN python -m grpc_tools.protoc \
-  -I/app/api/protos \
-  --python_out=/app/internal/ai/python/protos \
-  --grpc_python_out=/app/internal/ai/python/protos \
-  $(find /app/api/protos -name '*.proto')
+# Optionally, set Python concurrency limits in code (see below)
 
-# Copy Python source code (after deps for cache efficiency)
-COPY internal/ai/python ./internal/ai/python
 
-# Download GGUF model if not present (build step)
-RUN pip install --no-cache-dir 'huggingface_hub[cli]' && \
-  mkdir -p /app/internal/ai/python/models && \
-  if [ ! -f /app/internal/ai/python/models/phi-4-mini-q4_k_s.gguf ]; then \
-  huggingface-cli download Mungert/Phi-4-mini-instruct.gguf \
-  --include "phi-4-mini-q4_k_s.gguf" --local-dir /app/internal/ai/python/models; \
-  fi
+
+# --- Model Download Stage (for optimal caching) ---
+FROM python:3.11.9-slim-bookworm AS model-downloader
+WORKDIR /modelstage
+RUN pip install --no-cache-dir 'huggingface_hub[cli]'
+RUN mkdir -p /modelstage/models
+RUN huggingface-cli download Mungert/Phi-4-mini-instruct.gguf \
+  --include "phi-4-mini-q4_k_s.gguf" --local-dir /modelstage/models
+
 
 # --- Final runtime image ---
 FROM python:3.11.9-slim-bookworm
 
-WORKDIR /app
+WORKDIR /ai
 
 # Install only runtime dependencies (use libpq5 instead of libpq-dev for smaller surface)
 RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*
 
-# Copy installed Python packages and built code from builder
+# Copy installed Python packages and built code from builder (flattened)
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /app/internal/ai/python /app/internal/ai/python
+COPY --from=builder /ai/python /ai/python
+# Copy model from model-downloader stage
+COPY --from=model-downloader /modelstage/models /ai/python/models
 
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app/internal:/app/internal/ai:/app/internal/ai/python
+ENV PYTHONPATH=/ai/python
 
-RUN useradd -m ai && chown -R ai /app
+RUN useradd -m ai && chown -R ai /ai
 USER ai
 
 CMD ["python", "-m", "python.main"]

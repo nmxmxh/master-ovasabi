@@ -1,24 +1,26 @@
 # --- Go WASM Build Stage ---
 # This stage builds the Go WASM binary.
+
 FROM golang:1.24-alpine AS wasm-builder
 WORKDIR /wasm
 COPY wasm/go.mod wasm/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY wasm/ .
 # Build the WASM binary and place it in a known location.
-RUN GOOS=js GOARCH=wasm go build -o /build/main.wasm .
+RUN --mount=type=cache,target=/go/pkg/mod GOOS=js GOARCH=wasm go build -o /wasm/main.wasm .
 
 # --- Frontend Build Stage ---
 # This stage builds the JavaScript/TypeScript frontend assets.
+
 FROM node:alpine AS frontend-builder
 WORKDIR /frontend
 COPY frontend/package*.json ./
-RUN yarn install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.yarn YARN_CACHE_FOLDER=/root/.yarn yarn install --frozen-lockfile
 COPY frontend/ .
 # Copy the compiled WASM binary from the previous stage into the public assets directory.
-COPY --from=wasm-builder /build/main.wasm ./public/
+COPY --from=wasm-builder /wasm/main.wasm ./public/
 # Build the production-ready frontend assets.
-RUN yarn build
+RUN --mount=type=cache,target=/root/.yarn YARN_CACHE_FOLDER=/root/.yarn yarn build
 
 # --- Production Nginx Stage ---
 # This is the final, lean image that will serve the static frontend.

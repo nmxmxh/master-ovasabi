@@ -8,7 +8,7 @@ import requests
 from typing import List, Dict, Any, Optional
 from common.v1 import metadata_pb2
 import asyncio
-import ai_web
+from db import ai_web
 from bus import nexus_stream
 
 
@@ -219,7 +219,7 @@ class Devourer:
         Vector similarity search for crawl results in _web using FAISS/Qdrant.
         """
         import numpy as np
-        import vector_db
+        from db import vector_db
         # Example: fetch all crawl_result nodes and their embeddings
         nodes = await self.webdb.get_nodes(node_type="crawl_result")
         embeddings = []

@@ -200,7 +200,7 @@ class NexusStreamClient:
 
         # --- AI/LLM summary via prompt ---
         try:
-            from llm_registry import get_llm_adapter
+            from core.llm_registry import get_llm_adapter
             adapter = get_llm_adapter()
             prompt = (
                 "You are an event bus monitor. Summarize the following event activity for the last minute, "
