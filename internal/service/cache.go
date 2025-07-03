@@ -33,6 +33,7 @@ var ServiceCacheConfigs = []CacheConfig{
 	{"security", redis.NamespaceCache, "security"},
 	{"search", redis.NamespaceCache, "search"},
 	{"campaign", redis.NamespaceCache, "campaign"},
+	{"waitlist", redis.NamespaceCache, "waitlist"},
 	{"default", redis.NamespaceCache, "default"},
 	{"messaging", redis.NamespaceQueue, "messaging"},
 }
