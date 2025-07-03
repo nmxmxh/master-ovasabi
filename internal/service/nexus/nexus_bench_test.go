@@ -7,6 +7,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"go.uber.org/zap"
 )
 
 // BenchmarkEmitEchoEvents benchmarks emitting 1,000,000 echo events through the Nexus service.
@@ -15,14 +16,16 @@ func BenchmarkEmitEchoEvents(b *testing.B) {
 
 	// Minimal mock Nexus service (no DB, no cache, no event repo)
 	svc := &Service{
-		repo:         nil,
-		eventRepo:    nil,
-		cache:        nil,
-		log:          nil,
-		eventBus:     nil,
-		eventEnabled: true,
-		provider:     nil,
-		subscribers:  make(map[string][]chan *nexusv1.EventResponse),
+		repo:          nil,
+		eventRepo:     nil,
+		cache:         nil,
+		log:           zap.NewNop(), // Use a no-op logger for benchmarks
+		eventBus:      nil,
+		eventEnabled:  true,
+		provider:      nil,
+		subscribers:   make(map[string][]chan *nexusv1.EventResponse),
+		eventSequence: 0,
+		lastEventTime: time.Now(),
 	}
 
 	eventType := "nexus.echo"

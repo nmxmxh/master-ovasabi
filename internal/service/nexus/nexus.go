@@ -22,6 +22,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Service implements the Nexus service.
@@ -38,22 +39,28 @@ type Service struct {
 	cancel        context.CancelFunc
 	subscribers   map[string][]chan *nexusv1.EventResponse
 	subscribersMu sync.RWMutex
+	// Event ordering fields for temporal conflict resolution
+	eventSequence uint64     // Monotonic sequence number for event ordering
+	eventMutex    sync.Mutex // Ensures atomic event emission
+	lastEventTime time.Time  // Track last event timestamp for conflict detection
 }
 
 // NewService creates a new Nexus service.
 func NewService(repo *Repository, eventRepo nexus.EventRepository, cache *redis.Cache, log *zap.Logger, eventBus bridge.EventBus, eventEnabled bool, provider *service.Provider) nexusv1.NexusServiceServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Service{
-		repo:         repo,
-		eventRepo:    eventRepo,
-		cache:        cache,
-		log:          log,
-		eventBus:     eventBus,
-		eventEnabled: eventEnabled,
-		provider:     provider,
-		ctx:          ctx,
-		cancel:       cancel,
-		subscribers:  make(map[string][]chan *nexusv1.EventResponse),
+		repo:          repo,
+		eventRepo:     eventRepo,
+		cache:         cache,
+		log:           log,
+		eventBus:      eventBus,
+		eventEnabled:  eventEnabled,
+		provider:      provider,
+		ctx:           ctx,
+		cancel:        cancel,
+		subscribers:   make(map[string][]chan *nexusv1.EventResponse),
+		eventSequence: 0,
+		lastEventTime: time.Now(),
 	}
 }
 
@@ -320,6 +327,35 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 
 // EmitEvent handles event emission to the Nexus event bus with structured logging and persistence.
 func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nexusv1.EventResponse, error) {
+	// Temporal conflict resolution: Ensure atomic event emission with proper ordering
+	s.eventMutex.Lock()
+	defer s.eventMutex.Unlock()
+
+	currentTime := time.Now()
+
+	// Simple temporal conflict detection: warn if events arrive out of chronological order
+	if currentTime.Before(s.lastEventTime) {
+		s.log.Warn("Temporal conflict detected: event timestamp is earlier than last event",
+			zap.String("event_type", req.EventType),
+			zap.String("event_id", req.EventId),
+			zap.Time("current_time", currentTime),
+			zap.Time("last_event_time", s.lastEventTime),
+		)
+	}
+
+	// Increment sequence number for ordering
+	s.eventSequence++
+	currentSequence := s.eventSequence
+	s.lastEventTime = currentTime
+
+	// Log event emission with sequence for debugging
+	s.log.Info("Emitting event with sequence",
+		zap.String("event_type", req.EventType),
+		zap.String("event_id", req.EventId),
+		zap.Uint64("sequence", currentSequence),
+		zap.Time("timestamp", currentTime),
+	)
+
 	// Canonical: Validate and normalize metadata before emission
 	if req.Metadata == nil {
 		req.Metadata = &commonpb.Metadata{}
@@ -329,6 +365,7 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 		s.log.Error("Invalid metadata in EmitEvent", zap.Error(err))
 		return nil, graceful.WrapErr(ctx, 3, "invalid metadata", err)
 	}
+
 	// The conversion to ServiceMetadata was incorrect. CanonicalEvent expects commonpb.Metadata.
 	if s.eventRepo != nil {
 		// The CanonicalEvent expects a *commonpb.Metadata, which is what req.Metadata is.
@@ -339,16 +376,32 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 			entityType = parts[0]
 		}
 
-		if err := s.eventRepo.SaveEvent(ctx, &nexus.CanonicalEvent{
-			ID:         uuid.New(),
-			MasterID:   masterID,
-			EntityType: repository.EntityType(entityType),
-			EventType:  req.EventType,
-			Metadata:   req.Metadata, // Pass the original proto metadata
-			Payload:    req.Payload,
-			Status:     "emitted",
-			CreatedAt:  time.Now(),
-		}); err != nil {
+		// Create canonical event with sequence and timestamp for ordering
+		canonicalEvent := &nexus.CanonicalEvent{
+			ID:            uuid.New(),
+			MasterID:      masterID,
+			EntityType:    repository.EntityType(entityType),
+			EventType:     req.EventType,
+			Metadata:      req.Metadata, // Pass the original proto metadata
+			Payload:       req.Payload,
+			Status:        "emitted",
+			CreatedAt:     currentTime,      // Use the locked timestamp
+			NexusSequence: &currentSequence, // Set the sequence number for ordering
+		}
+
+		// Add sequence to metadata for ordering preservation
+		if canonicalEvent.Metadata.ServiceSpecific == nil {
+			canonicalEvent.Metadata.ServiceSpecific = &structpb.Struct{
+				Fields: make(map[string]*structpb.Value),
+			}
+		}
+		if canonicalEvent.Metadata.ServiceSpecific.Fields == nil {
+			canonicalEvent.Metadata.ServiceSpecific.Fields = make(map[string]*structpb.Value)
+		}
+		canonicalEvent.Metadata.ServiceSpecific.Fields["nexus.sequence"] = structpb.NewStringValue(fmt.Sprintf("%d", currentSequence))
+		canonicalEvent.Metadata.ServiceSpecific.Fields["nexus.emitter_timestamp"] = structpb.NewStringValue(currentTime.Format(time.RFC3339Nano))
+
+		if err := s.eventRepo.SaveEvent(ctx, canonicalEvent); err != nil {
 			s.log.Error("Failed to save event to repository", zap.Error(err))
 			// Do not fail the whole operation if event saving fails, just log it.
 		}
@@ -443,6 +496,13 @@ func (s *Service) broadcastToSubscribers(subscribers []chan *nexusv1.EventRespon
 			s.log.Warn("Dropping event for slow gRPC subscriber", zap.String("event_type", event.EventType))
 		}
 	}
+}
+
+// GetEventSequence returns the current event sequence number for debugging/monitoring
+func (s *Service) GetEventSequence() uint64 {
+	s.eventMutex.Lock()
+	defer s.eventMutex.Unlock()
+	return s.eventSequence
 }
 
 // extractAuthContext extracts user_id, roles, guest_nickname, device_id from context or metadata.

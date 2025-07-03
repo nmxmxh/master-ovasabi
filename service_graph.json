@@ -1,0 +1,255 @@
+{
+  "services": {
+    "admin": {
+      "name": "admin",
+      "version": "v1",
+      "capabilities": [
+        "authorization",
+        "user_mgmt",
+        "admin",
+        "metadata_enrichment"
+      ]
+    },
+    "ai": {
+      "name": "ai",
+      "version": "v1",
+      "capabilities": []
+    },
+    "analytics": {
+      "name": "analytics",
+      "version": "v1",
+      "capabilities": [
+        "analytics",
+        "metadata_enrichment"
+      ]
+    },
+    "campaign": {
+      "name": "campaign",
+      "version": "v1",
+      "capabilities": []
+    },
+    "commerce": {
+      "name": "commerce",
+      "version": "v1",
+      "capabilities": [
+        "commerce",
+        "metadata_enrichment"
+      ]
+    },
+    "content": {
+      "name": "content",
+      "version": "v1",
+      "capabilities": [
+        "content",
+        "metadata_enrichment"
+      ]
+    },
+    "contentmoderation": {
+      "name": "contentmoderation",
+      "version": "v1",
+      "capabilities": [
+        "moderation",
+        "metadata_enrichment"
+      ]
+    },
+    "crawler": {
+      "name": "crawler",
+      "version": "v1",
+      "capabilities": []
+    },
+    "localization": {
+      "name": "localization",
+      "version": "v1",
+      "capabilities": []
+    },
+    "media": {
+      "name": "media",
+      "version": "v1",
+      "capabilities": [
+        "media",
+        "metadata_enrichment"
+      ]
+    },
+    "messaging": {
+      "name": "messaging",
+      "version": "v1",
+      "capabilities": [
+        "messaging",
+        "metadata_enrichment"
+      ]
+    },
+    "nexus": {
+      "name": "nexus",
+      "version": "v1",
+      "capabilities": [
+        "orchestration",
+        "metadata_enrichment"
+      ]
+    },
+    "notification": {
+      "name": "notification",
+      "version": "v1",
+      "capabilities": [
+        "notification",
+        "metadata_enrichment"
+      ]
+    },
+    "product": {
+      "name": "product",
+      "version": "v1",
+      "capabilities": []
+    },
+    "referral": {
+      "name": "referral",
+      "version": "v1",
+      "capabilities": [
+        "referral",
+        "metadata_enrichment"
+      ]
+    },
+    "scheduler": {
+      "name": "scheduler",
+      "version": "v1",
+      "capabilities": [
+        "scheduler",
+        "metadata_enrichment"
+      ]
+    },
+    "search": {
+      "name": "search",
+      "version": "v1",
+      "capabilities": [
+        "search",
+        "metadata_enrichment"
+      ]
+    },
+    "security": {
+      "name": "security",
+      "version": "v1",
+      "capabilities": [
+        "authentication",
+        "authorization",
+        "metadata_enrichment"
+      ]
+    },
+    "talent": {
+      "name": "talent",
+      "version": "v1",
+      "capabilities": []
+    },
+    "user": {
+      "name": "user",
+      "version": "v1",
+      "capabilities": [
+        "admin",
+        "user_mgmt",
+        "authentication",
+        "authorization",
+        "metadata_enrichment"
+      ]
+    },
+    "waitlist": {
+      "name": "waitlist",
+      "version": "v1",
+      "capabilities": []
+    }
+  },
+  "dependencies": [
+    {
+      "from": "admin",
+      "to": "user",
+      "type": "requires"
+    },
+    {
+      "from": "admin",
+      "to": "security",
+      "type": "requires"
+    },
+    {
+      "from": "ai",
+      "to": "content",
+      "type": "requires"
+    },
+    {
+      "from": "ai",
+      "to": "analytics",
+      "type": "requires"
+    },
+    {
+      "from": "analytics",
+      "to": "user",
+      "type": "requires"
+    },
+    {
+      "from": "commerce",
+      "to": "analytics",
+      "type": "requires"
+    },
+    {
+      "from": "content",
+      "to": "search",
+      "type": "requires"
+    },
+    {
+      "from": "content",
+      "to": "analytics",
+      "type": "requires"
+    },
+    {
+      "from": "media",
+      "to": "user",
+      "type": "requires"
+    },
+    {
+      "from": "messaging",
+      "to": "analytics",
+      "type": "requires"
+    },
+    {
+      "from": "nexus",
+      "to": "analytics",
+      "type": "requires"
+    },
+    {
+      "from": "notification",
+      "to": "analytics",
+      "type": "requires"
+    },
+    {
+      "from": "product",
+      "to": "search",
+      "type": "requires"
+    },
+    {
+      "from": "security",
+      "to": "user",
+      "type": "requires"
+    },
+    {
+      "from": "security",
+      "to": "search",
+      "type": "requires"
+    },
+    {
+      "from": "security",
+      "to": "analytics",
+      "type": "requires"
+    },
+    {
+      "from": "user",
+      "to": "notification",
+      "type": "requires"
+    },
+    {
+      "from": "user",
+      "to": "security",
+      "type": "requires"
+    },
+    {
+      "from": "user",
+      "to": "analytics",
+      "type": "requires"
+    }
+  ],
+  "timestamp": "2025-07-03T16:55:14.427592+01:00"
+}

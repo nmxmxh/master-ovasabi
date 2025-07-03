@@ -2,8 +2,16 @@
   {
     "name": "admin",
     "version": "v1",
-    "capabilities": ["authorization", "admin", "user_mgmt", "metadata_enrichment"],
-    "dependencies": ["user", "security"],
+    "capabilities": [
+      "authorization",
+      "admin",
+      "user_mgmt",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "user",
+      "security"
+    ],
     "schema": {
       "proto_path": "api/protos/admin/v1/admin.proto",
       "methods": [
@@ -95,91 +103,130 @@
         "proto_method": "AssignRole",
         "request_model": "AssignRoleRequest",
         "response_model": "AssignRoleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "check_permission": {
         "proto_method": "CheckPermission",
         "request_model": "CheckPermissionRequest",
         "response_model": "CheckPermissionResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "create_role": {
         "proto_method": "CreateRole",
         "request_model": "CreateRoleRequest",
         "response_model": "CreateRoleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "create_user": {
         "proto_method": "CreateUser",
         "request_model": "CreateUserRequest",
         "response_model": "CreateUserResponse",
-        "rest_required_fields": ["metadata", "name", "email"]
+        "rest_required_fields": [
+          "metadata",
+          "name",
+          "email"
+        ]
       },
       "delete_role": {
         "proto_method": "DeleteRole",
         "request_model": "DeleteRoleRequest",
         "response_model": "DeleteRoleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "delete_user": {
         "proto_method": "DeleteUser",
         "request_model": "DeleteUserRequest",
         "response_model": "DeleteUserResponse",
-        "rest_required_fields": ["metadata", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "user_id"
+        ]
       },
       "get_audit_logs": {
         "proto_method": "GetAuditLogs",
         "request_model": "GetAuditLogsRequest",
         "response_model": "GetAuditLogsResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_settings": {
         "proto_method": "GetSettings",
         "request_model": "GetSettingsRequest",
         "response_model": "GetSettingsResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_user": {
         "proto_method": "GetUser",
         "request_model": "GetUserRequest",
         "response_model": "GetUserResponse",
-        "rest_required_fields": ["metadata", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "user_id"
+        ]
       },
       "list_roles": {
         "proto_method": "ListRoles",
         "request_model": "ListRolesRequest",
         "response_model": "ListRolesResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_users": {
         "proto_method": "ListUsers",
         "request_model": "ListUsersRequest",
         "response_model": "ListUsersResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "revoke_role": {
         "proto_method": "RevokeRole",
         "request_model": "RevokeRoleRequest",
         "response_model": "RevokeRoleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_role": {
         "proto_method": "UpdateRole",
         "request_model": "UpdateRoleRequest",
         "response_model": "UpdateRoleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_settings": {
         "proto_method": "UpdateSettings",
         "request_model": "UpdateSettingsRequest",
         "response_model": "UpdateSettingsResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_user": {
         "proto_method": "UpdateUser",
         "request_model": "UpdateUserRequest",
         "response_model": "UpdateUserResponse",
-        "rest_required_fields": ["metadata", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "user_id"
+        ]
       }
     }
   },
@@ -187,7 +234,10 @@
     "name": "ai",
     "version": "v1",
     "capabilities": [],
-    "dependencies": ["content", "analytics"],
+    "dependencies": [
+      "content",
+      "analytics"
+    ],
     "schema": {
       "proto_path": "api/protos/ai/v1/ai.proto",
       "methods": [
@@ -236,39 +286,54 @@
         "proto_method": "GenerateEmbeddings",
         "request_model": "EnrichmentRequest",
         "response_model": "EnrichmentResponse.Vector",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_current_model": {
         "proto_method": "GetCurrentModel",
         "request_model": "ModelRequest",
         "response_model": "Model",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "handle_client_event": {
         "proto_method": "HandleClientEvent",
         "request_model": "ClientEvent",
         "response_model": "ClientEventAck",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "process_content": {
         "proto_method": "ProcessContent",
         "request_model": "stream EnrichmentRequest",
         "response_model": "EnrichmentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "submit_model_update": {
         "proto_method": "SubmitModelUpdate",
         "request_model": "ModelUpdate",
         "response_model": "ModelUpdateAck",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "analytics",
     "version": "v1",
-    "capabilities": ["analytics", "metadata_enrichment"],
-    "dependencies": ["user"],
+    "capabilities": [
+      "analytics",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "user"
+    ],
     "schema": {
       "proto_path": "api/protos/analytics/v1/analytics.proto",
       "methods": [
@@ -326,37 +391,54 @@
         "proto_method": "CaptureEvent",
         "request_model": "CaptureEventRequest",
         "response_model": "CaptureEventResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_report": {
         "proto_method": "GetReport",
         "request_model": "GetReportRequest",
         "response_model": "GetReportResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_user_events": {
         "proto_method": "GetUserEvents",
         "request_model": "GetUserEventsRequest",
         "response_model": "GetUserEventsResponse",
-        "rest_required_fields": ["metadata", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "user_id"
+        ]
       },
       "list_events": {
         "proto_method": "ListEvents",
         "request_model": "ListEventsRequest",
         "response_model": "ListEventsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_reports": {
         "proto_method": "ListReports",
         "request_model": "ListReportsRequest",
         "response_model": "ListReportsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "track_event": {
         "proto_method": "TrackEvent",
         "request_model": "TrackEventRequest",
         "response_model": "TrackEventResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
@@ -410,39 +492,56 @@
         "proto_method": "CreateCampaign",
         "request_model": "CreateCampaignRequest",
         "response_model": "CreateCampaignResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "delete_campaign": {
         "proto_method": "DeleteCampaign",
         "request_model": "DeleteCampaignRequest",
         "response_model": "DeleteCampaignResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_campaign": {
         "proto_method": "GetCampaign",
         "request_model": "GetCampaignRequest",
         "response_model": "GetCampaignResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_campaigns": {
         "proto_method": "ListCampaigns",
         "request_model": "ListCampaignsRequest",
         "response_model": "ListCampaignsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "update_campaign": {
         "proto_method": "UpdateCampaign",
         "request_model": "UpdateCampaignRequest",
         "response_model": "UpdateCampaignResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "commerce",
     "version": "v1",
-    "capabilities": ["commerce", "metadata_enrichment"],
-    "dependencies": ["analytics"],
+    "capabilities": [
+      "commerce",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "analytics"
+    ],
     "schema": {
       "proto_path": "api/protos/commerce/v1/commerce.proto",
       "methods": [
@@ -596,129 +695,191 @@
         "proto_method": "ConfirmPayment",
         "request_model": "ConfirmPaymentRequest",
         "response_model": "ConfirmPaymentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "create_listing": {
         "proto_method": "CreateListing",
         "request_model": "CreateListingRequest",
         "response_model": "CreateListingResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "create_order": {
         "proto_method": "CreateOrder",
         "request_model": "CreateOrderRequest",
         "response_model": "CreateOrderResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "create_quote": {
         "proto_method": "CreateQuote",
         "request_model": "CreateQuoteRequest",
         "response_model": "CreateQuoteResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_balance": {
         "proto_method": "GetBalance",
         "request_model": "GetBalanceRequest",
         "response_model": "GetBalanceResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_exchange_rate": {
         "proto_method": "GetExchangeRate",
         "request_model": "GetExchangeRateRequest",
         "response_model": "GetExchangeRateResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_order": {
         "proto_method": "GetOrder",
         "request_model": "GetOrderRequest",
         "response_model": "GetOrderResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_portfolio": {
         "proto_method": "GetPortfolio",
         "request_model": "GetPortfolioRequest",
         "response_model": "GetPortfolioResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_quote": {
         "proto_method": "GetQuote",
         "request_model": "GetQuoteRequest",
         "response_model": "GetQuoteResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_transaction": {
         "proto_method": "GetTransaction",
         "request_model": "GetTransactionRequest",
         "response_model": "GetTransactionResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "initiate_payment": {
         "proto_method": "InitiatePayment",
         "request_model": "InitiatePaymentRequest",
         "response_model": "InitiatePaymentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_assets": {
         "proto_method": "ListAssets",
         "request_model": "ListAssetsRequest",
         "response_model": "ListAssetsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_balances": {
         "proto_method": "ListBalances",
         "request_model": "ListBalancesRequest",
         "response_model": "ListBalancesResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_events": {
         "proto_method": "ListEvents",
         "request_model": "ListEventsRequest",
         "response_model": "ListEventsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_listings": {
         "proto_method": "ListListings",
         "request_model": "ListListingsRequest",
         "response_model": "ListListingsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_orders": {
         "proto_method": "ListOrders",
         "request_model": "ListOrdersRequest",
         "response_model": "ListOrdersResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_portfolios": {
         "proto_method": "ListPortfolios",
         "request_model": "ListPortfoliosRequest",
         "response_model": "ListPortfoliosResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_quotes": {
         "proto_method": "ListQuotes",
         "request_model": "ListQuotesRequest",
         "response_model": "ListQuotesResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "make_offer": {
         "proto_method": "MakeOffer",
         "request_model": "MakeOfferRequest",
         "response_model": "MakeOfferResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "refund_payment": {
         "proto_method": "RefundPayment",
         "request_model": "RefundPaymentRequest",
         "response_model": "RefundPaymentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "content",
     "version": "v1",
-    "capabilities": ["content", "metadata_enrichment"],
-    "dependencies": ["search", "analytics"],
+    "capabilities": [
+      "content",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "search",
+      "analytics"
+    ],
     "schema": {
       "proto_path": "api/protos/content/v1/content.proto",
       "methods": [
@@ -795,96 +956,143 @@
         "proto_method": "AddComment",
         "request_model": "AddCommentRequest",
         "response_model": "CommentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "add_reaction": {
         "proto_method": "AddReaction",
         "request_model": "AddReactionRequest",
         "response_model": "ReactionResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "create_content": {
         "proto_method": "CreateContent",
         "request_model": "CreateContentRequest",
         "response_model": "ContentResponse",
-        "rest_required_fields": ["metadata", "title", "content", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "title",
+          "content",
+          "user_id"
+        ]
       },
       "delete_comment": {
         "proto_method": "DeleteComment",
         "request_model": "DeleteCommentRequest",
         "response_model": "DeleteCommentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "delete_content": {
         "proto_method": "DeleteContent",
         "request_model": "DeleteContentRequest",
         "response_model": "DeleteContentResponse",
-        "rest_required_fields": ["metadata", "content_id"]
+        "rest_required_fields": [
+          "metadata",
+          "content_id"
+        ]
       },
       "get_content": {
         "proto_method": "GetContent",
         "request_model": "GetContentRequest",
         "response_model": "ContentResponse",
-        "rest_required_fields": ["metadata", "content_id"]
+        "rest_required_fields": [
+          "metadata",
+          "content_id"
+        ]
       },
       "list_comments": {
         "proto_method": "ListComments",
         "request_model": "ListCommentsRequest",
         "response_model": "ListCommentsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_content": {
         "proto_method": "ListContent",
         "request_model": "ListContentRequest",
         "response_model": "ListContentResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_reactions": {
         "proto_method": "ListReactions",
         "request_model": "ListReactionsRequest",
         "response_model": "ListReactionsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "log_content_event": {
         "proto_method": "LogContentEvent",
         "request_model": "LogContentEventRequest",
         "response_model": "LogContentEventResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "moderate_content": {
         "proto_method": "ModerateContent",
         "request_model": "ModerateContentRequest",
         "response_model": "ModerateContentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "search_content": {
         "proto_method": "SearchContent",
         "request_model": "SearchContentRequest",
         "response_model": "ListContentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_content": {
         "proto_method": "UpdateContent",
         "request_model": "UpdateContentRequest",
         "response_model": "ContentResponse",
-        "rest_required_fields": ["metadata", "content_id"]
+        "rest_required_fields": [
+          "metadata",
+          "content_id"
+        ]
       }
     }
   },
   {
     "name": "contentmoderation",
     "version": "v1",
-    "capabilities": ["moderation", "metadata_enrichment"],
+    "capabilities": [
+      "moderation",
+      "metadata_enrichment"
+    ],
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/contentmoderation/v1/contentmoderation.proto",
-      "methods": ["ApproveContent", "RejectContent"]
+      "methods": [
+        "ApproveContent",
+        "RejectContent"
+      ]
     },
     "endpoints": [
       {
         "path": "/api/contentmoderation_ops",
         "method": "POST",
-        "actions": ["approve_content", "reject_content"],
+        "actions": [
+          "approve_content",
+          "reject_content"
+        ],
         "description": "Composable contentmoderation operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -910,13 +1118,17 @@
         "proto_method": "ApproveContent",
         "request_model": "ApproveContentRequest",
         "response_model": "ApproveContentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "reject_content": {
         "proto_method": "RejectContent",
         "request_model": "RejectContentRequest",
         "response_model": "RejectContentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
@@ -927,13 +1139,21 @@
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/crawler/v1/crawler.proto",
-      "methods": ["SubmitTask", "GetTaskStatus", "StreamResults"]
+      "methods": [
+        "SubmitTask",
+        "GetTaskStatus",
+        "StreamResults"
+      ]
     },
     "endpoints": [
       {
         "path": "/api/crawler_ops",
         "method": "POST",
-        "actions": ["submit_task", "get_task_status", "stream_results"],
+        "actions": [
+          "submit_task",
+          "get_task_status",
+          "stream_results"
+        ],
         "description": "Composable crawler operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -953,19 +1173,25 @@
         "proto_method": "GetTaskStatus",
         "request_model": "GetTaskStatusRequest",
         "response_model": "CrawlTask",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "stream_results": {
         "proto_method": "StreamResults",
         "request_model": "StreamResultsRequest",
         "response_model": "stream CrawlResult",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "submit_task": {
         "proto_method": "SubmitTask",
         "request_model": "SubmitTaskRequest",
         "response_model": "SubmitTaskResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
@@ -1034,54 +1260,83 @@
         "proto_method": "BatchTranslate",
         "request_model": "BatchTranslateRequest",
         "response_model": "BatchTranslateResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_pricing_rule": {
         "proto_method": "GetPricingRule",
         "request_model": "GetPricingRuleRequest",
         "response_model": "GetPricingRuleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_translation": {
         "proto_method": "GetTranslation",
         "request_model": "GetTranslationRequest",
         "response_model": "GetTranslationResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_locales": {
         "proto_method": "ListLocales",
         "request_model": "ListLocalesRequest",
         "response_model": "ListLocalesResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "set_pricing_rule": {
         "proto_method": "SetPricingRule",
         "request_model": "SetPricingRuleRequest",
         "response_model": "SetPricingRuleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "translate": {
         "proto_method": "Translate",
         "request_model": "TranslateRequest",
         "response_model": "TranslateResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "media",
     "version": "v1",
-    "capabilities": ["media", "metadata_enrichment"],
-    "dependencies": ["user"],
+    "capabilities": [
+      "media",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "user"
+    ],
     "schema": {
       "proto_path": "api/protos/media/v1/media.proto",
-      "methods": ["GetMedia", "DeleteMedia", "ListUserMedia", "ListSystemMedia"]
+      "methods": [
+        "GetMedia",
+        "DeleteMedia",
+        "ListUserMedia",
+        "ListSystemMedia"
+      ]
     },
     "endpoints": [
       {
         "path": "/api/media_ops",
         "method": "POST",
-        "actions": ["get_media", "delete_media", "list_user_media", "list_system_media"],
+        "actions": [
+          "get_media",
+          "delete_media",
+          "list_user_media",
+          "list_system_media"
+        ],
         "description": "Composable media operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -1121,33 +1376,50 @@
         "proto_method": "DeleteMedia",
         "request_model": "DeleteMediaRequest",
         "response_model": "DeleteMediaResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_media": {
         "proto_method": "GetMedia",
         "request_model": "GetMediaRequest",
         "response_model": "GetMediaResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_system_media": {
         "proto_method": "ListSystemMedia",
         "request_model": "ListSystemMediaRequest",
         "response_model": "ListSystemMediaResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_user_media": {
         "proto_method": "ListUserMedia",
         "request_model": "ListUserMediaRequest",
         "response_model": "ListUserMediaResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       }
     }
   },
   {
     "name": "messaging",
     "version": "v1",
-    "capabilities": ["messaging", "metadata_enrichment"],
-    "dependencies": ["analytics"],
+    "capabilities": [
+      "messaging",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "analytics"
+    ],
     "schema": {
       "proto_path": "api/protos/messaging/v1/messaging.proto",
       "methods": [
@@ -1243,75 +1515,106 @@
         "proto_method": "DeleteMessage",
         "request_model": "DeleteMessageRequest",
         "response_model": "DeleteMessageResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "edit_message": {
         "proto_method": "EditMessage",
         "request_model": "EditMessageRequest",
         "response_model": "EditMessageResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_message": {
         "proto_method": "GetMessage",
         "request_model": "GetMessageRequest",
         "response_model": "GetMessageResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_messages": {
         "proto_method": "ListMessages",
         "request_model": "ListMessagesRequest",
         "response_model": "ListMessagesResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_threads": {
         "proto_method": "ListThreads",
         "request_model": "ListThreadsRequest",
         "response_model": "ListThreadsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "mark_as_read": {
         "proto_method": "MarkAsRead",
         "request_model": "MarkAsReadRequest",
         "response_model": "MarkAsReadResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "react_to_message": {
         "proto_method": "ReactToMessage",
         "request_model": "ReactToMessageRequest",
         "response_model": "ReactToMessageResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "send_message": {
         "proto_method": "SendMessage",
         "request_model": "SendMessageRequest",
         "response_model": "SendMessageResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "stream_messages": {
         "proto_method": "StreamMessages",
         "request_model": "StreamMessagesRequest",
         "response_model": "stream MessageEvent",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "stream_presence": {
         "proto_method": "StreamPresence",
         "request_model": "StreamPresenceRequest",
         "response_model": "stream PresenceEvent",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "stream_typing": {
         "proto_method": "StreamTyping",
         "request_model": "StreamTypingRequest",
         "response_model": "stream TypingEvent",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "nexus",
     "version": "v1",
-    "capabilities": ["orchestration", "metadata_enrichment"],
-    "dependencies": ["analytics"],
+    "capabilities": [
+      "orchestration",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "analytics"
+    ],
     "schema": {
       "proto_path": "api/protos/nexus/v1/nexus.proto",
       "methods": [
@@ -1374,72 +1677,105 @@
         "proto_method": "EmitEvent",
         "request_model": "EventRequest",
         "response_model": "EventResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "feedback": {
         "proto_method": "Feedback",
         "request_model": "FeedbackRequest",
         "response_model": "FeedbackResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "handle_ops": {
         "proto_method": "HandleOps",
         "request_model": "HandleOpsRequest",
         "response_model": "HandleOpsResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_patterns": {
         "proto_method": "ListPatterns",
         "request_model": "ListPatternsRequest",
         "response_model": "ListPatternsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "mine_patterns": {
         "proto_method": "MinePatterns",
         "request_model": "MinePatternsRequest",
         "response_model": "MinePatternsResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "orchestrate": {
         "proto_method": "Orchestrate",
         "request_model": "OrchestrateRequest",
         "response_model": "OrchestrateResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "register_pattern": {
         "proto_method": "RegisterPattern",
         "request_model": "RegisterPatternRequest",
         "response_model": "RegisterPatternResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "subscribe_events": {
         "proto_method": "SubscribeEvents",
         "request_model": "SubscribeRequest",
         "response_model": "stream EventResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "trace_pattern": {
         "proto_method": "TracePattern",
         "request_model": "TracePatternRequest",
         "response_model": "TracePatternResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "notification",
     "version": "v1",
-    "capabilities": ["notification", "metadata_enrichment"],
-    "dependencies": ["analytics"],
+    "capabilities": [
+      "notification",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "analytics"
+    ],
     "schema": {
       "proto_path": "api/protos/notification/v1/notification.proto",
-      "methods": ["SendEmail", "SendSMS", "BroadcastEvent"]
+      "methods": [
+        "SendEmail",
+        "SendSMS",
+        "BroadcastEvent"
+      ]
     },
     "endpoints": [
       {
         "path": "/api/notification_ops",
         "method": "POST",
-        "actions": ["send_email", "send_sms", "broadcast_event"],
+        "actions": [
+          "send_email",
+          "send_sms",
+          "broadcast_event"
+        ],
         "description": "Composable notification operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -1481,19 +1817,25 @@
         "proto_method": "BroadcastEvent",
         "request_model": "BroadcastEventRequest",
         "response_model": "BroadcastEventResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "send_email": {
         "proto_method": "SendEmail",
         "request_model": "SendEmailRequest",
         "response_model": "SendEmailResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "send_sms": {
         "proto_method": "SendSMS",
         "request_model": "SendSMSRequest",
         "response_model": "SendSMSResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
@@ -1501,7 +1843,9 @@
     "name": "product",
     "version": "v1",
     "capabilities": [],
-    "dependencies": ["search"],
+    "dependencies": [
+      "search"
+    ],
     "schema": {
       "proto_path": "api/protos/product/v1/product.proto",
       "methods": [
@@ -1558,60 +1902,85 @@
         "proto_method": "CreateProduct",
         "request_model": "CreateProductRequest",
         "response_model": "CreateProductResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "delete_product": {
         "proto_method": "DeleteProduct",
         "request_model": "DeleteProductRequest",
         "response_model": "DeleteProductResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_product": {
         "proto_method": "GetProduct",
         "request_model": "GetProductRequest",
         "response_model": "GetProductResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_products": {
         "proto_method": "ListProducts",
         "request_model": "ListProductsRequest",
         "response_model": "ListProductsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "search_products": {
         "proto_method": "SearchProducts",
         "request_model": "SearchProductsRequest",
         "response_model": "SearchProductsResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_inventory": {
         "proto_method": "UpdateInventory",
         "request_model": "UpdateInventoryRequest",
         "response_model": "UpdateInventoryResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_product": {
         "proto_method": "UpdateProduct",
         "request_model": "UpdateProductRequest",
         "response_model": "UpdateProductResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "referral",
     "version": "v1",
-    "capabilities": ["referral", "metadata_enrichment"],
+    "capabilities": [
+      "referral",
+      "metadata_enrichment"
+    ],
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/referral/v1/referral.proto",
-      "methods": ["GetReferral", "RewardReferral"]
+      "methods": [
+        "GetReferral",
+        "RewardReferral"
+      ]
     },
     "endpoints": [
       {
         "path": "/api/referral_ops",
         "method": "POST",
-        "actions": ["get_referral", "reward_referral"],
+        "actions": [
+          "get_referral",
+          "reward_referral"
+        ],
         "description": "Composable referral operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -1637,20 +2006,27 @@
         "proto_method": "GetReferral",
         "request_model": "GetReferralRequest",
         "response_model": "GetReferralResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "reward_referral": {
         "proto_method": "RewardReferral",
         "request_model": "RewardReferralRequest",
         "response_model": "RewardReferralResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "scheduler",
     "version": "v1",
-    "capabilities": ["scheduler", "metadata_enrichment"],
+    "capabilities": [
+      "scheduler",
+      "metadata_enrichment"
+    ],
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/scheduler/v1/scheduler.proto",
@@ -1709,60 +2085,87 @@
         "proto_method": "CreateJob",
         "request_model": "CreateJobRequest",
         "response_model": "CreateJobResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "delete_job": {
         "proto_method": "DeleteJob",
         "request_model": "DeleteJobRequest",
         "response_model": "DeleteJobResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_job": {
         "proto_method": "GetJob",
         "request_model": "GetJobRequest",
         "response_model": "GetJobResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_job_runs": {
         "proto_method": "ListJobRuns",
         "request_model": "ListJobRunsRequest",
         "response_model": "ListJobRunsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_jobs": {
         "proto_method": "ListJobs",
         "request_model": "ListJobsRequest",
         "response_model": "ListJobsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "run_job": {
         "proto_method": "RunJob",
         "request_model": "RunJobRequest",
         "response_model": "RunJobResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_job": {
         "proto_method": "UpdateJob",
         "request_model": "UpdateJobRequest",
         "response_model": "UpdateJobResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "search",
     "version": "v1",
-    "capabilities": ["search", "metadata_enrichment"],
+    "capabilities": [
+      "search",
+      "metadata_enrichment"
+    ],
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/search/v1/search.proto",
-      "methods": ["Search", "Suggest"]
+      "methods": [
+        "Search",
+        "Suggest"
+      ]
     },
     "endpoints": [
       {
         "path": "/api/search_ops",
         "method": "POST",
-        "actions": ["search", "suggest"],
+        "actions": [
+          "search",
+          "suggest"
+        ],
         "description": "Composable search operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -1784,21 +2187,33 @@
         "proto_method": "Search",
         "request_model": "SearchRequest",
         "response_model": "SearchResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "suggest": {
         "proto_method": "Suggest",
         "request_model": "SuggestRequest",
         "response_model": "SuggestResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
   {
     "name": "security",
     "version": "v1",
-    "capabilities": ["authentication", "authorization", "metadata_enrichment"],
-    "dependencies": ["user", "search", "analytics"],
+    "capabilities": [
+      "authentication",
+      "authorization",
+      "metadata_enrichment"
+    ],
+    "dependencies": [
+      "user",
+      "search",
+      "analytics"
+    ],
     "schema": {
       "proto_path": "api/protos/security/v1/security.proto",
       "methods": [
@@ -1857,43 +2272,57 @@
         "proto_method": "AuditEvent",
         "request_model": "AuditEventRequest",
         "response_model": "AuditEventResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "authenticate": {
         "proto_method": "Authenticate",
         "request_model": "AuthenticateRequest",
         "response_model": "AuthenticateResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "authorize": {
         "proto_method": "Authorize",
         "request_model": "AuthorizeRequest",
         "response_model": "AuthorizeResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_policy": {
         "proto_method": "GetPolicy",
         "request_model": "GetPolicyRequest",
         "response_model": "GetPolicyResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "issue_secret": {
         "proto_method": "IssueSecret",
         "request_model": "IssueSecretRequest",
         "response_model": "IssueSecretResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "query_events": {
         "proto_method": "QueryEvents",
         "request_model": "QueryEventsRequest",
         "response_model": "QueryEventsResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "set_policy": {
         "proto_method": "SetPolicy",
         "request_model": "SetPolicyRequest",
         "response_model": "SetPolicyResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       }
     }
   },
@@ -1904,13 +2333,19 @@
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/talent/v1/talent.proto",
-      "methods": ["BookTalent", "ListBookings"]
+      "methods": [
+        "BookTalent",
+        "ListBookings"
+      ]
     },
     "endpoints": [
       {
         "path": "/api/talent_ops",
         "method": "POST",
-        "actions": ["book_talent", "list_bookings"],
+        "actions": [
+          "book_talent",
+          "list_bookings"
+        ],
         "description": "Composable talent operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -1944,13 +2379,19 @@
         "proto_method": "BookTalent",
         "request_model": "BookTalentRequest",
         "response_model": "BookTalentResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_bookings": {
         "proto_method": "ListBookings",
         "request_model": "ListBookingsRequest",
         "response_model": "ListBookingsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       }
     }
   },
@@ -1964,7 +2405,11 @@
       "authentication",
       "metadata_enrichment"
     ],
-    "dependencies": ["notification", "security", "analytics"],
+    "dependencies": [
+      "notification",
+      "security",
+      "analytics"
+    ],
     "schema": {
       "proto_path": "api/protos/user/v1/user.proto",
       "methods": [
@@ -2171,211 +2616,305 @@
         "proto_method": "AddFriend",
         "request_model": "AddFriendRequest",
         "response_model": "AddFriendResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "assign_role": {
         "proto_method": "AssignRole",
         "request_model": "AssignRoleRequest",
         "response_model": "AssignRoleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "block_user": {
         "proto_method": "BlockUser",
         "request_model": "BlockUserRequest",
         "response_model": "BlockUserResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "create_session": {
         "proto_method": "CreateSession",
         "request_model": "CreateSessionRequest",
         "response_model": "CreateSessionResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "create_user": {
         "proto_method": "CreateUser",
         "request_model": "CreateUserRequest",
         "response_model": "CreateUserResponse",
-        "rest_required_fields": ["metadata", "name", "email"]
+        "rest_required_fields": [
+          "metadata",
+          "name",
+          "email"
+        ]
       },
       "delete_user": {
         "proto_method": "DeleteUser",
         "request_model": "DeleteUserRequest",
         "response_model": "DeleteUserResponse",
-        "rest_required_fields": ["metadata", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "user_id"
+        ]
       },
       "follow_user": {
         "proto_method": "FollowUser",
         "request_model": "FollowUserRequest",
         "response_model": "FollowUserResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_session": {
         "proto_method": "GetSession",
         "request_model": "GetSessionRequest",
         "response_model": "GetSessionResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "get_user": {
         "proto_method": "GetUser",
         "request_model": "GetUserRequest",
         "response_model": "GetUserResponse",
-        "rest_required_fields": ["metadata", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "user_id"
+        ]
       },
       "get_user_by_email": {
         "proto_method": "GetUserByEmail",
         "request_model": "GetUserByEmailRequest",
         "response_model": "GetUserByEmailResponse",
-        "rest_required_fields": ["metadata", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "user_id"
+        ]
       },
       "initiate_mfa": {
         "proto_method": "InitiateMFA",
         "request_model": "InitiateMFARequest",
         "response_model": "InitiateMFAResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "initiate_sso": {
         "proto_method": "InitiateSSO",
         "request_model": "InitiateSSORequest",
         "response_model": "InitiateSSOResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "list_audit_logs": {
         "proto_method": "ListAuditLogs",
         "request_model": "ListAuditLogsRequest",
         "response_model": "ListAuditLogsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_followers": {
         "proto_method": "ListFollowers",
         "request_model": "ListFollowersRequest",
         "response_model": "ListFollowersResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_following": {
         "proto_method": "ListFollowing",
         "request_model": "ListFollowingRequest",
         "response_model": "ListFollowingResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_friends": {
         "proto_method": "ListFriends",
         "request_model": "ListFriendsRequest",
         "response_model": "ListFriendsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_roles": {
         "proto_method": "ListRoles",
         "request_model": "ListRolesRequest",
         "response_model": "ListRolesResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_sessions": {
         "proto_method": "ListSessions",
         "request_model": "ListSessionsRequest",
         "response_model": "ListSessionsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_user_events": {
         "proto_method": "ListUserEvents",
         "request_model": "ListUserEventsRequest",
         "response_model": "ListUserEventsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_user_groups": {
         "proto_method": "ListUserGroups",
         "request_model": "ListUserGroupsRequest",
         "response_model": "ListUserGroupsResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "list_users": {
         "proto_method": "ListUsers",
         "request_model": "ListUsersRequest",
         "response_model": "ListUsersResponse",
-        "rest_required_fields": ["metadata", "page", "page_size"]
+        "rest_required_fields": [
+          "metadata",
+          "page",
+          "page_size"
+        ]
       },
       "mute_user": {
         "proto_method": "MuteUser",
         "request_model": "MuteUserRequest",
         "response_model": "MuteUserResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "refresh_session": {
         "proto_method": "RefreshSession",
         "request_model": "RefreshSessionRequest",
         "response_model": "RefreshSessionResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "remove_friend": {
         "proto_method": "RemoveFriend",
         "request_model": "RemoveFriendRequest",
         "response_model": "RemoveFriendResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "remove_role": {
         "proto_method": "RemoveRole",
         "request_model": "RemoveRoleRequest",
         "response_model": "RemoveRoleResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "report_user": {
         "proto_method": "ReportUser",
         "request_model": "ReportUserRequest",
         "response_model": "ReportUserResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "revoke_session": {
         "proto_method": "RevokeSession",
         "request_model": "RevokeSessionRequest",
         "response_model": "RevokeSessionResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "sync_scim": {
         "proto_method": "SyncSCIM",
         "request_model": "SyncSCIMRequest",
         "response_model": "SyncSCIMResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "unblock_user": {
         "proto_method": "UnblockUser",
         "request_model": "UnblockUserRequest",
         "response_model": "UnblockUserResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "unfollow_user": {
         "proto_method": "UnfollowUser",
         "request_model": "UnfollowUserRequest",
         "response_model": "UnfollowUserResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "unmute_group": {
         "proto_method": "UnmuteGroup",
         "request_model": "UnmuteGroupRequest",
         "response_model": "UnmuteGroupResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "unmute_user": {
         "proto_method": "UnmuteUser",
         "request_model": "UnmuteUserRequest",
         "response_model": "UnmuteUserResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_password": {
         "proto_method": "UpdatePassword",
         "request_model": "UpdatePasswordRequest",
         "response_model": "UpdatePasswordResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_profile": {
         "proto_method": "UpdateProfile",
         "request_model": "UpdateProfileRequest",
         "response_model": "UpdateProfileResponse",
-        "rest_required_fields": ["metadata"]
+        "rest_required_fields": [
+          "metadata"
+        ]
       },
       "update_user": {
         "proto_method": "UpdateUser",
         "request_model": "UpdateUserRequest",
         "response_model": "UpdateUserResponse",
-        "rest_required_fields": ["metadata", "user_id"]
+        "rest_required_fields": [
+          "metadata",
+          "user_id"
+        ]
       }
     }
   },

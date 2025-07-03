@@ -1,6 +1,7 @@
 -- PostgreSQL 18 Full Optimization Migration
 -- This migration transforms our entire database to leverage PostgreSQL 18's cutting-edge features
 -- No holding back - full optimization for modern high-performance architecture
+-- 000036_postgressql_18_full_optimisation.up.sql
 
 -- ================================
 -- PostgreSQL 18 Server Configuration

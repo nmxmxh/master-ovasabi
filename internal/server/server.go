@@ -409,6 +409,11 @@ func Run() {
 		}
 	}()
 
+	// Bootstrap service/event registry from DB to in-memory for dual-mode registry
+	if err := bootstrap.BootstrapRegistries(ctx, db, log); err != nil {
+		log.Warn("Failed to bootstrap service/event registry", zap.Error(err))
+	}
+
 	redisConfig := &redis.Config{
 		Host:         cfg.RedisHost,
 		Port:         cfg.RedisPort,

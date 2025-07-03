@@ -48,6 +48,7 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container, httpAddr string
 	mux.HandleFunc("/api/talent", handlers.TalentOpsHandler(container))
 	mux.HandleFunc("/api/admin", handlers.AdminOpsHandler(container))
 	mux.HandleFunc("/api/search", handlers.SearchOpsHandler(container))
+	mux.HandleFunc("/api/waitlist", handlers.WaitlistOpsHandler(container))
 
 	// Register the NexusOpsHandler for /api/nexus
 	mux.Handle("/api/nexus", handlers.NewNexusOpsHandler(container, log))

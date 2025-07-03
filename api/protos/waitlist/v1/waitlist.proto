@@ -1,0 +1,327 @@
+syntax = "proto3";
+
+package waitlist.v1;
+
+import "common/v1/metadata.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/waitlist/v1;waitlistpb";
+
+// WaitlistEntry represents a waitlist entry
+message WaitlistEntry {
+  int64 id = 1;
+  string uuid = 2;
+  int64 master_id = 3;
+  string master_uuid = 4;
+  string email = 5;
+  string first_name = 6;
+  string last_name = 7;
+  string tier = 8;
+  optional string reserved_username = 9;
+  string intention = 10;
+  google.protobuf.Struct questionnaire_answers = 11;
+  repeated string interests = 12;
+  optional string referral_username = 13;
+  optional string referral_code = 14;
+  optional string feedback = 15;
+  optional string additional_comments = 16;
+  string status = 17;
+  int32 priority_score = 18;
+  google.protobuf.Struct contact_preferences = 19;
+  common.Metadata metadata = 20;
+  google.protobuf.Timestamp created_at = 21;
+  google.protobuf.Timestamp updated_at = 22;
+  optional google.protobuf.Timestamp invited_at = 23;
+  optional int32 waitlist_position = 24;
+
+  // Campaign-specific fields for OVASABI website
+  string campaign_name = 25;
+  int32 referral_count = 26;
+  int32 referral_points = 27;
+  optional string location_country = 28;
+  optional string location_region = 29;
+  optional string location_city = 30;
+  optional double location_lat = 31;
+  optional double location_lng = 32;
+  optional string ip_address = 33;
+  optional string user_agent = 34;
+  optional string referrer_url = 35;
+  optional string utm_source = 36;
+  optional string utm_medium = 37;
+  optional string utm_campaign = 38;
+  optional string utm_term = 39;
+  optional string utm_content = 40;
+}
+
+// LeaderboardEntry represents a leaderboard entry
+message LeaderboardEntry {
+  int64 id = 1;
+  string uuid = 2;
+  optional string reserved_username = 3;
+  string first_name = 4;
+  string last_name = 5;
+  string tier = 6;
+  int32 referral_count = 7;
+  int32 referral_points = 8;
+  int32 priority_score = 9;
+  optional string location_country = 10;
+  optional string location_region = 11;
+  optional string location_city = 12;
+  google.protobuf.Timestamp created_at = 13;
+  int32 position = 14;
+}
+
+// ReferralRecord represents a referral relationship
+message ReferralRecord {
+  int64 id = 1;
+  string uuid = 2;
+  int64 referrer_id = 3;
+  string referrer_uuid = 4;
+  string referrer_username = 5;
+  int64 referred_id = 6;
+  string referred_uuid = 7;
+  string referred_email = 8;
+  string referral_type = 9;
+  optional string referral_source = 10;
+  int32 points_awarded = 11;
+  google.protobuf.Timestamp created_at = 12;
+}
+
+// LocationStat represents location-based statistics
+message LocationStat {
+  string country = 1;
+  optional string region = 2;
+  optional string city = 3;
+  int64 user_count = 4;
+  int64 talent_count = 5;
+  int64 pioneer_count = 6;
+  int64 hustler_count = 7;
+  int64 business_count = 8;
+  double avg_referrals = 9;
+  int64 max_referrals = 10;
+}
+
+// ReferralStats represents referral statistics
+message ReferralStats {
+  int64 total_referrals = 1;
+  int64 total_referral_points = 2;
+  double avg_referrals_per_user = 3;
+  repeated LeaderboardEntry top_referrers = 4;
+}
+
+// WaitlistStats represents waitlist statistics
+message WaitlistStats {
+  int64 total_entries = 1;
+  int64 pending_entries = 2;
+  int64 invited_entries = 3;
+  map<string, int64> tier_breakdown = 4;
+  map<string, int64> status_breakdown = 5;
+  map<string, int64> campaign_stats = 6;
+  repeated LocationStat location_stats = 7;
+  ReferralStats referral_stats = 8;
+}
+
+// Request/Response messages
+message CreateWaitlistEntryRequest {
+  string email = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string tier = 4;
+  optional string reserved_username = 5;
+  string intention = 6;
+  google.protobuf.Struct questionnaire_answers = 7;
+  repeated string interests = 8;
+  optional string referral_username = 9;
+  optional string referral_code = 10;
+  optional string feedback = 11;
+  optional string additional_comments = 12;
+  google.protobuf.Struct contact_preferences = 13;
+  common.Metadata metadata = 14;
+
+  // Campaign tracking fields
+  string campaign_name = 15;
+  optional string location_country = 16;
+  optional string location_region = 17;
+  optional string location_city = 18;
+  optional double location_lat = 19;
+  optional double location_lng = 20;
+  optional string ip_address = 21;
+  optional string user_agent = 22;
+  optional string referrer_url = 23;
+  optional string utm_source = 24;
+  optional string utm_medium = 25;
+  optional string utm_campaign = 26;
+  optional string utm_term = 27;
+  optional string utm_content = 28;
+}
+
+message CreateWaitlistEntryResponse {
+  WaitlistEntry entry = 1;
+}
+
+message GetWaitlistEntryRequest {
+  oneof identifier {
+    int64 id = 1;
+    string uuid = 2;
+    string email = 3;
+  }
+}
+
+message GetWaitlistEntryResponse {
+  WaitlistEntry entry = 1;
+}
+
+message UpdateWaitlistEntryRequest {
+  int64 id = 1;
+  optional string email = 2;
+  optional string first_name = 3;
+  optional string last_name = 4;
+  optional string tier = 5;
+  optional string reserved_username = 6;
+  optional string intention = 7;
+  google.protobuf.Struct questionnaire_answers = 8;
+  repeated string interests = 9;
+  optional string referral_username = 10;
+  optional string referral_code = 11;
+  optional string feedback = 12;
+  optional string additional_comments = 13;
+  optional string status = 14;
+  optional int32 priority_score = 15;
+  google.protobuf.Struct contact_preferences = 16;
+  common.Metadata metadata = 17;
+}
+
+message UpdateWaitlistEntryResponse {
+  WaitlistEntry entry = 1;
+}
+
+message ListWaitlistEntriesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  optional string tier_filter = 3;
+  optional string status_filter = 4;
+  optional string campaign_filter = 5;
+}
+
+message ListWaitlistEntriesResponse {
+  repeated WaitlistEntry entries = 1;
+  int64 total_count = 2;
+}
+
+message InviteUserRequest {
+  int64 id = 1;
+}
+
+message InviteUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CheckUsernameAvailabilityRequest {
+  string username = 1;
+}
+
+message CheckUsernameAvailabilityResponse {
+  bool available = 1;
+}
+
+message ValidateReferralUsernameRequest {
+  string username = 1;
+}
+
+message ValidateReferralUsernameResponse {
+  bool valid = 1;
+}
+
+message GetLeaderboardRequest {
+  int32 limit = 1;
+  optional string campaign = 2;
+}
+
+message GetLeaderboardResponse {
+  repeated LeaderboardEntry entries = 1;
+}
+
+message GetReferralsByUserRequest {
+  int64 user_id = 1;
+}
+
+message GetReferralsByUserResponse {
+  repeated ReferralRecord referrals = 1;
+}
+
+message GetLocationStatsRequest {
+  optional string campaign = 1;
+}
+
+message GetLocationStatsResponse {
+  repeated LocationStat stats = 1;
+}
+
+message GetWaitlistStatsRequest {
+  optional string campaign = 1;
+}
+
+message GetWaitlistStatsResponse {
+  WaitlistStats stats = 1;
+}
+
+message GetWaitlistPositionRequest {
+  int64 id = 1;
+}
+
+message GetWaitlistPositionResponse {
+  int32 position = 1;
+}
+
+// Waitlist service definition
+service WaitlistService {
+  // Create a new waitlist entry
+  rpc CreateWaitlistEntry(CreateWaitlistEntryRequest) 
+      returns (CreateWaitlistEntryResponse);
+  
+  // Get waitlist entry by ID, UUID, or email
+  rpc GetWaitlistEntry(GetWaitlistEntryRequest) 
+      returns (GetWaitlistEntryResponse);
+  
+  // Update an existing waitlist entry
+  rpc UpdateWaitlistEntry(UpdateWaitlistEntryRequest) 
+      returns (UpdateWaitlistEntryResponse);
+  
+  // List waitlist entries with pagination and filters
+  rpc ListWaitlistEntries(ListWaitlistEntriesRequest) 
+      returns (ListWaitlistEntriesResponse);
+  
+  // Invite a user (update status to invited)
+  rpc InviteUser(InviteUserRequest) 
+      returns (InviteUserResponse);
+  
+  // Check if username is available
+  rpc CheckUsernameAvailability(CheckUsernameAvailabilityRequest) 
+      returns (CheckUsernameAvailabilityResponse);
+  
+  // Validate referral username
+  rpc ValidateReferralUsername(ValidateReferralUsernameRequest) 
+      returns (ValidateReferralUsernameResponse);
+  
+  // Get referral leaderboard
+  rpc GetLeaderboard(GetLeaderboardRequest) 
+      returns (GetLeaderboardResponse);
+  
+  // Get referrals made by a user
+  rpc GetReferralsByUser(GetReferralsByUserRequest) 
+      returns (GetReferralsByUserResponse);
+  
+  // Get location-based statistics
+  rpc GetLocationStats(GetLocationStatsRequest) 
+      returns (GetLocationStatsResponse);
+  
+  // Get waitlist statistics
+  rpc GetWaitlistStats(GetWaitlistStatsRequest) 
+      returns (GetWaitlistStatsResponse);
+  
+  // Get user's waitlist position
+  rpc GetWaitlistPosition(GetWaitlistPositionRequest) 
+      returns (GetWaitlistPositionResponse);
+}

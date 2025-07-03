@@ -33,6 +33,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/internal/service/talent"
 	"github.com/nmxmxh/master-ovasabi/internal/service/user"
+	"github.com/nmxmxh/master-ovasabi/internal/service/waitlist"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/registration"
 )
@@ -94,6 +95,7 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 		"localization":      createRegisterAdapter(localization.Register),
 		"search":            createRegisterAdapter(search.Register),
 		"crawler":           createRegisterAdapter(crawler.Register),
+		"waitlist":          createRegisterAdapter(waitlist.Register),
 	}
 	// Use the JSON-driven registration from the shared registration package.
 	return registration.RegisterAllFromJSON(

@@ -1,5 +1,6 @@
 -- PostgreSQL 18 Enhancement Migration: Virtual Generated Columns
 -- This migration adds virtual generated columns to leverage PostgreSQL 18's improved performance
+-- 000035_add_postgresql_18_virtual_columns.up.sql
 
 -- ================================
 -- Content Service Enhancements
