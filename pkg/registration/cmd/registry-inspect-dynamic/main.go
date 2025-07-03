@@ -235,7 +235,7 @@ func main() {
 
 	case "graph":
 		if *output == "" {
-			*output = "service_graph.json"
+			*output = "amadeus/service_graph.json"
 		}
 
 		configs, err := loadServiceConfigs()
@@ -321,7 +321,7 @@ func printHelp() {
 	fmt.Println("  registry-inspect-dynamic -mode compare -service user -compare admin")
 	fmt.Println()
 	fmt.Println("  # Export service dependency graph")
-	fmt.Println("  registry-inspect-dynamic -mode graph -output service_graph.json")
+	fmt.Println("  registry-inspect-dynamic -mode graph -output amadeus/service_graph.json")
 }
 
 func checkHealth(enableMonitor bool, intervalSeconds int) {

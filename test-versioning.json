@@ -1,0 +1,7 @@
+{
+  "name": "test-versioning",
+  "metadata": {
+    "description": "Test service for versioning system"
+  },
+  "dependencies": []
+}

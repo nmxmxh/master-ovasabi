@@ -10,6 +10,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"go.uber.org/zap"
+
+	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
 )
 
 // ConfigWatcher watches for changes in proto files and automatically
@@ -18,6 +20,7 @@ type ConfigWatcher struct {
 	logger    *zap.Logger
 	generator *DynamicServiceRegistrationGenerator
 	watcher   *fsnotify.Watcher
+	kg        *kg.KnowledgeGraph
 
 	protoPath  string
 	outputPath string
@@ -37,6 +40,7 @@ func NewConfigWatcher(logger *zap.Logger, generator *DynamicServiceRegistrationG
 		logger:     logger,
 		generator:  generator,
 		watcher:    watcher,
+		kg:         kg.DefaultKnowledgeGraph(),
 		protoPath:  protoPath,
 		outputPath: outputPath,
 		debounceMs: 1000, // 1 second debounce
@@ -143,6 +147,12 @@ func (cw *ConfigWatcher) regenerateConfig(ctx context.Context) {
 		return
 	}
 
+	// Update knowledge graph with new service information
+	if err := cw.updateKnowledgeGraph(ctx); err != nil {
+		cw.logger.Error("Failed to update knowledge graph", zap.Error(err))
+		// Don't return here - the config was generated successfully
+	}
+
 	duration := time.Since(start)
 	cw.logger.Info("Config regenerated successfully",
 		zap.Duration("duration", duration),
@@ -172,4 +182,65 @@ func NewConfigWatcherWithConfig(logger *zap.Logger, generator *DynamicServiceReg
 	}
 
 	return watcher, nil
+}
+
+// updateKnowledgeGraph updates the knowledge graph with current service information
+func (cw *ConfigWatcher) updateKnowledgeGraph(ctx context.Context) error {
+	cw.logger.Debug("Updating knowledge graph with service registration data...")
+
+	// Generate the current service configurations
+	services, err := cw.generator.GenerateServiceRegistrations(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to generate service registrations: %w", err)
+	}
+
+	// Update the knowledge graph with service information
+	for _, service := range services {
+		serviceInfo := map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"version":      service.Version,
+				"capabilities": service.Capabilities,
+				"endpoints":    service.Endpoints,
+				"models":       service.Models,
+				"schema":       service.Schema,
+				"updated_at":   time.Now().UTC(),
+			},
+			"dependencies": service.Dependencies,
+		}
+
+		// Add or update the service in the knowledge graph
+		if err := cw.kg.AddService("dynamic_services", service.Name, serviceInfo); err != nil {
+			cw.logger.Warn("Failed to add service to knowledge graph",
+				zap.String("service", service.Name),
+				zap.Error(err))
+			continue
+		}
+
+		cw.logger.Debug("Updated service in knowledge graph",
+			zap.String("service", service.Name),
+			zap.String("version", service.Version))
+	}
+
+	// Update the amadeus_integration section with registration metadata
+	integrationInfo := map[string]interface{}{
+		"service_registration": map[string]interface{}{
+			"last_update":    time.Now().UTC(),
+			"services_count": len(services),
+			"auto_discovery": true,
+			"watcher_config": map[string]interface{}{
+				"proto_path":  cw.protoPath,
+				"output_path": cw.outputPath,
+				"debounce_ms": cw.debounceMs,
+			},
+		},
+	}
+
+	if err := cw.kg.UpdateNode("amadeus_integration", integrationInfo); err != nil {
+		return fmt.Errorf("failed to update amadeus integration info: %w", err)
+	}
+
+	cw.logger.Info("Successfully updated knowledge graph",
+		zap.Int("services_updated", len(services)))
+
+	return nil
 }

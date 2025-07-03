@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -381,8 +383,9 @@ func (kg *KnowledgeGraph) AddService(category, name string, serviceInfo map[stri
 		}
 	}
 	kg.Services[name] = svc
-	kg.LastUpdated = time.Now().UTC()
-	return nil
+
+	// Update version and timestamp, then save
+	return kg.updateVersionAndTimestamp()
 }
 
 // AddPattern adds a new pattern to the knowledge graph.
@@ -630,4 +633,149 @@ func (kg *KnowledgeGraph) ValidateFull() error {
 		}
 	}
 	return nil
+}
+
+// pruneInternal performs the pruning operation without acquiring locks.
+// This is used internally when the caller already holds the appropriate lock.
+func (kg *KnowledgeGraph) pruneInternal() {
+	pruneMap := func(m map[string]interface{}) map[string]interface{} {
+		if m == nil {
+			return nil
+		}
+		cleaned := make(map[string]interface{})
+		for k, v := range m {
+			switch vv := v.(type) {
+			case nil:
+				continue
+			case string:
+				if vv == "" {
+					continue
+				}
+			case map[string]interface{}:
+				if len(vv) == 0 {
+					continue
+				}
+			}
+			cleaned[k] = v
+		}
+		if len(cleaned) == 0 {
+			return nil
+		}
+		return cleaned
+	}
+
+	pruneServices := func(m map[string]ServiceInfo) map[string]ServiceInfo {
+		if m == nil {
+			return nil
+		}
+		cleaned := make(map[string]ServiceInfo)
+		for k, v := range m {
+			if v.Name == "" && v.Category == "" && len(v.Dependencies) == 0 && len(v.Metadata) == 0 {
+				continue
+			}
+			cleaned[k] = v
+		}
+		if len(cleaned) == 0 {
+			return nil
+		}
+		return cleaned
+	}
+
+	prunePatterns := func(m map[string]PatternInfo) map[string]PatternInfo {
+		if m == nil {
+			return nil
+		}
+		cleaned := make(map[string]PatternInfo)
+		for k, v := range m {
+			if v.Name == "" && v.Category == "" && len(v.Details) == 0 {
+				continue
+			}
+			cleaned[k] = v
+		}
+		if len(cleaned) == 0 {
+			return nil
+		}
+		return cleaned
+	}
+
+	kg.SystemComponents = pruneMap(kg.SystemComponents)
+	kg.RepositoryStructure = pruneMap(kg.RepositoryStructure)
+	kg.Services = pruneServices(kg.Services)
+	kg.Nexus = pruneMap(kg.Nexus)
+	kg.Patterns = prunePatterns(kg.Patterns)
+	kg.DatabasePractices = pruneMap(kg.DatabasePractices)
+	kg.RedisPractices = pruneMap(kg.RedisPractices)
+	kg.AmadeusIntegration = pruneMap(kg.AmadeusIntegration)
+}
+
+// validateInternal performs validation without acquiring locks.
+// This is used internally when the caller already holds the appropriate lock.
+func (kg *KnowledgeGraph) validateInternal() error {
+	if kg.Version == "" {
+		return fmt.Errorf("missing version")
+	}
+	if kg.LastUpdated.IsZero() {
+		return fmt.Errorf("missing last_updated")
+	}
+	// Optionally add more schema checks here
+	return nil
+}
+
+// saveWithoutLock writes the knowledge graph to the specified file without acquiring locks.
+// This is used internally when the caller already holds the appropriate lock.
+func (kg *KnowledgeGraph) saveWithoutLock(filePath string) error {
+	if !kg.loaded {
+		return fmt.Errorf("knowledge graph not loaded")
+	}
+
+	// Update the last updated time
+	kg.LastUpdated = time.Now().UTC()
+
+	// Ensure directory exists
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(kg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal knowledge graph: %w", err)
+	}
+
+	if err := os.WriteFile(filePath, data, 0o600); err != nil {
+		return fmt.Errorf("failed to write knowledge graph: %w", err)
+	}
+
+	return nil
+}
+
+// incrementVersion increments the patch version (e.g., 1.0.0 -> 1.0.1)
+func (kg *KnowledgeGraph) incrementVersion() {
+	parts := strings.Split(kg.Version, ".")
+	if len(parts) != 3 {
+		// If version is not in semantic format, start with 1.0.0
+		kg.Version = "1.0.0"
+		return
+	}
+
+	// Parse the patch version
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		// If can't parse, reset to 1.0.0
+		kg.Version = "1.0.0"
+		return
+	}
+
+	// Increment patch version
+	patch++
+	kg.Version = fmt.Sprintf("%s.%s.%d", parts[0], parts[1], patch)
+}
+
+// updateVersionAndTimestamp updates both version and timestamp, then saves to disk
+func (kg *KnowledgeGraph) updateVersionAndTimestamp() error {
+	kg.incrementVersion()
+	kg.LastUpdated = time.Now().UTC()
+
+	// Save to disk automatically
+	return kg.saveWithoutLock("amadeus/knowledge_graph.json")
 }

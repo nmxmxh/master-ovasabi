@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
 	"github.com/nmxmxh/master-ovasabi/config/registry"
 	"go.uber.org/zap"
 )
@@ -671,6 +672,76 @@ func (g *DynamicServiceRegistrationGenerator) RegisterServiceDynamically(
 	g.logger.Info("Dynamically registered service",
 		zap.String("service", config.Name),
 		zap.Int("methods", len(methods)))
+
+	return nil
+}
+
+// UpdateKnowledgeGraph manually updates the knowledge graph with current service registrations
+func (g *DynamicServiceRegistrationGenerator) UpdateKnowledgeGraph(ctx context.Context) error {
+	logger := g.logger.With(zap.String("operation", "update_knowledge_graph"))
+	logger.Info("Updating knowledge graph with service registration data...")
+
+	// Get the default knowledge graph instance
+	knowledgeGraph := kg.DefaultKnowledgeGraph()
+
+	// Generate the current service configurations
+	services, err := g.GenerateServiceRegistrations(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to generate service registrations: %w", err)
+	}
+
+	// Update the knowledge graph with service information
+	successCount := 0
+	for _, service := range services {
+		serviceInfo := map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"version":      service.Version,
+				"capabilities": service.Capabilities,
+				"endpoints":    service.Endpoints,
+				"models":       service.Models,
+				"schema":       service.Schema,
+				"health_check": service.HealthCheck,
+				"metrics":      service.Metrics,
+				"updated_at":   time.Now().UTC(),
+			},
+			"dependencies": service.Dependencies,
+		}
+
+		// Add or update the service in the knowledge graph
+		if err := knowledgeGraph.AddService("dynamic_services", service.Name, serviceInfo); err != nil {
+			logger.Warn("Failed to add service to knowledge graph",
+				zap.String("service", service.Name),
+				zap.Error(err))
+			continue
+		}
+
+		successCount++
+		logger.Debug("Updated service in knowledge graph",
+			zap.String("service", service.Name),
+			zap.String("version", service.Version))
+	}
+
+	// Update the amadeus_integration section with registration metadata
+	integrationInfo := map[string]interface{}{
+		"service_registration": map[string]interface{}{
+			"last_update":    time.Now().UTC(),
+			"services_count": len(services),
+			"success_count":  successCount,
+			"auto_discovery": true,
+			"generator_config": map[string]interface{}{
+				"proto_path": g.protoPath,
+				"src_path":   g.srcPath,
+			},
+		},
+	}
+
+	if err := knowledgeGraph.UpdateNode("amadeus_integration", integrationInfo); err != nil {
+		return fmt.Errorf("failed to update amadeus integration info: %w", err)
+	}
+
+	logger.Info("Successfully updated knowledge graph",
+		zap.Int("total_services", len(services)),
+		zap.Int("updated_services", successCount))
 
 	return nil
 }

@@ -18,11 +18,17 @@ type BackupInfo struct {
 
 // Backup creates a backup of the knowledge graph.
 func (kg *KnowledgeGraph) Backup(description string) (*BackupInfo, error) {
-	kg.mu.RLock()
-	defer kg.mu.RUnlock()
+	// Use a full lock since we need to prune (which requires a write lock)
+	kg.mu.Lock()
+	defer kg.mu.Unlock()
 
 	if !kg.loaded {
 		return nil, fmt.Errorf("knowledge graph not loaded")
+	}
+
+	// Update the main knowledge graph file to ensure it's current
+	if err := kg.saveWithoutLock("amadeus/knowledge_graph.json"); err != nil {
+		return nil, fmt.Errorf("failed to update main knowledge graph: %w", err)
 	}
 
 	// Create backup directory if it doesn't exist
@@ -36,9 +42,9 @@ func (kg *KnowledgeGraph) Backup(description string) (*BackupInfo, error) {
 	backupFile := fmt.Sprintf("knowledge_graph_%s.json", timestamp.Format("20060102_150405"))
 	backupPath := filepath.Join(backupDir, backupFile)
 
-	// Prune and validate before backup
-	kg.Prune()
-	if err := kg.Validate(); err != nil {
+	// Prune and validate before backup (using internal methods)
+	kg.pruneInternal()
+	if err := kg.validateInternal(); err != nil {
 		return nil, fmt.Errorf("knowledge graph validation failed: %w", err)
 	}
 
