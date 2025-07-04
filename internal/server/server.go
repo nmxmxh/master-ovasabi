@@ -19,9 +19,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -29,6 +31,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/config"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
+	chaos "github.com/nmxmxh/master-ovasabi/pkg/chaos"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
@@ -44,6 +47,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
 	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"
 	"github.com/nmxmxh/master-ovasabi/internal/service/campaign"
+	thecat "github.com/nmxmxh/master-ovasabi/pkg/thecathasnoname"
 	redisv9 "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -346,6 +350,7 @@ func (nba *NexusBusAdapter) Subscribe(event string, handler func(ai.NexusEvent))
 // --- End AI Observer Orchestrator Registration ---
 
 func Run() {
+	// --- Generic Event Handler/Dispatcher Integration ---
 	cfg, err := config.Load()
 	if err != nil {
 		panic("Failed to load config: " + err.Error())
@@ -362,10 +367,6 @@ func Run() {
 	log := loggerInstance.GetZapLogger()
 	defer func() {
 		if err := log.Sync(); err != nil {
-			// On some systems, particularly when stdout is redirected or during shutdown,
-			// Sync() can return an "invalid argument" error (syscall.EINVAL). This is often benign
-			// as the process is exiting and the underlying file descriptor might be closed.
-			// We log it at a debug or info level to avoid alarming error messages during normal shutdown.
 			if errors.Is(err, syscall.EINVAL) {
 				log.Debug("Logger sync returned EINVAL, likely benign during shutdown", zap.Error(err))
 			} else {
@@ -375,6 +376,9 @@ func Run() {
 	}()
 
 	log.Info("Logger initialized (from server.Run)")
+
+	registry := chaos.NewEventHandlerRegistry()
+	// The rest of the setup (ctx, provider, etc.) comes after logger is initialized
 
 	// Determine ports from environment variables, with documented fallbacks
 	httpPortStr := os.Getenv("HTTP_PORT")
@@ -457,6 +461,14 @@ func Run() {
 		return
 	}
 
+	// --- Start the generic event dispatcher after all dependencies are ready ---
+	if err := chaos.RegisterServiceHandlersFromConfig(registry, "config/service_registration.json"); err != nil {
+		log.Error("Failed to register service handlers from config", zap.Error(err))
+	} else {
+		chaos.StartGenericEventDispatcher(ctx, provider, log, registry, []string{"orchestration.*", "service.*"})
+		log.Info("Generic event dispatcher started for all services")
+	}
+
 	// Start the campaign orchestrator to manage active campaigns.
 	// This runs in the background, periodically scanning for and orchestrating campaigns.
 	go startCampaignOrchestrator(ctx, provider, log)
@@ -468,12 +480,78 @@ func Run() {
 		return
 	}
 
+	// --- Chaos Orchestrator Integration ---
+	go func() {
+		loggerStd := zap.NewStdLog(log)
+		cat := thecat.New(loggerStd)
+		jsonData, err := os.ReadFile("config/service_registration.json")
+		if err != nil {
+			log.Error("Failed to read service_registration.json for chaos orchestrator", zap.Error(err))
+			return
+		}
+		services, err := chaos.LoadServiceRegistrationsFromJSON(jsonData)
+		if err != nil {
+			log.Error("Failed to parse service registrations for chaos orchestrator", zap.Error(err))
+			return
+		}
+		nexusAddr := os.Getenv("NEXUS_GRPC_ADDR")
+		if nexusAddr == "" {
+			nexusAddr = "localhost:50051"
+		}
+		conn, err := grpc.Dial(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Error("[chaos] Failed to connect to Nexus gRPC server", zap.Error(err))
+			return
+		}
+		defer conn.Close()
+		nexusClient := nexusv1.NewNexusServiceClient(conn)
+		orchestrator := chaos.NewChaosOrchestrator(loggerStd, cat, services, 10)
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		zaplog := log
+		for {
+			select {
+			case <-ticker.C:
+				// Emit to 5-15 random services concurrently
+				numEvents := 5 + rand.Intn(11) // 5 to 15
+				var wg sync.WaitGroup
+				for i := 0; i < numEvents; i++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						orchestrationEvent := orchestrator.RunChaosDemoWithProtos(ctx, zaplog)
+						if orchestrationEvent != nil {
+							eventReq := chaos.BuildNexusEventRequest(orchestrationEvent)
+							if eventReq != nil {
+								// --------->
+								fmt.Printf("\033[36m[CHAOS] ---------> [NEXUS] Emitting event to Nexus\033[0m\n")
+								resp, err := nexusClient.EmitEvent(ctx, eventReq)
+								if err != nil {
+									zaplog.Error("Chaos orchestrator failed to emit event to Nexus", zap.Error(err))
+								} else {
+									fmt.Printf("\033[32m[NEXUS] <--------- [CHAOS] Received event: id=%s, success=%v, message=%s\033[0m\n", resp.GetEventId(), resp.GetSuccess(), resp.GetMessage())
+									zaplog.Info("Chaos orchestrator emitted event to Nexus", zap.String("event_id", resp.GetEventId()), zap.Bool("success", resp.GetSuccess()), zap.String("message", resp.GetMessage()))
+								}
+							}
+						}
+					}()
+				}
+				wg.Wait()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	<-ctx.Done()
 	log.Warn("Shutdown signal received")
 
 	if err := server.Stop(context.Background()); err != nil {
 		log.Error("Server failed to stop gracefully", zap.Error(err))
 	}
+
 }
 
 // Helper functions (copied or adapted from old main.go).
