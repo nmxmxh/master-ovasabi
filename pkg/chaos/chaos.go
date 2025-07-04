@@ -133,16 +133,18 @@ type ChaosOrchestrator struct {
 	Logger      *log.Logger
 	Cat         *thecat.TheCatHasNoName
 	Services    []ServiceRegistration
-	Concurrency int // Number of concurrent events
+	Concurrency int         // Number of concurrent events
+	Provider    interface{} // Optional: for emitting events to Nexus (interface{} to avoid import cycle)
 }
 
-// NewChaosOrchestrator creates a new orchestrator.
-func NewChaosOrchestrator(logger *log.Logger, cat *thecat.TheCatHasNoName, services []ServiceRegistration, concurrency int) *ChaosOrchestrator {
+// NewChaosOrchestrator creates a new orchestrator. Provider is optional (for event emission).
+func NewChaosOrchestrator(logger *log.Logger, cat *thecat.TheCatHasNoName, services []ServiceRegistration, concurrency int, provider interface{}) *ChaosOrchestrator {
 	return &ChaosOrchestrator{
 		Logger:      logger,
 		Cat:         cat,
 		Services:    services,
 		Concurrency: concurrency,
+		Provider:    provider,
 	}
 }
 

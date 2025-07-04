@@ -28,14 +28,15 @@ var ServiceCacheConfigs = []CacheConfig{
 	{"product", redis.NamespaceCache, redis.ContextProduct},
 	{"media", redis.NamespaceCache, redis.ContextMedia},
 	{"commerce", redis.NamespaceCache, redis.ContextCommerce},
-	{"content", redis.NamespaceCache, "content"},
-	{"scheduler", redis.NamespaceCache, "scheduler"},
-	{"security", redis.NamespaceCache, "security"},
-	{"search", redis.NamespaceCache, "search"},
-	{"campaign", redis.NamespaceCache, "campaign"},
-	{"waitlist", redis.NamespaceCache, "waitlist"},
-	{"default", redis.NamespaceCache, "default"},
-	{"messaging", redis.NamespaceQueue, "messaging"},
+	{"content", redis.NamespaceCache, redis.ContextPattern},
+	{"scheduler", redis.NamespaceCache, redis.ContextPattern},
+	{"security", redis.NamespaceCache, redis.ContextPattern},
+	{"search", redis.NamespaceCache, redis.ContextPattern},
+	{"campaign", redis.NamespaceCache, redis.ContextPattern},
+	{"waitlist", redis.NamespaceCache, redis.ContextPattern},
+	{"default", redis.NamespaceCache, redis.ContextPattern},
+	{"messaging", redis.NamespaceQueue, redis.ContextPattern},
+	{"ai", redis.NamespaceCache, redis.ContextAI},
 }
 
 // NewRedisProvider initializes the Redis provider and registers all caches for all services in a modular fashion.

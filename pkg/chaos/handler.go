@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"time"
 
@@ -20,7 +20,7 @@ func RegisterServiceHandlersFromConfig(registry *EventHandlerRegistry, configPat
 		return err
 	}
 	defer file.Close()
-	bytes, err := ioutil.ReadAll(file)
+	bytes, err := io.ReadAll(file)
 	if err != nil {
 		return err
 	}
@@ -32,7 +32,10 @@ func RegisterServiceHandlersFromConfig(registry *EventHandlerRegistry, configPat
 	}
 	for _, svc := range services {
 		name := svc.Name
+		// Register both: serviceEventHandler for normal, chaosEventHandler for orchestration/chaos events
 		registry.RegisterHandler(name, makeServiceEventHandler(name))
+		registry.RegisterHandler("orchestration:"+name, chaosEventHandler(name))
+		registry.RegisterHandler("chaos:"+name, chaosEventHandler(name))
 	}
 	return nil
 }
