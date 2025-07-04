@@ -18,33 +18,40 @@ const (
 
 // Redis contexts defines the second-level key prefixes for specific domains.
 const (
-	ContextAuth         = "auth"         // Authentication related data
-	ContextUser         = "user"         // User related data
-	ContextNotification = "notification" // Notification related data
-	ContextBroadcast    = "broadcast"    // Broadcast related data
-	ContextI18n         = "i18n"         // Internationalization related data
-	ContextQuotes       = "quotes"       // Quotes related data
-	ContextReferral     = "referral"     // Referral related data
-	ContextCampaign     = "campaign"     // Campaign related data
-	ContextAsset        = "asset"        // Asset related data
-	ContextMaster       = "master"       // Master record related data
-	ContextFinance      = "finance"      // Finance related data
-	ContextMetrics      = "metrics"      // Metrics related data
-	ContextAnalytics    = "analytics"    // Analytics related data
-	ContextSearch       = "search"
-	ContextFeatures     = "features"
-	ContextRate         = "rate"
-	ContextPattern      = "pattern" // Pattern related data
-	ContextNexus        = "nexus"   // Nexus related data
-	// Added for service cache configs:.
-	ContextLocalization      = "localization"
-	ContextAdmin             = "admin"
-	ContextContentModeration = "contentmoderation"
-	ContextTalent            = "talent"
-	ContextProduct           = "product"
-	ContextMedia             = "media"
-	ContextCommerce          = "commerce"
-	ContextCrawler           = "crawler"
+	ContextAdmin             = "admin"             // Admin service related data
+	ContextAI                = "ai"                // AI service related data
+	ContextAnalytics         = "analytics"         // Analytics service related data
+	ContextCampaign          = "campaign"          // Campaign service related data
+	ContextCommerce          = "commerce"          // Commerce service related data
+	ContextContent           = "content"           // Content service related data
+	ContextContentModeration = "contentmoderation" // Content Moderation service related data
+	ContextCrawler           = "crawler"           // Crawler service related data
+	ContextLocalization      = "localization"      // Localization service related data
+	ContextMedia             = "media"             // Media service related data
+	ContextMessaging         = "messaging"         // Messaging service related data
+	ContextNexus             = "nexus"             // Nexus service related data
+	ContextNotification      = "notification"      // Notification service related data
+	ContextProduct           = "product"           // Product service related data
+	ContextReferral          = "referral"          // Referral service related data
+	ContextScheduler         = "scheduler"         // Scheduler service related data
+	ContextSearch            = "search"            // Search service related data
+	ContextSecurity          = "security"          // Security service related data
+	ContextTalent            = "talent"            // Talent service related data
+	ContextUser              = "user"              // User service related data
+	ContextWaitlist          = "waitlist"          // Waitlist service related data
+
+	// Cross-cutting or domain-specific contexts (retain if used elsewhere)
+	ContextAuth      = "auth"      // Authentication related data
+	ContextBroadcast = "broadcast" // Broadcast related data
+	ContextI18n      = "i18n"      // Internationalization related data
+	ContextQuotes    = "quotes"    // Quotes related data
+	ContextAsset     = "asset"     // Asset related data
+	ContextMaster    = "master"    // Master record related data
+	ContextFinance   = "finance"   // Finance related data
+	ContextMetrics   = "metrics"   // Metrics related data
+	ContextFeatures  = "features"  // Features related data
+	ContextRate      = "rate"      // Rate related data
+	ContextPattern   = "pattern"   // Pattern related data
 )
 
 // TTL constants defines the time-to-live durations for different types of data.

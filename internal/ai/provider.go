@@ -14,11 +14,14 @@ package ai
 
 import (
 	"context"
+	"database/sql"
 
 	"go.uber.org/zap"
-	// import . "github.com/nmxmxh/master-ovasabi/internal/ai".
-	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
+
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 )
 
 // ContextKey is a custom type for context keys to avoid type collisions.
@@ -28,20 +31,12 @@ const (
 	EventIDKey ContextKey = "event_id"
 )
 
-// Provider handles AI operations.
-type Provider struct {
-	log          *zap.Logger
-	eventEmitter events.EventEmitter
-	eventEnabled bool
-}
+// Provider handles AI operations and implements the canonical provider pattern for DI.
+type Provider struct{}
 
-// NewProvider creates a new AI provider instance.
-func NewProvider(log *zap.Logger, eventEmitter events.EventEmitter, eventEnabled bool) *Provider {
-	return &Provider{
-		log:          log,
-		eventEmitter: eventEmitter,
-		eventEnabled: eventEnabled,
-	}
+// NewProvider creates a new AI provider instance (consistent with other providers).
+func NewProvider(_ *zap.Logger, _ events.EventEmitter, _ bool) *Provider {
+	return &Provider{}
 }
 
 // ObserverAIOrchestrator is a minimal orchestrator that only observes/logs events, not acts.
@@ -58,45 +53,33 @@ func (o *ObserverAIOrchestrator) HandleEvent(event NexusEvent) {
 	o.log.Info("[AIOrchestrator] Observed event", zap.Any("event", event))
 }
 
-// Register wires the AI observer orchestrator into event subscriptions (observe-only).
-func Register(ctx context.Context, log *zap.Logger, nexus NexusBus) {
-	// Use context for logging
-	log = log.With(
-		zap.String("request_id", contextx.RequestID(ctx)),
-		zap.String("trace_id", contextx.TraceID(ctx)),
-	)
-
-	// Create and register orchestrator
-	orch := NewObserverAIOrchestrator(log)
-
-	// Subscribe to events
-	nexus.Subscribe("*.created", func(event NexusEvent) {
-		// Create a new context with event ID for tracing
-		eventCtx := context.WithValue(ctx, EventIDKey, event.ID)
-		// Log event with context
-		log.With(
-			zap.String("event_id", event.ID),
-			zap.String("event_type", event.Type),
-			zap.String("request_id", contextx.RequestID(eventCtx)),
-			zap.String("trace_id", contextx.TraceID(eventCtx)),
-		).Info("Processing created event")
-		// Handle event
-		orch.HandleEvent(event)
-	})
-
-	nexus.Subscribe("*.updated", func(event NexusEvent) {
-		// Create a new context with event ID for tracing
-		eventCtx := context.WithValue(ctx, EventIDKey, event.ID)
-		// Log event with context
-		log.With(
-			zap.String("event_id", event.ID),
-			zap.String("event_type", event.Type),
-			zap.String("request_id", contextx.RequestID(eventCtx)),
-			zap.String("trace_id", contextx.TraceID(eventCtx)),
-		).Info("Processing updated event")
-		// Handle event
-		orch.HandleEvent(event)
-	})
-
-	log.Info("AI observer orchestrator subscribed to Nexus events (observe-only)")
+func Register(
+	ctx context.Context,
+	container *di.Container,
+	eventEmitter events.EventEmitter,
+	db *sql.DB,
+	masterRepo repository.MasterRepository, // match other providers
+	redisProvider *redis.Provider,
+	log *zap.Logger,
+	eventEnabled bool,
+	provider interface{},
+) error {
+	log.Info("Registering AI service and caching in Redis")
+	// Example: Add AI service metadata to Redis cache
+	cache, err := redisProvider.GetCache(ctx, "ai")
+	if err != nil {
+		log.Warn("Failed to get AI Redis cache, will create", zap.Error(err))
+		redisProvider.RegisterCache("ai", nil) // Use default options
+		cache, err = redisProvider.GetCache(ctx, "ai")
+		if err != nil {
+			return err
+		}
+	}
+	// Set a simple flag in Redis (no field, just key)
+	if err := cache.Set(ctx, "ai:service:registered", "", true, 0); err != nil {
+		log.Warn("Failed to set AI registration flag in Redis", zap.Error(err))
+	} else {
+		log.Info("AI registration flag set in Redis cache")
+	}
+	return nil
 }
