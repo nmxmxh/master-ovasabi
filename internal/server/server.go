@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nmxmxh/master-ovasabi/database/connect"
 	"github.com/nmxmxh/master-ovasabi/internal/config"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
@@ -402,7 +403,7 @@ func Run() {
 
 	WaitForShutdown(cancel)
 
-	db, err := connectToDatabase(ctx, log, cfg)
+	db, err := connect.ConnectPostgres(ctx, log, cfg)
 	if err != nil {
 		log.Error("Failed to connect to database", zap.Error(err))
 		return
@@ -505,7 +506,7 @@ func Run() {
 		}
 		defer conn.Close()
 		nexusClient := nexusv1.NewNexusServiceClient(conn)
-		orchestrator := chaos.NewChaosOrchestrator(loggerStd, cat, services, 10)
+		orchestrator := chaos.NewChaosOrchestrator(loggerStd, cat, services, 10, nil)
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -555,46 +556,6 @@ func Run() {
 }
 
 // Helper functions (copied or adapted from old main.go).
-func connectToDatabase(ctx context.Context, log *zap.Logger, cfg *config.Config) (*sql.DB, error) {
-	maxRetries := 5
-	var db *sql.DB
-	var err error
-	for i := 1; i <= maxRetries; i++ {
-		dsn := fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			cfg.DBHost,
-			cfg.DBPort,
-			cfg.DBUser,
-			cfg.DBPassword,
-			cfg.DBName,
-			cfg.DBSSLMode,
-		)
-		log.Info("Attempting database connection", zap.Int("attempt", i))
-		db, err = sql.Open("postgres", dsn)
-		if err != nil {
-			log.Error("Failed to open database", zap.Error(err))
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		err = db.PingContext(ctx)
-		cancel()
-		if err == nil {
-			// Use settings from config for better tunability.
-			db.SetMaxOpenConns(cfg.DBMaxOpenConns)
-			db.SetMaxIdleConns(cfg.DBMaxIdleConns)
-			db.SetConnMaxLifetime(time.Duration(cfg.DBConnMaxLifetimeMinutes) * time.Minute)
-
-			log.Info("Database connection established")
-			return db, nil
-		}
-		log.Error("Database ping failed", zap.Error(err))
-		_ = db.Close()
-		time.Sleep(3 * time.Second)
-	}
-	return nil, fmt.Errorf("failed to connect to database after %d retries: %w", maxRetries, err)
-}
-
 // startCampaignOrchestrator starts a background ticker to periodically orchestrate active campaigns.
 func startCampaignOrchestrator(ctx context.Context, provider *service.Provider, log *zap.Logger) {
 	log.Info("Campaign orchestrator background process starting.")

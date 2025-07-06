@@ -3,11 +3,14 @@ package nexus
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	nexusrepo "github.com/nmxmxh/master-ovasabi/internal/service/nexus"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	pkgredis "github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/redis/go-redis/v9"
@@ -15,6 +18,38 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+// ServiceRegistration holds the config for a single service.
+type ServiceRegistration struct {
+	Name      string `json:"name"`
+	Endpoints []struct {
+		Path    string   `json:"path"`
+		Method  string   `json:"method"`
+		Actions []string `json:"actions"`
+	} `json:"endpoints"`
+}
+
+// ServiceRegistry holds all loaded service registrations.
+type ServiceRegistry struct {
+	Services map[string]ServiceRegistration
+}
+
+// LoadServiceRegistry loads service registrations from a JSON file.
+func LoadServiceRegistry(path string) (*ServiceRegistry, error) {
+	data, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return nil, err
+	}
+	var raw []ServiceRegistration
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	reg := &ServiceRegistry{Services: make(map[string]ServiceRegistration)}
+	for _, svc := range raw {
+		reg.Services[svc.Name] = svc
+	}
+	return reg, nil
+}
 
 // RedisEventBus is a multi-instance event bus using Redis Pub/Sub.
 type RedisEventBus struct {
@@ -100,17 +135,30 @@ func (b *RedisEventBus) Close() {
 }
 
 // Server implements the Nexus gRPC service with Redis-backed event streaming.
+
 type Server struct {
 	nexusv1.UnimplementedNexusServiceServer
 	log      *zap.Logger
 	eventBus *RedisEventBus
+	registry *ServiceRegistry
+	repo     *nexusrepo.Repository
+	cache    *pkgredis.Cache
 }
 
 // NewNexusServer creates a new Nexus gRPC server with Redis event streaming.
-func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache) *Server {
+// NewNexusServer now accepts a Nexus repository for DB persistence
+func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repository) *Server {
+	// Load service registration config
+	registry, err := LoadServiceRegistry("config/service_registration.json")
+	if err != nil {
+		log.Warn("Failed to load service registration config", zap.Error(err))
+	}
 	return &Server{
 		log:      log,
 		eventBus: NewRedisEventBus(cache.GetClient(), log, "nexus:events"),
+		registry: registry,
+		repo:     repo,
+		cache:    cache,
 	}
 }
 
@@ -119,11 +167,43 @@ func (s *Server) PublishEvent(event *nexusv1.EventResponse) {
 	s.eventBus.Publish(event)
 }
 
-// Stub implementation for RegisterPattern.
-func (s *Server) RegisterPattern(_ context.Context, _ *nexusv1.RegisterPatternRequest) (*nexusv1.RegisterPatternResponse, error) {
-	s.log.Info("RegisterPattern called")
-	// TODO: Implement real logic
-	return &nexusv1.RegisterPatternResponse{}, nil
+// RegisterPattern persists a pattern to the DB and optionally caches in Redis.
+func (s *Server) RegisterPattern(ctx context.Context, req *nexusv1.RegisterPatternRequest) (*nexusv1.RegisterPatternResponse, error) {
+	s.log.Info("RegisterPattern called", zap.String("pattern_id", req.GetPatternId()))
+
+	// Extract user from context if available (for provenance)
+	userID := ""
+	authCtx := contextx.Auth(ctx)
+	if authCtx != nil && authCtx.UserID != "" {
+		userID = authCtx.UserID
+	}
+
+	// Extract campaignID from request (proto field)
+	campaignID := req.GetCampaignId()
+
+	// Persist pattern in DB
+	err := s.repo.RegisterPattern(ctx, req, userID, campaignID)
+	if err != nil {
+		s.log.Error("Failed to register pattern in DB", zap.Error(err))
+		return &nexusv1.RegisterPatternResponse{
+			Success:  false,
+			Error:    err.Error(),
+			Metadata: req.GetMetadata(),
+		}, err
+	}
+
+	// Cache pattern in Redis for fast lookup (optional, but recommended for orchestration)
+	patternKey := s.cache.KB().Build(pkgredis.NamespacePattern, req.GetPatternId())
+	// Use TTLPattern from redis/constants.go (24h)
+	errCache := s.cache.Set(ctx, patternKey, "", req, pkgredis.TTLPattern)
+	if errCache != nil {
+		s.log.Warn("Failed to cache pattern in Redis", zap.Error(errCache), zap.String("key", patternKey))
+	}
+
+	return &nexusv1.RegisterPatternResponse{
+		Success:  true,
+		Metadata: req.GetMetadata(),
+	}, nil
 }
 
 // SubscribeEvents streams real-time events to the client.
@@ -191,33 +271,51 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	if meta == nil {
 		meta = &commonpb.Metadata{}
 	}
+	// Defensive: ensure meta.ServiceSpecific and its Fields are always initialized
 	if meta.ServiceSpecific == nil {
 		meta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
 	}
 	ss := meta.ServiceSpecific
-	// Ensure ss.Fields is initialized
 	if ss.Fields == nil {
 		ss.Fields = map[string]*structpb.Value{}
 	}
-	// Get or create the 'nexus' map
+
+	// Get or create the 'nexus' map safely
 	var nexusMap map[string]*structpb.Value
-	if v, ok := ss.Fields["nexus"]; ok && v.GetStructValue() != nil {
-		nexusMap = v.GetStructValue().Fields
-	} else {
-		nexusMap = map[string]*structpb.Value{}
+	if ss != nil {
+		v, hasNexus := ss.Fields["nexus"]
+		if hasNexus && v != nil && v.GetStructValue() != nil {
+			nexusMap = v.GetStructValue().Fields
+		} else {
+			nexusMap = map[string]*structpb.Value{}
+		}
+		if traceID != "" {
+			nexusMap["trace_id"] = structpb.NewStringValue(traceID)
+		}
+		if userID != "" {
+			nexusMap["user_id"] = structpb.NewStringValue(userID)
+		}
+		ss.Fields["nexus"] = structpb.NewStructValue(&structpb.Struct{Fields: nexusMap})
 	}
-	if traceID != "" {
-		nexusMap["trace_id"] = structpb.NewStringValue(traceID)
-	}
-	if userID != "" {
-		nexusMap["user_id"] = structpb.NewStringValue(userID)
-	}
-	ss.Fields["nexus"] = structpb.NewStructValue(&structpb.Struct{Fields: nexusMap})
 
 	resp := &nexusv1.EventResponse{
 		Success:  true,
 		Message:  req.EventType,
 		Metadata: meta,
+	}
+
+	// --- Service-specific dispatch logic ---
+	// If service_specific is present, dispatch to each service listed in its fields
+	if ss != nil && len(ss.Fields) > 0 && s.registry != nil {
+		for serviceName := range ss.Fields {
+			svc, found := s.registry.Services[serviceName]
+			if found {
+				s.log.Info("Dispatching event to registered service", zap.String("service", serviceName), zap.String("event_type", req.EventType), zap.String("endpoint", svc.Endpoints[0].Path))
+				// Here you could forward the event to the service endpoint (e.g., HTTP/gRPC call)
+			} else {
+				s.log.Warn("Service not found in registry", zap.String("service", serviceName))
+			}
+		}
 	}
 
 	s.PublishEvent(resp)

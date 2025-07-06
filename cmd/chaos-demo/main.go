@@ -25,7 +25,7 @@ func main() {
 		logger.Fatalf("Failed to parse service registrations: %v", err)
 	}
 
-	orchestrator := chaos.NewChaosOrchestrator(logger, cat, services, 5) // concurrency=5 for demo
+	orchestrator := chaos.NewChaosOrchestrator(logger, cat, services, 5, nil) // concurrency=5 for demo
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	orchestrator.RunChaosDemo(ctx)

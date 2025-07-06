@@ -12,9 +12,14 @@ import (
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	servernexus "github.com/nmxmxh/master-ovasabi/internal/server/nexus"
+	"github.com/nmxmxh/master-ovasabi/internal/service/nexus"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"google.golang.org/grpc/codes"
+
+	"github.com/nmxmxh/master-ovasabi/database/connect"
+	"github.com/nmxmxh/master-ovasabi/internal/config"
+	"github.com/nmxmxh/master-ovasabi/internal/repository"
 )
 
 func main() {
@@ -50,8 +55,28 @@ func main() {
 		return
 	}
 
+	// Load config
+	cfg, err := config.Load()
+	if err != nil {
+		panic("Failed to load config: " + err.Error())
+	}
+
+	// Connect to Postgres using central connect package
+	db, err := connect.ConnectPostgres(context.Background(), log, cfg)
+	if err != nil {
+		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to connect to database", err).
+			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
+		return
+	}
+
+	// Create master repository
+	masterRepo := repository.NewMasterRepository(db, log)
+
+	// Create Nexus repository
+	nexusRepo := nexus.NewRepository(db, masterRepo)
+
 	// Create the Nexus service implementation
-	nexusService := servernexus.NewNexusServer(log, cache)
+	nexusService := servernexus.NewNexusServer(log, cache, nexusRepo)
 
 	// Register the Nexus gRPC service
 	nexusv1.RegisterNexusServiceServer(grpcServer, nexusService)

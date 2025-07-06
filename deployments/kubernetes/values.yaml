@@ -21,15 +21,15 @@ wasmFrontend:
     type: ClusterIP
     port: 8100
 
-nexus:
-  replicaCount: 2
-  image:
-    repository: nexus
-    tag: latest
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 9000
+  nexus:
+    replicaCount: 2
+    image:
+      repository: nexus
+      tag: latest
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 50052
 
 redis:
   image:

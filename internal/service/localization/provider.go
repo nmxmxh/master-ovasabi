@@ -84,7 +84,6 @@ func Register(
 	prov, ok := provider.(*service.Provider)
 	// Start campaign.created event subscription (local only)
 	if ok && prov != nil {
-		StartCampaignCreatedSubscriber(ctx, prov, log)
 		hello.StartHelloWorldLoop(ctx, prov, log, "localization")
 	}
 	return nil

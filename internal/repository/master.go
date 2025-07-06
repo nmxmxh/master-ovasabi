@@ -590,3 +590,23 @@ func (r *DefaultMasterRepository) UpdateWithTransaction(ctx context.Context, tx 
 	master.Version++
 	return nil
 }
+
+// LookupByUUIDOrID finds the canonical table and local ID for a given UUID or local ID.
+// If both are provided, UUID takes precedence. Returns nil if not found.
+func (r *DefaultMasterRepository) LookupByUUIDOrID(ctx context.Context, uuidStr, idStr string) (*Master, error) {
+	var (
+		query  = `SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active FROM master WHERE (uuid = $1 OR id::text = $2) LIMIT 1`
+		master = &Master{}
+	)
+	err := r.GetDB().QueryRowContext(ctx, query, uuidStr, idStr).Scan(
+		&master.ID, &master.UUID, &master.Name, &master.Type,
+		&master.Description, &master.Version, &master.CreatedAt,
+		&master.UpdatedAt, &master.IsActive)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrMasterNotFound
+		}
+		return nil, fmt.Errorf("failed to lookup master record: %w", err)
+	}
+	return master, nil
+}

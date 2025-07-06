@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-streaming
+  labels:
+    app: media-streaming
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-streaming
+  template:
+    metadata:
+      labels:
+        app: media-streaming
+    spec:
+      containers:
+        - name: media-streaming
+          image: media-streaming:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8085
+          env:
+            - name: NEXUS_GRPC_ADDR
+              value: 'nexus:50052'
+          livenessProbe:
+            grpc:
+              port: 8085
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            grpc:
+              port: 8085
+            initialDelaySeconds: 10
+            periodSeconds: 30

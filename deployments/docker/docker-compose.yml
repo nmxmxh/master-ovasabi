@@ -41,7 +41,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'grpc_health_probe', '-addr=localhost:8080']
+      test: ['CMD', 'grpc_health_probe', '-addr=app:8080']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -177,6 +177,12 @@ services:
       - redis
       - postgres
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'grpc_health_probe', '-addr=localhost:50052']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   media-streaming:
     build:
@@ -209,6 +215,12 @@ services:
     restart: unless-stopped
     env_file:
       - ../../.env
+    healthcheck:
+      test: ['CMD', 'grpc_health_probe', '-addr=localhost:8085']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   nginx:
     build:
@@ -227,6 +239,12 @@ services:
     networks:
       - ovasabi-network
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   ws-gateway:
     build:

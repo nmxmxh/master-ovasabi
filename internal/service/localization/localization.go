@@ -2,7 +2,11 @@ package localization
 
 import (
 	"context"
+	"encoding/json"
 	"math"
+	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -468,6 +472,68 @@ func (s *Service) GetLocaleMetadata(ctx context.Context, req *localizationpb.Get
 	}, nil
 }
 
+// getAvailableLanguages returns all target languages for translation using the canonical LibreTranslate Docker service, with fallback to DB/env/default.
+func (s *Service) GetAvailableLanguages() []string {
+	// 1. Try LibreTranslate Docker service via /languages endpoint
+	endpoint := s.ltCfg.Endpoint
+	if endpoint != "" {
+		url := endpoint
+		if url[len(url)-1] == '/' {
+			url = url[:len(url)-1]
+		}
+		url += "/languages"
+		type langResp struct {
+			Code string `json:"code"`
+		}
+		client := &http.Client{Timeout: 2 * time.Second}
+		req, err := http.NewRequest("GET", url, nil)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil && resp.StatusCode == 200 {
+				defer resp.Body.Close()
+				var langs []langResp
+				if err := json.NewDecoder(resp.Body).Decode(&langs); err == nil && len(langs) > 0 {
+					codes := make([]string, 0, len(langs))
+					for _, l := range langs {
+						if l.Code != "" {
+							codes = append(codes, l.Code)
+						}
+					}
+					if len(codes) > 0 {
+						return codes
+					}
+				}
+			}
+		}
+	}
+	// 2. Try to get from repo (DB-backed locales)
+	ctx := context.Background()
+	locales, err := s.repo.ListLocales(ctx)
+	if err == nil && len(locales) > 0 {
+		out := make([]string, 0, len(locales))
+		for _, l := range locales {
+			if l.Code != "" {
+				out = append(out, l.Code)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	// 3. fallback: try OVASABI_LANGUAGES env
+	if env := os.Getenv("OVASABI_LANGUAGES"); env != "" {
+		langs := strings.Split(env, ",")
+		for i := range langs {
+			langs[i] = strings.TrimSpace(langs[i])
+		}
+		if len(langs) > 0 {
+			return langs
+		}
+	}
+	// 4. fallback: hardcoded default
+	return []string{"en"}
+}
+
 // --- Mapping helpers ---.
 func mapTranslationToProto(tr *Translation) *localizationpb.Translation {
 	if tr == nil {
@@ -539,4 +605,43 @@ func mapLocaleToProto(l *Locale) *localizationpb.Locale {
 		Regions:  l.Regions,
 		Metadata: l.Metadata,
 	}
+}
+
+// createTranslationForScript saves a translation in the localization table and returns its ID.
+func createTranslationForScript(ctx context.Context, service *Service, entityID, lang, key string, value interface{}, log *zap.Logger) string {
+	req := &localizationpb.CreateTranslationRequest{
+		Key:      key,
+		Language: lang,
+		Value:    toString(value),
+		Metadata: &commonpb.Metadata{},
+	}
+	resp, err := service.CreateTranslation(ctx, req)
+	if err != nil {
+		log.Error("Failed to persist translation", zap.String("entity_id", entityID), zap.String("lang", lang), zap.String("key", key), zap.Any("value", value), zap.Error(err))
+		return ""
+	}
+	if resp != nil && resp.Translation != nil {
+		return resp.Translation.Id
+	}
+	return ""
+}
+
+// toString safely converts an interface{} to string for translation values.
+func toString(val interface{}) string {
+	switch v := val.(type) {
+	case string:
+		return v
+	default:
+		return ""
+	}
+}
+
+// findDot returns the index of the first dot in a string, or -1 if not found.
+func findDot(s string) int {
+	for i, c := range s {
+		if c == '.' {
+			return i
+		}
+	}
+	return -1
 }

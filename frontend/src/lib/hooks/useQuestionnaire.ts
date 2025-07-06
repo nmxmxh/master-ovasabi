@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { sortBy } from "lodash";
+import { useEffect, useState } from 'react';
+import { useProfile } from './useProfile';
+import { useSearchParams } from 'react-router-dom';
+import { sortBy } from 'lodash';
 
 type OptionID = string;
 
@@ -18,22 +19,53 @@ type SelectedOptions<T extends Record<string, Question>> = {
   [K in keyof T]?: OptionID[];
 };
 
-export const useQuestionnaire = <T extends Record<string, Question>>(questionnaire: T) => {
+export const useQuestionnaire = <T extends Record<string, Question>>(
+  questionnaire: T,
+  campaignId: string | number,
+  userId?: string | number
+) => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const questionKeys = sortBy(
-    Object.keys(questionnaire).filter((key) => /^question\d+$/.test(key)),
-    (key) => parseInt(key.replace("question", ""))
+    Object.keys(questionnaire).filter(key => /^question\d+$/.test(key)),
+    key => parseInt(key.replace('question', ''))
   ) as (keyof T)[];
 
   const totalQuestions = questionKeys.length;
 
-  const initialQParam = parseInt(searchParams.get("q") || "1", 10);
+  const initialQParam = parseInt(searchParams.get('q') || '1', 10);
   const initialIndex =
-    isNaN(initialQParam) || initialQParam < 1 || initialQParam > totalQuestions ? 0 : initialQParam - 1;
+    isNaN(initialQParam) || initialQParam < 1 || initialQParam > totalQuestions
+      ? 0
+      : initialQParam - 1;
 
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [selectedOptions, setSelectedOptions] = useState<SelectedOptions<T>>({});
+
+  // --- WebSocket profile integration ---
+  // You may want to pass campaignId/userId as props or context
+  const { updateProfile, profile } = useProfile({
+    // You may want to get these from context or props
+    campaignId,
+    userId,
+    autoConnect: true
+  });
+
+  // Sync selectedOptions to backend (waitlist questionnaire)
+  useEffect(() => {
+    if (!profile) return;
+    updateProfile({
+      service_specific: {
+        ...profile.service_specific,
+        waitlist: {
+          ...profile.service_specific?.waitlist,
+          questionnaire_answers: selectedOptions
+        }
+      }
+    });
+    // Only send when selectedOptions changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOptions]);
 
   const currentKey = questionKeys[currentIndex];
   const currentQuestion = questionnaire[currentKey];
@@ -43,12 +75,14 @@ export const useQuestionnaire = <T extends Record<string, Question>>(questionnai
   };
 
   const toggleOption = (optionId: OptionID) => {
-    setSelectedOptions((prev) => {
+    setSelectedOptions(prev => {
       const current = prev[currentKey] || [];
-      const updated = current.includes(optionId) ? current.filter((id) => id !== optionId) : [...current, optionId];
+      const updated = current.includes(optionId)
+        ? current.filter(id => id !== optionId)
+        : [...current, optionId];
       return {
         ...prev,
-        [currentKey]: updated,
+        [currentKey]: updated
       };
     });
   };
@@ -71,7 +105,7 @@ export const useQuestionnaire = <T extends Record<string, Question>>(questionnai
 
   // Keep index in sync when q changes manually (e.g. user clicks back)
   useEffect(() => {
-    const qParam = parseInt(searchParams.get("q") || "1", 10);
+    const qParam = parseInt(searchParams.get('q') || '1', 10);
     const index = isNaN(qParam) || qParam < 1 || qParam > totalQuestions ? 0 : qParam - 1;
     setCurrentIndex(index);
   }, [searchParams, totalQuestions]);
@@ -90,6 +124,6 @@ export const useQuestionnaire = <T extends Record<string, Question>>(questionnai
     isFirst,
     isLast,
     questionKeys,
-    totalQuestions,
+    totalQuestions
   };
 };

@@ -1,6 +1,7 @@
 # Build directories
 bin/
 vendor/
+kubernetes/
 
 # Generated code
 api/protos/**/*.pb.go

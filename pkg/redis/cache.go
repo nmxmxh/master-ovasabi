@@ -83,6 +83,11 @@ type Cache struct {
 	opts   *Options
 }
 
+// KB returns the KeyBuilder for this cache.
+func (c *Cache) KB() *KeyBuilder {
+	return c.kb
+}
+
 // NewCache creates a new Redis cache instance.
 func NewCache(ctx context.Context, opts *Options, log *zap.Logger) (*Cache, error) {
 	if opts == nil {
