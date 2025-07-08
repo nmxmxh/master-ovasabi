@@ -1,8 +1,10 @@
+import { useWasmBridge } from './useWasmBridge';
 import { useEffect, useCallback } from 'react';
-import { useWebSocketConnection } from './useWebSocket';
+// ...existing code...
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import deepmerge from 'deepmerge';
+// ...existing code...
 
 // --- Types ---
 export interface UIState {
@@ -149,26 +151,9 @@ export function useProfile({ campaignId, userId, wsOrigin, autoConnect = true }:
     useProfileStore();
 
   // --- WebSocket connection using useWebSocketConnection ---
-  const proto =
-    typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const origin =
-    wsOrigin || (typeof window !== 'undefined' ? `${proto}://${window.location.host}` : '');
-  const path = `/ws/${campaignId}${userId ? `/${userId}` : ''}`;
-  const url = `${origin}${path}`;
-
-  const { connected, sendMessage } = useWebSocketConnection({
-    url,
-    onOpen: () => {
-      setStatus('connected');
-      setError(null);
-    },
-    onClose: () => {
-      setStatus('disconnected');
-    },
-    onError: () => {
-      setStatus('error');
-      setError('WebSocket error');
-    },
+  // --- WASM Bridge integration ---
+  const { connected, send } = useWasmBridge({
+    autoConnect,
     onMessage: msg => {
       try {
         if (msg.type === 'profile' && msg.payload) {
@@ -181,8 +166,7 @@ export function useProfile({ campaignId, userId, wsOrigin, autoConnect = true }:
         setError('Malformed message from server');
         setStatus('error');
       }
-    },
-    shouldReconnect: autoConnect
+    }
   });
 
   useEffect(() => {
@@ -207,22 +191,20 @@ export function useProfile({ campaignId, userId, wsOrigin, autoConnect = true }:
       // Send to backend
       if (connected) {
         try {
-          sendMessage(
-            JSON.stringify({
-              type: 'profile.update',
-              payload: partial
-            })
-          );
+          send({
+            type: 'profile.update',
+            payload: partial
+          });
         } catch (e) {
           setError('Failed to send update to server');
           setStatus('error');
         }
       } else {
-        setError('WebSocket not connected');
+        setError('WASM bridge not connected');
         setStatus('error');
       }
     },
-    [connected, sendMessage, mergeProfile, setError, setStatus]
+    [mergeProfile, setError, setStatus]
   );
 
   function switchCampaign(newCampaignId: string | number, newUserId?: string | number) {

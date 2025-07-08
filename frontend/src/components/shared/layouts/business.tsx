@@ -1,15 +1,18 @@
-import _, { sortBy } from "lodash";
-import { business_dialogue } from "../../../dialogue/business";
-import { useRef, useCallback } from "react";
-import { type Question, useQuestionnaire } from "../../../lib/hooks/useQuestionnaire";
-import gsap from "gsap";
-import SplitText from "gsap/SplitText";
-import { useGSAP } from "@gsap/react";
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
+import SplitText from 'gsap/SplitText';
+import _, { sortBy } from 'lodash';
+import { useCallback, useRef } from 'react';
+import { business_dialogue } from '../../../dialogue/business';
+import { type Question, useQuestionnaire } from '../../../lib/hooks/useQuestionnaire';
 
 gsap.registerPlugin(SplitText);
 gsap.registerPlugin(useGSAP);
 
-const questionsOnly = _.pickBy(business_dialogue, (_, key) => key.startsWith("question")) as Record<string, Question>;
+const questionsOnly = _.pickBy(business_dialogue, (_, key) => key.startsWith('question')) as Record<
+  string,
+  Question
+>;
 
 export function useBusinessLayout() {
   const {
@@ -20,8 +23,8 @@ export function useBusinessLayout() {
     prev: goPrev,
     currentKey,
     currentIndex,
-    totalQuestions,
-  } = useQuestionnaire(questionsOnly);
+    totalQuestions
+  } = useQuestionnaire(questionsOnly, 'business', undefined);
 
   const questionRef = useRef<HTMLHeadingElement>(null);
   const numberRef = useRef<HTMLHeadingElement>(null);
@@ -42,20 +45,22 @@ export function useBusinessLayout() {
       if (!optionsRef.current?.children) return;
 
       const split = new SplitText(el, {
-        type: "words",
-        wordsClass: "word",
+        type: 'words',
+        wordsClass: 'word'
       });
       splitRef.current = split;
       const words = splitRef.current.words;
 
-      const timeline = gsap.timeline({ defaults: { ease: "power2.out" } });
+      const timeline = gsap.timeline({ defaults: { ease: 'power2.out' } });
       timelineRef.current = timeline;
 
-      const additionalEls = Array.from(document.querySelectorAll(".light-light, .dark-light, .no-split"));
-      const filteredSplitWords = words.filter((el) => !additionalEls.includes(el));
+      const additionalEls = Array.from(
+        document.querySelectorAll('.light-light, .dark-light, .no-split')
+      );
+      const filteredSplitWords = words.filter(el => !additionalEls.includes(el));
       const animatedEls = [...filteredSplitWords, ...additionalEls];
 
-      const sortedEls = sortBy(animatedEls, (el) => {
+      const sortedEls = sortBy(animatedEls, el => {
         return Array.prototype.indexOf.call(el.parentNode?.children, el);
       });
 
@@ -66,40 +71,55 @@ export function useBusinessLayout() {
           {
             autoAlpha: 0,
             y: -200,
-            rotateZ: randomTilt,
+            rotateZ: randomTilt
           },
           {
             autoAlpha: 1,
             y: 0,
             rotateZ: 0,
-            duration: 0.5,
+            duration: 0.5
           },
           0.4 + i * 0.06
         );
       });
 
       timeline
-        .fromTo(numberRef.current, { autoAlpha: 0, scale: 0.75 }, { autoAlpha: 1, scale: 1, duration: 0.25 }, 0.15)
-        .fromTo(previousRef.current, { autoAlpha: 0, x: -100 }, { autoAlpha: 1, x: 0, duration: 0.4 }, "entry+0.5")
-        .fromTo(nextRef.current, { autoAlpha: 0, x: 100 }, { autoAlpha: 1, x: 0, duration: 0.4 }, "entry+0.5")
-        .fromTo(captionRef.current, { y: 100, autoAlpha: 0 }, { y: 0, autoAlpha: 1 }, "entry+=0.45")
+        .fromTo(
+          numberRef.current,
+          { autoAlpha: 0, scale: 0.75 },
+          { autoAlpha: 1, scale: 1, duration: 0.25 },
+          0.15
+        )
+        .fromTo(
+          previousRef.current,
+          { autoAlpha: 0, x: -100 },
+          { autoAlpha: 1, x: 0, duration: 0.4 },
+          'entry+0.5'
+        )
+        .fromTo(
+          nextRef.current,
+          { autoAlpha: 0, x: 100 },
+          { autoAlpha: 1, x: 0, duration: 0.4 },
+          'entry+0.5'
+        )
+        .fromTo(captionRef.current, { y: 100, autoAlpha: 0 }, { y: 0, autoAlpha: 1 }, 'entry+=0.45')
         .fromTo(
           optionsRef.current?.children,
           { x: 20, autoAlpha: 0 },
           { x: 0, autoAlpha: 1, stagger: 0.15 },
-          "entry+=0.4"
+          'entry+=0.4'
         );
 
       // Floating and tilt animation after timeline is done
       timeline.add(() => {
-        (sortedEls as HTMLElement[]).forEach((el) => {
+        (sortedEls as HTMLElement[]).forEach(el => {
           const floatAnim = gsap.to(el, {
-            y: "+=5",
+            y: '+=5',
             rotateZ: `+=${gsap.utils.random(-2, 2)}`, // subtle angle tilt
             repeat: -1,
             yoyo: true,
-            ease: "sine.inOut",
-            duration: gsap.utils.random(2, 3),
+            ease: 'sine.inOut',
+            duration: gsap.utils.random(2, 3)
           });
 
           // Store animation on DOM node so it can be killed later
@@ -136,9 +156,9 @@ export function useBusinessLayout() {
     }
 
     timelineRef.current.timeScale(4);
-    timelineRef.current.eventCallback("onReverseComplete", () => {
+    timelineRef.current.eventCallback('onReverseComplete', () => {
       callback();
-      timelineRef.current?.eventCallback("onReverseComplete", null);
+      timelineRef.current?.eventCallback('onReverseComplete', null);
     });
     timelineRef.current.reverse(0);
   };
@@ -161,6 +181,6 @@ export function useBusinessLayout() {
     subtitleRef,
     numberRef,
     nextRef,
-    previousRef,
+    previousRef
   };
 }

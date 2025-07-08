@@ -22,6 +22,13 @@ RUN go mod download
 
 # Copy the rest of the source code
 COPY . .
+# Log and fail if service_registration.json is missing before COPY
+RUN if [ ! -f config/service_registration.json ]; then \
+  echo "[DOCKER] ERROR: config/service_registration.json is missing! Docker will create a directory if this file is absent."; \
+  exit 1; \
+  fi
+# Copy service_registration.json for embedding or runtime
+COPY config/service_registration.json ./config/service_registration.json
 
 # Generate protobuf code and build
 RUN export PATH="$PATH:$(go env GOPATH)/bin" && \

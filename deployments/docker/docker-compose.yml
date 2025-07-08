@@ -29,9 +29,9 @@ services:
       GRPC_PORT: ${GRPC_PORT:-8082}
       METRICS_PORT: ':9090'
     volumes:
-      - ./config:/app/config:ro
-      - ./amadeus/knowledge_graph.json:/app/amadeus/knowledge_graph.json
-      - ./amadeus/backups:/app/amadeus/backups
+      - ../../config:/app/config:ro
+      - ../../amadeus/knowledge_graph.json:/app/amadeus/knowledge_graph.json
+      - ../../amadeus/backups:/app/amadeus/backups
       # Proto codegen for Go is now in-place; no need to mount gen/go
     depends_on:
       migrate:
@@ -41,7 +41,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'grpc_health_probe', '-addr=app:8080']
+      test: ['CMD', 'grpc_health_probe', '-addr=localhost:8080']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -120,6 +120,9 @@ services:
       DB_NAME: 'master_ovasabi'
       ADMIN_USER: 'nmxmxh'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   postgres-init:
     build:
@@ -168,14 +171,30 @@ services:
       APP_ENV: '${APP_ENV:-development}'
       LOG_LEVEL: info
       SERVICE_NAME: nexus
-      NEXUS_GRPC_ADDR: ':50052'
+      NEXUS_GRPC_ADDR: 'nexus:50052'
       METRICS_PORT: ':9090'
       REDIS_PASSWORD: '${REDIS_PASSWORD}'
+      POSTGRES_USER: '${POSTGRES_USER:-postgres}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
+      POSTGRES_DB: '${POSTGRES_DB:-master_ovasabi}'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
+    env_file:
+      - ../../.env
+    volumes:
+      - ../../config:/nexus/config:ro
+      # Only mount service_registration.json for development/hot-reload. For production, rely on Dockerfile COPY.
+      # - ${PWD}/config/service_registration.json:/nexus/config/service_registration.json:ro
     networks:
       - ovasabi-network
     depends_on:
-      - redis
-      - postgres
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'grpc_health_probe', '-addr=localhost:50052']
@@ -232,7 +251,6 @@ services:
       - '443:443'
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./frontend/public:/usr/share/nginx/html:ro
       # - ./deployments/docker/certs:/etc/nginx/certs:ro  # Uncomment and set path if using SSL certs
     depends_on:
       - app
@@ -253,7 +271,7 @@ services:
     ports:
       - '8090:8090'
     environment:
-      NEXUS_ADDR: 'nexus:50052' # Connect to the Nexus service over the internal Docker network
+      NEXUS_GRPC_ADDR: 'nexus:50052' # Connect to the Nexus service over the internal Docker network
       LOG_LEVEL: debug
       WS_ALLOWED_ORIGINS: '*' # For local development, allow all origins
     depends_on:
@@ -279,9 +297,9 @@ services:
   #     NEXUS_GRPC_ADDR: 'nexus:50052'
   #     PYTHONUNBUFFERED: 1
   #   volumes:
-  #     - ./config:/app/config:ro
-  #     - ./amadeus/knowledge_graph.json:/app/amadeus/knowledge_graph.json
-  #     - ./amadeus/backups:/app/amadeus/backups
+  #     - ../../config:/app/config:ro
+  #     - ../../amadeus/knowledge_graph.json:/app/amadeus/knowledge_graph.json
+  #     - ../../amadeus/backups:/app/amadeus/backups
   #   depends_on:
   #     - migrate
   #     - postgres-init

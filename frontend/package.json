@@ -28,6 +28,7 @@
     "react-use": "^17.6.0",
     "react-use-websocket": "^4.13.0",
     "react-webcam": "^7.2.0",
+    "rxjs": "^7.8.2",
     "styled-components": "^6.1.18",
     "three": "^0.177.0",
     "use-haptic": "^1.1.11",
@@ -54,8 +55,10 @@
     "eslint-plugin-unused-imports": "^4.1.4",
     "globals": "^16.0.0",
     "prettier": "^3.5.3",
+    "ts-proto": "^2.7.5",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.32.1",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vite-plugin-checker": "^0.9.3"
   }
 }

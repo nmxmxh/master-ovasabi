@@ -36,6 +36,8 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	// ...existing code...
+
 	cfg := &Config{
 		AppEnv:                 os.Getenv("APP_ENV"),
 		AppName:                os.Getenv("APP_NAME"),

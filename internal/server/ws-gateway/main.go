@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -26,18 +26,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
-)
-
-// Placeholders for your actual project imports
-
-// --- Constants ---.
-const (
-	// Nexus event patterns for WebSocket gateway orchestration.
-	// These define the patterns for routing events between clients and the backend.
-	wsIngressTopic   = "ws:ingress"          // Topic for events from clients -> Nexus
-	wsEgressSystem   = "ws:egress:system"    // Pattern for system-wide broadcasts
-	wsEgressCampaign = "ws:egress:campaign:" // Pattern for campaign-specific broadcasts
-	wsEgressUser     = "ws:egress:user:"     // Pattern for user-specific broadcasts
 )
 
 // --- WebSocket & Event Types ---
@@ -109,7 +97,7 @@ func main() {
 	}
 	addr := ":" + wsPort
 
-	nexusAddr := os.Getenv("NEXUS_ADDR")
+	nexusAddr := os.Getenv("NEXUS_GRPC_ADDR")
 	if nexusAddr == "" {
 		nexusAddr = "nexus:50052" // Default Nexus service address from compose
 	}
@@ -181,11 +169,10 @@ func main() {
 
 func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ws/"), "/")
-	if len(parts) < 1 || parts[0] == "" {
-		http.Error(w, "invalid path: campaign_id is required", http.StatusBadRequest)
-		return
+	campaignID := "ovasabi_website" // Default campaign
+	if len(parts) > 0 && parts[0] != "" {
+		campaignID = parts[0]
 	}
-	campaignID := parts[0]
 	var userID string
 	if len(parts) > 1 && parts[1] != "" {
 		userID = parts[1]
@@ -235,54 +222,69 @@ func (c *WSClient) readPump() {
 		}
 
 		var clientMsg ClientWebSocketMessage
+		slog.Info("[ws-gateway] Received raw message from client", "user", c.userID, "campaign", c.campaignID, "raw", string(msgBytes))
 		if err := json.Unmarshal(msgBytes, &clientMsg); err != nil {
-			slog.Warn("Error unmarshaling client message", "error", err)
+			slog.Warn("Error unmarshaling client message", "error", err, "raw", string(msgBytes))
 			continue
 		}
 
-		// Construct the IngressEvent to be sent to Nexus
-		ingressEvent := IngressEvent{
-			CampaignID: c.campaignID,
-			UserID:     c.userID,
-			Type:       clientMsg.Type,
-			Payload:    clientMsg.Payload,
-			Metadata:   clientMsg.Metadata,
+		slog.Info("[ws-gateway] Parsed client message", "user", c.userID, "type", clientMsg.Type, "metadata", clientMsg.Metadata)
+		canonicalType := extractCanonicalEventType(clientMsg)
+		if canonicalType == "" {
+			slog.Warn("Missing canonical event type in client message", "user", c.userID, "msg", clientMsg)
+			continue
 		}
 
-		eventBytes, err := json.Marshal(ingressEvent)
+		// Forward to Nexus using the canonical event type
+		var payloadMap map[string]interface{}
+		if err := json.Unmarshal(clientMsg.Payload, &payloadMap); err != nil {
+			slog.Error("Error unmarshaling client payload", "error", err, "payload_raw", string(clientMsg.Payload))
+			continue
+		}
+		slog.Info("[ws-gateway] Parsed client payload", "user", c.userID, "payload", payloadMap)
+		// Always include a correlation_id in metadata for canonical compliance
+		correlationID := uuid.NewString()
+		meta := clientMsg.Metadata
+		if meta == nil {
+			meta = &commonpb.Metadata{}
+		}
+		if meta.ServiceSpecific == nil {
+			meta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+		}
+		if meta.ServiceSpecific.Fields == nil {
+			meta.ServiceSpecific.Fields = map[string]*structpb.Value{}
+		}
+		meta.ServiceSpecific.Fields["correlation_id"] = structpb.NewStringValue(correlationID)
+
+		structPayload, err := structpb.NewStruct(payloadMap)
 		if err != nil {
-			slog.Error("Error marshaling ingress event for Nexus", "error", err)
+			slog.Error("Error creating structpb.Struct for Nexus payload", "error", err, "payloadMap", payloadMap)
 			continue
 		}
-
-		// Create a Nexus event and emit it.
-		// The Nexus service expects nexuspb.EventRequest for emitted events.
-		// The Payload field of EventRequest is *commonpb.Payload, which contains a *structpb.Struct.
-		// We need to convert the marshaled ingressEvent (eventBytes) into this structure.
-
-		var ingressEventMap map[string]interface{}
-		if err := json.Unmarshal(eventBytes, &ingressEventMap); err != nil {
-			slog.Error("Error unmarshaling ingress event bytes to map for Nexus payload", "error", err)
-			continue
+		// Convert campaignID to int64 if possible, else use 0
+		var campaignIDInt int64 = 0
+		if c.campaignID != "" {
+			if v, err := strconv.ParseInt(c.campaignID, 10, 64); err == nil {
+				campaignIDInt = v
+			}
 		}
-
-		structPayload, err := structpb.NewStruct(ingressEventMap)
-		if err != nil {
-			slog.Error("Error creating structpb.Struct from ingress event map for Nexus payload", "error", err)
-			continue
-		}
-
 		nexusEventRequest := &nexuspb.EventRequest{
-			EventType: wsIngressTopic,
-			EntityId:  c.userID, // Use user ID as entity ID for ingress events
-			Payload:   &commonpb.Payload{Data: structPayload},
-			Metadata:  clientMsg.Metadata, // Propagate client's metadata to top-level Nexus event
+			EventId:    correlationID,
+			EventType:  canonicalType,
+			EntityId:   c.userID,
+			CampaignId: campaignIDInt,
+			Payload:    &commonpb.Payload{Data: structPayload},
+			Metadata:   meta,
 		}
-
+		// Log emission with clear field names
+		slog.Info("[ws-gateway] Emitting event to Nexus", "target_service", canonicalType, "user", c.userID, "nexusEventRequest", nexusEventRequest)
 		// Use a timeout for the gRPC call
-		emitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // Use a timeout for the gRPC call
-		if _, err := nexusClient.EmitEvent(emitCtx, nexusEventRequest); err != nil {
-			slog.Error("Error emitting event to Nexus", "error", err)
+		emitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		resp, err := nexusClient.EmitEvent(emitCtx, nexusEventRequest)
+		if err != nil {
+			slog.Error("Error emitting event to Nexus", "error", err, "nexusEventRequest", nexusEventRequest)
+		} else {
+			slog.Info("[ws-gateway] Received response from Nexus", "target_service", canonicalType, "user", c.userID, "response", resp)
 		}
 		cancel()
 	}
@@ -410,32 +412,38 @@ func broadcastUser(userID string, payload []byte) {
 	})
 }
 
-func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
-	backoff := NewExponentialBackoff(1*time.Second, 30*time.Second, 2.0, 0.1) // Start with 1s, max 30s, x2 multiplier, 10% jitter
+// --- Canonical Event Type Routing ---
+// All event emission and subscription uses the canonical format: {service}:{action}:v{version}:{state}
+// See docs/communication_standards.md and pkg/registration/generator.go for event type generation logic.
+// This gateway is now fully generic and does not require updates for new services/actions.
 
+// Helper: Extracts the canonical event type from a client message (with fallback)
+func extractCanonicalEventType(msg ClientWebSocketMessage) string {
+	// If the client sends a canonical event type in Type, use it directly
+	return msg.Type
+}
+
+// --- Nexus Subscriber (Refactored) ---
+// Forwards all canonical event types to the appropriate WebSocket clients.
+func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
+	backoff := NewExponentialBackoff(1*time.Second, 30*time.Second, 2.0, 0.1)
 	for {
 		select {
 		case <-ctx.Done():
 			slog.Info("[ws-gateway] Nexus subscriber context cancelled. Exiting.")
 			return
 		default:
-			// Continue
 		}
-
-		stream, err := client.SubscribeEvents(ctx, &nexuspb.SubscribeRequest{ // Corrected method and type
-			EventTypes: []string{ // Corrected field name
-				wsEgressSystem,
-				wsEgressCampaign, // Subscribe to the prefix
-				wsEgressUser,     // Subscribe to the prefix
-			},
+		// Subscribe to all events (wildcard or all known canonical event types)
+		stream, err := client.SubscribeEvents(ctx, &nexuspb.SubscribeRequest{
+			EventTypes: []string{"*"}, // Subscribe to all events; adjust if Nexus requires explicit list
 		})
 		if err != nil {
 			slog.Error("Failed to subscribe to Nexus event stream, retrying...", "error", err, "next_retry_in", backoff.NextInterval())
 			time.Sleep(backoff.NextInterval())
 			continue
 		}
-		slog.Info("[ws-gateway] Subscribed to Nexus event stream")
-
+		slog.Info("[ws-gateway] Subscribed to Nexus event stream (all canonical event types)")
 		for {
 			event, err := stream.Recv()
 			if err != nil {
@@ -444,37 +452,42 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 				} else {
 					slog.Error("[ws-gateway] Error receiving from Nexus stream. Reconnecting...", "error", err)
 				}
-				break // Break inner loop to trigger reconnection
+				break
 			}
-
-			topic := event.GetEventType() // Use GetEventType as per nexuspb.EventResponse
+			canonicalType := event.GetEventType()
 			payloadStruct := event.GetPayload().GetData()
 			if payloadStruct == nil {
-				slog.Warn("[ws-gateway] Received Nexus event with empty payload data", "topic", topic)
+				slog.Warn("[ws-gateway] Received Nexus event with empty payload data", "event_type", canonicalType)
 				continue
 			}
-			payloadMap := payloadStruct.AsMap()           // Convert structpb.Struct to map[string]interface{}
-			payloadBytes, err := json.Marshal(payloadMap) // Marshal map to JSON bytes
+			payloadMap := payloadStruct.AsMap()
+			payloadBytes, err := json.Marshal(payloadMap)
 			if err != nil {
-				slog.Error("[ws-gateway] Error marshaling payload from structpb.Struct", "error", err, "topic", topic)
+				slog.Error("[ws-gateway] Error marshaling payload from structpb.Struct", "error", err, "event_type", canonicalType)
 				continue
 			}
-
-			if strings.HasPrefix(topic, wsEgressCampaign) {
-				campaignID := strings.TrimPrefix(topic, wsEgressCampaign)
+			// Log receipt
+			slog.Info("[ws-gateway] Received event from Nexus", "event_type", canonicalType)
+			// Generic routing: broadcast to all clients, or filter by campaign/user if present in payload
+			campaignID, _ := payloadMap["campaign_id"].(string)
+			userID, _ := payloadMap["user_id"].(string)
+			if campaignID != "" {
 				broadcastCampaign(campaignID, payloadBytes)
-			} else if strings.HasPrefix(topic, wsEgressUser) {
-				userID := strings.TrimPrefix(topic, wsEgressUser)
+			} else if userID != "" {
 				broadcastUser(userID, payloadBytes)
-			} else if topic == wsEgressSystem {
+			} else {
 				broadcastSystem(payloadBytes)
 			}
 		}
 	}
 }
 
-// --- Utility Functions ---
+// newWsClientMap creates a new ClientMap.
+func newWsClientMap() *ClientMap {
+	return &ClientMap{clients: make(map[string]map[string]*WSClient)}
+}
 
+// getAllowedOrigins returns allowed origins for CORS.
 func getAllowedOrigins() []string {
 	origins := os.Getenv("WS_ALLOWED_ORIGINS")
 	if origins == "" {
@@ -483,84 +496,21 @@ func getAllowedOrigins() []string {
 	return strings.Split(origins, ",")
 }
 
+// checkOrigin is used by the WebSocket upgrader for CORS.
 func checkOrigin(r *http.Request) bool {
 	originStr := r.Header.Get("Origin")
-	// Allow non-browser clients (where origin is not set)
 	if originStr == "" {
 		return true
 	}
-
-	// Parse the incoming Origin header
-	parsedOrigin, err := url.Parse(originStr)
-	if err != nil {
-		slog.Warn("Failed to parse Origin header", "origin", originStr, "error", err)
-		return false
-	}
-
-	// Normalize origin host (remove port if default, ensure lowercase)
-	originHost := strings.ToLower(parsedOrigin.Hostname())
-	originPort := parsedOrigin.Port()
-	originScheme := strings.ToLower(parsedOrigin.Scheme)
-
-	for _, allowedPattern := range allowedOrigins {
-		if allowedPattern == "*" {
+	for _, allowed := range allowedOrigins {
+		if allowed == "*" || strings.Contains(originStr, allowed) {
 			return true
 		}
-
-		// Handle wildcard subdomains like ".example.com"
-		if strings.HasPrefix(allowedPattern, ".") {
-			// A pattern like ".example.com" should match "example.com", "sub.example.com", etc.
-			// Check if the origin host ends with the allowed pattern, or is exactly the pattern without the leading dot.
-			if strings.HasSuffix(originHost, allowedPattern) || originHost == strings.TrimPrefix(allowedPattern, ".") {
-				// For wildcard subdomains, we typically don't enforce scheme or port unless specified in the pattern.
-				// If the pattern is just ".example.com", it implies any scheme/port.
-				// If the pattern was "https://.example.com", we'd need to parse it.
-				// For simplicity, assuming ".example.com" patterns don't specify scheme/port.
-				return true
-			}
-			continue // Move to next pattern if this was a wildcard subdomain pattern
-		}
-
-		// Handle exact match patterns (e.g., "example.com" or "https://example.com:8080")
-		parsedAllowed, err := url.Parse(allowedPattern)
-		if err != nil {
-			slog.Warn("Failed to parse allowed origin pattern", "pattern", allowedPattern, "error", err)
-			continue // Skip this malformed pattern
-		}
-
-		allowedHost := strings.ToLower(parsedAllowed.Hostname())
-		allowedPort := parsedAllowed.Port()
-		allowedScheme := strings.ToLower(parsedAllowed.Scheme)
-
-		// Check hostname match
-		if originHost != allowedHost {
-			continue
-		}
-
-		// Check scheme match (if specified in allowed pattern)
-		if allowedScheme != "" && originScheme != allowedScheme {
-			continue
-		}
-
-		// Check port match (if specified in allowed pattern)
-		if allowedPort != "" && originPort != allowedPort {
-			continue
-		}
-
-		// If all checks pass, the origin is allowed
-		return true
 	}
-
-	slog.Warn("Rejected WebSocket connection from origin", "origin", originStr)
 	return false
 }
 
-// --- ClientMap Implementation ---
-
-func newWsClientMap() *ClientMap {
-	return &ClientMap{clients: make(map[string]map[string]*WSClient)}
-}
-
+// Store adds a client to the map.
 func (w *ClientMap) Store(campaignID, userID string, client *WSClient) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -570,22 +520,11 @@ func (w *ClientMap) Store(campaignID, userID string, client *WSClient) {
 	w.clients[campaignID][userID] = client
 }
 
-func (w *ClientMap) Load(campaignID, userID string) (*WSClient, bool) {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	m, ok := w.clients[campaignID]
-	if !ok {
-		return nil, false
-	}
-	client, ok := m[userID]
-	return client, ok
-}
-
+// Delete removes a client from the map.
 func (w *ClientMap) Delete(campaignID, userID string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if m, ok := w.clients[campaignID]; ok {
-		// Also close the send channel to stop the writePump
 		if client, ok := m[userID]; ok {
 			close(client.send)
 		}
@@ -596,10 +535,9 @@ func (w *ClientMap) Delete(campaignID, userID string) {
 	}
 }
 
+// Range iterates over all clients, calling f for each.
 func (w *ClientMap) Range(f func(campaignID, userID string, client *WSClient) bool) {
 	w.mu.RLock()
-	// Create a copy of the map to avoid holding the lock during the callback
-	// which might be slow or try to lock again.
 	copiedClients := make(map[string]map[string]*WSClient)
 	for cid, users := range w.clients {
 		copiedClients[cid] = make(map[string]*WSClient)
@@ -608,7 +546,6 @@ func (w *ClientMap) Range(f func(campaignID, userID string, client *WSClient) bo
 		}
 	}
 	w.mu.RUnlock()
-
 	for cid, m := range copiedClients {
 		for uid, c := range m {
 			if !f(cid, uid, c) {

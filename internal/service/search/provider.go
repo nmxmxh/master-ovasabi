@@ -1,24 +1,12 @@
-// Provider/DI Registration Pattern (Modern, Extensible, DRY)
-// ---------------------------------------------------------
+// Provider/DI Registration Pattern (Canonical Event-Driven, July 2025)
+// -------------------------------------------------------------------
 //
-// This file implements the centralized Provider pattern for service registration and dependency injection (DI) across the platform. It ensures all services are registered, resolved, and composed in a DRY, maintainable, and extensible way.
-//
-// Key Features:
-// - Centralized Service Registration: All gRPC services are registered with a DI container, ensuring single-point, modular registration and easy dependency management.
-// - Repository & Cache Integration: Each service can specify its repository constructor and (optionally) a cache name for Redis-backed caching.
-// - Multi-Dependency Support: Services with multiple or cross-service dependencies (e.g., ContentService, NotificationService) use custom registration functions to resolve all required dependencies from the DI container.
-// - Extensible Pattern: To add a new service, define its repository and (optionally) cache, then add a registration entry. For complex dependencies, use a custom registration function.
-// - Consistent Error Handling: All registration errors are logged and wrapped for traceability.
-// - Self-Documenting: The registration pattern is discoverable and enforced as a standard for all new services.
-//
-// Standard for New Service/Provider Files:
-// 1. Document the registration pattern and DI approach at the top of the file.
-// 2. Describe how to add new services, including repository, cache, and dependency resolution.
-// 3. Note any special patterns for multi-dependency or cross-service orchestration.
-// 4. Ensure all registration and error handling is consistent and logged.
-// 5. Reference this comment as the standard for all new service/provider files.
-//
-// For more, see the Amadeus context: docs/amadeus/amadeus_context.md (Provider/DI Registration Pattern)
+// This provider follows the July 2025 OVASABI Communication & Event Standards:
+// - All event types, channels, and keys are loaded from the canonical service registry (service_registration.json)
+// - All event handling is generic and registry-driven (see events.go)
+// - All event emission, subscription, and validation use generated constants and canonical event types
+// - Startup validation ensures all event types in code are present in the registry
+// - See docs/service-refactor.md and docs/communication_standards.md for details
 
 package search
 
@@ -61,6 +49,11 @@ func Register(
 		log.Warn("failed to get search cache", zap.Error(err))
 	}
 	searchService := NewService(log, repo, cache, eventEmitter, eventEnabled, svcProvider)
+
+	// Log canonical event types at registration (for observability and validation)
+	eventTypes := loadSearchEvents()
+	log.Info("Canonical event types for search service", zap.Strings("eventTypes", eventTypes))
+
 	// Register gRPC server interface
 	if err := container.Register((*searchpb.SearchServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return searchService, nil
@@ -75,6 +68,28 @@ func Register(
 		log.Error("Failed to register concrete *search.SearchService", zap.Error(err))
 		return err
 	}
+
+	// Validate that all event types used in the code are present in the canonical registry
+	nonCanonical := false
+	for _, sub := range SearchEventRegistry {
+		for _, evt := range sub.EventTypes {
+			found := false
+			for _, canonical := range eventTypes {
+				if evt == canonical {
+					found = true
+					break
+				}
+			}
+			if !found {
+				log.Error("Non-canonical event type used in code (must be fixed)", zap.String("eventType", evt))
+				nonCanonical = true
+			}
+		}
+	}
+	if nonCanonical {
+		return errors.New("non-canonical event types found in code; see logs for details")
+	}
+
 	// Start event subscribers for event-driven search orchestration.
 	if svc, ok := searchService.(*Service); ok {
 		StartEventSubscribers(ctx, svc, log)

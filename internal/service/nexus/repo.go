@@ -4,6 +4,7 @@ package nexus
 
 import (
 	"context"
+	"crypto/md5"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -39,21 +40,47 @@ func (r *Repository) RegisterPattern(ctx context.Context, req *nexusv1.RegisterP
 	if err != nil {
 		return fmt.Errorf("failed to marshal definition: %w", err)
 	}
+
+	// Compute a unique name for the master record (use req.PatternId or a hash/slug of definition)
+	patternName := req.PatternId
+	if patternName == "" {
+		// fallback: use hash of definition
+		patternName = fmt.Sprintf("pattern_%x", md5Sum(def))
+	}
+
+	// Always create or look up a master record for this pattern
+	entityType := "pattern" // or a more specific type if required by your standard
+	masterID, _, err := r.masterRepo.CreateMasterRecord(ctx, entityType, patternName)
+	if err != nil {
+		return fmt.Errorf("failed to create or lookup master record: %w", err)
+	}
+
+	// Compute definition_hash for deduplication
+	definitionHash := fmt.Sprintf("%x", md5Sum(def))
+
 	_, err = r.db.ExecContext(ctx, `
-		INSERT INTO service_nexus_pattern (pattern_id, pattern_type, version, origin, definition, metadata, created_by, campaign_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (pattern_id, campaign_id) DO UPDATE SET
-		  pattern_type = EXCLUDED.pattern_type,
-		  version = EXCLUDED.version,
-		  origin = EXCLUDED.origin,
-		  definition = EXCLUDED.definition,
-		  metadata = EXCLUDED.metadata,
-		  created_by = EXCLUDED.created_by
-	`, req.PatternId, req.PatternType, req.Version, req.Origin, def, meta, createdBy, campaignID)
+	INSERT INTO service_nexus_pattern (pattern_id, pattern_type, version, origin, definition, metadata, created_by, campaign_id, definition_hash, type)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	ON CONFLICT (pattern_id, campaign_id) DO UPDATE SET
+	  pattern_type = EXCLUDED.pattern_type,
+	  version = EXCLUDED.version,
+	  origin = EXCLUDED.origin,
+	  definition = EXCLUDED.definition,
+	  metadata = EXCLUDED.metadata,
+	  created_by = EXCLUDED.created_by,
+	  definition_hash = EXCLUDED.definition_hash,
+	  type = EXCLUDED.type
+`, masterID, req.PatternType, req.Version, req.Origin, def, meta, createdBy, campaignID, definitionHash, req.PatternType)
 	if err != nil {
 		return fmt.Errorf("failed to insert or update pattern: %w", err)
 	}
 	return nil
+}
+
+// md5Sum returns the MD5 hash of the input bytes as a byte slice
+func md5Sum(data []byte) []byte {
+	sum := md5.Sum(data)
+	return sum[:]
 }
 
 // ListPatterns returns all patterns, optionally filtered by type.

@@ -97,8 +97,6 @@ class NexusStreamClient:
         if not nexus_addr:
             nexus_addr = os.getenv("NEXUS_GRPC_ADDR")
         if not nexus_addr:
-            nexus_addr = os.getenv("NEXUS_ADDR")
-        if not nexus_addr:
             nexus_addr = "nexus:50052"
         self.address = nexus_addr
         self.timeout = timeout

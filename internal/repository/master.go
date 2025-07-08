@@ -48,31 +48,11 @@ func NewMasterRepository(db *sql.DB, log *zap.Logger) *DefaultMasterRepository {
 }
 
 // validateEntityType checks if the entity type is valid.
+// validateEntityType checks if the entity type is valid using service_registration.json.
 func (r *DefaultMasterRepository) validateEntityType(ctx context.Context, entityType EntityType) error {
-	tx, err := r.GetDB().BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			r.log.Error("failed to rollback transaction", zap.Error(err))
-		}
-	}()
-
-	var exists bool
-	err = tx.QueryRow(
-		"SELECT EXISTS(SELECT 1 FROM entity_types WHERE type = $1)",
-		entityType,
-	).Scan(&exists)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		return ErrInvalidEntityType
-	}
-
-	return nil
+	// Path to the JSON config. Adjust as needed for your deployment.
+	jsonPath := "config/service_registration.json"
+	return ValidateEntityTypeFromJSON(ctx, string(entityType), jsonPath)
 }
 
 // CreateMasterRecord creates a new master record in a new transaction.
@@ -92,7 +72,7 @@ func (r *DefaultMasterRepository) CreateMasterRecord(ctx context.Context, entity
 		}
 	}()
 
-	id, uuidStr, err := r.Create(ctx, tx, EntityType(entityType), name) // Call the new transactional Create
+	id, uuidStr, err := r.Create(ctx, tx, EntityType(entityType), name) // Pass empty description by default
 	if err != nil {
 		return 0, "", err
 	}
@@ -107,17 +87,18 @@ func (r *DefaultMasterRepository) CreateMasterRecord(ctx context.Context, entity
 // Create creates a new master record within an existing transaction.
 // It returns the generated master_id, master_uuid, and an error if any.
 func (r *DefaultMasterRepository) Create(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (int64, string, error) {
-	if err := r.validateEntityType(ctx, entityType); err != nil {
-		return 0, "", err
-	}
+	return r.CreateWithDescription(ctx, tx, entityType, name, "")
+}
 
+// CreateWithDescription creates a new master record with a custom description.
+func (r *DefaultMasterRepository) CreateWithDescription(ctx context.Context, tx *sql.Tx, entityType EntityType, name string, description string) (int64, string, error) {
 	newUUID := uuid.New()
 	var id int64
 	err := tx.QueryRowContext(ctx, // Use the provided tx
-		`INSERT INTO master (uuid, name, type, created_at, updated_at, is_active, version) 
-		 VALUES ($1, $2, $3, NOW(), NOW(), true, 1) 
-		 RETURNING id`,
-		newUUID, name, entityType).Scan(&id)
+		`INSERT INTO master (uuid, name, type, description, version, created_at, updated_at) 
+			VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) 
+			RETURNING id`,
+		newUUID, name, entityType, description, "1.0.0").Scan(&id)
 	if err != nil {
 		pqErr := &pq.Error{}
 		if errors.As(err, &pqErr) {
@@ -130,17 +111,25 @@ func (r *DefaultMasterRepository) Create(ctx context.Context, tx *sql.Tx, entity
 	return id, newUUID.String(), nil
 }
 
+// UpdateMasterDescription updates the description for a master record by name and type.
+func (r *DefaultMasterRepository) UpdateMasterDescription(ctx context.Context, name string, entityType EntityType, description string) error {
+	_, err := r.GetDB().ExecContext(ctx,
+		`UPDATE master SET description = $1, updated_at = NOW() WHERE name = $2 AND type = $3`,
+		description, name, entityType)
+	return err
+}
+
 // Get retrieves a master record by ID.
 func (r *DefaultMasterRepository) Get(ctx context.Context, id int64) (*Master, error) {
 	master := &Master{}
 	err := r.GetDB().QueryRowContext(ctx,
-		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active 
-		 FROM master 
-		 WHERE id = $1`,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at 
+				FROM master 
+				WHERE id = $1`,
 		id).Scan(
 		&master.ID, &master.UUID, &master.Name, &master.Type,
 		&master.Description, &master.Version, &master.CreatedAt,
-		&master.UpdatedAt, &master.IsActive)
+		&master.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrMasterNotFound
@@ -196,10 +185,10 @@ func (r *DefaultMasterRepository) List(ctx context.Context, limit, offset int) (
 	}
 
 	rows, err := r.GetDB().QueryContext(ctx,
-		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active 
-		 FROM master 
-		 ORDER BY id 
-		 LIMIT $1 OFFSET $2`,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at 
+				FROM master 
+				ORDER BY id 
+				LIMIT $1 OFFSET $2`,
 		limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list master records: %w", err)
@@ -220,7 +209,7 @@ func (r *DefaultMasterRepository) List(ctx context.Context, limit, offset int) (
 			err := rows.Scan(
 				&master.ID, &master.UUID, &master.Name, &master.Type,
 				&master.Description, &master.Version, &master.CreatedAt,
-				&master.UpdatedAt, &master.IsActive)
+				&master.UpdatedAt)
 			if err != nil {
 				return nil, fmt.Errorf("failed to scan master record: %w", err)
 			}
@@ -249,14 +238,14 @@ func (r *DefaultMasterRepository) GetByUUID(ctx context.Context, id uuid.UUID) (
 
 	master := &Master{}
 	err = tx.QueryRowContext(ctx,
-		`SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active
-		FROM master
-		WHERE uuid = $1`,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at
+			   FROM master
+			   WHERE uuid = $1`,
 		id,
 	).Scan(
 		&master.ID, &master.UUID, &master.Name,
 		&master.Type, &master.Description, &master.Version,
-		&master.CreatedAt, &master.UpdatedAt, &master.IsActive,
+		&master.CreatedAt, &master.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -286,9 +275,9 @@ func (r *DefaultMasterRepository) Update(ctx context.Context, master *Master) er
 
 	result, err := tx.ExecContext(ctx,
 		`UPDATE master 
-		 SET name = $1, description = $2, is_active = $3, version = version + 1, updated_at = NOW()
-		 WHERE id = $4 AND version = $5 AND type = $6`,
-		master.Name, master.Description, master.IsActive,
+				SET name = $1, description = $2, version = version + 1, updated_at = NOW()
+				WHERE id = $3 AND version = $4 AND type = $5`,
+		master.Name, master.Description,
 		master.ID, master.Version, master.Type)
 	if err != nil {
 		pqErr := &pq.Error{}
@@ -321,7 +310,7 @@ func (r *DefaultMasterRepository) Update(ctx context.Context, master *Master) er
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	master.Version++
+	// Version is now a string (e.g., "1.0.0"); incrementing is not supported.
 	return nil
 }
 
@@ -556,9 +545,9 @@ func (r *DefaultMasterRepository) UpdateWithTransaction(ctx context.Context, tx 
 
 	result, err := tx.ExecContext(ctx,
 		`UPDATE master 
-		 SET name = $1, description = $2, is_active = $3, version = version + 1, updated_at = NOW()
-		 WHERE id = $4 AND version = $5 AND type = $6`,
-		master.Name, master.Description, master.IsActive,
+				SET name = $1, description = $2, version = version + 1, updated_at = NOW()
+				WHERE id = $3 AND version = $4 AND type = $5`,
+		master.Name, master.Description,
 		master.ID, master.Version, master.Type)
 	if err != nil {
 		pqErr := &pq.Error{}
@@ -587,7 +576,7 @@ func (r *DefaultMasterRepository) UpdateWithTransaction(ctx context.Context, tx 
 		return ErrMasterVersionConflict
 	}
 
-	master.Version++
+	// Version is now a string (e.g., "1.0.0"); incrementing is not supported.
 	return nil
 }
 
@@ -595,13 +584,13 @@ func (r *DefaultMasterRepository) UpdateWithTransaction(ctx context.Context, tx 
 // If both are provided, UUID takes precedence. Returns nil if not found.
 func (r *DefaultMasterRepository) LookupByUUIDOrID(ctx context.Context, uuidStr, idStr string) (*Master, error) {
 	var (
-		query  = `SELECT id, uuid, name, type, description, version, created_at, updated_at, is_active FROM master WHERE (uuid = $1 OR id::text = $2) LIMIT 1`
+		query  = `SELECT id, uuid, name, type, description, version, created_at, updated_at FROM master WHERE (uuid = $1 OR id::text = $2) LIMIT 1`
 		master = &Master{}
 	)
 	err := r.GetDB().QueryRowContext(ctx, query, uuidStr, idStr).Scan(
 		&master.ID, &master.UUID, &master.Name, &master.Type,
 		&master.Description, &master.Version, &master.CreatedAt,
-		&master.UpdatedAt, &master.IsActive)
+		&master.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrMasterNotFound

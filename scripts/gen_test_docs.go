@@ -1,4 +1,4 @@
-package main
+package scripts
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/tester"
 )
 
-func main() {
+func GenerateTestDocsMain() {
 	// Example: create a dummy suite for demonstration. In practice, import your real suite definitions.
 	scenarios := []*metadata.TestScenario{
 		{
@@ -30,14 +30,14 @@ func main() {
 		panic(err)
 	}
 	outputFile := filepath.Join(outputDir, "nexus_benchmarks.md")
-	if err := writeDocs(outputFile, docs); err != nil {
+	if err := writeTestDocs(outputFile, docs); err != nil {
 		panic(err)
 	}
 	fmt.Printf("Test documentation generated: %s\n", outputFile)
 }
 
 // writeDocs writes the generated documentation to a file.
-func writeDocs(outputFile, docs string) error {
+func writeTestDocs(outputFile, docs string) error {
 	if err := os.WriteFile(outputFile, []byte(docs), 0o600); err != nil {
 		return fmt.Errorf("failed to write docs: %w", err)
 	}

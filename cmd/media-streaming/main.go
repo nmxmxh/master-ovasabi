@@ -104,28 +104,6 @@ func (nc *NexusClient) emitEvent(ctx context.Context, eventType, entityID string
 	}
 }
 
-// Registers the service as a pattern in Nexus.
-func (nc *NexusClient) registerPattern(ctx context.Context, campaignID int64, meta *commonpb.Metadata) {
-	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	def := &commonpb.IntegrationPattern{ // Corrected field names
-		Id:          "media-streaming",
-		Description: "Multi-modal, campaign/context-aware media streaming service",
-	}
-	_, err := nc.Client.RegisterPattern(reqCtx, &nexusv1.RegisterPatternRequest{
-		PatternId:   "media-streaming",
-		PatternType: "media",
-		Version:     "1.0.0",
-		Origin:      "manual",
-		Definition:  def,
-		Metadata:    meta,
-		CampaignId:  campaignID,
-	})
-	if err != nil {
-		log.Printf("ERROR: Failed to register pattern with Nexus: %v", err)
-	}
-}
-
 // NewServer creates a new Server instance.
 func NewServer(logger *zap.Logger, nexusClient *NexusClient) *Server {
 	return &Server{
@@ -496,7 +474,6 @@ func main() {
 	}
 	nexusCampaignID = campaignID
 
-	nexusClient.registerPattern(appCtx, campaignID, meta)
 	server.subscribeToNexusEvents(appCtx, campaignID, meta)
 
 	sig := make(chan os.Signal, 1) // Buffered channel for signals

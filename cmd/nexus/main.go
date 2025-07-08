@@ -20,6 +20,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/database/connect"
 	"github.com/nmxmxh/master-ovasabi/internal/config"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
+	"github.com/nmxmxh/master-ovasabi/scripts"
 )
 
 func main() {
@@ -35,9 +36,11 @@ func main() {
 	log := centralLogger.GetZapLogger()
 	zap.ReplaceGlobals(log)
 
+	// ...existing code...
+
 	addr := os.Getenv("NEXUS_GRPC_ADDR")
 	if addr == "" {
-		addr = ":50052"
+		addr = "nexus:50052"
 	}
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -58,8 +61,10 @@ func main() {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
+		log.Error("Failed to load config", zap.Error(err))
 		panic("Failed to load config: " + err.Error())
 	}
+	// ...existing code...
 
 	// Connect to Postgres using central connect package
 	db, err := connect.ConnectPostgres(context.Background(), log, cfg)
@@ -69,11 +74,42 @@ func main() {
 		return
 	}
 
+	// --- Service Registry Seeding ---
+	// Seed the service_registry table from config/service_registration.json if empty
+	// Only run if not already seeded, and improve logging
+	// Use the correct DB_HOST based on the actual database service name in Docker Compose
+	dbService := os.Getenv("DB_HOST")
+	if dbService == "" {
+		dbService = "postgres" // matches the service name in docker-compose.yml
+		os.Setenv("DB_HOST", dbService)
+	}
+	seeded, seedErr := scripts.SeedServiceRegistry()
+	if seedErr != nil {
+		log.Error("Service registry seeding failed", zap.Error(seedErr), zap.String("db_host", dbService))
+	} else if seeded {
+		log.Info("Service registry seeded from config/service_registration.json", zap.String("db_host", dbService))
+	} else {
+		log.Info("Service registry already seeded, skipping JSON import.", zap.String("db_host", dbService))
+	}
+	// --- End Service Registry Seeding ---
+
 	// Create master repository
 	masterRepo := repository.NewMasterRepository(db, log)
 
 	// Create Nexus repository
 	nexusRepo := nexus.NewRepository(db, masterRepo)
+
+	// Refactored: Log file info for service_registration.json before creating Nexus service
+	if info, statErr := os.Stat("config/service_registration.json"); statErr != nil {
+		log.Warn("service_registration.json missing or inaccessible", zap.Error(statErr))
+	} else if info.IsDir() {
+		log.Error("service_registration.json is a directory, expected a file")
+	} else if info.Size() == 0 {
+		log.Error("service_registration.json is empty")
+	} else {
+		log.Info("service_registration.json present",
+			zap.Int64("size", info.Size()))
+	}
 
 	// Create the Nexus service implementation
 	nexusService := servernexus.NewNexusServer(log, cache, nexusRepo)

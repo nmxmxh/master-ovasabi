@@ -1,19 +1,19 @@
-import styled from "styled-components";
-import Logo from "../icons/logo";
-import ClockDark from "../icons/clock-dark";
-import ClockHandsDiv from "../icons/clock-dark/hands";
-import { useUIStore } from "../../store/global";
-import ClockLight from "../icons/clock-light";
+import styled from 'styled-components';
+import Logo from '../icons/logo';
+import ClockDark from '../icons/clock-dark';
+import ClockHandsDiv from '../icons/clock-dark/hands';
+import { useProfileStore } from '../../lib/hooks/useProfile';
+import ClockLight from '../icons/clock-light';
 
 export function ComingSoon() {
-  const theme = useUIStore((state) => state.theme);
+  const theme = useProfileStore(state => state.profile?.ui_state?.theme ?? 'light');
   return (
     <Style.Container>
       <figure className="logo">
         <Logo />
       </figure>
       <figure className="clock">
-        {theme === "dark" ? <ClockDark className="clock-face" /> : <ClockLight />}
+        {theme === 'dark' ? <ClockDark className="clock-face" /> : <ClockLight />}
         <ClockHandsDiv $theme={theme} className="clock-hands" />
       </figure>
       <hgroup>
@@ -79,7 +79,7 @@ const Style = {
       align-items: center;
 
       h1 {
-        font-family: "geist";
+        font-family: 'geist';
         font-weight: 600;
         font-size: 4.5dvh;
         line-height: 120%;
@@ -91,7 +91,7 @@ const Style = {
       }
 
       h2 {
-        font-family: "gordita";
+        font-family: 'gordita';
         font-weight: 500;
         font-size: 18px;
         line-height: 150%;
@@ -99,5 +99,5 @@ const Style = {
         text-align: center;
       }
     }
-  `,
+  `
 };

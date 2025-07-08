@@ -6,6 +6,13 @@ WORKDIR /wasm
 COPY wasm/go.mod wasm/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY wasm/ .
+# Log and fail if service_registration.json is missing before COPY
+RUN if [ ! -f config/service_registration.json ]; then \
+  echo "[DOCKER] ERROR: config/service_registration.json is missing! Docker will create a directory if this file is absent."; \
+  exit 1; \
+  fi
+# Copy service_registration.json for embedding
+COPY config/service_registration.json ./config/service_registration.json
 # Build the WASM binary and place it in a known location.
 RUN --mount=type=cache,target=/go/pkg/mod GOOS=js GOARCH=wasm go build -o /wasm/main.wasm .
 

@@ -112,8 +112,30 @@ lint-safe:
 dev:
 	$(GOCMD) run ./cmd/server
 
+# --- TypeScript Proto Codegen for Frontend ---
+# Usage: make ts-proto
+ts-proto:
+	@echo "Generating TypeScript code from protobufs for frontend (using ts-proto)..."
+	@cd frontend && yarn install --silent
+	@mkdir -p frontend/protos
+	@for proto_dir in $(shell find $(PROTO_PATH) -mindepth 1 -maxdepth 1 -type d); do \
+		latest_version_dir=$$(ls -d $$proto_dir/v*/ 2>/dev/null | sort -V | tail -n 1); \
+		if [ -d "$$latest_version_dir" ]; then \
+			echo "Processing protos in $$latest_version_dir..."; \
+			for proto_file in $$(find $$latest_version_dir -name '*.proto'); do \
+				npx -y protoc \
+					-I=$(PROTO_PATH) \
+					--plugin=protoc-gen-ts_proto=frontend/node_modules/.bin/protoc-gen-ts_proto \
+					--ts_proto_out=frontend/protos \
+					--ts_proto_opt=esModuleInterop=true,forceLong=string,useOptionals=messages \
+					$$proto_file; \
+			done; \
+		fi \
+	done
+	@echo "TypeScript proto generation complete. Output in frontend/protos"
+
 # Docker Compose Commands
-docker-build: proto
+docker-build: proto check-service-registration
 	$(DOCKER_COMPOSE) build
 
 docker-slim-all:
@@ -142,7 +164,7 @@ docker-restart-app:
 #   make docker-clean         # Safe cleanup: build cache, images, containers, volumes
 #   make docker-clean ALL=1   # Aggressive: also does full system prune (removes ALL unused images, containers, networks, and volumes)
 
-docker-clean:
+docker-clean: check-service-registration
 	@echo "[docker-clean] Pruning Docker build cache (this will free the most space)..."
 	docker builder prune -a -f
 	@echo "[docker-clean] Pruning unused Docker images..."
@@ -162,6 +184,29 @@ ifneq ($(ALL),)
 	fi
 endif
 	@echo "[docker-clean] Docker cleanup complete!"
+
+# Comprehensive Docker cleanup - removes orphaned volumes, build cache, and unused resources
+docker-cleanup-all: check-service-registration
+	@echo "🧹 Starting comprehensive Docker cleanup..."
+	@echo "📊 Before cleanup:"
+	@docker system df
+	@echo ""
+	@echo "🗑️  Removing orphaned volumes..."
+	docker volume prune -f
+	@echo "🗑️  Removing build cache (this will free the most space)..."
+	docker builder prune -a -f
+	@echo "🗑️  Removing unused images..."
+	docker image prune -a -f
+	@echo "🗑️  Removing unused containers..."
+	docker container prune -f
+	@echo "🗑️  Removing unused networks..."
+	docker network prune -f
+	@echo "🗑️  Removing docker-slim artifacts..."
+	docker images | grep '\.slim$$' | awk '{print $$1 ":" $$2}' | xargs -r docker rmi || true
+	@echo ""
+	@echo "📊 After cleanup:"
+	@docker system df
+	@echo "✅ Docker cleanup complete!"
 
 # Scan Docker image with Trivy
 trivy-scan:
@@ -271,6 +316,9 @@ dev-k8s: docker-build k8s-set-context k8s-deploy
 
 # Amadeus Backup Commands
 backup:
+	@echo "Ensuring wasm/config directory exists and copying config/service_registration.json for WASM embedding..."
+	@mkdir -p wasm/config
+	@cp -f config/service_registration.json wasm/config/service_registration.json
 	@echo "Creating comprehensive Amadeus Knowledge Graph backup..."
 	@if [ ! -f "bin/kgcli" ]; then \
 		echo "Building kgcli tool first..."; \
@@ -671,3 +719,10 @@ kg-help:
 	   @echo "  kg-get-pattern   - Output a specific pattern by name (use NAME=...)";
 	   @echo "  kg-delete-service - Delete a service by name (use NAME=...)";
 	   @echo "  kg-delete-pattern - Delete a pattern by name (use NAME=...)";
+
+# Check that config/service_registration.json is a file (not a directory) before building Docker images
+check-service-registration:
+	@if [ ! -f config/service_registration.json ]; then \
+	  echo "ERROR: config/service_registration.json must be a file, not a directory!"; \
+	  exit 1; \
+	fi

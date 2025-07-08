@@ -75,6 +75,20 @@ func (kb *KeyBuilder) BuildTemp(entity, id string) string {
 	return kb.Build(entity, fmt.Sprintf("temp:%s", id))
 }
 
+// BuildEventKey creates a canonical event/Redis key: {service}:{action}:v{version}:{state}[:{id}]
+func (kb *KeyBuilder) BuildEventKey(action, version, state, id string) string {
+	parts := []string{
+		kb.namespace,  // service
+		action,        // action
+		"v" + version, // version
+		state,         // state
+	}
+	if id != "" {
+		parts = append(parts, id)
+	}
+	return strings.Join(parts, ":")
+}
+
 // Parse extracts components from a Redis key.
 func (kb *KeyBuilder) Parse(key string) map[string]string {
 	parts := strings.Split(key, ":")

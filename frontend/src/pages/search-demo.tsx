@@ -1,52 +1,13 @@
-import { useState } from 'react';
-import PublicLayout from '../components/shared/layouts/public';
-import { useWebSocketSearch } from '../lib/hooks/useWebSocketSearch';
 import styled from 'styled-components';
+import PublicLayout from '../components/shared/layouts/public';
+import { SearchExample } from '../components/SearchExample';
 
 export default function SearchDemoPage() {
-  const [query, setQuery] = useState('');
-  const [typed, setTyped] = useState(false);
-  const { connected, results, loading, error, search } = useWebSocketSearch();
-
-  // Suggestive search: send search on input change (debounced in real app)
-  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setQuery(value);
-    setTyped(true);
-    if (value.trim().length > 1) {
-      search({ query: value, page_size: 5 });
-    }
-  };
-
   return (
     <PublicLayout>
       <Style.Container>
         <h1>Suggestive Search Demo</h1>
-        <Style.SearchBox>
-          <input
-            type="text"
-            placeholder="Type to search..."
-            value={query}
-            onChange={handleInput}
-            disabled={!connected}
-            autoFocus
-          />
-          {loading && <span className="loading">Searching...</span>}
-        </Style.SearchBox>
-        {error && <Style.Error>{error}</Style.Error>}
-        {typed && results && results.results && results.results.length > 0 && (
-          <Style.Suggestions>
-            {results.results.map((item: any, idx: number) => (
-              <li key={item.id || idx}>
-                <strong>{item.fields?.title || item.id || 'Untitled'}</strong>
-                {item.fields?.snippet && <p>{item.fields.snippet}</p>}
-              </li>
-            ))}
-          </Style.Suggestions>
-        )}
-        {typed && results && results.results && results.results.length === 0 && !loading && (
-          <Style.NoResults>No results found.</Style.NoResults>
-        )}
+        <SearchExample />
       </Style.Container>
     </PublicLayout>
   );

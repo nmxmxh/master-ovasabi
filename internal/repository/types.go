@@ -43,10 +43,9 @@ type Master struct {
 	Name        string     `db:"name"`
 	Type        EntityType `db:"type"`
 	Description string     `db:"description"`
-	Version     int        `db:"version"`
+	Version     string     `db:"version"`
 	CreatedAt   time.Time  `db:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at"`
-	IsActive    bool       `db:"is_active"`
 }
 
 // Remove duplicate MasterRepository interface definition from here.

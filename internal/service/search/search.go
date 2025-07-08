@@ -1,3 +1,4 @@
+// ...existing code...
 package search
 
 import (
@@ -113,9 +114,18 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 // This pattern is additive: gRPC/REST APIs remain fully supported.
 // ------------------------------------------------
 
-// HandleSearchRequestedEvent processes a search.requested event and emits search.completed.
-func (s *Service) HandleSearchRequestedEvent(ctx context.Context, event *nexusv1.EventResponse) {
-	// Unmarshal event payload to SearchRequest
+// handleSearchAction is the generic business logic handler for the "search" action, used by the generic event handler.
+func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	// Emit 'started' event at the beginning of processing
+	meta := event.Metadata
+	if s.eventEnabled && s.eventEmitter != nil {
+		startedEvent := &nexusv1.EventResponse{
+			EventType: GetCanonicalEventType("started"),
+			EventId:   event.EventId,
+			Metadata:  meta,
+		}
+		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, startedEvent.EventType, startedEvent.EventId, startedEvent.Metadata)
+	}
 	if event == nil || event.Payload == nil {
 		s.log.Warn("search.requested event missing payload")
 		return
@@ -131,24 +141,36 @@ func (s *Service) HandleSearchRequestedEvent(ctx context.Context, event *nexusv1
 			}
 		}
 	}
-	// Reuse core search logic (do not emit duplicate events)
+
 	query := req.GetQuery()
 	page := int(req.GetPageNumber())
 	pageSize := int(req.GetPageSize())
-	meta := req.GetMetadata()
+	meta = req.GetMetadata()
 	types := req.GetTypes()
 	if len(types) == 0 {
 		types = []string{"content"}
 	}
+
 	results, total, err := s.repo.SearchAllEntities(ctx, types, query, meta, req.GetCampaignId(), page, pageSize)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "event-driven search failed", err)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+				Log:          s.log,
+				Metadata:     meta,
+				EventEmitter: s.eventEmitter,
+				EventEnabled: s.eventEnabled,
+				EventType:    GetCanonicalEventType("failed"),
+				EventID:      query,
+				PatternType:  "search",
+				PatternID:    query,
+				PatternMeta:  meta,
+			})
 		}
 		return
 	}
+
 	protos := make([]*searchpb.SearchResult, 0, len(results))
 	for _, r := range results {
 		protos = append(protos, &searchpb.SearchResult{
@@ -164,24 +186,7 @@ func (s *Service) HandleSearchRequestedEvent(ctx context.Context, event *nexusv1
 		PageNumber: utils.ToInt32(page),
 		PageSize:   utils.ToInt32(pageSize),
 	}
-	// Marshal response as Payload
-	b, err := protojson.Marshal(resp)
-	if err != nil {
-		s.log.Error("failed to marshal search response", zap.Error(err))
-		return
-	}
-	respStruct, err := structpb.NewStruct(map[string]interface{}{})
-	if err == nil {
-		if err := protojson.Unmarshal(b, respStruct); err != nil {
-			s.log.Error("failed to unmarshal search response", zap.Error(err))
-			return
-		}
-	}
-	// Emit search.completed event
-	if s.eventEmitter != nil && s.eventEnabled {
-		_, _ = s.eventEmitter.EmitEventWithLogging(ctx, s, s.log, "search.completed", query, meta)
-	}
-	// Orchestrate success
+
 	success := graceful.WrapSuccess(ctx, codes.OK, "event-driven search completed", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
 		Log:          s.log,
@@ -192,7 +197,7 @@ func (s *Service) HandleSearchRequestedEvent(ctx context.Context, event *nexusv1
 		Metadata:     meta,
 		EventEmitter: s.eventEmitter,
 		EventEnabled: s.eventEnabled,
-		EventType:    "search.completed",
+		EventType:    GetCanonicalEventType("completed"),
 		EventID:      query,
 		PatternType:  "search",
 		PatternID:    query,
@@ -206,11 +211,6 @@ func (s *Service) WithinSearch(ctx context.Context, req *searchpb.SearchRequest)
 	// Validate request
 	if err := s.validateSearchRequest(ctx, req); err != nil {
 		return nil, err
-	}
-
-	// Emit search.requested event for audit/traceability
-	if s.eventEmitter != nil && s.eventEnabled {
-		_, _ = s.eventEmitter.EmitEventWithLogging(ctx, s, s.log, "search.requested", req.GetQuery(), req.GetMetadata())
 	}
 
 	query := req.GetQuery()
@@ -227,7 +227,17 @@ func (s *Service) WithinSearch(ctx context.Context, req *searchpb.SearchRequest)
 		err = graceful.WrapErr(ctx, codes.Internal, "search failed", err)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
+				Log:          s.log,
+				Metadata:     meta,
+				EventEmitter: s.eventEmitter,
+				EventEnabled: s.eventEnabled,
+				EventType:    GetCanonicalEventType("failed"),
+				EventID:      query,
+				PatternType:  "search",
+				PatternID:    query,
+				PatternMeta:  meta,
+			})
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -249,11 +259,6 @@ func (s *Service) WithinSearch(ctx context.Context, req *searchpb.SearchRequest)
 		PageSize:   utils.ToInt32(pageSize),
 	}
 
-	// After search, emit search.completed event for real-time updates
-	if s.eventEmitter != nil && s.eventEnabled {
-		_, _ = s.eventEmitter.EmitEventWithLogging(ctx, s, s.log, "search.completed", req.GetQuery(), req.GetMetadata())
-	}
-
 	success := graceful.WrapSuccess(ctx, codes.OK, "search completed", resp, nil)
 	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
 		Log:          s.log,
@@ -264,7 +269,7 @@ func (s *Service) WithinSearch(ctx context.Context, req *searchpb.SearchRequest)
 		Metadata:     meta,
 		EventEmitter: s.eventEmitter,
 		EventEnabled: s.eventEnabled,
-		EventType:    "search.completed",
+		EventType:    GetCanonicalEventType("completed"),
 		EventID:      query,
 		PatternType:  "search",
 		PatternID:    query,

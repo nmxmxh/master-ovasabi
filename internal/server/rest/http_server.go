@@ -21,7 +21,10 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container, httpAddr string
 	// ws.RegisterWebSocketHandlers(mux, log, container, nil)
 
 	mux.HandleFunc("/api/media/upload", handlers.MediaOpsHandler(container))
-	mux.HandleFunc("/api/campaigns/", func(w http.ResponseWriter, r *http.Request) {
+	// --- Proto Descriptor Endpoints ---
+	mux.HandleFunc("/api/proto/descriptors", handlers.ProtoDescriptorHTTPHandler)
+	mux.HandleFunc("/ws/proto/descriptors", handlers.ProtoDescriptorWebSocketHandler)
+	mux.HandleFunc("/api/campaigns_ops/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/state") && r.Method == http.MethodGet {
 			if strings.Contains(r.URL.Path, "/user/") {
 				handlers.CampaignUserStateHandler(container)(w, r)
@@ -36,22 +39,22 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container, httpAddr string
 		}
 		w.WriteHeader(http.StatusNotFound)
 	})
-	mux.HandleFunc("/api/campaign", handlers.CampaignOpsHandler(container))
-	mux.HandleFunc("/api/notification", handlers.NotificationHandler(container)) // Still NotificationHandler, not NotificationOpsHandler
-	mux.HandleFunc("/api/referral", handlers.ReferralOpsHandler(container))
-	mux.HandleFunc("/api/content", handlers.ContentOpsHandler(container))
-	mux.HandleFunc("/api/analytics", handlers.AnalyticsOpsHandler(container))
-	mux.HandleFunc("/api/product", handlers.ProductOpsHandler(container))
-	mux.HandleFunc("/api/commerce", handlers.CommerceOpsHandler(container))
+	mux.HandleFunc("/api/campaign_ops", handlers.CampaignOpsHandler(container))
+	mux.HandleFunc("/api/notification_ops", handlers.NotificationHandler(container)) // Still NotificationHandler, not NotificationOpsHandler
+	mux.HandleFunc("/api/referral_ops", handlers.ReferralOpsHandler(container))
+	mux.HandleFunc("/api/content_ops", handlers.ContentOpsHandler(container))
+	mux.HandleFunc("/api/analytics_ops", handlers.AnalyticsOpsHandler(container))
+	mux.HandleFunc("/api/product_ops", handlers.ProductOpsHandler(container))
+	mux.HandleFunc("/api/commerce_ops", handlers.CommerceOpsHandler(container))
 	mux.HandleFunc("/api/user/auth", handlers.UserOpsHandler(container))
-	mux.HandleFunc("/api/localization", handlers.LocalizationOpsHandler(container))
-	mux.HandleFunc("/api/talent", handlers.TalentOpsHandler(container))
-	mux.HandleFunc("/api/admin", handlers.AdminOpsHandler(container))
-	mux.HandleFunc("/api/search", handlers.SearchOpsHandler(container))
-	mux.HandleFunc("/api/waitlist", handlers.WaitlistOpsHandler(container))
+	mux.HandleFunc("/api/localization_ops", handlers.LocalizationOpsHandler(container))
+	mux.HandleFunc("/api/talent_ops", handlers.TalentOpsHandler(container))
+	mux.HandleFunc("/api/admin_ops", handlers.AdminOpsHandler(container))
+	mux.HandleFunc("/api/search_ops", handlers.SearchOpsHandler(container))
+	mux.HandleFunc("/api/waitlist_ops", handlers.WaitlistOpsHandler(container))
 
 	// Register the NexusOpsHandler for /api/nexus
-	mux.Handle("/api/nexus", handlers.NewNexusOpsHandler(container, log))
+	mux.Handle("/api/nexus_ops", handlers.NewNexusOpsHandler(container, log))
 
 	// --- INJECT METAVERSION MIDDLEWARE HERE ---
 	// In production, pass evaluator from main server setup.

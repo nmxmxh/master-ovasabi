@@ -5,12 +5,76 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"runtime"
 	"sync"
 	"syscall/js"
+
+	"unsafe"
 )
+
+// --- Shared Buffer for WASM/JS Interop ---
+// This buffer is exposed to JS/React as a shared ArrayBuffer for real-time/animation state.
+// The frontend can access it via window.getSharedBuffer().
+
+var sharedBuffer = make([]float32, 1024) // Example: 1024 floats for animation/state
+
+// getSharedBuffer returns a JS ArrayBuffer view of the shared buffer
+func getSharedBuffer(this js.Value, args []js.Value) interface{} {
+	// Convert []float32 to []byte without allocation
+	hdr := (*[1 << 30]byte)(unsafe.Pointer(&sharedBuffer[0]))[: len(sharedBuffer)*4 : len(sharedBuffer)*4]
+	uint8Array := js.Global().Get("Uint8Array").New(len(hdr))
+	js.CopyBytesToJS(uint8Array, hdr)
+	return uint8Array.Get("buffer")
+}
+
+//go:embed config/service_registration.json
+var embeddedServiceRegistration embed.FS
+
+func getEmbeddedServiceRegistration() []byte {
+	data, err := embeddedServiceRegistration.ReadFile("config/service_registration.json")
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+// emitToNexus sends event results/state to the Nexus event bus (not directly to frontend)
+func emitToNexus(eventType string, payload interface{}, metadata json.RawMessage) {
+	// Validate metadata and correlation_id
+	var metaMap map[string]interface{}
+	if err := json.Unmarshal(metadata, &metaMap); err != nil {
+		log("[NEXUS ERROR] Invalid metadata (not JSON object):", err)
+		return
+	}
+	if _, ok := metaMap["correlation_id"]; !ok {
+		log("[NEXUS WARN] Event missing correlation_id in metadata:", eventType)
+	}
+	// Optionally, validate other required fields (campaign, user, device, session, etc.)
+
+	env := EventEnvelope{
+		Type:     eventType,
+		Metadata: metadata,
+	}
+	if payload != nil {
+		if b, err := json.Marshal(payload); err == nil {
+			env.Payload = b
+		}
+	}
+
+	// Marshal the envelope to JSON for sending over WebSocket (Nexus bus)
+	envelopeBytes, err := json.Marshal(env)
+	if err != nil {
+		log("[NEXUS ERROR] Failed to marshal EventEnvelope:", err)
+		return
+	}
+
+	// Send to Nexus event bus via WebSocket (reuse sendWSMessage)
+	sendWSMessage(0, envelopeBytes)
+	log("[NEXUS EMIT]", env.Type, string(env.Payload))
+}
 
 // --- Constants and Global State ---
 const (
@@ -26,6 +90,14 @@ var (
 	computeQueue = make(chan computeTask, 32)
 	eventBus     *WASMEventBus // Our internal WASM event bus
 )
+
+func notifyFrontendReady() {
+	if handler := js.Global().Get("onWasmReady"); handler.Type() == js.TypeFunction {
+		handler.Invoke()
+	} else {
+		log("[WASM] onWasmReady called but no handler registered")
+	}
+}
 
 // EventEnvelope mirrors the Nexus unified event envelope
 type EventEnvelope struct {
@@ -113,6 +185,7 @@ func configureWebSocketCallbacks() {
 	ws.Set("onopen", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		log("[WASM] WebSocket connection opened.")
 		sendWSMessage(0, []byte(`{"type":"ping"}`)) // JSON ping
+		notifyFrontendReady()                       // Notify JS/React that WASM is ready and connected
 		return nil
 	}))
 
@@ -318,43 +391,132 @@ func (eb *WASMEventBus) GetHandler(msgType string) func(EventEnvelope) {
 	return eb.handlers[msgType]
 }
 
-// --- Main Initialization ---
-func main() {
-	log("[WASM] Starting optimized WASM client")
+// --- Canonical event type registration and generic handler (per communication standards) ---
+// See docs/communication_standards.md for the canonical event type format: {service}:{action}:v{version}:{state}
 
-	// Initialize core systems
-	initUserSession()
-	eventBus = NewWASMEventBus() // Initialize the event bus
-	initWebSocket()
+var canonicalEventTypeSet map[string]struct{}
+var canonicalEventTypes []string
+var canonicalEventTypesLoaded bool
 
-	// Start processing pipelines
-	go processMessages()
-	go processComputeTasks()
-
-	// Expose APIs to JavaScript
-	js.Global().Set("infer", js.FuncOf(jsInfer))
-	js.Global().Set("migrateUser", js.FuncOf(jsMigrateUser))
-	js.Global().Set("sendBinary", js.FuncOf(jsSendBinary))
-	// Expose a function that lets JS submit a task to the Go compute queue.
-	// The task itself is a JS function that will be invoked by a Go worker goroutine.
-	js.Global().Set("submitGPUTask", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		if len(args) < 2 || !args[0].InstanceOf(js.Global().Get("Function")) || !args[1].InstanceOf(js.Global().Get("Function")) {
-			return nil
+// loadCanonicalEventTypes parses service_registration.json and generates all canonical event types
+func loadCanonicalEventTypes() {
+	if canonicalEventTypesLoaded {
+		return
+	}
+	canonicalEventTypeSet = make(map[string]struct{})
+	var services []map[string]interface{}
+	data := getEmbeddedServiceRegistration()
+	if len(data) == 0 {
+		log("[WASM] Embedded service_registration.json is empty or missing! Cannot load canonical event types.")
+		return
+	}
+	if err := json.Unmarshal(data, &services); err != nil {
+		log("[WASM] Could not parse embedded service_registration.json:", err)
+		return
+	}
+	var states = []string{"requested", "started", "success", "failed", "completed"}
+	for _, svc := range services {
+		service, _ := svc["name"].(string)
+		version, _ := svc["version"].(string)
+		endpoints, ok := svc["endpoints"].([]interface{})
+		if !ok {
+			continue
 		}
-		taskFunc, callbackFunc := args[0], args[1]
-		submitGPUTask(func() { taskFunc.Invoke() }, callbackFunc)
-		return nil
-	}))
-
-	// Register core message handlers (now accept EventEnvelope)
-	eventBus.RegisterHandler("gpu_frame", handleGPUFrame)
-	eventBus.RegisterHandler("state_update", handleStateUpdate)
-
-	// Keep running without blocking main thread
-	select {}
+		for _, ep := range endpoints {
+			epm, ok := ep.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			actions, ok := epm["actions"].([]interface{})
+			if !ok {
+				continue
+			}
+			for _, act := range actions {
+				action, ok := act.(string)
+				if !ok {
+					continue
+				}
+				for _, state := range states {
+					et := service + ":" + action + ":" + version + ":" + state
+					canonicalEventTypeSet[et] = struct{}{}
+				}
+			}
+		}
+	}
+	// Convert set to slice for registration
+	for et := range canonicalEventTypeSet {
+		canonicalEventTypes = append(canonicalEventTypes, et)
+	}
+	canonicalEventTypesLoaded = true
+	log("[WASM] Loaded canonical event types:", canonicalEventTypes)
 }
 
-// --- JS Function Wrappers ---
+// Register all canonical event types with the generic handler at startup
+func registerAllCanonicalEventHandlers() {
+	loadCanonicalEventTypes()
+	for _, et := range canonicalEventTypes {
+		eventBus.RegisterHandler(et, genericEventHandler)
+	}
+}
+
+// jsSendWasmMessage is the function JS will call: window.sendWasmMessage(msg)
+func jsSendWasmMessage(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		log("[WASM] sendWasmMessage called with no arguments")
+		return nil
+	}
+	msg := args[0]
+	log("[WASM] sendWasmMessage received from JS:", msg)
+	var raw []byte
+	if msg.Type() == js.TypeString {
+		raw = []byte(msg.String())
+	} else if msg.InstanceOf(js.Global().Get("Object")) || msg.Type() == js.TypeObject {
+		eventObj := map[string]interface{}{}
+		keys := js.Global().Get("Object").Call("keys", msg)
+		for i := 0; i < keys.Length(); i++ {
+			k := keys.Index(i).String()
+			v := msg.Get(k)
+			switch v.Type() {
+			case js.TypeString:
+				eventObj[k] = v.String()
+			case js.TypeNumber:
+				eventObj[k] = v.Float()
+			case js.TypeBoolean:
+				eventObj[k] = v.Bool()
+			default:
+				jsonVal, err := json.Marshal(v)
+				if err == nil {
+					eventObj[k] = string(jsonVal)
+				} else {
+					eventObj[k] = nil
+				}
+			}
+		}
+		raw, _ = json.Marshal(eventObj)
+	} else {
+		jsonVal, err := json.Marshal(msg)
+		if err != nil {
+			log("[WASM] Failed to marshal JS message to JSON:", err)
+			return nil
+		}
+		raw = jsonVal
+	}
+	log("[WASM] Raw JSON from JS:", string(raw))
+	var event EventEnvelope
+	if err := json.Unmarshal(raw, &event); err != nil {
+		log("[WASM] Failed to unmarshal Nexus event from JS message:", err, string(raw))
+		return nil
+	}
+	log("[WASM] Nexus event received from JS:", event.Type)
+	if handler := eventBus.GetHandler(event.Type); handler != nil {
+		go handler(event)
+	} else {
+		log("[WASM] No handler registered for event type from JS:", event.Type)
+	}
+	return nil
+}
+
+// --- AI/ML Inference and Task Submission ---
 // jsInfer is exposed to JavaScript for performing inference.
 func jsInfer(this js.Value, args []js.Value) interface{} {
 	if len(args) == 0 {
@@ -381,7 +543,7 @@ func jsMigrateUser(this js.Value, args []js.Value) interface{} {
 // within the JSON EventEnvelope (e.g., base64 encoding).
 // For now, it sends a raw binary message with a 4-byte type prefix.
 func jsSendBinary(this js.Value, args []js.Value) interface{} {
-	if len(args) < 3 { // Expecting type, payload, metadata
+	if len(args) < 3 { // Expecting type, payload, and metadata
 		log("[WASM] sendBinary requires type, payload, and metadata arguments")
 		return nil
 	}
@@ -502,6 +664,23 @@ func handleStateUpdate(event EventEnvelope) {
 	}
 }
 
+// Generic event handler for all canonical event types, per communication standards
+func genericEventHandler(event EventEnvelope) {
+	// Log the event receipt with canonical event type
+	log("[WASM][", event.Type, "] State: received", string(event.Payload))
+
+	// Forward the event to all relevant channels (Nexus, WebSocket, etc.)
+	emitToNexus(event.Type, event.Payload, event.Metadata)
+	emitToWebSocket(event.Type, event.Payload, event.Metadata)
+	// Add more emitters as needed (e.g., Redis, gRPC, etc.)
+}
+
+// emitToWebSocket sends event results/state to the WebSocket channel (stub, to be implemented as needed)
+func emitToWebSocket(eventType string, payload json.RawMessage, metadata json.RawMessage) {
+	// Implement WebSocket emission logic here, e.g., using JS interop or a Go WebSocket client
+	log("[WS EMIT]", eventType, string(payload))
+}
+
 // --- Utility Functions ---
 func log(args ...interface{}) {
 	for i, arg := range args {
@@ -518,4 +697,59 @@ func log(args ...interface{}) {
 		}
 	}
 	js.Global().Get("console").Call("log", args...)
+}
+
+// --- Shared Buffer for WASM/JS Interop ---
+// This buffer is exposed to JS/React as a shared ArrayBuffer for real-time/animation state.
+// The frontend can access it via window.getSharedBuffer().
+
+// --- Main Initialization ---
+// main initializes the WASM client, registers all canonical event types, and ensures robust concurrency and event handling.
+// See docs/communication_standards.md and pkg/registration/generator.go for event type generation logic.
+func main() {
+	log("[WASM] Starting WASM client (canonical event system)")
+
+	// Expose sendWasmMessage to JS BEFORE anything else that might trigger onWasmReady
+	js.Global().Set("sendWasmMessage", js.FuncOf(jsSendWasmMessage))
+
+	// Expose getSharedBuffer for JS/React shared memory access
+	js.Global().Set("getSharedBuffer", js.FuncOf(getSharedBuffer))
+
+	// Expose getSharedBuffer for JS/React shared memory access
+	js.Global().Set("getSharedBuffer", js.FuncOf(getSharedBuffer))
+
+	// Initialize core systems
+	initUserSession()
+	eventBus = NewWASMEventBus() // Initialize the event bus
+	initWebSocket()
+
+	// Start processing pipelines (concurrent, non-blocking)
+	go processMessages()
+	go processComputeTasks()
+
+	// Expose APIs to JavaScript
+	js.Global().Set("infer", js.FuncOf(jsInfer))
+	js.Global().Set("migrateUser", js.FuncOf(jsMigrateUser))
+	js.Global().Set("sendBinary", js.FuncOf(jsSendBinary))
+	js.Global().Set("submitGPUTask", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		if len(args) < 2 || !args[0].InstanceOf(js.Global().Get("Function")) || !args[1].InstanceOf(js.Global().Get("Function")) {
+			return nil
+		}
+		taskFunc, callbackFunc := args[0], args[1]
+		submitGPUTask(func() { taskFunc.Invoke() }, callbackFunc)
+		return nil
+	}))
+
+	// Register core message handlers (now accept EventEnvelope)
+	eventBus.RegisterHandler("gpu_frame", handleGPUFrame)
+	eventBus.RegisterHandler("state_update", handleStateUpdate)
+
+	// Register all canonical event types with the generic handler at startup
+	registerAllCanonicalEventHandlers()
+
+	// The WASM event bus now supports all canonical event types in the format {service}:{action}:v{version}:{state}
+	// All event emission and handling is now generic and standards-compliant.
+
+	// Keep running without blocking main thread
+	select {}
 }

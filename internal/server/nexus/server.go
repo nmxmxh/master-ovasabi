@@ -36,9 +36,29 @@ type ServiceRegistry struct {
 
 // LoadServiceRegistry loads service registrations from a JSON file.
 func LoadServiceRegistry(path string) (*ServiceRegistry, error) {
-	data, err := os.ReadFile(filepath.Clean(path))
+	absPath, err := filepath.Abs(filepath.Clean(path))
 	if err != nil {
 		return nil, err
+	}
+	fi, err := os.Stat(absPath)
+	if err != nil {
+		return nil, err
+	}
+	if fi.IsDir() {
+		return nil, &os.PathError{Op: "open", Path: absPath, Err: os.ErrInvalid}
+	}
+	if fi.Size() == 0 {
+		return nil, &os.PathError{Op: "open", Path: absPath, Err: os.ErrInvalid}
+	}
+	file, err := os.Open(absPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	data := make([]byte, fi.Size())
+	n, err := file.Read(data)
+	if err != nil || int64(n) != fi.Size() {
+		return nil, &os.PathError{Op: "read", Path: absPath, Err: os.ErrInvalid}
 	}
 	var raw []ServiceRegistration
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -246,17 +266,23 @@ func hasEventType(set map[string]struct{}, eventType string) bool {
 
 // EmitEvent receives an event from a client and broadcasts it to all subscribers.
 func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nexusv1.EventResponse, error) {
-	s.log.Info("[Nexus] EmitEvent",
-		zap.String("event_type", req.EventType),
-		zap.String("entity_id", req.EntityId),
-		zap.String("code", "nexus/server.go:EmitEvent"),
-	)
+	// --- Canonical Event Type Validation ---
+	eventType := req.EventType
+	// Exception: allow "echo" event type for service-based hello world/testing
+	if !isCanonicalEventType(eventType) {
+		if eventType == "echo" {
+			s.log.Info("[Nexus] Special exception: accepting 'echo' event type", zap.String("event_type", eventType))
+		} else {
+			s.log.Warn("Non-canonical event type rejected", zap.String("event_type", eventType))
+			return &nexusv1.EventResponse{Success: false, Message: "Non-canonical event type", Metadata: req.Metadata}, nil
+		}
+	}
+
 	// Extract tracing span if present
 	span := trace.SpanFromContext(ctx)
 	var traceID string
 	if span != nil && span.SpanContext().IsValid() {
 		traceID = span.SpanContext().TraceID().String()
-		s.log.Info("Emitting event with tracing", zap.String("trace_id", traceID))
 	}
 
 	// Extract user_id if present in context
@@ -266,12 +292,22 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		userID = authCtx.UserID
 	}
 
+	// Extract campaign_id and user_id from payload.data if present
+	campaignID := ""
+	if req.Payload != nil && req.Payload.Data != nil && req.Payload.Data.Fields != nil {
+		if v, ok := req.Payload.Data.Fields["campaign_id"]; ok {
+			campaignID = v.GetStringValue()
+		}
+		if v, ok := req.Payload.Data.Fields["user_id"]; ok {
+			userID = v.GetStringValue()
+		}
+	}
+
 	// Enrich metadata: add trace_id and user_id under service_specific.nexus
 	meta := req.Metadata
 	if meta == nil {
 		meta = &commonpb.Metadata{}
 	}
-	// Defensive: ensure meta.ServiceSpecific and its Fields are always initialized
 	if meta.ServiceSpecific == nil {
 		meta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
 	}
@@ -279,8 +315,6 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	if ss.Fields == nil {
 		ss.Fields = map[string]*structpb.Value{}
 	}
-
-	// Get or create the 'nexus' map safely
 	var nexusMap map[string]*structpb.Value
 	if ss != nil {
 		v, hasNexus := ss.Fields["nexus"]
@@ -295,29 +329,53 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		if userID != "" {
 			nexusMap["user_id"] = structpb.NewStringValue(userID)
 		}
+		if campaignID != "" {
+			nexusMap["campaign_id"] = structpb.NewStringValue(campaignID)
+		}
 		ss.Fields["nexus"] = structpb.NewStructValue(&structpb.Struct{Fields: nexusMap})
 	}
 
 	resp := &nexusv1.EventResponse{
-		Success:  true,
-		Message:  req.EventType,
-		Metadata: meta,
+		Success:   true,
+		EventId:   req.EventId,
+		EventType: eventType,
+		Message:   eventType,
+		Metadata:  meta,
+		Payload:   req.Payload,
 	}
 
-	// --- Service-specific dispatch logic ---
-	// If service_specific is present, dispatch to each service listed in its fields
-	if ss != nil && len(ss.Fields) > 0 && s.registry != nil {
-		for serviceName := range ss.Fields {
-			svc, found := s.registry.Services[serviceName]
-			if found {
-				s.log.Info("Dispatching event to registered service", zap.String("service", serviceName), zap.String("event_type", req.EventType), zap.String("endpoint", svc.Endpoints[0].Path))
-				// Here you could forward the event to the service endpoint (e.g., HTTP/gRPC call)
-			} else {
-				s.log.Warn("Service not found in registry", zap.String("service", serviceName))
-			}
-		}
-	}
+	// --- Logging with full context ---
+	s.log.Info("[Nexus] EmitEvent",
+		zap.String("event_type", eventType),
+		zap.String("event_id", req.EventId),
+		zap.String("user_id", userID),
+		zap.String("campaign_id", campaignID),
+		zap.String("trace_id", traceID),
+	)
 
 	s.PublishEvent(resp)
 	return &nexusv1.EventResponse{Success: true, Message: "Event broadcasted", Metadata: resp.Metadata}, nil
+}
+
+// isCanonicalEventType validates event type format: {service}:{action}:v{version}:{state}
+func isCanonicalEventType(eventType string) bool {
+	// Allow the special echo event type for hello world/testing
+	if eventType == "echo" {
+		return true
+	}
+	parts := strings.Split(eventType, ":")
+	if len(parts) != 4 {
+		return false
+	}
+	// service: non-empty, action: non-empty, version: v[0-9]+, state: controlled vocab
+	service, action, version, state := parts[0], parts[1], parts[2], parts[3]
+	if service == "" || action == "" {
+		return false
+	}
+	if !strings.HasPrefix(version, "v") || len(version) < 2 {
+		return false
+	}
+	allowedStates := map[string]struct{}{"requested": {}, "started": {}, "success": {}, "failed": {}, "completed": {}}
+	_, ok := allowedStates[state]
+	return ok
 }
