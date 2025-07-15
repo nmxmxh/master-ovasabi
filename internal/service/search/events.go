@@ -2,15 +2,17 @@ package search
 
 import (
 	"context"
-	"encoding/json"
-	"os"
 	"strings"
+
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"go.uber.org/zap"
 )
 
 // CanonicalEventTypeRegistry provides lookup and validation for canonical event types.
+// CanonicalEventTypeRegistry provides lookup and validation for canonical event types.
+// Now keyed by action+state, e.g., "search:started", "suggest:started"
 var CanonicalEventTypeRegistry map[string]string
 
 // CanonicalPatternType is the pattern type for all search events (future-proof for multi-pattern services).
@@ -19,23 +21,24 @@ const CanonicalPatternType = "search"
 // InitCanonicalEventTypeRegistry initializes the canonical event type registry from service_registration.json.
 func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
-	events := loadSearchEvents()
-	for _, evt := range events {
-		// Example: evt = "search:search:v1:completed"; key = "completed"
-		// You may want to parse or split for more complex patterns.
+	evts := loadSearchEvents()
+	for _, evt := range evts {
+		// Example: evt = "search:search:v1:completed"; key = "search:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
-			CanonicalEventTypeRegistry[parts[3]] = evt
+			key := parts[1] + ":" + parts[3] // action:state
+			CanonicalEventTypeRegistry[key] = evt
 		}
 	}
 }
 
-// GetCanonicalEventType returns the canonical event type for a given state (e.g., "completed", "failed").
-func GetCanonicalEventType(state string) string {
+// GetCanonicalEventType returns the canonical event type for a given action and state (e.g., "search", "completed").
+func GetCanonicalEventType(action, state string) string {
 	if CanonicalEventTypeRegistry == nil {
 		InitCanonicalEventTypeRegistry()
 	}
-	if evt, ok := CanonicalEventTypeRegistry[state]; ok {
+	key := action + ":" + state
+	if evt, ok := CanonicalEventTypeRegistry[key]; ok {
 		return evt
 	}
 	return "" // or panic/log if strict
@@ -52,8 +55,6 @@ type EventSubscription struct {
 
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
-
-var handleSuggestAction ActionHandlerFunc
 
 // actionHandlers maps action names (e.g., "search", "suggest") to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{
@@ -79,56 +80,26 @@ func parseActionAndState(eventType string) (action, state string) {
 // HandleSearchServiceEvent is the generic event handler for all search service actions.
 func HandleSearchServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	eventType := event.GetEventType()
+	s.log.Info("[SearchService] Received event", zap.String("event_type", eventType), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
 	action, _ := parseActionAndState(eventType)
 	handler, ok := actionHandlers[action]
 	if !ok {
 		s.log.Warn("No handler for action", zap.String("action", action), zap.String("event_type", eventType))
 		return
 	}
+	// Defensive: Only process if eventType matches expected canonical event type for this action
+	expectedPrefix := "search:" + action + ":"
+	if !strings.HasPrefix(eventType, expectedPrefix) {
+		s.log.Warn("Event type does not match handler action, ignoring", zap.String("event_type", eventType), zap.String("expected_prefix", expectedPrefix))
+		return
+	}
+	s.log.Info("[SearchService] Dispatching to handler", zap.String("action", action), zap.String("event_type", eventType))
 	handler(ctx, s, event)
 }
 
-// loadSearchEvents loads canonical event types for the search service directly from service_registration.json.
+// Use generic canonical loader for event types
 func loadSearchEvents() []string {
-	file, err := os.Open("config/service_registration.json")
-	if err != nil {
-		return nil
-	}
-	defer file.Close()
-
-	var services []map[string]interface{}
-	if err := json.NewDecoder(file).Decode(&services); err != nil {
-		return nil
-	}
-
-	eventTypes := make([]string, 0)
-	for _, svc := range services {
-		if svc["name"] == "search" {
-			version, _ := svc["version"].(string)
-			endpoints, ok := svc["endpoints"].([]interface{})
-			if !ok {
-				continue
-			}
-			for _, ep := range endpoints {
-				epMap, ok := ep.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				actions, ok := epMap["actions"].([]interface{})
-				if !ok {
-					continue
-				}
-				for _, act := range actions {
-					if actStr, ok := act.(string); ok {
-						for _, state := range []string{"requested", "started", "success", "failed", "completed"} {
-							eventTypes = append(eventTypes, "search:"+actStr+":"+version+":"+state)
-						}
-					}
-				}
-			}
-		}
-	}
-	return eventTypes
+	return events.LoadCanonicalEvents("search")
 }
 
 // Register all canonical event types to the generic handler

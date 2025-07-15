@@ -18,6 +18,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -40,13 +41,14 @@ type Service struct {
 	subscribers   map[string][]chan *nexusv1.EventResponse
 	subscribersMu sync.RWMutex
 	// Event ordering fields for temporal conflict resolution
-	eventSequence uint64     // Monotonic sequence number for event ordering
-	eventMutex    sync.Mutex // Ensures atomic event emission
-	lastEventTime time.Time  // Track last event timestamp for conflict detection
+	eventSequence uint64              // Monotonic sequence number for event ordering
+	eventMutex    sync.Mutex          // Ensures atomic event emission
+	lastEventTime time.Time           // Track last event timestamp for conflict detection
+	eventEmitter  events.EventEmitter // Canonical event emitter for envelope emission
 }
 
 // NewService creates a new Nexus service.
-func NewService(repo *Repository, eventRepo nexus.EventRepository, cache *redis.Cache, log *zap.Logger, eventBus bridge.EventBus, eventEnabled bool, provider *service.Provider) nexusv1.NexusServiceServer {
+func NewService(repo *Repository, eventRepo nexus.EventRepository, cache *redis.Cache, log *zap.Logger, eventBus bridge.EventBus, eventEnabled bool, provider *service.Provider, eventEmitter events.EventEmitter) nexusv1.NexusServiceServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Service{
 		repo:          repo,
@@ -61,6 +63,7 @@ func NewService(repo *Repository, eventRepo nexus.EventRepository, cache *redis.
 		subscribers:   make(map[string][]chan *nexusv1.EventResponse),
 		eventSequence: 0,
 		lastEventTime: time.Now(),
+		eventEmitter:  eventEmitter,
 	}
 }
 
@@ -81,27 +84,13 @@ func (s *Service) RegisterPattern(ctx context.Context, req *nexusv1.RegisterPatt
 	if !hasRole(roles, "admin") && !hasRole(roles, "system") {
 		return &nexusv1.RegisterPatternResponse{Success: false, Error: "forbidden: admin or system role required"}, nil
 	}
-	// Canonical metadata normalization and validation
 	metadata.MigrateMetadata(req.Metadata)
 	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		resp := graceful.WrapErr(ctx, 3, "invalid metadata", err)
-		resp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return &nexusv1.RegisterPatternResponse{Success: false, Error: err.Error()}, nil
 	}
-	err := s.repo.RegisterPattern(ctx, req, userID, req.CampaignId)
-	if err != nil {
-		resp := graceful.WrapErr(ctx, 13, "RegisterPattern failed", err)
-		resp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+	if err := s.repo.RegisterPattern(ctx, req, userID, req.CampaignId); err != nil {
 		return &nexusv1.RegisterPatternResponse{Success: false, Error: err.Error()}, nil
 	}
-	resp := graceful.WrapSuccess(ctx, 0, "pattern registered", req, nil)
-	resp.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    req.Metadata,
-		PatternType: "nexus_pattern",
-		PatternID:   req.PatternId,
-		PatternMeta: req.Metadata,
-	})
 	return &nexusv1.RegisterPatternResponse{Success: true, Metadata: req.Metadata}, nil
 }
 
@@ -117,30 +106,16 @@ func (s *Service) ListPatterns(ctx context.Context, req *nexusv1.ListPatternsReq
 func (s *Service) Orchestrate(ctx context.Context, req *nexusv1.OrchestrateRequest) (*nexusv1.OrchestrateResponse, error) {
 	userID, _, _, _ := extractAuthContext(ctx, req.Metadata)
 	if userID == "" {
-		resp := graceful.WrapErr(ctx, 16, "unauthenticated: user_id required", nil)
-		resp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, resp
+		return nil, graceful.WrapErr(ctx, 16, "unauthenticated: user_id required", nil)
 	}
 	metadata.MigrateMetadata(req.Metadata)
 	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		errResp := graceful.WrapErr(ctx, 3, "invalid metadata", err)
-		errResp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, errResp
+		return nil, graceful.WrapErr(ctx, 3, "invalid metadata", err)
 	}
 	id, err := s.repo.Orchestrate(ctx, req, userID, req.CampaignId)
 	if err != nil {
-		errResp := graceful.WrapErr(ctx, 13, "Orchestrate failed", err)
-		errResp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, errResp
+		return nil, graceful.WrapErr(ctx, 13, "Orchestrate failed", err)
 	}
-	resp := graceful.WrapSuccess(ctx, 0, "orchestration succeeded", req, nil)
-	resp.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    req.Metadata,
-		PatternType: "nexus_orchestration",
-		PatternID:   id,
-		PatternMeta: req.Metadata,
-	})
 	return &nexusv1.OrchestrateResponse{OrchestrationId: id, Metadata: req.Metadata}, nil
 }
 
@@ -166,30 +141,15 @@ func (s *Service) Feedback(ctx context.Context, req *nexusv1.FeedbackRequest) (*
 	userID, _, guestNickname, deviceID := extractAuthContext(ctx, req.Metadata)
 	isGuest := userID == "" && guestNickname != "" && deviceID != ""
 	if !isGuest && userID == "" {
-		resp := graceful.WrapErr(ctx, 16, "unauthenticated: user_id or guest_nickname/device_id required", nil)
-		resp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return &nexusv1.FeedbackResponse{Success: false, Error: "unauthenticated: user_id or guest_nickname/device_id required"}, nil
 	}
 	metadata.MigrateMetadata(req.Metadata)
 	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		resp := graceful.WrapErr(ctx, 3, "invalid metadata", err)
-		resp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		return &nexusv1.FeedbackResponse{Success: false, Error: err.Error()}, nil
 	}
-	err := s.repo.Feedback(ctx, req)
-	if err != nil {
-		resp := graceful.WrapErr(ctx, 13, "Feedback failed", err)
-		resp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+	if err := s.repo.Feedback(ctx, req); err != nil {
 		return &nexusv1.FeedbackResponse{Success: false, Error: err.Error()}, nil
 	}
-	resp := graceful.WrapSuccess(ctx, 0, "feedback recorded", req, nil)
-	resp.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    req.Metadata,
-		PatternType: "nexus_feedback",
-		PatternID:   req.PatternId,
-		PatternMeta: req.Metadata,
-	})
 	return &nexusv1.FeedbackResponse{Success: true, Metadata: req.Metadata}, nil
 }
 
@@ -202,79 +162,40 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 	}
 	userID, _, _, _ := extractAuthContext(ctx, req.Metadata)
 	s.log.Info("HandleOps called", zap.String("op", req.Op), zap.Any("params", req.Params), zap.String("request_id", requestID), zap.String("user_id", userID))
-
 	switch req.Op {
 	case "register_pattern":
 		patternID := req.Params["pattern_id"]
 		patternType := req.Params["pattern_type"]
 		version := req.Params["version"]
 		origin := req.Params["origin"]
-
-		// The 'definition' for RegisterPatternRequest is expected to be a commonpb.IntegrationPattern.
-		// It's currently being passed as a structpb.Struct via req.Metadata.GetServiceSpecific().
-		// We need to marshal the structpb.Struct to JSON and then unmarshal it into an IntegrationPattern.
 		rawDef := req.Metadata.GetServiceSpecific()
 		if rawDef == nil {
-			return &nexusv1.HandleOpsResponse{
-				Success:  false,
-				Message:  "Definition missing in metadata.service_specific",
-				Data:     nil,
-				Metadata: req.Metadata,
-			}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: "Definition missing in metadata.service_specific", Metadata: req.Metadata}, nil
 		}
-
 		defBytes, err := protojson.Marshal(rawDef)
 		if err != nil {
-			return &nexusv1.HandleOpsResponse{
-				Success:  false,
-				Message:  fmt.Sprintf("Failed to marshal definition from structpb.Struct: %v", err),
-				Data:     nil,
-				Metadata: req.Metadata,
-			}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: "Failed to marshal definition", Metadata: req.Metadata}, nil
 		}
 		var patternDef commonpb.IntegrationPattern
 		if err := protojson.Unmarshal(defBytes, &patternDef); err != nil {
-			return &nexusv1.HandleOpsResponse{
-				Success:  false,
-				Message:  fmt.Sprintf("Failed to unmarshal definition into commonpb.IntegrationPattern: %v", err),
-				Data:     nil,
-				Metadata: req.Metadata,
-			}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: "Failed to unmarshal definition", Metadata: req.Metadata}, nil
 		}
-
 		if patternID == "" || patternType == "" || version == "" || origin == "" {
-			return &nexusv1.HandleOpsResponse{
-				Success:  false,
-				Message:  "Missing required pattern fields",
-				Data:     nil,
-				Metadata: req.Metadata,
-			}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: "Missing required pattern fields", Metadata: req.Metadata}, nil
 		}
 		if req.Metadata == nil || len(req.Metadata.Tags) == 0 {
-			return &nexusv1.HandleOpsResponse{
-				Success:  false,
-				Message:  "At least one tag is required in metadata",
-				Data:     nil,
-				Metadata: req.Metadata,
-			}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: "At least one tag is required in metadata", Metadata: req.Metadata}, nil
 		}
 		metadata.MigrateMetadata(req.Metadata)
 		if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-			errResp := graceful.WrapErr(ctx, 3, "invalid metadata", err)
-			errResp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			return &nexusv1.HandleOpsResponse{
-				Success:  false,
-				Message:  err.Error(),
-				Data:     nil,
-				Metadata: req.Metadata,
-			}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: err.Error(), Metadata: req.Metadata}, nil
 		}
 		regReq := &nexusv1.RegisterPatternRequest{
 			PatternId:   patternID,
 			PatternType: patternType,
 			Version:     version,
 			Origin:      origin,
-			Definition:  &patternDef, // Corrected type
+			Definition:  &patternDef,
 			Metadata:    req.Metadata,
 		}
 		resp, err := s.RegisterPattern(ctx, regReq)
@@ -285,14 +206,7 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 			} else if resp != nil {
 				msg += ": " + resp.Error
 			}
-			errResp := graceful.WrapErr(ctx, 13, msg, err)
-			errResp.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			return &nexusv1.HandleOpsResponse{
-				Success:  false,
-				Message:  msg,
-				Data:     nil,
-				Metadata: req.Metadata,
-			}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: msg, Metadata: req.Metadata}, nil
 		}
 		if err := s.repo.logOrchestrationEvent(ctx, nil, "", "audit", "pattern registered via HandleOps", map[string]interface{}{
 			"pattern_id": patternID,
@@ -301,62 +215,23 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 		}); err != nil {
 			s.log.Error("failed to log orchestration event", zap.Error(err))
 		}
-		respSuccess := graceful.WrapSuccess(ctx, 0, "Pattern registered successfully", regReq, nil)
-		respSuccess.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:         s.log,
-			Metadata:    req.Metadata,
-			PatternType: "nexus_pattern",
-			PatternID:   patternID,
-			PatternMeta: req.Metadata,
-		})
-		return &nexusv1.HandleOpsResponse{
-			Success:  true,
-			Message:  "Pattern registered successfully",
-			Data:     nil,
-			Metadata: req.Metadata,
-		}, nil
+		return &nexusv1.HandleOpsResponse{Success: true, Message: "Pattern registered successfully", Metadata: req.Metadata}, nil
 	default:
-		return &nexusv1.HandleOpsResponse{
-			Success:  true,
-			Message:  "Operation handled (stub)",
-			Data:     nil,
-			Metadata: req.Metadata,
-		}, nil
+		return &nexusv1.HandleOpsResponse{Success: true, Message: "Operation handled (stub)", Metadata: req.Metadata}, nil
 	}
 }
 
-// EmitEvent handles event emission to the Nexus event bus with structured logging and persistence.
+// EmitEvent handles event emission to the Nexus event bus with canonical EventEnvelope.
 func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nexusv1.EventResponse, error) {
-	// Temporal conflict resolution: Ensure atomic event emission with proper ordering
 	s.eventMutex.Lock()
 	defer s.eventMutex.Unlock()
 
 	currentTime := time.Now()
-
-	// Simple temporal conflict detection: warn if events arrive out of chronological order
-	if currentTime.Before(s.lastEventTime) {
-		s.log.Warn("Temporal conflict detected: event timestamp is earlier than last event",
-			zap.String("event_type", req.EventType),
-			zap.String("event_id", req.EventId),
-			zap.Time("current_time", currentTime),
-			zap.Time("last_event_time", s.lastEventTime),
-		)
-	}
-
-	// Increment sequence number for ordering
 	s.eventSequence++
 	currentSequence := s.eventSequence
 	s.lastEventTime = currentTime
 
-	// Log event emission with sequence for debugging
-	s.log.Info("Emitting event with sequence",
-		zap.String("event_type", req.EventType),
-		zap.String("event_id", req.EventId),
-		zap.Uint64("sequence", currentSequence),
-		zap.Time("timestamp", currentTime),
-	)
-
-	// Canonical: Validate and normalize metadata before emission
+	// Validate and normalize metadata
 	if req.Metadata == nil {
 		req.Metadata = &commonpb.Metadata{}
 	}
@@ -366,30 +241,41 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 		return nil, graceful.WrapErr(ctx, 3, "invalid metadata", err)
 	}
 
-	// The conversion to ServiceMetadata was incorrect. CanonicalEvent expects commonpb.Metadata.
+	// Construct canonical EventEnvelope
+	envelope := &events.EventEnvelope{
+		ID:        req.EventId,
+		Type:      req.EventType,
+		Payload:   req.Payload,
+		Metadata:  req.Metadata,
+		Timestamp: currentTime.UnixNano(),
+	}
+
+	// Emit via EventEmitter if available
+	if s.eventEmitter != nil {
+		_, err := s.eventEmitter.EmitEventEnvelope(ctx, envelope)
+		if err != nil {
+			s.log.Error("EmitEventEnvelope failed", zap.Error(err))
+		}
+	}
+
+	// Save to eventRepo for persistence
 	if s.eventRepo != nil {
-		// The CanonicalEvent expects a *commonpb.Metadata, which is what req.Metadata is.
-		// The conversion to a Go struct (*metadata.ServiceMetadata) was incorrect for this purpose.
 		masterID, _ := strconv.ParseInt(req.EntityId, 10, 64)
 		entityType := ""
 		if parts := strings.Split(req.EventType, "."); len(parts) > 0 {
 			entityType = parts[0]
 		}
-
-		// Create canonical event with sequence and timestamp for ordering
 		canonicalEvent := &nexus.CanonicalEvent{
 			ID:            uuid.New(),
 			MasterID:      masterID,
 			EntityType:    repository.EntityType(entityType),
 			EventType:     req.EventType,
-			Metadata:      req.Metadata, // Pass the original proto metadata
+			Metadata:      req.Metadata,
 			Payload:       req.Payload,
 			Status:        "emitted",
-			CreatedAt:     currentTime,      // Use the locked timestamp
-			NexusSequence: &currentSequence, // Set the sequence number for ordering
+			CreatedAt:     currentTime,
+			NexusSequence: &currentSequence,
 		}
-
-		// Add sequence to metadata for ordering preservation
 		if canonicalEvent.Metadata.ServiceSpecific == nil {
 			canonicalEvent.Metadata.ServiceSpecific = &structpb.Struct{
 				Fields: make(map[string]*structpb.Value),
@@ -400,10 +286,8 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 		}
 		canonicalEvent.Metadata.ServiceSpecific.Fields["nexus.sequence"] = structpb.NewStringValue(fmt.Sprintf("%d", currentSequence))
 		canonicalEvent.Metadata.ServiceSpecific.Fields["nexus.emitter_timestamp"] = structpb.NewStringValue(currentTime.Format(time.RFC3339Nano))
-
 		if err := s.eventRepo.SaveEvent(ctx, canonicalEvent); err != nil {
 			s.log.Error("Failed to save event to repository", zap.Error(err))
-			// Do not fail the whole operation if event saving fails, just log it.
 		}
 	}
 	if s.cache != nil {
@@ -411,7 +295,6 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 			s.log.Error("Failed to set cache for nexus event", zap.Error(err))
 		}
 	}
-	// Canonical: Publish to event bus
 	if s.eventBus != nil {
 		err := s.eventBus.Publish(req.EventType, req)
 		if err != nil {
@@ -419,17 +302,11 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 			return nil, graceful.WrapErr(ctx, 13, "failed to publish event", err)
 		}
 	}
-
-	// Also, publish to in-memory gRPC subscribers for real-time streaming.
-	// This bridges events emitted via this RPC to clients subscribed via SubscribeEvents.
 	s.subscribersMu.RLock()
-	// Create a copy of the subscriber channels to avoid holding the lock while sending.
 	subscribersForType := make([]chan *nexusv1.EventResponse, len(s.subscribers[req.EventType]))
 	copy(subscribersForType, s.subscribers[req.EventType])
 	s.subscribersMu.RUnlock()
-
 	if len(subscribersForType) > 0 {
-		// Create the response event once to send to all subscribers.
 		eventResp := &nexusv1.EventResponse{
 			Success:   true,
 			EventId:   req.EventId,
@@ -440,8 +317,6 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 		}
 		s.broadcastToSubscribers(subscribersForType, eventResp)
 	}
-
-	// The RPC response should also be consistent with the EventResponse message.
 	return &nexusv1.EventResponse{
 		Success:   true,
 		EventId:   req.EventId,

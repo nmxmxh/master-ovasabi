@@ -102,6 +102,7 @@ type ServiceImpl struct {
 	repo         *Repo
 	eventEmitter events.EventEmitter
 	eventEnabled bool
+	handler      *graceful.Handler
 }
 
 // UploadMetadata stores upload session information.
@@ -179,6 +180,7 @@ func NewService(log *zap.Logger, repo *Repo, cache *redis.Cache, eventEmitter ev
 		cache:        cache,
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
+		handler:      graceful.NewHandler(log, nil, cache, "media", "v1", eventEnabled),
 	}
 	// Register media service error map for graceful error handling
 	graceful.RegisterErrorMap(map[error]graceful.ErrorMapEntry{
@@ -248,14 +250,14 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 			if err != nil {
 				var ce *graceful.ContextError
 				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+					s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 				}
 				return nil, err
 			}
 			if err := json.Unmarshal(metaBytes, mediaMeta); err != nil {
 				var ce *graceful.ContextError
 				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+					s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 				}
 				return nil, err
 			}
@@ -302,7 +304,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err := graceful.WrapErr(ctx, codes.Internal, "Azure Blob Storage config missing", nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -311,7 +313,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create Azure credential: %v", err), nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -322,7 +324,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to create block blob client: %v", err), nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -333,7 +335,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to upload to Azure Blob: %v", err), nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -350,7 +352,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to write temp file for ffprobe: %v", err), nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -362,7 +364,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err = graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("ffprobe failed: %v", err), nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -389,7 +391,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 					if err != nil {
 						var ce *graceful.ContextError
 						if errors.As(err, &ce) {
-							ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+							s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 						}
 						return nil, err
 					}
@@ -399,7 +401,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 					if err != nil {
 						var ce *graceful.ContextError
 						if errors.As(err, &ce) {
-							ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+							s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 						}
 						return nil, err
 					}
@@ -411,7 +413,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 			if err != nil {
 				var ce *graceful.ContextError
 				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+					s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 				}
 				return nil, err
 			}
@@ -421,7 +423,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 			if err != nil {
 				var ce *graceful.ContextError
 				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+					s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 				}
 				return nil, err
 			}
@@ -442,7 +444,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -450,7 +452,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal media metadata", err)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -461,7 +463,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid metadata: %v", err), nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -484,34 +486,20 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 			err = graceful.WrapErr(ctx, codes.Internal, "media.upload_failed", err)
 			var ce *graceful.ContextError
 			if errors.As(err, &ce) {
-				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 			}
 			return nil, graceful.ToStatusError(err)
 		}
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.WrapErr(ctx, codes.Internal, "failed to create asset", nil)
 	}
 	// Emit media.uploaded event after successful creation
 	if s.eventEnabled && s.eventEmitter != nil {
 		success := graceful.WrapSuccess(ctx, codes.OK, "media uploaded", asset, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			CacheKey:     asset.ID.String(),
-			CacheValue:   asset,
-			CacheTTL:     10 * time.Minute,
-			Metadata:     asset.Metadata,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "media.uploaded",
-			EventID:      asset.ID.String(),
-			PatternType:  "media",
-			PatternID:    asset.ID.String(),
-			PatternMeta:  asset.Metadata,
-		})
+		s.handler.Success(ctx, "upload_light_media", codes.OK, "media uploaded", success, nil, "media", nil)
 	}
 
 	// --- Event publishing section (cleaned up, with campaign/user/system channels) ---
@@ -558,16 +546,6 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		}
 	}
 
-	// After successful media creation (UploadLightMedia, StartHeavyMediaUpload, CompleteMediaUpload), emit canonical event to event bus for Search Service and orchestration.ia creation (UploadLightMedia, StartHeavyMediaUpload, CompleteMediaUpload), emit canonical event to event bus for Search Service and orchestration.
-	if s.eventEnabled && s.eventEmitter != nil {
-		payload, err := json.Marshal(asset) // asset is the media object
-		if err != nil {
-			s.log.Error("Failed to marshal media asset for event emission", zap.Error(err))
-		} else {
-			(&EventEmitterAdapter{Emitter: s.eventEmitter}).EmitRawEventWithLogging(ctx, s.log, "media.created", asset.ID.String(), payload)
-		}
-	}
-
 	return &mediapb.UploadLightMediaResponse{
 		Media: &mediapb.Media{
 			Id:        asset.ID.String(),
@@ -592,14 +570,14 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 		err = graceful.WrapErr(ctx, codes.InvalidArgument, "unsupported MIME type", nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
 	if err = s.validateUploadSize(ctx, req.Size); err != nil {
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -607,7 +585,7 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 		err = graceful.WrapErr(ctx, codes.InvalidArgument, "asset too small for heavy upload, use light upload instead", nil)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
@@ -1306,21 +1284,7 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 	// Emit media.completed event after successful completion
 	if s.eventEnabled && s.eventEmitter != nil {
 		success := graceful.WrapSuccess(ctx, codes.OK, "media completed", asset, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			CacheKey:     asset.ID.String(),
-			CacheValue:   asset,
-			CacheTTL:     10 * time.Minute,
-			Metadata:     asset.Metadata,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "media.completed",
-			EventID:      asset.ID.String(),
-			PatternType:  "media",
-			PatternID:    asset.ID.String(),
-			PatternMeta:  asset.Metadata,
-		})
+		s.handler.Success(ctx, "complete_media_upload", codes.OK, "media completed", success, asset.Metadata, asset.ID.String(), nil)
 	}
 
 	if s.cache != nil {
@@ -1365,16 +1329,6 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 					return nil, graceful.ToStatusError(err)
 				}
 			}
-		}
-	}
-
-	// After successful media update (e.g., CompleteMediaUpload), emit canonical event
-	if s.eventEnabled && s.eventEmitter != nil {
-		payload, err := json.Marshal(asset)
-		if err != nil {
-			s.log.Error("Failed to marshal media asset for event emission", zap.Error(err))
-		} else {
-			(&EventEmitterAdapter{Emitter: s.eventEmitter}).EmitRawEventWithLogging(ctx, s.log, "media.updated", asset.ID.String(), payload)
 		}
 	}
 
@@ -1613,13 +1567,13 @@ func (s *ServiceImpl) DeleteMedia(ctx context.Context, req *mediapb.DeleteMediaR
 	if s.eventEnabled && s.eventEmitter != nil {
 		success := graceful.WrapSuccess(ctx, codes.OK, "media deleted", req.Id, nil)
 		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			CacheKey:     req.Id,
-			CacheValue:   req.Id,
-			CacheTTL:     10 * time.Minute,
-			Metadata:     nil,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
+			Log:        s.log,
+			Cache:      s.cache,
+			CacheKey:   req.Id,
+			CacheValue: req.Id,
+			CacheTTL:   10 * time.Minute,
+			Metadata:   nil,
+			// Event emission handled by graceful.Handler
 			EventEnabled: s.eventEnabled,
 			EventType:    "media.deleted",
 			EventID:      req.Id,
@@ -1666,15 +1620,7 @@ func (s *ServiceImpl) DeleteMedia(ctx context.Context, req *mediapb.DeleteMediaR
 		}
 	}
 
-	// After successful media deletion (DeleteMedia), emit canonical event
-	if s.eventEnabled && s.eventEmitter != nil {
-		payload, err := json.Marshal(asset)
-		if err != nil {
-			s.log.Error("Failed to marshal media asset for event emission", zap.Error(err))
-		} else {
-			(&EventEmitterAdapter{Emitter: s.eventEmitter}).EmitRawEventWithLogging(ctx, s.log, "media.deleted", asset.ID.String(), payload)
-		}
-	}
+	// Canonical event emission handled by graceful handler
 
 	return &mediapb.DeleteMediaResponse{Status: "deleted"}, nil
 }
@@ -1890,29 +1836,3 @@ func (s *ServiceImpl) UploadChunks(ctx context.Context, chunks [][]byte, uploadC
 
 // Compile-time check.
 var _ mediapb.MediaServiceServer = (*ServiceImpl)(nil)
-
-// Add EventEmitterAdapter definition if not present
-// Adapter to bridge s.eventEmitter to the required orchestration EventEmitter interface.
-type EventEmitterAdapter struct {
-	Emitter events.EventEmitter
-}
-
-func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	if emitter, ok := a.Emitter.(interface {
-		EmitRawEventWithLogging(context.Context, *zap.Logger, string, string, []byte) (string, bool)
-	}); ok {
-		return emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
-	}
-	return "", false
-}
-
-// EmitEventWithLogging emits an event with proper logging.
-func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	if a.Emitter == nil {
-		if log != nil {
-			log.Warn("Event emitter is nil", zap.String("event_type", eventType))
-		}
-		return eventID, false
-	}
-	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
-}

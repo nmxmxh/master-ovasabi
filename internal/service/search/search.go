@@ -1,15 +1,14 @@
-// ...existing code...
 package search
 
 import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
@@ -28,31 +28,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
-
-// EventEnvelope is the canonical, extensible wrapper for all event-driven messages in the system.
-type EventEnvelope struct {
-	Type          string                 `json:"type"`
-	Version       string                 `json:"version,omitempty"`
-	Schema        string                 `json:"schema,omitempty"`
-	Payload       interface{}            `json:"payload"`  // For core flows, use canonical proto messages (e.g., *searchpb.SearchRequest, *searchpb.SearchResponse)
-	Metadata      *commonpb.Metadata     `json:"metadata"` // Always use canonical commonpb.Metadata
-	PrevState     interface{}            `json:"prev_state,omitempty"`
-	NextState     interface{}            `json:"next_state,omitempty"`
-	Patch         interface{}            `json:"patch,omitempty"`
-	Intent        string                 `json:"intent,omitempty"`
-	CorrelationID string                 `json:"correlation_id,omitempty"`
-	CausationID   string                 `json:"causation_id,omitempty"`
-	ParentID      string                 `json:"parent_id,omitempty"`
-	Timestamp     int64                  `json:"timestamp,omitempty"`
-	Timeline      []interface{}          `json:"timeline,omitempty"`
-	Signature     string                 `json:"signature,omitempty"`
-	Auth          string                 `json:"auth,omitempty"`
-	Provenance    string                 `json:"provenance,omitempty"`
-	Score         float64                `json:"score,omitempty"`
-	Feedback      interface{}            `json:"feedback,omitempty"`
-	Explanation   string                 `json:"explanation,omitempty"`
-	Extensions    map[string]interface{} `json:"extensions,omitempty"`
-}
 
 // SearchResult is the canonical struct for all search results.
 type Result struct {
@@ -87,11 +62,12 @@ type Service struct {
 	eventEnabled bool
 	provider     *service.Provider // Canonical provider for DI/event orchestration
 	adapters     map[string]Adapter
+	handler      *graceful.Handler
 }
 
 // NewService creates a new SearchService instance with event bus and provider support (canonical pattern).
 func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool, provider *service.Provider) searchpb.SearchServiceServer {
-	return &Service{
+	svc := &Service{
 		log:          log,
 		repo:         repo,
 		Cache:        cache,
@@ -99,7 +75,12 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 		eventEnabled: eventEnabled,
 		provider:     provider,
 		adapters:     make(map[string]Adapter),
+		handler:      graceful.NewHandler(log, eventEmitter, cache, "search", "v1", eventEnabled),
 	}
+
+	// Centralized registration of all adapters
+	RegisterAllAdapters(svc)
+	return svc
 }
 
 // Event-Driven Search Orchestration Pattern (2025)
@@ -116,93 +97,250 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 
 // handleSearchAction is the generic business logic handler for the "search" action, used by the generic event handler.
 func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
-	// Emit 'started' event at the beginning of processing
-	meta := event.Metadata
-	if s.eventEnabled && s.eventEmitter != nil {
-		startedEvent := &nexusv1.EventResponse{
-			EventType: GetCanonicalEventType("started"),
-			EventId:   event.EventId,
-			Metadata:  meta,
-		}
-		events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, startedEvent.EventType, startedEvent.EventId, startedEvent.Metadata)
-	}
-	if event == nil || event.Payload == nil {
-		s.log.Warn("search.requested event missing payload")
+	// Only process canonical 'requested' events, ignore 'started', 'completed', 'failed', etc.
+	if !strings.HasSuffix(event.GetEventType(), ":requested") {
+		s.log.Debug("[handleSearchAction] Ignoring non-requested event (only handling 'requested')", zap.String("event_type", event.GetEventType()), zap.String("event_id", event.EventId))
 		return
+	}
+
+	if event == nil {
+		s.log.Warn("search event is nil")
+		s.handler.Error(ctx, "search", codes.InvalidArgument, "Search event is nil", nil, nil, "")
+		return
+	}
+
+	// For requested events, we require payload and event_id
+	if event.Payload == nil || event.EventId == "" {
+		s.log.Warn("search requested event missing payload or event_id", zap.String("event_type", event.GetEventType()), zap.String("event_id", event.EventId))
+		s.handler.Error(ctx, "search", codes.InvalidArgument, "Missing payload or event_id in search requested event", nil, event.Metadata, event.EventId)
+		return
+	}
+	s.log.Info("[handleSearchAction] Invoked", zap.String("event_type", event.GetEventType()), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+
+	// Debug: Log the raw payload fields to see what we're receiving
+	if event.Payload != nil && event.Payload.Data != nil {
+		fieldNames := make([]string, 0, len(event.Payload.Data.Fields))
+		for fieldName := range event.Payload.Data.Fields {
+			fieldNames = append(fieldNames, fieldName)
+		}
+		s.log.Debug("[handleSearchAction] Received payload fields",
+			zap.String("event_type", event.GetEventType()),
+			zap.Strings("field_names", fieldNames),
+			zap.Int("field_count", len(event.Payload.Data.Fields)))
+	}
+
+	// Define canonical event types for emission
+	canonicalStarted := GetCanonicalEventType("search", "started")
+	if canonicalStarted == "" {
+		s.log.Warn("Failed to resolve canonical event type for search:started")
+		canonicalStarted = "search:search:v1:started" // fallback
 	}
 	var req searchpb.SearchRequest
 	if event.Payload.Data != nil {
+		// Pre-process campaign_id: if string and convertible to int, convert; if not, fail gracefully
+		fields := event.Payload.Data.Fields
+		if v, ok := fields["campaign_id"]; ok {
+			switch val := v.Kind.(type) {
+			case *structpb.Value_StringValue:
+				// Try to convert string to int64
+				if val.StringValue == "0" {
+					fields["campaign_id"] = structpb.NewNumberValue(0)
+				} else if cid, err := strconv.ParseInt(val.StringValue, 10, 64); err == nil {
+					fields["campaign_id"] = structpb.NewNumberValue(float64(cid))
+				} else {
+					s.handler.Error(ctx, "search", codes.InvalidArgument, "Invalid campaign_id: must be int64 or '0'", nil, event.Metadata, event.EventId)
+					return
+				}
+			case *structpb.Value_NumberValue:
+				// Already a number, do nothing
+			}
+		}
+
 		b, err := protojson.Marshal(event.Payload.Data)
 		if err == nil {
 			err = protojson.Unmarshal(b, &req)
 			if err != nil {
 				s.log.Warn("failed to unmarshal search request from event payload", zap.Error(err))
+				s.handler.Error(ctx, "search", codes.InvalidArgument, "Failed to unmarshal search request: "+err.Error(), err, event.Metadata, event.EventId)
 				return
 			}
 		}
 	}
 
-	query := req.GetQuery()
-	page := int(req.GetPageNumber())
-	pageSize := int(req.GetPageSize())
-	meta = req.GetMetadata()
-	types := req.GetTypes()
-	if len(types) == 0 {
-		types = []string{"content"}
+	meta := req.GetMetadata()
+	if meta == nil {
+		meta = event.Metadata
+	}
+	// Don't emit started events from within the handler - this creates a loop
+	// Started events should be emitted by the orchestration layer, not the service itself
+
+	// Default to federated search unless service_specific context says otherwise
+	searchType := "federated"
+	if meta != nil && meta.ServiceSpecific != nil {
+		if v, ok := meta.ServiceSpecific.Fields["search_type"]; ok {
+			if v.GetStringValue() != "" {
+				searchType = v.GetStringValue()
+			}
+		}
 	}
 
-	results, total, err := s.repo.SearchAllEntities(ctx, types, query, meta, req.GetCampaignId(), page, pageSize)
-	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "event-driven search failed", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-				Log:          s.log,
-				Metadata:     meta,
-				EventEmitter: s.eventEmitter,
-				EventEnabled: s.eventEnabled,
-				EventType:    GetCanonicalEventType("failed"),
-				EventID:      query,
-				PatternType:  "search",
-				PatternID:    query,
-				PatternMeta:  meta,
+	var resp *searchpb.SearchResponse
+	var err error
+	switch searchType {
+	case "internal":
+		resp, err = s.WithinSearch(ctx, &req)
+	case "within":
+		resp, err = s.WithinSearch(ctx, &req)
+	case "federated":
+		fallthrough
+	default:
+		fedReq := &Request{
+			Query:    req.GetQuery(),
+			Types:    req.GetTypes(),
+			Metadata: meta,
+		}
+		results, ferr := s.FederatedSearch(ctx, fedReq)
+		// Always push results forward, even if partial or error
+		// Removed results logging for inspection clarity
+		protos := make([]*searchpb.SearchResult, 0, len(results))
+		for _, r := range results {
+			protos = append(protos, &searchpb.SearchResult{
+				Id:         r.ID,
+				EntityType: r.Type,
+				Score:      float32(r.Score),
+				Metadata:   r.Metadata,
 			})
 		}
+		resp = &searchpb.SearchResponse{
+			Results:    protos,
+			Total:      int32(len(results)),
+			PageNumber: req.GetPageNumber(),
+			PageSize:   req.GetPageSize(),
+		}
+		// Optionally, log or attach error details to metadata for frontend display
+		// If you want to include error details in the response, you can add a ServiceSpecific field:
+		if ferr != nil && meta != nil && meta.ServiceSpecific != nil {
+			// Abbreviate the error to just the list of failing adapters for a cleaner frontend display.
+			errMsg := strings.TrimPrefix(ferr.Error(), "adapter errors: ")
+			meta.ServiceSpecific.Fields["adapter_errors"] = structpb.NewStringValue(errMsg)
+		}
+	}
+
+	// Only call HandleServiceError for true system errors (not adapter errors)
+	if err != nil {
+		s.handler.Error(ctx, "search", codes.Internal, "event-driven search failed", err, meta, event.EventId)
 		return
 	}
 
-	protos := make([]*searchpb.SearchResult, 0, len(results))
-	for _, r := range results {
-		protos = append(protos, &searchpb.SearchResult{
-			Id:         r.ID,
-			EntityType: r.EntityType,
-			Score:      float32(r.Score),
-			Metadata:   r.Metadata,
-		})
-	}
-	resp := &searchpb.SearchResponse{
-		Results:    protos,
-		Total:      utils.ToInt32(total),
-		PageNumber: utils.ToInt32(page),
-		PageSize:   utils.ToInt32(pageSize),
+	// --- Canonical Metadata Merging ---
+	// Only merge ServiceSpecific using MergeStructs
+	if event.Metadata != nil && meta != nil {
+		if event.Metadata.ServiceSpecific != nil {
+			if meta.ServiceSpecific != nil {
+				meta.ServiceSpecific = metadata.MergeStructs(meta.ServiceSpecific, event.Metadata.ServiceSpecific, s.log)
+			} else {
+				meta.ServiceSpecific = event.Metadata.ServiceSpecific
+			}
+		}
 	}
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "event-driven search completed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     "search:" + query,
-		CacheValue:   resp,
-		CacheTTL:     5 * time.Minute,
-		Metadata:     meta,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    GetCanonicalEventType("completed"),
-		EventID:      query,
-		PatternType:  "search",
-		PatternID:    query,
-		PatternMeta:  meta,
-	})
+	// --- Payload Serialization ---
+	var completedPayload *structpb.Struct
+	if resp != nil {
+		b, err := protojson.Marshal(resp)
+		if err == nil {
+			completedPayload = &structpb.Struct{}
+			_ = protojson.Unmarshal(b, completedPayload)
+		}
+	}
+
+	s.log.Info("[handleSearchAction] Emitting completed event", zap.String("event_id", event.EventId), zap.Any("completedPayload", completedPayload), zap.Any("metadata", meta))
+	s.handler.Success(ctx, "search", codes.OK, "event-driven search completed", completedPayload, meta, event.EventId, nil)
+}
+
+// Suggest implements the gRPC endpoint for search suggestions.
+func (s *Service) Suggest(ctx context.Context, req *searchpb.SuggestRequest) (*searchpb.SuggestResponse, error) {
+	s.log.Info("[Suggest] Invoked", zap.String("prefix", req.GetPrefix()), zap.Any("metadata", req.GetMetadata()))
+	if req.GetPrefix() == "" {
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.InvalidArgument, "prefix cannot be empty", nil))
+	}
+
+	query := req.GetPrefix()
+	limit := int(req.GetLimit())
+	meta := req.GetMetadata()
+
+	suggestions, err := s.repo.Suggest(ctx, query, limit)
+	if err != nil {
+		s.handler.Error(ctx, "suggest", codes.Internal, "suggest failed", err, meta, query)
+		return nil, graceful.ToStatusError(err)
+	}
+
+	resp := &searchpb.SuggestResponse{
+		Suggestions: suggestions,
+	}
+
+	s.handler.Success(ctx, "suggest", codes.OK, "suggest completed", resp, meta, query, nil)
+
+	return resp, nil
+}
+
+// handleSuggestAction is the generic business logic handler for the "suggest" action.
+func handleSuggestAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	if event == nil {
+		s.log.Warn("[handleSuggestAction] Missing event")
+		return
+	}
+	s.log.Info("[handleSuggestAction] Invoked", zap.String("event_type", event.GetEventType()), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+
+	if event.Payload == nil || event.Payload.Data == nil {
+		s.log.Warn("[handleSuggestAction] Missing or invalid event payload", zap.Any("event", event))
+		return
+	}
+
+	var req searchpb.SuggestRequest
+	b, err := protojson.Marshal(event.Payload.Data)
+	if err != nil {
+		s.log.Warn("[handleSuggestAction] Failed to marshal event payload to JSON", zap.Error(err))
+		return
+	}
+	if err := protojson.Unmarshal(b, &req); err != nil {
+		s.log.Warn("[handleSuggestAction] Failed to unmarshal payload to SuggestRequest", zap.Error(err))
+		return
+	}
+
+	meta := req.GetMetadata()
+	if meta == nil {
+		meta = event.Metadata
+	}
+
+	suggestType := "federated"
+	if meta != nil && meta.ServiceSpecific != nil {
+		if v, ok := meta.ServiceSpecific.Fields["suggest_type"]; ok {
+			if v.GetStringValue() != "" {
+				suggestType = v.GetStringValue()
+			}
+		}
+	}
+
+	var resp *searchpb.SuggestResponse
+	s.log.Info("[handleSuggestAction] Dispatching suggestType", zap.String("suggest_type", suggestType))
+	switch suggestType {
+	case "internal":
+		resp, err = s.Suggest(ctx, &req)
+	case "federated":
+		fallthrough
+	default:
+		resp, err = s.Suggest(ctx, &req)
+	}
+
+	if err != nil {
+		s.log.Warn("[handleSuggestAction] Suggest failed", zap.Error(err))
+		s.handler.Error(ctx, "suggest", codes.Internal, "suggest failed", err, meta, event.EventId)
+		return
+	}
+
+	s.log.Info("[handleSuggestAction] Suggest succeeded", zap.Any("response", resp))
+	s.handler.Success(ctx, "suggest", codes.OK, "event-driven suggest completed", resp, meta, event.EventId, nil)
 }
 
 // Search implements robust multi-entity, FTS, and metadata filtering search.
@@ -224,21 +362,7 @@ func (s *Service) WithinSearch(ctx context.Context, req *searchpb.SearchRequest)
 
 	results, total, err := s.repo.SearchAllEntities(ctx, types, query, meta, req.GetCampaignId(), page, pageSize)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "search failed", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-				Log:          s.log,
-				Metadata:     meta,
-				EventEmitter: s.eventEmitter,
-				EventEnabled: s.eventEnabled,
-				EventType:    GetCanonicalEventType("failed"),
-				EventID:      query,
-				PatternType:  "search",
-				PatternID:    query,
-				PatternMeta:  meta,
-			})
-		}
+		s.handler.Error(ctx, "search", codes.Internal, "search failed", err, meta, query)
 		return nil, graceful.ToStatusError(err)
 	}
 
@@ -258,23 +382,6 @@ func (s *Service) WithinSearch(ctx context.Context, req *searchpb.SearchRequest)
 		PageNumber: utils.ToInt32(page),
 		PageSize:   utils.ToInt32(pageSize),
 	}
-
-	success := graceful.WrapSuccess(ctx, codes.OK, "search completed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     "search:" + query,
-		CacheValue:   resp,
-		CacheTTL:     5 * time.Minute,
-		Metadata:     meta,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    GetCanonicalEventType("completed"),
-		EventID:      query,
-		PatternType:  "search",
-		PatternID:    query,
-		PatternMeta:  meta,
-	})
 
 	return resp, nil
 }
@@ -562,7 +669,6 @@ func NewDuckDuckGoSearchAdapter(region string) *DuckDuckGoSearchAdapter {
 func (a *DuckDuckGoSearchAdapter) Name() string { return "duckduckgo" }
 
 func (a *DuckDuckGoSearchAdapter) Search(ctx context.Context, req *Request) ([]*Result, error) {
-	// Construct DuckDuckGo API URL
 	baseURL := "https://api.duckduckgo.com/"
 	params := url.Values{}
 	params.Set("q", req.Query)
@@ -571,7 +677,6 @@ func (a *DuckDuckGoSearchAdapter) Search(ctx context.Context, req *Request) ([]*
 	params.Set("skip_disambig", "1")
 	params.Set("region", a.region)
 
-	// Make request to DuckDuckGo API
 	searchURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, http.NoBody)
 	if err != nil {
@@ -595,98 +700,47 @@ func (a *DuckDuckGoSearchAdapter) Search(ctx context.Context, req *Request) ([]*
 		return nil, fmt.Errorf("duckduckgo api error: %s - %s", resp.Status, string(body))
 	}
 
-	// Parse response
 	var result struct {
-		Abstract      string `json:"abstract"`
-		AbstractText  string `json:"abstract_text"`
-		AbstractURL   string `json:"abstract_url"`
-		Answer        string `json:"answer"`
+		AbstractText  string `json:"AbstractText"`
+		AbstractURL   string `json:"AbstractURL"`
 		RelatedTopics []struct {
-			Text     string `json:"text"`
-			FirstURL string `json:"first_url"`
-			Icon     struct {
-				URL string `json:"url"`
-			} `json:"icon"`
-		} `json:"related_topics"`
-		Results []struct {
-			Text     string `json:"text"`
-			FirstURL string `json:"first_url"`
-		} `json:"results"`
+			Text     string `json:"Text"`
+			FirstURL string `json:"FirstURL"`
+		} `json:"RelatedTopics"`
 	}
-
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	// Convert to SearchResult format
 	results := make([]*Result, 0)
-
-	// Add main result if available
-	if result.AbstractText != "" {
+	// Instant answer (text + link)
+	if result.AbstractText != "" && result.AbstractURL != "" {
 		results = append(results, &Result{
 			ID:    result.AbstractURL,
 			Type:  "instant_answer",
 			Score: 1.0,
 			Fields: map[string]interface{}{
-				"abstract":      result.Abstract,
-				"abstract_text": result.AbstractText,
-				"url":           result.AbstractURL,
-				"answer":        result.Answer,
+				"text": result.AbstractText,
+				"url":  result.AbstractURL,
 			},
 			Source: "duckduckgo",
-			Metadata: &commonpb.Metadata{
-				ServiceSpecific: &structpb.Struct{
-					Fields: map[string]*structpb.Value{
-						"abstract": structpb.NewStringValue(result.Abstract),
-						"answer":   structpb.NewStringValue(result.Answer),
-					},
-				},
-			},
 		})
 	}
-
-	// Add related topics
+	// Related topics (text + link)
 	for _, topic := range result.RelatedTopics {
-		results = append(results, &Result{
-			ID:    topic.FirstURL,
-			Type:  "related_topic",
-			Score: 0.8,
-			Fields: map[string]interface{}{
-				"text": topic.Text,
-				"url":  topic.FirstURL,
-			},
-			Source: "duckduckgo",
-			Metadata: &commonpb.Metadata{
-				ServiceSpecific: &structpb.Struct{
-					Fields: map[string]*structpb.Value{
-						"text": structpb.NewStringValue(topic.Text),
-					},
+		if topic.Text != "" && topic.FirstURL != "" {
+			results = append(results, &Result{
+				ID:    topic.FirstURL,
+				Type:  "related_topic",
+				Score: 0.8,
+				Fields: map[string]interface{}{
+					"text": topic.Text,
+					"url":  topic.FirstURL,
 				},
-			},
-		})
+				Source: "duckduckgo",
+			})
+		}
 	}
-
-	// Add additional results
-	for _, res := range result.Results {
-		results = append(results, &Result{
-			ID:    res.FirstURL,
-			Type:  "web_result",
-			Score: 0.6,
-			Fields: map[string]interface{}{
-				"text": res.Text,
-				"url":  res.FirstURL,
-			},
-			Source: "duckduckgo",
-			Metadata: &commonpb.Metadata{
-				ServiceSpecific: &structpb.Struct{
-					Fields: map[string]*structpb.Value{
-						"text": structpb.NewStringValue(res.Text),
-					},
-				},
-			},
-		})
-	}
-
 	return results, nil
 }
 
@@ -999,25 +1053,18 @@ func (a *AcademicsSearchAdapter) Search(ctx context.Context, req *Request) ([]*R
 }
 
 func (a *AcademicsSearchAdapter) searchSemanticScholar(ctx context.Context, req *Request) ([]*Result, error) {
-	if a.semanticAPIKey == "" {
-		return nil, fmt.Errorf("semantic scholar api key not configured")
-	}
-
-	// Construct Semantic Scholar API URL
+	// Use public endpoint, focus on text and links only
 	baseURL := "https://api.semanticscholar.org/graph/v1/paper/search"
 	params := url.Values{}
 	params.Set("query", req.Query)
 	params.Set("limit", "10")
-	params.Set("fields", "title,abstract,url,year,authors,venue,citationCount")
+	params.Set("fields", "title,url")
 
-	// Make request to Semantic Scholar API
 	searchURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-
-	httpReq.Header.Set("x-api-key", a.semanticAPIKey)
 
 	resp, err := a.httpClient.Do(httpReq)
 	if err != nil {
@@ -1036,57 +1083,31 @@ func (a *AcademicsSearchAdapter) searchSemanticScholar(ctx context.Context, req 
 		return nil, fmt.Errorf("semantic scholar api error: %s - %s", resp.Status, string(body))
 	}
 
-	// Parse response
 	var result struct {
 		Data []struct {
-			PaperID  string `json:"paper_id"`
-			Title    string `json:"title"`
-			Abstract string `json:"abstract"`
-			URL      string `json:"url"`
-			Year     int    `json:"year"`
-			Authors  []struct {
-				Name string `json:"name"`
-			} `json:"authors"`
-			Venue         string `json:"venue"`
-			CitationCount int    `json:"citation_count"`
+			Title string `json:"title"`
+			URL   string `json:"url"`
 		} `json:"data"`
 	}
-
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	// Convert to SearchResult format
 	results := make([]*Result, 0, len(result.Data))
 	for _, item := range result.Data {
-		// Create search result
-		result := &Result{
-			ID:    item.URL,
-			Type:  "academic_paper",
-			Score: 1.0,
-			Fields: map[string]interface{}{
-				"title":          item.Title,
-				"abstract":       item.Abstract,
-				"url":            item.URL,
-				"year":           item.Year,
-				"authors":        item.Authors,
-				"venue":          item.Venue,
-				"citation_count": item.CitationCount,
-			},
-			Source: "semantic_scholar",
-			Metadata: &commonpb.Metadata{
-				ServiceSpecific: &structpb.Struct{
-					Fields: map[string]*structpb.Value{
-						"year":           structpb.NewNumberValue(float64(item.Year)),
-						"venue":          structpb.NewStringValue(item.Venue),
-						"citation_count": structpb.NewNumberValue(float64(item.CitationCount)),
-					},
+		if item.Title != "" && item.URL != "" {
+			results = append(results, &Result{
+				ID:    item.URL,
+				Type:  "academic_paper",
+				Score: 1.0,
+				Fields: map[string]interface{}{
+					"title": item.Title,
+					"url":   item.URL,
 				},
-			},
+				Source: "semantic_scholar",
+			})
 		}
-		results = append(results, result)
 	}
-
 	return results, nil
 }
 
@@ -1201,16 +1222,29 @@ func AIProcessResults(ctx context.Context, results []*Result, eventEmitter event
 			continue
 		}
 		if _, ok := seen[r.ID]; !ok {
-			// Instead of direct AI plugin call, emit event to Nexus for enrichment
 			if eventEmitter != nil {
-				payload, err := json.Marshal(r)
+				payloadBytes, err := json.Marshal(r)
 				if err != nil {
 					log.Error("Failed to marshal result for AI enrichment", zap.Error(err), zap.String("id", r.ID))
 					continue
 				}
-				eventID, emitted := eventEmitter.EmitRawEventWithLogging(ctx, log, "search.ai_enrichment_requested", r.ID, payload)
-				if !emitted {
-					log.Warn("Failed to emit AI enrichment request event", zap.String("event_id", eventID), zap.String("id", r.ID))
+				// Convert payload to *structpb.Struct
+				var payloadMap map[string]interface{}
+				if err := json.Unmarshal(payloadBytes, &payloadMap); err != nil {
+					log.Error("Failed to unmarshal result for structpb conversion", zap.Error(err), zap.String("id", r.ID))
+					continue
+				}
+				payloadStruct := metadata.NewStructFromMap(payloadMap, nil)
+				envelope := &events.EventEnvelope{
+					ID:        r.ID,
+					Type:      "search.ai_enrichment_requested",
+					Payload:   &commonpb.Payload{Data: payloadStruct},
+					Metadata:  r.Metadata,
+					Timestamp: time.Now().Unix(),
+				}
+				eventID, err := eventEmitter.EmitEventEnvelope(ctx, envelope)
+				if err != nil {
+					log.Warn("Failed to emit AI enrichment request event", zap.String("event_id", eventID), zap.String("id", r.ID), zap.Error(err))
 				}
 			}
 			seen[r.ID] = r
@@ -1227,19 +1261,15 @@ type AIEnrichmentEventEmitter struct {
 }
 
 func (a *AIEnrichmentEventEmitter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	if a.EventBus != nil {
-		return a.EventBus.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
-	}
+	// Deprecated: Use EmitEventEnvelopeWithLogging instead.
 	if log != nil {
-		log.Info("AIEnrichmentEventEmitter fallback emit", zap.String("event_type", eventType), zap.String("event_id", eventID))
+		log.Info("AIEnrichmentEventEmitter fallback emit (deprecated)", zap.String("event_type", eventType), zap.String("event_id", eventID))
 	}
 	return eventID, false
 }
 
 func (a *AIEnrichmentEventEmitter) EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	if a.EventBus != nil {
-		return a.EventBus.EmitEventWithLogging(ctx, emitter, log, eventType, eventID, meta)
-	}
+	// Deprecated: Use EmitEventEnvelopeWithLogging instead.
 	return eventID, false
 }
 
@@ -1248,371 +1278,121 @@ func (a *AIEnrichmentEventEmitter) EmitEventWithLogging(ctx context.Context, emi
 // FederatedSearch performs a federated search across multiple sources.
 func (s *Service) FederatedSearch(ctx context.Context, req *Request) ([]*Result, error) {
 	errMsgs := make([]string, 0, len(s.adapters))
-	results := make([]*Result, 0, len(s.adapters)*10) // Pre-allocate for better performance
+	results := make([]*Result, 0, len(s.adapters)*10)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	s.log.Info("[FederatedSearch] Starting federated search", zap.Int("adapter_count", len(s.adapters)), zap.Strings("adapter_names", func() []string {
+		names := make([]string, 0, len(s.adapters))
+		for name := range s.adapters {
+			names = append(names, name)
+		}
+		return names
+	}()))
+
+	// Set a 3s timeout for the entire federated search (increase for slow APIs)
+	searchCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 
 	for _, adapter := range s.adapters {
-		adapterResults, err := adapter.Search(ctx, req)
-		if err != nil {
-			errMsgs = append(errMsgs, fmt.Sprintf("%s: %v", adapter.Name(), err))
-			continue
+		wg.Add(1)
+		go func(adapter Adapter) {
+			defer wg.Done()
+			// Each adapter can have up to 10 workers
+			var adapterWg sync.WaitGroup
+			adapterResultsCh := make(chan []*Result, 10)
+			errCh := make(chan error, 10)
+
+			for i := 0; i < 10; i++ {
+				adapterWg.Add(1)
+				go func(workerID int) {
+					defer adapterWg.Done()
+					workerReq := *req // shallow copy
+					// Add context to query for each worker
+					switch workerID {
+					case 0:
+						workerReq.Query = req.Query + " definition"
+					case 1:
+						workerReq.Query = req.Query + " fundamentals"
+					case 2:
+						workerReq.Query = req.Query + " core facts"
+					case 3:
+						workerReq.Query = req.Query + " translation"
+					case 4:
+						workerReq.Query = req.Query + " regional adaptation"
+					case 5:
+						workerReq.Query = req.Query + " applications industry deployments"
+					case 6:
+						workerReq.Query = req.Query + " criticisms risks limitations ethical debates"
+					case 7:
+						workerReq.Query = req.Query + " demographics adoption trends user analysis"
+					case 8:
+						workerReq.Query = req.Query + " interdisciplinary cross-domain relevance"
+					case 9:
+						workerReq.Query = req.Query + " future trajectory innovation predictions"
+					}
+					s.log.Debug("[FederatedSearch] Adapter worker", zap.String("adapter", adapter.Name()), zap.Int("worker", workerID), zap.String("query", workerReq.Query))
+					res, err := adapter.Search(searchCtx, &workerReq)
+					if err != nil {
+						errCh <- fmt.Errorf("worker %d: %w", workerID, err)
+						return
+					}
+					adapterResultsCh <- res
+				}(i)
+			}
+			adapterWg.Wait()
+			close(adapterResultsCh)
+			close(errCh)
+
+			mu.Lock()
+			for res := range adapterResultsCh {
+				if len(res) > 0 {
+					s.log.Info("[FederatedSearch] Adapter results", zap.String("adapter", adapter.Name()), zap.Int("result_count", len(res)), zap.Any("results", res))
+					results = append(results, res...)
+				}
+			}
+			for err := range errCh {
+				s.log.Warn("[FederatedSearch] Adapter error", zap.String("adapter", adapter.Name()), zap.Error(err))
+				// Abbreviate the error message to just the adapter name for concise reporting.
+				errMsgs = append(errMsgs, adapter.Name())
+			}
+			mu.Unlock()
+		}(adapter)
+	}
+	wg.Wait()
+
+	s.log.Info("[FederatedSearch] Aggregated results", zap.Int("total_results", len(results)), zap.Strings("errors", errMsgs))
+
+	// Always return partial results and error details
+	pageNumber := 1
+	pageSize := 100
+	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+		if v, ok := req.Metadata.ServiceSpecific.Fields["page_number"]; ok {
+			if v.GetNumberValue() > 0 {
+				pageNumber = int(v.GetNumberValue())
+			}
 		}
-		results = append(results, adapterResults...)
-	}
-
-	if len(results) == 0 && len(errMsgs) > 0 {
-		return nil, fmt.Errorf("all adapters failed: %s", strings.Join(errMsgs, "; "))
-	}
-
-	return results, nil
-}
-
-// RegisterDefaultAdapters registers all production-grade external adapters.
-func (s *Service) RegisterDefaultAdapters() {
-	s.RegisterAdapter(&InternalDBAdapter{})
-	s.RegisterAdapter(&GoogleSearchAdapter{})
-	s.RegisterAdapter(&WikipediaSearchAdapter{})
-	s.RegisterAdapter(&DuckDuckGoSearchAdapter{})
-	s.RegisterAdapter(&PinterestSearchAdapter{})
-	s.RegisterAdapter(&LinkedInSearchAdapter{})
-	s.RegisterAdapter(&AcademicsSearchAdapter{})
-}
-
-// --- Generic API Adapter ---
-
-type GenericAPIAdapter struct {
-	AdapterName string
-	Endpoint    string
-	QueryKey    string
-	Headers     map[string]string
-	ParseFunc   func([]byte) ([]*Result, error)
-}
-
-func (a *GenericAPIAdapter) Search(ctx context.Context, req *Request) ([]*Result, error) {
-	q := url.QueryEscape(req.Query)
-	endpoint := a.Endpoint
-	if a.QueryKey != "" {
-		if strings.Contains(endpoint, "?") {
-			endpoint += "&" + a.QueryKey + "=" + q
-		} else {
-			endpoint += "?" + a.QueryKey + "=" + q
+		if v, ok := req.Metadata.ServiceSpecific.Fields["page_size"]; ok {
+			if v.GetNumberValue() > 0 {
+				pageSize = int(v.GetNumberValue())
+			}
 		}
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	start := (pageNumber - 1) * pageSize
+	end := start + pageSize
+	if start > len(results) {
+		return []*Result{}, fmt.Errorf("adapter errors: %s", strings.Join(errMsgs, "; "))
 	}
-	for k, v := range a.Headers {
-		httpReq.Header.Set(k, v)
+	if end > len(results) {
+		end = len(results)
 	}
-	resp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute request: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := readResponseBody(resp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read generic API response: %w", err)
-	}
-	return a.ParseFunc(body)
-}
+	pagedResults := results[start:end]
 
-func (a *GenericAPIAdapter) Name() string { return a.AdapterName }
-
-// --- ParseFunc Implementations for Tier 1 ---
-
-// Wikipedia API ParseFunc.
-func parseWikipediaResults(body []byte) ([]*Result, error) {
-	var resp struct {
-		Query struct {
-			Search []struct {
-				Title   string `json:"title"`
-				Snippet string `json:"snippet"`
-				PageID  int    `json:"pageid"`
-			} `json:"search"`
-		} `json:"query"`
+	if len(errMsgs) > 0 {
+		// Return results and a simplified list of failing adapters.
+		return pagedResults, fmt.Errorf("adapter errors: %s", strings.Join(errMsgs, ", "))
 	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	results := []*Result{}
-	for _, s := range resp.Query.Search {
-		wikiURL := "https://en.wikipedia.org/?curid=" + fmt.Sprint(s.PageID)
-		results = append(results, &Result{
-			ID:       wikiURL,
-			Type:     "wikipedia",
-			Score:    1.0,
-			Fields:   map[string]interface{}{"title": s.Title, "snippet": s.Snippet, "url": wikiURL},
-			Source:   "wikipedia",
-			Metadata: &commonpb.Metadata{},
-		})
-	}
-	return results, nil
-}
-
-// DuckDuckGo API ParseFunc.
-func parseDuckDuckGoResults(body []byte) ([]*Result, error) {
-	var result struct {
-		Abstract      string `json:"abstract"`
-		AbstractText  string `json:"abstract_text"`
-		AbstractURL   string `json:"abstract_url"`
-		Answer        string `json:"answer"`
-		RelatedTopics []struct {
-			Text     string `json:"text"`
-			FirstURL string `json:"first_url"`
-			Icon     struct {
-				URL string `json:"url"`
-			} `json:"icon"`
-		} `json:"related_topics"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
-	}
-	results := []*Result{}
-	for _, t := range result.RelatedTopics {
-		results = append(results, &Result{
-			ID:       t.FirstURL,
-			Type:     "duckduckgo",
-			Score:    1.0,
-			Fields:   map[string]interface{}{"title": t.Text, "url": t.FirstURL, "icon": t.Icon.URL},
-			Source:   "duckduckgo",
-			Metadata: &commonpb.Metadata{},
-		})
-	}
-	return results, nil
-}
-
-// arXiv API ParseFunc (returns XML, so use a simple regex for demo; production should use encoding/xml).
-func parseArxivResults(body []byte) ([]*Result, error) {
-	// For brevity, this is a simple string search; production should use encoding/xml
-	results := []*Result{}
-	str := string(body)
-	entries := strings.Split(str, "<entry>")
-	for _, entry := range entries[1:] {
-		titleStart := strings.Index(entry, "<title>")
-		titleEnd := strings.Index(entry, "</title>")
-		linkStart := strings.Index(entry, "<id>")
-		linkEnd := strings.Index(entry, "</id>")
-		if titleStart == -1 || titleEnd == -1 || linkStart == -1 || linkEnd == -1 {
-			continue
-		}
-		title := strings.TrimSpace(entry[titleStart+len("<title>") : titleEnd])
-		paperURL := strings.TrimSpace(entry[linkStart+len("<id>") : linkEnd])
-		results = append(results, &Result{
-			ID:       paperURL,
-			Type:     "arxiv",
-			Score:    1.0,
-			Fields:   map[string]interface{}{"title": title, "url": paperURL},
-			Source:   "arxiv",
-			Metadata: &commonpb.Metadata{},
-		})
-	}
-	return results, nil
-}
-
-// Semantic Scholar API ParseFunc.
-func parseSemanticScholarResults(body []byte) ([]*Result, error) {
-	var resp struct {
-		Data []struct {
-			Title   string `json:"title"`
-			URL     string `json:"url"`
-			Authors []struct {
-				Name string `json:"name"`
-			} `json:"authors"`
-			Year     int    `json:"year"`
-			Abstract string `json:"abstract"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	results := []*Result{}
-	for _, s := range resp.Data {
-		results = append(results, &Result{
-			ID:       s.URL,
-			Type:     "semanticscholar",
-			Score:    1.0,
-			Fields:   map[string]interface{}{"title": s.Title, "url": s.URL, "authors": s.Authors, "year": s.Year, "abstract": s.Abstract},
-			Source:   "semanticscholar",
-			Metadata: &commonpb.Metadata{},
-		})
-	}
-	return results, nil
-}
-
-// Open Library API ParseFunc.
-func parseOpenLibraryResults(body []byte) ([]*Result, error) {
-	var resp struct {
-		Docs []struct {
-			Title            string   `json:"title"`
-			Key              string   `json:"key"`
-			AuthorName       []string `json:"author_name"`
-			FirstPublishYear int      `json:"first_publish_year"`
-		} `json:"docs"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	results := []*Result{}
-	for _, d := range resp.Docs {
-		bookURL := "https://openlibrary.org" + d.Key
-		results = append(results, &Result{
-			ID:       bookURL,
-			Type:     "openlibrary",
-			Score:    1.0,
-			Fields:   map[string]interface{}{"title": d.Title, "url": bookURL, "authors": d.AuthorName, "year": d.FirstPublishYear},
-			Source:   "openlibrary",
-			Metadata: &commonpb.Metadata{},
-		})
-	}
-	return results, nil
-}
-
-// Unsplash/Openverse API ParseFunc (Openverse is open, Unsplash requires API key).
-func parseOpenverseResults(body []byte) ([]*Result, error) {
-	var resp struct {
-		Results []struct {
-			ID        string `json:"id"`
-			Title     string `json:"title"`
-			URL       string `json:"url"`
-			Creator   string `json:"creator"`
-			License   string `json:"license"`
-			Thumbnail string `json:"thumbnail"`
-		} `json:"results"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	results := []*Result{}
-	for _, r := range resp.Results {
-		results = append(results, &Result{
-			ID:       r.ID,
-			Type:     "openverse",
-			Score:    1.0,
-			Fields:   map[string]interface{}{"title": r.Title, "url": r.URL, "creator": r.Creator, "license": r.License, "thumbnail": r.Thumbnail},
-			Source:   "openverse",
-			Metadata: &commonpb.Metadata{},
-		})
-	}
-	return results, nil
-}
-
-// Internet Archive API ParseFunc.
-func parseInternetArchiveResults(body []byte) ([]*Result, error) {
-	var resp struct {
-		Response struct {
-			Docs []struct {
-				Title      string `json:"title"`
-				Identifier string `json:"identifier"`
-				Year       string `json:"year"`
-			} `json:"docs"`
-		} `json:"response"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	results := []*Result{}
-	for _, d := range resp.Response.Docs {
-		archiveURL := "https://archive.org/details/" + d.Identifier
-		results = append(results, &Result{
-			ID:       archiveURL,
-			Type:     "internetarchive",
-			Score:    1.0,
-			Fields:   map[string]interface{}{"title": d.Title, "url": archiveURL, "year": d.Year},
-			Source:   "internetarchive",
-			Metadata: &commonpb.Metadata{},
-		})
-	}
-	return results, nil
-}
-
-// NewsAPI ParseFunc.
-func parseNewsAPIResults(body []byte) ([]*Result, error) {
-	var result struct {
-		Status       string `json:"status"`
-		TotalResults int    `json:"total_results"`
-		Articles     []struct {
-			Source struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"source"`
-			Author      string `json:"author"`
-			Title       string `json:"title"`
-			Description string `json:"description"`
-			URL         string `json:"url"`
-			URLToImage  string `json:"url_to_image"`
-			PublishedAt string `json:"published_at"`
-			Content     string `json:"content"`
-		} `json:"articles"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
-	}
-	results := []*Result{}
-	for _, a := range result.Articles {
-		results = append(results, &Result{
-			ID:       a.URL,
-			Type:     "newsapi",
-			Score:    1.0,
-			Fields:   map[string]interface{}{"title": a.Title, "url": a.URL, "source": a.Source.Name, "published_at": a.PublishedAt, "description": a.Description},
-			Source:   "newsapi",
-			Metadata: &commonpb.Metadata{},
-		})
-	}
-	return results, nil
-}
-
-// --- Register Tier 1 Adapters ---
-
-func (s *Service) RegisterTier1Adapters() {
-	s.RegisterAdapter(&GenericAPIAdapter{
-		AdapterName: "wikipedia",
-		Endpoint:    "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json",
-		QueryKey:    "srsearch",
-		ParseFunc:   parseWikipediaResults,
-	})
-	s.RegisterAdapter(&GenericAPIAdapter{
-		AdapterName: "duckduckgo",
-		Endpoint:    "https://api.duckduckgo.com/?format=json",
-		QueryKey:    "q",
-		ParseFunc:   parseDuckDuckGoResults,
-	})
-	s.RegisterAdapter(&GenericAPIAdapter{
-		AdapterName: "arxiv",
-		Endpoint:    "http://export.arxiv.org/api/query",
-		QueryKey:    "search_query",
-		ParseFunc:   parseArxivResults,
-	})
-	s.RegisterAdapter(&GenericAPIAdapter{
-		AdapterName: "semanticscholar",
-		Endpoint:    "https://api.semanticscholar.org/graph/v1/paper/search?fields=title,url,authors,year,abstract",
-		QueryKey:    "query",
-		ParseFunc:   parseSemanticScholarResults,
-	})
-	s.RegisterAdapter(&GenericAPIAdapter{
-		AdapterName: "openlibrary",
-		Endpoint:    "https://openlibrary.org/search.json",
-		QueryKey:    "q",
-		ParseFunc:   parseOpenLibraryResults,
-	})
-	s.RegisterAdapter(&GenericAPIAdapter{
-		AdapterName: "openverse",
-		Endpoint:    "https://api.openverse.engineering/v1/images",
-		QueryKey:    "q",
-		ParseFunc:   parseOpenverseResults,
-	})
-	s.RegisterAdapter(&GenericAPIAdapter{
-		AdapterName: "internetarchive",
-		Endpoint:    "https://archive.org/advancedsearch.php?output=json&fl[]=identifier&fl[]=title&fl[]=year",
-		QueryKey:    "q",
-		ParseFunc:   parseInternetArchiveResults,
-	})
-	s.RegisterAdapter(&GenericAPIAdapter{
-		AdapterName: "newsapi",
-		Endpoint:    "https://newsapi.org/v2/everything",
-		QueryKey:    "q",
-		ParseFunc:   parseNewsAPIResults,
-		// Note: NewsAPI requires an API key in headers for production use
-	})
+	return pagedResults, nil
 }
 
 // --- Usage Example ---

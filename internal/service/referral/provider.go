@@ -30,6 +30,7 @@ import (
 	"context"
 	"database/sql"
 
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	referralpb "github.com/nmxmxh/master-ovasabi/api/protos/referral/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
@@ -65,9 +66,28 @@ func Register(
 		log.With(zap.String("service", "referral")).Error("Failed to register referral service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
-	// Inos: Register the hello-world event loop for service health and orchestration
+	// Register the concrete *Service type for direct resolution (e.g., in event handlers).
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return serviceInstance, nil
+	}); err != nil {
+		log.With(zap.String("service", "referral")).Error("Failed to register concrete *referral.Service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		return err
+	}
+	// Event subscriber logic (matching admin/campaign/search provider)
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		go func() {
+			for _, sub := range ReferralEventRegistry {
+				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+					if svc, ok := serviceInstance.(*Service); ok {
+						sub.Handler(ctx, svc, event)
+					}
+				})
+				if err != nil {
+					log.With(zap.String("service", "referral")).Error("Failed to subscribe to referral events", zap.Error(err))
+				}
+			}
+		}()
 		hello.StartHelloWorldLoop(ctx, prov, log, "referral")
 	}
 	return nil

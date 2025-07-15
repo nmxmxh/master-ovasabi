@@ -97,23 +97,26 @@ var jwtSecret = []byte("super-secret-placeholder") // TODO: Replace with Azure K
 type Service struct {
 	userpb.UnimplementedUserServiceServer
 	log          *zap.Logger
-	cache        *redis.Cache
 	repo         *Repository
+	cache        *redis.Cache
 	eventEmitter events.EventEmitter
 	eventEnabled bool
+	handler      *graceful.Handler // Canonical handler for orchestration
 }
 
 // Compile-time check.
 var _ userpb.UserServiceServer = (*Service)(nil)
 
-// NewUserService creates a new instance of UserService.
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) userpb.UserServiceServer {
+// NewService creates a new instance of UserService with graceful handler and canonical action naming.
+func NewService(ctx context.Context, log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) userpb.UserServiceServer {
+	handler := graceful.NewHandler(log, eventEmitter, cache, "user", "v1", eventEnabled)
 	return &Service{
 		log:          log,
 		repo:         repo,
 		cache:        cache,
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
+		handler:      handler,
 	}
 }
 
@@ -140,6 +143,7 @@ func protoProfileToRepo(p *userpb.UserProfile) Profile {
 
 // CreateUser creates a new user following the Master-Client-Service-Event pattern.
 func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
+	action := "create_user"
 	user := &User{
 		Username:     req.Username,
 		Email:        req.Email,
@@ -147,7 +151,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 		Profile:      protoProfileToRepo(req.Profile),
 		Roles:        req.Roles,
 		Status:       int32(userpb.UserStatus_USER_STATUS_ACTIVE),
-		Metadata:     req.Metadata, // TODO: Enrich with creator/referrer if needed
+		Metadata:     req.Metadata,
 		Score:        Score{Balance: 0, Pending: 0},
 	}
 	s.log.Info("Creating user", zap.String("email", req.Email), zap.String("username", req.Username))
@@ -155,18 +159,25 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 	isAdmin := utils.IsAdmin(roles)
 	userRegex := regexp.MustCompile(`^[\p{L}\p{N}._]{5,20}$`)
 	adminRegex := regexp.MustCompile(`^[\p{L}\p{N}._]{1,20}$`)
+	var err error
 	if isAdmin {
 		if !adminRegex.MatchString(req.Username) {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, ErrInvalidUsername, "invalid username", codes.InvalidArgument))
+			gErr := graceful.MapAndWrapErr(ctx, ErrInvalidUsername, "invalid username", codes.InvalidArgument)
+			s.handler.Error(ctx, action, codes.InvalidArgument, "invalid username", gErr, nil, req.Username)
+			return nil, graceful.ToStatusError(gErr)
 		}
 	} else {
 		if !userRegex.MatchString(req.Username) {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, ErrInvalidUsername, "invalid username", codes.InvalidArgument))
+			gErr := graceful.MapAndWrapErr(ctx, ErrInvalidUsername, "invalid username", codes.InvalidArgument)
+			s.handler.Error(ctx, action, codes.InvalidArgument, "invalid username", gErr, nil, req.Username)
+			return nil, graceful.ToStatusError(gErr)
 		}
 	}
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to hash password", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to hash password", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to hash password", gErr, nil, req.Username)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	user.PasswordHash = string(hashedPassword)
 	user.Profile = protoProfileToRepo(req.Profile)
@@ -174,19 +185,28 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 	user.Status = int32(userpb.UserStatus_USER_STATUS_ACTIVE)
 	created, err := s.repo.Create(ctx, user)
 	if err != nil {
-		if errors.Is(err, ErrUsernameTaken) {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "username already taken", codes.AlreadyExists))
+		var code codes.Code
+		var msg string
+		switch {
+		case errors.Is(err, ErrUsernameTaken):
+			code = codes.AlreadyExists
+			msg = "username already taken"
+		case errors.Is(err, ErrInvalidUsername):
+			code = codes.InvalidArgument
+			msg = "invalid username format"
+		case errors.Is(err, ErrUsernameReserved):
+			code = codes.InvalidArgument
+			msg = "username is reserved"
+		case errors.Is(err, ErrUsernameBadWord):
+			code = codes.InvalidArgument
+			msg = "username contains inappropriate content"
+		default:
+			code = codes.Internal
+			msg = "failed to create user"
 		}
-		if errors.Is(err, ErrInvalidUsername) {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid username format", codes.InvalidArgument))
-		}
-		if errors.Is(err, ErrUsernameReserved) {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "username is reserved", codes.InvalidArgument))
-		}
-		if errors.Is(err, ErrUsernameBadWord) {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "username contains inappropriate content", codes.InvalidArgument))
-		}
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to create user", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, msg, code)
+		s.handler.Error(ctx, action, code, msg, gErr, user.Metadata, req.Username)
+		return nil, graceful.ToStatusError(gErr)
 	}
 
 	// Initialize metadata if not provided
@@ -224,28 +244,12 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 
 	// Emit user created event
 	if s.eventEnabled {
-		if _, ok := s.eventEmitter.EmitEventWithLogging(ctx, s, s.log, "user_created", created.ID, created.Metadata); !ok {
+		if _, ok := events.EmitEventWithLogging(ctx, s.eventEmitter, s.log, "user_created", created.ID, created.Metadata); !ok {
 			s.log.Error("Failed to emit user created event", zap.String("user_id", created.ID))
 		}
 	}
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "user created", &userpb.CreateUserResponse{User: respUser}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     created.ID,
-		CacheValue:   respUser,
-		CacheTTL:     redis.TTLUserProfile,
-		Metadata:     created.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_created",
-		EventID:      created.ID,
-		PatternType:  "user",
-		PatternID:    created.ID,
-		PatternMeta:  created.Metadata,
-	})
-
+	s.handler.Success(ctx, action, codes.OK, "user created", &userpb.CreateUserResponse{User: respUser}, created.Metadata, created.ID, nil)
 	return &userpb.CreateUserResponse{User: respUser}, nil
 }
 
@@ -253,6 +257,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userpb.CreateUserRequest)
 
 // GetUser retrieves user information.
 func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.GetUserResponse, error) {
+	action := "get_user"
 	respUserPtr, err := redis.GetOrSetWithProtection(ctx, s.cache, s.log, req.UserId, func(ctx context.Context) (*userpb.User, error) {
 		repoUser, err := s.repo.GetByID(ctx, req.UserId)
 		if err != nil {
@@ -261,98 +266,72 @@ func (s *Service) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*use
 		return repoUserToProtoUser(repoUser), nil
 	}, redis.TTLUserProfile)
 	if err == nil {
+		s.handler.Success(ctx, action, codes.OK, "user retrieved", &userpb.GetUserResponse{User: respUserPtr}, nil, req.UserId, nil)
 		return &userpb.GetUserResponse{User: respUserPtr}, nil
 	}
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
+		code := codes.Internal
+		msg := "database error"
 		if errors.Is(err, ErrUserNotFound) {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound))
+			code = codes.NotFound
+			msg = "user not found"
 		}
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "database error", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, msg, code)
+		s.handler.Error(ctx, action, code, msg, gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	respUser := repoUserToProtoUser(repoUser)
 	if err := s.cache.Set(ctx, req.UserId, "profile", respUser, redis.TTLUserProfile); err != nil {
 		s.log.Error("Failed to cache user profile", zap.String("user_id", req.UserId), zap.Error(err))
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "user retrieved", &userpb.GetUserResponse{User: respUser}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     repoUser.ID,
-		CacheValue:   respUser,
-		CacheTTL:     redis.TTLUserProfile,
-		Metadata:     repoUser.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_updated",
-		EventID:      repoUser.ID,
-		PatternType:  "user",
-		PatternID:    repoUser.ID,
-		PatternMeta:  repoUser.Metadata,
-	})
+	s.handler.Success(ctx, action, codes.OK, "user retrieved", &userpb.GetUserResponse{User: respUser}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.GetUserResponse{User: respUser}, nil
 }
 
 // GetUserByUsername retrieves user information by username.
 func (s *Service) GetUserByUsername(ctx context.Context, req *userpb.GetUserByUsernameRequest) (*userpb.GetUserByUsernameResponse, error) {
+	action := "get_user_by_username"
 	repoUser, err := s.repo.GetByUsername(ctx, req.Username)
 	if err != nil {
+		code := codes.Internal
+		msg := "database error"
 		if errors.Is(err, ErrUserNotFound) {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound),
-			)
+			code = codes.NotFound
+			msg = "user not found"
 		}
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, err, "database error", codes.Internal),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, err, msg, code)
+		s.handler.Error(ctx, action, code, msg, gErr, nil, req.Username)
+		return nil, graceful.ToStatusError(gErr)
 	}
-
 	respUser := repoUserToProtoUser(repoUser)
-
-	success := graceful.WrapSuccess(ctx, codes.OK, "user retrieved by username", &userpb.GetUserByUsernameResponse{User: respUser}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        s.log,
-		Cache:      s.cache,
-		CacheKey:   respUser.Username,
-		CacheValue: respUser,
-		CacheTTL:   redis.TTLUserProfile,
-		Metadata:   respUser.Metadata,
-	})
-
+	s.handler.Success(ctx, action, codes.OK, "user retrieved by username", &userpb.GetUserByUsernameResponse{User: respUser}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.GetUserByUsernameResponse{User: respUser}, nil
 }
 
 // GetUserByEmail retrieves user information by email.
 func (s *Service) GetUserByEmail(ctx context.Context, req *userpb.GetUserByEmailRequest) (*userpb.GetUserByEmailResponse, error) {
+	action := "get_user_by_email"
 	repoUser, err := s.repo.GetByEmail(ctx, req.Email)
 	if err != nil {
+		code := codes.Internal
+		msg := "database error"
 		if errors.Is(err, ErrUserNotFound) {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound),
-			)
+			code = codes.NotFound
+			msg = "user not found"
 		}
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, err, "database error", codes.Internal),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, err, msg, code)
+		s.handler.Error(ctx, action, code, msg, gErr, nil, req.Email)
+		return nil, graceful.ToStatusError(gErr)
 	}
-
 	respUser := repoUserToProtoUser(repoUser)
-
-	success := graceful.WrapSuccess(ctx, codes.OK, "user retrieved by email", &userpb.GetUserByEmailResponse{User: respUser}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        s.log,
-		Cache:      s.cache,
-		CacheKey:   respUser.Email,
-		CacheValue: respUser,
-		CacheTTL:   redis.TTLUserProfile,
-		Metadata:   respUser.Metadata,
-	})
-
+	s.handler.Success(ctx, action, codes.OK, "user retrieved by email", &userpb.GetUserByEmailResponse{User: respUser}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.GetUserByEmailResponse{User: respUser}, nil
 }
 
 // UpdateUser updates a user record.
 func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.UpdateUserResponse, error) {
+	action := "update_user"
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
 		return nil, graceful.ToStatusError(
@@ -368,16 +347,16 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 	}
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
+		code := codes.Internal
+		msg := "failed to get user"
 		if errors.Is(err, ErrUserNotFound) {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound),
-			)
+			code = codes.NotFound
+			msg = "user not found"
 		}
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, err, "failed to get user", codes.Internal),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, err, msg, code)
+		s.handler.Error(ctx, action, code, msg, gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-
 	if req.User != nil {
 		if req.User.Username != "" {
 			repoUser.Username = req.User.Username
@@ -408,9 +387,9 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 		}
 		if req.User.Metadata != nil {
 			if err := metadata.ValidateMetadata(req.User.Metadata); err != nil {
-				return nil, graceful.ToStatusError(
-					graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument),
-				)
+				gErr := graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument)
+				s.handler.Error(ctx, action, codes.InvalidArgument, "invalid metadata", gErr, req.User.Metadata, req.UserId)
+				return nil, graceful.ToStatusError(gErr)
 			}
 			repoUser.Metadata = req.User.Metadata
 		}
@@ -422,58 +401,48 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 			repoUser.ExternalIDs = req.User.ExternalIds
 		}
 	}
-
-	// --- Use graceful orchestration hooks ---
+	// Save update
+	if err := s.repo.Update(ctx, repoUser); err != nil {
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update user", gErr, repoUser.Metadata, repoUser.ID)
+		return nil, graceful.ToStatusError(gErr)
+	}
 	getResp, err := s.GetUser(ctx, &userpb.GetUserRequest{UserId: req.UserId})
 	if err != nil {
-		return nil, err
+		s.handler.Error(ctx, action, codes.Internal, "failed to fetch updated user", err, repoUser.Metadata, repoUser.ID)
+		return nil, graceful.ToStatusError(err)
 	}
-
-	success := graceful.WrapSuccess(ctx, codes.OK, "user updated", &userpb.UpdateUserResponse{User: getResp.User}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     repoUser.ID,
-		CacheValue:   getResp.User,
-		CacheTTL:     redis.TTLUserProfile,
-		Metadata:     repoUser.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_updated",
-		EventID:      repoUser.ID,
-		PatternType:  "user",
-		PatternID:    repoUser.ID,
-		PatternMeta:  repoUser.Metadata,
-	})
-
+	s.handler.Success(ctx, action, codes.OK, "user updated", &userpb.UpdateUserResponse{User: getResp.User}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.UpdateUserResponse{User: getResp.User}, nil
 }
 
 // DeleteUser removes a user and its master record.
 func (s *Service) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequest) (*userpb.DeleteUserResponse, error) {
+	action := "delete_user"
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, errors.New("missing authentication"), "missing authentication", codes.Unauthenticated),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("missing authentication"), "missing authentication", codes.Unauthenticated)
+		s.handler.Error(ctx, action, codes.Unauthenticated, "missing authentication", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isAdmin := utils.IsAdmin(roles)
 	if !isAdmin && req.UserId != authUserID {
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, errors.New("cannot delete another user's profile"), "cannot delete another user's profile", codes.PermissionDenied),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("cannot delete another user's profile"), "cannot delete another user's profile", codes.PermissionDenied)
+		s.handler.Error(ctx, action, codes.PermissionDenied, "cannot delete another user's profile", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
+		code := codes.Internal
+		msg := "failed to delete user"
 		if errors.Is(err, ErrUserNotFound) {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound),
-			)
+			code = codes.NotFound
+			msg = "user not found"
 		}
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, err, "failed to delete user", codes.Internal),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, err, msg, code)
+		s.handler.Error(ctx, action, code, msg, gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if err := s.repo.Delete(ctx, repoUser.ID); err != nil {
 		return nil, graceful.ToStatusError(
@@ -485,48 +454,31 @@ func (s *Service) DeleteUser(ctx context.Context, req *userpb.DeleteUserRequest)
 			zap.String("user_id", req.UserId),
 			zap.Error(err))
 	}
-
-	success := graceful.WrapSuccess(ctx, codes.OK, "user deleted", &userpb.DeleteUserResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     repoUser.ID,
-		CacheValue:   nil,
-		CacheTTL:     0,
-		Metadata:     repoUser.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_updated",
-		EventID:      repoUser.ID,
-		PatternType:  "user",
-		PatternID:    repoUser.ID,
-		PatternMeta:  repoUser.Metadata,
-	})
-
+	s.handler.Success(ctx, action, codes.OK, "user deleted", &userpb.DeleteUserResponse{Success: true}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.DeleteUserResponse{Success: true}, nil
 }
 
 // ListUsers retrieves a list of users with pagination and filtering.
 func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (*userpb.ListUsersResponse, error) {
+	action := "list_users"
 	// Use ListFlexible if advanced filtering/search is requested (batchstreaming is not used here; ListFlexible is the canonical approach for advanced filtering/pagination)
 	if req.SearchQuery != "" || len(req.Tags) > 0 || req.Metadata != nil || req.Filters != nil {
 		users, total, err := s.repo.ListFlexible(ctx, req)
 		if err != nil {
-			s.log.Error("failed to list users (flexible)", zap.Error(err))
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, err, "failed to list users", codes.Internal),
-			)
+			gErr := graceful.MapAndWrapErr(ctx, err, "failed to list users", codes.Internal)
+			s.handler.Error(ctx, action, codes.Internal, "failed to list users", gErr, nil, "")
+			return nil, graceful.ToStatusError(gErr)
 		}
 		if total > int(^int32(0)) || total < 0 {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, errors.New("total overflows int32"), "total overflows int32", codes.Internal),
-			)
+			gErr := graceful.MapAndWrapErr(ctx, errors.New("total overflows int32"), "total overflows int32", codes.Internal)
+			s.handler.Error(ctx, action, codes.Internal, "total overflows int32", gErr, nil, "")
+			return nil, graceful.ToStatusError(gErr)
 		}
 		totalPages := (total + int(req.PageSize) - 1) / int(req.PageSize)
 		if totalPages > int(^int32(0)) || totalPages < 0 {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, errors.New("totalPages overflows int32"), "totalPages overflows int32", codes.Internal),
-			)
+			gErr := graceful.MapAndWrapErr(ctx, errors.New("totalPages overflows int32"), "totalPages overflows int32", codes.Internal)
+			s.handler.Error(ctx, action, codes.Internal, "totalPages overflows int32", gErr, nil, "")
+			return nil, graceful.ToStatusError(gErr)
 		}
 		resp := &userpb.ListUsersResponse{
 			Users:      make([]*userpb.User, 0, len(users)),
@@ -538,25 +490,7 @@ func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (
 			respUser := repoUserToProtoUser(u)
 			resp.Users = append(resp.Users, respUser)
 		}
-		success := graceful.WrapSuccess(ctx, codes.OK, "users listed (flexible)", resp, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:                s.log,
-			Cache:              nil,
-			CacheKey:           "",
-			CacheValue:         nil,
-			CacheTTL:           0,
-			Metadata:           nil,
-			EventEmitter:       s.eventEmitter,
-			EventEnabled:       s.eventEnabled,
-			EventType:          "user_updated",
-			EventID:            "",
-			PatternType:        "user",
-			PatternID:          "",
-			PatternMeta:        nil,
-			KnowledgeGraphHook: nil,
-			SchedulerHook:      nil,
-			EventHook:          nil,
-		})
+		s.handler.Success(ctx, action, codes.OK, "users listed (flexible)", resp, nil, "", nil)
 		return resp, nil
 	}
 	// Fallback to basic List
@@ -568,17 +502,16 @@ func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (
 	lim := int64(limit)
 	offset64 := page * lim
 	if offset64 > math.MaxInt32 || offset64 < 0 {
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, errors.New("pagination overflow"), "pagination overflow", codes.InvalidArgument),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("pagination overflow"), "pagination overflow", codes.InvalidArgument)
+		s.handler.Error(ctx, action, codes.InvalidArgument, "pagination overflow", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	offset := int(offset64)
 	users, err := s.repo.List(ctx, limit, offset)
 	if err != nil {
-		s.log.Error("failed to list users", zap.Error(err))
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, err, "failed to list users", codes.Internal),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to list users", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to list users", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	resp := &userpb.ListUsersResponse{
 		Users: make([]*userpb.User, 0, len(users)),
@@ -587,15 +520,15 @@ func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (
 	if limit > 0 {
 		totalPages = (len(users) + limit - 1) / limit
 		if totalPages > int(^int32(0)) || totalPages < 0 {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, errors.New("totalPages overflows int32"), "totalPages overflows int32", codes.Internal),
-			)
+			gErr := graceful.MapAndWrapErr(ctx, errors.New("totalPages overflows int32"), "totalPages overflows int32", codes.Internal)
+			s.handler.Error(ctx, action, codes.Internal, "totalPages overflows int32", gErr, nil, "")
+			return nil, graceful.ToStatusError(gErr)
 		}
 	}
 	if totalPages > int(^int32(0)) || totalPages < 0 {
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, errors.New("totalPages overflows int32 (post-check)"), "totalPages overflows int32 (post-check)", codes.Internal),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("totalPages overflows int32 (post-check)"), "totalPages overflows int32 (post-check)", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "totalPages overflows int32 (post-check)", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	resp.TotalPages = utils.ToInt32(totalPages)
 	resp.TotalCount = utils.ToInt32(len(users))
@@ -603,60 +536,52 @@ func (s *Service) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (
 		respUser := repoUserToProtoUser(u)
 		resp.Users = append(resp.Users, respUser)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "users listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_updated",
-		PatternType:  "user",
-	})
+	s.handler.Success(ctx, action, codes.OK, "users listed", resp, nil, "", nil)
 	return resp, nil
 }
 
 // UpdatePassword implements the UpdatePassword RPC method.
 func (s *Service) UpdatePassword(ctx context.Context, req *userpb.UpdatePasswordRequest) (*userpb.UpdatePasswordResponse, error) {
+	action := "update_password"
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, errors.New("missing authentication"), "missing authentication", codes.Unauthenticated),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("missing authentication"), "missing authentication", codes.Unauthenticated)
+		s.handler.Error(ctx, action, codes.Unauthenticated, "missing authentication", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isAdmin := utils.IsAdmin(roles)
 	if !isAdmin && req.UserId != authUserID {
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, errors.New("cannot update another user's password"), "cannot update another user's password", codes.PermissionDenied),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("cannot update another user's password"), "cannot update another user's password", codes.PermissionDenied)
+		s.handler.Error(ctx, action, codes.PermissionDenied, "cannot update another user's password", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
+		code := codes.Internal
+		msg := "failed to get user"
 		if errors.Is(err, ErrUserNotFound) {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound),
-			)
+			code = codes.NotFound
+			msg = "user not found"
 		}
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, err, "failed to get user", codes.Internal),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, err, msg, code)
+		s.handler.Error(ctx, action, code, msg, gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-
 	// If not admin, verify current password
 	if !isAdmin {
 		if err := bcrypt.CompareHashAndPassword([]byte(repoUser.PasswordHash), []byte(req.CurrentPassword)); err != nil {
-			return nil, graceful.ToStatusError(
-				graceful.MapAndWrapErr(ctx, errors.New("invalid current password"), "invalid current password", codes.PermissionDenied),
-			)
+			gErr := graceful.MapAndWrapErr(ctx, errors.New("invalid current password"), "invalid current password", codes.PermissionDenied)
+			s.handler.Error(ctx, action, codes.PermissionDenied, "invalid current password", gErr, nil, req.UserId)
+			return nil, graceful.ToStatusError(gErr)
 		}
 	}
-
 	// Hash new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, graceful.ToStatusError(
-			graceful.MapAndWrapErr(ctx, err, "failed to hash new password", codes.Internal),
-		)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to hash new password", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to hash new password", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	repoUser.PasswordHash = string(hashedPassword)
 
@@ -700,24 +625,10 @@ func (s *Service) UpdatePassword(ctx context.Context, req *userpb.UpdatePassword
 		}
 	}
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "password updated", &userpb.UpdatePasswordResponse{
+	s.handler.Success(ctx, action, codes.OK, "password updated", &userpb.UpdatePasswordResponse{
 		Success:   true,
 		UpdatedAt: time.Now().Unix(),
-	}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     repoUser.ID,
-		Metadata:     repoUser.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_updated",
-		EventID:      repoUser.ID,
-		PatternType:  "user",
-		PatternID:    repoUser.ID,
-		PatternMeta:  repoUser.Metadata,
-	})
-
+	}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.UpdatePasswordResponse{
 		Success:   true,
 		UpdatedAt: time.Now().Unix(),
@@ -726,6 +637,7 @@ func (s *Service) UpdatePassword(ctx context.Context, req *userpb.UpdatePassword
 
 // UpdateProfile updates a user's profile.
 func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRequest) (*userpb.UpdateProfileResponse, error) {
+	action := "update_profile"
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, errors.New("missing authentication"), "missing authentication", codes.Unauthenticated))
@@ -750,22 +662,7 @@ func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRe
 	if err != nil {
 		return nil, err
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "profile updated", &userpb.UpdateProfileResponse{User: getResp.User}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     repoUser.ID,
-		CacheValue:   getResp.User,
-		CacheTTL:     redis.TTLUserProfile,
-		Metadata:     repoUser.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_updated",
-		EventID:      repoUser.ID,
-		PatternType:  "user",
-		PatternID:    repoUser.ID,
-		PatternMeta:  repoUser.Metadata,
-	})
+	s.handler.Success(ctx, action, codes.OK, "profile updated", &userpb.UpdateProfileResponse{User: getResp.User}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.UpdateProfileResponse{User: getResp.User}, nil
 }
 
@@ -787,40 +684,37 @@ func (s *Service) updateUserMetadata(ctx context.Context, user *User, newMeta *c
 
 // AssignRole assigns a role to a user and updates metadata.
 func (s *Service) AssignRole(ctx context.Context, req *userpb.AssignRoleRequest) (*userpb.AssignRoleResponse, error) {
+	action := "assign_role"
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound))
+		gErr := graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound)
+		s.handler.Error(ctx, action, codes.NotFound, "user not found", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	repoUser.Roles = append(repoUser.Roles, req.Role)
 	err = s.updateUserMetadata(ctx, repoUser, repoUser.Metadata)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user metadata", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user metadata", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update user metadata", gErr, repoUser.Metadata, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if err := s.repo.Update(ctx, repoUser); err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to assign role", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to assign role", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to assign role", gErr, repoUser.Metadata, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "role assigned", &userpb.AssignRoleResponse{}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     repoUser.ID,
-		Metadata:     repoUser.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_role_assigned",
-		EventID:      repoUser.ID,
-		PatternType:  "user",
-		PatternID:    repoUser.ID,
-		PatternMeta:  repoUser.Metadata,
-	})
+	s.handler.Success(ctx, action, codes.OK, "role assigned", &userpb.AssignRoleResponse{}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.AssignRoleResponse{}, nil
 }
 
 // RemoveRole removes a role from a user and updates metadata.
 func (s *Service) RemoveRole(ctx context.Context, req *userpb.RemoveRoleRequest) (*userpb.RemoveRoleResponse, error) {
+	action := "remove_role"
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound))
+		gErr := graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound)
+		s.handler.Error(ctx, action, codes.NotFound, "user not found", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	newRoles := []string{}
 	for _, r := range repoUser.Roles {
@@ -831,45 +725,41 @@ func (s *Service) RemoveRole(ctx context.Context, req *userpb.RemoveRoleRequest)
 	repoUser.Roles = newRoles
 	err = s.updateUserMetadata(ctx, repoUser, repoUser.Metadata)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user metadata", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user metadata", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update user metadata", gErr, repoUser.Metadata, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if err := s.repo.Update(ctx, repoUser); err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to remove role", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to remove role", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to remove role", gErr, repoUser.Metadata, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "role removed", &userpb.RemoveRoleResponse{}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     repoUser.ID,
-		Metadata:     repoUser.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_role_removed",
-		EventID:      repoUser.ID,
-		PatternType:  "user",
-		PatternID:    repoUser.ID,
-		PatternMeta:  repoUser.Metadata,
-	})
+	s.handler.Success(ctx, action, codes.OK, "role removed", &userpb.RemoveRoleResponse{}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.RemoveRoleResponse{}, nil
 }
 
 // ListRoles lists all roles for a user.
 func (s *Service) ListRoles(ctx context.Context, req *userpb.ListRolesRequest) (*userpb.ListRolesResponse, error) {
+	action := "list_roles"
 	repoUser, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, "user not found")
+		gErr := graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound)
+		s.handler.Error(ctx, action, codes.NotFound, "user not found", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
+	s.handler.Success(ctx, action, codes.OK, "roles listed", &userpb.ListRolesResponse{Roles: repoUser.Roles}, repoUser.Metadata, repoUser.ID, nil)
 	return &userpb.ListRolesResponse{Roles: repoUser.Roles}, nil
 }
 
 // ListPermissions lists all permissions for a user.
 func (s *Service) ListPermissions(ctx context.Context, req *userpb.ListPermissionsRequest) (*userpb.ListPermissionsResponse, error) {
+	action := "list_permissions"
 	user, err := s.repo.GetByID(ctx, req.UserId)
 	if err != nil {
-		s.log.Error("failed to get user for permissions", zap.Error(err))
-		return nil, status.Error(codes.NotFound, "user not found")
+		gErr := graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound)
+		s.handler.Error(ctx, action, codes.NotFound, "user not found", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	// Example static role-to-permissions mapping
 	rolePerms := map[string][]string{
 		"admin":     {"read", "write", "delete", "manage_users"},
 		"editor":    {"read", "write"},
@@ -888,39 +778,47 @@ func (s *Service) ListPermissions(ctx context.Context, req *userpb.ListPermissio
 	for p := range permSet {
 		perms = append(perms, p)
 	}
+	s.handler.Success(ctx, action, codes.OK, "permissions listed", &userpb.ListPermissionsResponse{Permissions: perms}, user.Metadata, user.ID, nil)
 	return &userpb.ListPermissionsResponse{Permissions: perms}, nil
 }
 
 // ListUserEvents lists user events (stub).
 func (s *Service) ListUserEvents(ctx context.Context, req *userpb.ListUserEventsRequest) (*userpb.ListUserEventsResponse, error) {
+	action := "list_user_events"
 	page := int(req.Page)
 	pageSize := int(req.PageSize)
 	userEvents, total, err := s.repo.ListUserEvents(ctx, req.UserId, page, pageSize)
 	if err != nil {
-		s.log.Error("failed to list user events", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to list user events: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to list user events", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to list user events", gErr, nil, req.UserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	return &userpb.ListUserEventsResponse{
+	resp := &userpb.ListUserEventsResponse{
 		Events:     userEvents,
 		TotalCount: utils.ToInt32(total),
-	}, nil
+	}
+	s.handler.Success(ctx, action, codes.OK, "user events listed", resp, nil, req.UserId, nil)
+	return resp, nil
 }
 
 // ListAuditLogs lists audit logs for a user (stub).
 func (s *Service) ListAuditLogs(ctx context.Context, req *userpb.ListAuditLogsRequest) (*userpb.ListAuditLogsResponse, error) {
-	// For now, require a user_id field in the request (update the proto if needed)
-	userID := req.UserId // Add this field to the proto if not present
+	action := "list_audit_logs"
+	userID := req.UserId
 	page := int(req.Page)
 	pageSize := int(req.PageSize)
 	logs, total, err := s.repo.ListAuditLogs(ctx, userID, page, pageSize)
 	if err != nil {
-		s.log.Error("failed to list audit logs", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to list audit logs: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to list audit logs", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to list audit logs", gErr, nil, userID)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	return &userpb.ListAuditLogsResponse{
+	resp := &userpb.ListAuditLogsResponse{
 		Logs:       logs,
 		TotalCount: utils.ToInt32(total),
-	}, nil
+	}
+	s.handler.Success(ctx, action, codes.OK, "audit logs listed", resp, nil, userID, nil)
+	return resp, nil
 }
 
 // --- Session Management ---
@@ -939,26 +837,25 @@ func generateToken(length int) (string, error) {
 // For all structpb.NewStruct, handle errors and use metadata.NewStructFromMap if available for DRYness.
 
 func (s *Service) CreateSession(ctx context.Context, req *userpb.CreateSessionRequest) (*userpb.CreateSessionResponse, error) {
-	// Rate limiting is handled by the gRPC interceptor (see pkg/grpcutil/ratelimit.go)
-	// No per-handler rate limiting logic is needed here.
-
-	// Authenticate user or create guest session
+	action := "create_session"
 	var user *User
 	var err error
 	isGuest := false
 	if req.UserId != "" {
 		user, err = s.repo.GetByID(ctx, req.UserId)
 		if err != nil {
-			// On failed login, just return error (do not update metadata for nil user)
-			return nil, status.Error(codes.NotFound, "user not found")
+			gErr := graceful.MapAndWrapErr(ctx, err, "user not found", codes.NotFound)
+			s.handler.Error(ctx, action, codes.NotFound, "user not found", gErr, nil, req.UserId)
+			return nil, graceful.ToStatusError(gErr)
 		}
-		// Successful login: update meta struct fields, then call updateUserMetadata
 		if user.Metadata == nil {
 			user.Metadata = &commonpb.Metadata{}
 		}
 		metaPtr, err := metadata.ServiceMetadataFromStruct(user.Metadata.ServiceSpecific)
 		if err != nil {
-			return nil, graceful.LogAndWrap(ctx, s.log, codes.Internal, "failed to extract service metadata", err)
+			gErr := graceful.MapAndWrapErr(ctx, err, "failed to extract service metadata", codes.Internal)
+			s.handler.Error(ctx, action, codes.Internal, "failed to extract service metadata", gErr, user.Metadata, user.ID)
+			return nil, graceful.ToStatusError(gErr)
 		}
 		meta := *metaPtr
 		meta.DeviceID = req.DeviceInfo
@@ -969,64 +866,70 @@ func (s *Service) CreateSession(ctx context.Context, req *userpb.CreateSessionRe
 		meta.Audit.History = append(meta.Audit.History, "login")
 		metaStruct, err := metadata.ServiceMetadataToStruct(&meta)
 		if err != nil {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to convert service metadata", codes.Internal))
+			gErr := graceful.MapAndWrapErr(ctx, err, "failed to convert service metadata", codes.Internal)
+			s.handler.Error(ctx, action, codes.Internal, "failed to convert service metadata", gErr, user.Metadata, user.ID)
+			return nil, graceful.ToStatusError(gErr)
 		}
 		user.Metadata.ServiceSpecific = metaStruct
 		if err := s.updateUserMetadata(ctx, user, user.Metadata); err != nil {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user metadata", codes.Internal))
+			gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user metadata", codes.Internal)
+			s.handler.Error(ctx, action, codes.Internal, "failed to update user metadata", gErr, user.Metadata, user.ID)
+			return nil, graceful.ToStatusError(gErr)
 		}
 		if err := s.repo.Update(ctx, user); err != nil {
-			return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal))
+			gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal)
+			s.handler.Error(ctx, action, codes.Internal, "failed to update user", gErr, user.Metadata, user.ID)
+			return nil, graceful.ToStatusError(gErr)
 		}
 	} else {
-		// Guest session
 		isGuest = true
 		user = &User{
 			Username: "guest",
 			Status:   int32(userpb.UserStatus_USER_STATUS_ACTIVE),
-			Metadata: nil, // will be set below
+			Metadata: nil,
 		}
 	}
 	accessToken, err := generateToken(32)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to generate access token")
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to generate access token", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to generate access token", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	refreshToken, err := generateToken(32)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to generate refresh token")
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to generate refresh token", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to generate refresh token", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
-	// --- METADATA UPDATE CHAIN ---
 	if user.Metadata == nil {
 		user.Metadata = &commonpb.Metadata{}
 	}
 	metaPtr, err := metadata.ServiceMetadataFromStruct(user.Metadata.ServiceSpecific)
 	if err != nil {
-		return nil, graceful.LogAndWrap(ctx, s.log, codes.Internal, "failed to extract service metadata", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to extract service metadata", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to extract service metadata", gErr, user.Metadata, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	meta := *metaPtr
 	if isGuest {
 		meta.Guest = true
-
 		meta.GuestCreatedAt = time.Now().UTC().Format(time.RFC3339)
 		meta.DeviceID = req.DeviceInfo
 	} else {
 		meta.DeviceID = req.DeviceInfo
 	}
-	// Audit: update last login
 	if meta.Audit == nil {
 		meta.Audit = &metadata.AuditMetadata{}
 	}
 	meta.Audit.LastModified = time.Now().UTC().Format(time.RFC3339)
 	meta.Audit.History = append(meta.Audit.History, "login")
-	// JWT issuance
-	jwtID := accessToken // In real code, use a real JWT ID
+	jwtID := accessToken
 	audience := "ovasabi-app"
 	scopes := []string{"user:read", "user:write"}
 	serviceMetaMap := make(map[string]interface{})
 	if user.Metadata.ServiceSpecific != nil {
 		serviceMetaMap = user.Metadata.ServiceSpecific.AsMap()
 	}
-	// Update JWT metadata
 	if serviceMetaMap == nil {
 		serviceMetaMap = make(map[string]interface{})
 	}
@@ -1040,18 +943,21 @@ func (s *Service) CreateSession(ctx context.Context, req *userpb.CreateSessionRe
 	serviceMetaMap["jwt"] = jwtMeta
 	metaStruct, err := metadata.ServiceMetadataToStruct(&meta)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert service metadata to struct: %w", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to convert service metadata to struct", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to convert service metadata to struct", gErr, user.Metadata, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	user.Metadata.ServiceSpecific = metaStruct
 	if err := s.updateUserMetadata(ctx, user, user.Metadata); err != nil {
-		s.log.Error("failed to update user metadata", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to update user metadata")
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user metadata", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update user metadata", gErr, user.Metadata, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if err := s.repo.Update(ctx, user); err != nil {
-		s.log.Error("failed to update user", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to update user")
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update user", gErr, user.Metadata, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
-
 	session := &userpb.Session{
 		Id:           accessToken,
 		UserId:       user.ID,
@@ -1060,39 +966,25 @@ func (s *Service) CreateSession(ctx context.Context, req *userpb.CreateSessionRe
 		ExpiresAt:    timestamppb.New(time.Now().Add(24 * time.Hour)),
 		RefreshToken: refreshToken,
 		AccessToken:  accessToken,
-		IpAddress:    "", // set from context/headers if available
+		IpAddress:    "",
 		Metadata:     user.Metadata,
 	}
-	// Store session in Redis
 	if s.cache != nil {
 		err := s.cache.Set(ctx, accessToken, "session", session, 24*time.Hour)
 		if err != nil {
 			s.log.Error("failed to cache session", zap.Error(err))
 		}
 	}
-	// Optionally update user record in DB for last login, etc. (not shown)
-	success := graceful.WrapSuccess(ctx, codes.OK, "session created", &userpb.CreateSessionResponse{Session: session}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     session.Id,
-		CacheValue:   session,
-		CacheTTL:     24 * time.Hour,
-		Metadata:     user.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_updated",
-		EventID:      user.ID,
-		PatternType:  "user",
-		PatternID:    user.ID,
-		PatternMeta:  user.Metadata,
-	})
+	s.handler.Success(ctx, action, codes.OK, "session created", &userpb.CreateSessionResponse{Session: session}, user.Metadata, user.ID, nil)
 	return &userpb.CreateSessionResponse{Session: session}, nil
 }
 
 func (s *Service) GetSession(ctx context.Context, req *userpb.GetSessionRequest) (*userpb.GetSessionResponse, error) {
+	action := "get_session"
 	if s.cache == nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, errors.New("session cache unavailable"), "session cache unavailable", codes.Unavailable))
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("session cache unavailable"), "session cache unavailable", codes.Unavailable)
+		s.handler.Error(ctx, action, codes.Unavailable, "session cache unavailable", gErr, nil, req.SessionId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	sessionPtr, err := redis.GetOrSetWithProtection(ctx, s.cache, s.log, req.SessionId, func(ctx context.Context) (*userpb.Session, error) {
 		session, err := s.repo.GetSession(ctx, req.SessionId)
@@ -1102,30 +994,37 @@ func (s *Service) GetSession(ctx context.Context, req *userpb.GetSessionRequest)
 		return session, nil
 	}, 24*time.Hour)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "session not found", codes.NotFound))
+		gErr := graceful.MapAndWrapErr(ctx, err, "session not found", codes.NotFound)
+		s.handler.Error(ctx, action, codes.NotFound, "session not found", gErr, nil, req.SessionId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "session retrieved", &userpb.GetSessionResponse{Session: sessionPtr}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "session retrieved", &userpb.GetSessionResponse{Session: sessionPtr}, nil, req.SessionId, nil)
 	return &userpb.GetSessionResponse{Session: sessionPtr}, nil
 }
 
 func (s *Service) RevokeSession(ctx context.Context, req *userpb.RevokeSessionRequest) (*userpb.RevokeSessionResponse, error) {
+	action := "revoke_session"
 	if s.cache == nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, errors.New("session cache unavailable"), "session cache unavailable", codes.Unavailable))
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("session cache unavailable"), "session cache unavailable", codes.Unavailable)
+		s.handler.Error(ctx, action, codes.Unavailable, "session cache unavailable", gErr, nil, req.SessionId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	err := s.cache.Delete(ctx, req.SessionId, "session")
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "session not found", codes.NotFound))
+		gErr := graceful.MapAndWrapErr(ctx, err, "session not found", codes.NotFound)
+		s.handler.Error(ctx, action, codes.NotFound, "session not found", gErr, nil, req.SessionId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "session revoked", &userpb.RevokeSessionResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "session revoked", &userpb.RevokeSessionResponse{Success: true}, nil, req.SessionId, nil)
 	return &userpb.RevokeSessionResponse{Success: true}, nil
 }
 
 func (s *Service) ListSessions(ctx context.Context, req *userpb.ListSessionsRequest) (*userpb.ListSessionsResponse, error) {
+	action := "list_sessions"
 	if s.cache == nil {
-		s.log.Warn("Session cache unavailable, falling back to repository (not implemented)")
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, errors.New("session cache unavailable and repository fallback not implemented"), "session cache unavailable and repository fallback not implemented", codes.Unavailable))
+		gErr := graceful.MapAndWrapErr(ctx, errors.New("session cache unavailable and repository fallback not implemented"), "session cache unavailable and repository fallback not implemented", codes.Unavailable)
+		s.handler.Error(ctx, action, codes.Unavailable, "session cache unavailable and repository fallback not implemented", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	scanPattern := "*"
 	var sessions []*userpb.Session
@@ -1142,11 +1041,11 @@ func (s *Service) ListSessions(ctx context.Context, req *userpb.ListSessionsRequ
 		}
 	}
 	if err := iter.Err(); err != nil {
-		s.log.Error("failed to scan session keys", zap.Error(err))
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to scan session keys", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to scan session keys", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to scan session keys", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "sessions listed", &userpb.ListSessionsResponse{Sessions: sessions}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "sessions listed", &userpb.ListSessionsResponse{Sessions: sessions}, nil, req.UserId, nil)
 	return &userpb.ListSessionsResponse{Sessions: sessions}, nil
 }
 
@@ -1213,8 +1112,7 @@ func (s *Service) RegisterInterest(ctx context.Context, req *userpb.RegisterInte
 				return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal))
 			}
 		}
-		success := graceful.WrapSuccess(ctx, codes.OK, "interest registered (existing user)", &userpb.RegisterInterestResponse{User: repoUserToProtoUser(user)}, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+		s.handler.Success(ctx, "register_interest", codes.OK, "interest registered (existing user)", &userpb.RegisterInterestResponse{User: repoUserToProtoUser(user)}, user.Metadata, user.ID, nil)
 		return &userpb.RegisterInterestResponse{User: repoUserToProtoUser(user)}, nil
 	}
 	user = &User{
@@ -1226,8 +1124,7 @@ func (s *Service) RegisterInterest(ctx context.Context, req *userpb.RegisterInte
 	if err != nil {
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to register interest", codes.Internal))
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "interest registered (new user)", &userpb.RegisterInterestResponse{User: repoUserToProtoUser(created)}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, "register_interest", codes.OK, "interest registered (new user)", &userpb.RegisterInterestResponse{User: repoUserToProtoUser(created)}, created.Metadata, created.ID, nil)
 	return &userpb.RegisterInterestResponse{User: repoUserToProtoUser(created)}, nil
 }
 
@@ -1246,22 +1143,7 @@ func (s *Service) CreateReferral(ctx context.Context, req *userpb.CreateReferral
 		s.log.Error("failed to update user", zap.Error(err))
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal))
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "referral created", &userpb.CreateReferralResponse{ReferralCode: code, Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     user.ID,
-		CacheValue:   nil,
-		CacheTTL:     0,
-		Metadata:     user.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "user_referral_created",
-		EventID:      user.ID,
-		PatternType:  "user",
-		PatternID:    user.ID,
-		PatternMeta:  user.Metadata,
-	})
+	s.handler.Success(ctx, "create_referral", codes.OK, "referral created", &userpb.CreateReferralResponse{ReferralCode: code, Success: true}, user.Metadata, user.ID, nil)
 	return &userpb.CreateReferralResponse{ReferralCode: code, Success: true}, nil
 }
 
@@ -1814,19 +1696,24 @@ func (s *Service) BlockUser(ctx context.Context, req *userpb.BlockUserRequest) (
 }
 
 func (s *Service) UnblockUser(ctx context.Context, req *userpb.UnblockUserRequest) (*userpb.UnblockUserResponse, error) {
+	action := "unblock_user"
 	err := s.repo.UnblockUser(ctx, req.TargetUserId)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to unblock user", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to unblock user", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to unblock user", gErr, nil, req.TargetUserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "user unblocked", &userpb.UnblockUserResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "user unblocked", &userpb.UnblockUserResponse{Success: true}, nil, req.TargetUserId, nil)
 	return &userpb.UnblockUserResponse{Success: true}, nil
 }
 
 func (s *Service) MuteUser(ctx context.Context, req *userpb.MuteUserRequest) (*userpb.MuteUserResponse, error) {
+	action := "mute_user"
 	targetUser, err := s.repo.GetByID(ctx, req.TargetUserId)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "target user not found", codes.NotFound))
+		gErr := graceful.MapAndWrapErr(ctx, err, "target user not found", codes.NotFound)
+		s.handler.Error(ctx, action, codes.NotFound, "target user not found", gErr, nil, req.TargetUserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if targetUser.Metadata == nil {
 		targetUser.Metadata = &commonpb.Metadata{}
@@ -1837,73 +1724,77 @@ func (s *Service) MuteUser(ctx context.Context, req *userpb.MuteUserRequest) (*u
 	}
 	userMetaVal, ok := ss["user"]
 	if !ok {
-		s.log.Warn("user metadata missing in ss map", zap.String("user_id", targetUser.ID))
 		userMetaVal = map[string]interface{}{}
 	}
 	userMeta, ok := userMetaVal.(map[string]interface{})
 	if !ok {
-		s.log.Warn("user metadata type assertion failed", zap.Any("userMetaVal", userMetaVal), zap.String("user_id", targetUser.ID))
 		userMeta = map[string]interface{}{}
 	}
 	badActorVal, ok := userMeta["bad_actor"]
 	if !ok {
-		badActorVal = map[string]interface{}{"score": 1.0}
+		badActorVal = map[string]interface{}{"muted": true}
 	}
 	badActor, ok := badActorVal.(map[string]interface{})
 	if !ok {
-		s.log.Warn("bad_actor type assertion failed", zap.Any("badActorVal", badActorVal), zap.String("user_id", targetUser.ID))
-		badActor = map[string]interface{}{"score": 1.0}
+		badActor = map[string]interface{}{"muted": true}
 	}
-	score, ok := badActor["score"].(float64)
-	if !ok {
-		score = 0
-	}
-	badActor["score"] = score + 1.0
+	badActor["muted"] = true
 	userMeta["bad_actor"] = badActor
 	ss["user"] = userMeta
 	newStruct, err := structpb.NewStruct(ss)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to convert metadata to struct", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to convert metadata to struct", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to convert metadata to struct", gErr, targetUser.Metadata, targetUser.ID)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	targetUser.Metadata.ServiceSpecific = newStruct
 	if err := s.updateUserMetadata(ctx, targetUser, targetUser.Metadata); err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update metadata", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update metadata", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update metadata", gErr, targetUser.Metadata, targetUser.ID)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if err := s.repo.Update(ctx, targetUser); err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update user", gErr, targetUser.Metadata, targetUser.ID)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "user muted", &userpb.MuteUserResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "user muted", &userpb.MuteUserResponse{Success: true}, targetUser.Metadata, targetUser.ID, nil)
 	return &userpb.MuteUserResponse{Success: true}, nil
 }
 
 func (s *Service) UnmuteUser(ctx context.Context, req *userpb.UnmuteUserRequest) (*userpb.UnmuteUserResponse, error) {
+	action := "unmute_user"
 	err := s.repo.UnmuteUser(ctx, req.TargetUserId)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to unmute user", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to unmute user", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to unmute user", gErr, nil, req.TargetUserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "user unmuted", &userpb.UnmuteUserResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "user unmuted", &userpb.UnmuteUserResponse{Success: true}, nil, req.TargetUserId, nil)
 	return &userpb.UnmuteUserResponse{Success: true}, nil
 }
 
 func (s *Service) UnmuteGroup(ctx context.Context, req *userpb.UnmuteGroupRequest) (*userpb.UnmuteGroupResponse, error) {
+	action := "unmute_group"
 	err := s.repo.UnmuteGroup(ctx, req.UserId, req.GroupId)
 	if err != nil {
-		return &userpb.UnmuteGroupResponse{Success: false}, status.Errorf(codes.Internal, "failed to unmute group: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to unmute group", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to unmute group", gErr, nil, req.GroupId)
+		return &userpb.UnmuteGroupResponse{Success: false}, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "group unmuted", &userpb.UnmuteGroupResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "group unmuted", &userpb.UnmuteGroupResponse{Success: true}, nil, req.GroupId, nil)
 	return &userpb.UnmuteGroupResponse{Success: true}, nil
 }
 
 func (s *Service) UnmuteGroupIndividuals(ctx context.Context, req *userpb.UnmuteGroupIndividualsRequest) (*userpb.UnmuteGroupIndividualsResponse, error) {
+	action := "unmute_group_individuals"
 	unmuted, err := s.repo.UnmuteGroupIndividuals(ctx, req.UserId, req.GroupId, req.TargetUserIds)
 	if err != nil {
-		return &userpb.UnmuteGroupIndividualsResponse{Success: false}, status.Errorf(codes.Internal, "failed to unmute group individuals: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to unmute group individuals", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to unmute group individuals", gErr, nil, req.GroupId)
+		return &userpb.UnmuteGroupIndividualsResponse{Success: false}, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "group individuals unmuted", &userpb.UnmuteGroupIndividualsResponse{Success: true, UnmutedUserIds: unmuted}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "group individuals unmuted", &userpb.UnmuteGroupIndividualsResponse{Success: true, UnmutedUserIds: unmuted}, nil, req.GroupId, nil)
 	return &userpb.UnmuteGroupIndividualsResponse{Success: true, UnmutedUserIds: unmuted}, nil
 }
 
@@ -1918,9 +1809,12 @@ func (s *Service) UnblockGroupIndividuals(ctx context.Context, req *userpb.Unblo
 }
 
 func (s *Service) ReportUser(ctx context.Context, req *userpb.ReportUserRequest) (*userpb.ReportUserResponse, error) {
+	action := "report_user"
 	targetUser, err := s.repo.GetByID(ctx, req.ReportedUserId)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "target user not found", codes.NotFound))
+		gErr := graceful.MapAndWrapErr(ctx, err, "target user not found", codes.NotFound)
+		s.handler.Error(ctx, action, codes.NotFound, "target user not found", gErr, nil, req.ReportedUserId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if targetUser.Metadata == nil {
 		targetUser.Metadata = &commonpb.Metadata{}
@@ -1936,7 +1830,6 @@ func (s *Service) ReportUser(ctx context.Context, req *userpb.ReportUserRequest)
 	}
 	userMeta, ok := userMetaVal.(map[string]interface{})
 	if !ok {
-		s.log.Warn("user metadata type assertion failed", zap.Any("userMetaVal", userMetaVal), zap.String("user_id", targetUser.ID))
 		userMeta = map[string]interface{}{}
 	}
 	badActorVal, ok := userMeta["bad_actor"]
@@ -1945,79 +1838,93 @@ func (s *Service) ReportUser(ctx context.Context, req *userpb.ReportUserRequest)
 	}
 	badActor, ok := badActorVal.(map[string]interface{})
 	if !ok {
-		s.log.Warn("bad_actor type assertion failed", zap.Any("badActorVal", badActorVal), zap.String("user_id", targetUser.ID))
 		badActor = map[string]interface{}{"score": 1.0}
 	}
 	score, ok := badActor["score"].(float64)
 	if !ok {
-		score = 0
+		score = 0.0
 	}
 	badActor["score"] = score + 1.0
 	userMeta["bad_actor"] = badActor
 	ss["user"] = userMeta
 	newStruct, err := structpb.NewStruct(ss)
 	if err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to convert metadata to struct", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to convert metadata to struct", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to convert metadata to struct", gErr, targetUser.Metadata, targetUser.ID)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	targetUser.Metadata.ServiceSpecific = newStruct
 	if err := s.updateUserMetadata(ctx, targetUser, targetUser.Metadata); err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update metadata", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update metadata", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update metadata", gErr, targetUser.Metadata, targetUser.ID)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if err := s.repo.Update(ctx, targetUser); err != nil {
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal))
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update user", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to update user", gErr, targetUser.Metadata, targetUser.ID)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "user reported", &userpb.ReportUserResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "user reported", &userpb.ReportUserResponse{Success: true}, targetUser.Metadata, targetUser.ID, nil)
 	return &userpb.ReportUserResponse{Success: true}, nil
 }
 
 func (s *Service) BlockGroupContent(ctx context.Context, req *userpb.BlockGroupContentRequest) (*userpb.BlockGroupContentResponse, error) {
+	action := "block_group_content"
 	err := s.repo.BlockGroupContent(ctx, req.UserId, req.GroupId, req.ContentId, req.Metadata)
 	if err != nil {
-		return &userpb.BlockGroupContentResponse{Success: false}, status.Errorf(codes.Internal, "failed to block group content: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to block group content", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to block group content", gErr, nil, req.GroupId)
+		return &userpb.BlockGroupContentResponse{Success: false}, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "group content blocked", &userpb.BlockGroupContentResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "group content blocked", &userpb.BlockGroupContentResponse{Success: true}, nil, req.GroupId, nil)
 	return &userpb.BlockGroupContentResponse{Success: true}, nil
 }
 
 func (s *Service) ReportGroupContent(ctx context.Context, req *userpb.ReportGroupContentRequest) (*userpb.ReportGroupContentResponse, error) {
+	action := "report_group_content"
 	reportID, err := s.repo.ReportGroupContent(ctx, req.ReporterUserId, req.GroupId, req.ContentId, req.Reason, req.Details, req.Metadata)
 	if err != nil {
-		return &userpb.ReportGroupContentResponse{Success: false, ReportId: ""}, status.Errorf(codes.Internal, "failed to report group content: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to report group content", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to report group content", gErr, nil, req.GroupId)
+		return &userpb.ReportGroupContentResponse{Success: false, ReportId: ""}, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "group content reported", &userpb.ReportGroupContentResponse{Success: true, ReportId: reportID}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "group content reported", &userpb.ReportGroupContentResponse{Success: true, ReportId: reportID}, nil, req.GroupId, nil)
 	return &userpb.ReportGroupContentResponse{Success: true, ReportId: reportID}, nil
 }
 
 func (s *Service) MuteGroupContent(ctx context.Context, req *userpb.MuteGroupContentRequest) (*userpb.MuteGroupContentResponse, error) {
+	action := "mute_group_content"
 	err := s.repo.MuteGroupContent(ctx, req.UserId, req.GroupId, req.ContentId, req.DurationMinutes, req.Metadata)
 	if err != nil {
-		return &userpb.MuteGroupContentResponse{Success: false}, status.Errorf(codes.Internal, "failed to mute group content: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to mute group content", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to mute group content", gErr, nil, req.GroupId)
+		return &userpb.MuteGroupContentResponse{Success: false}, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "group content muted", &userpb.MuteGroupContentResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "group content muted", &userpb.MuteGroupContentResponse{Success: true}, nil, req.GroupId, nil)
 	return &userpb.MuteGroupContentResponse{Success: true}, nil
 }
 
 func (s *Service) MuteGroupIndividuals(ctx context.Context, req *userpb.MuteGroupIndividualsRequest) (*userpb.MuteGroupIndividualsResponse, error) {
+	action := "mute_group_individuals"
 	mutedUserIDs, err := s.repo.MuteGroupIndividuals(ctx, req.UserId, req.GroupId, int(req.DurationMinutes), req.Metadata)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to mute group individuals: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to mute group individuals", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to mute group individuals", gErr, nil, req.GroupId)
+		return &userpb.MuteGroupIndividualsResponse{Success: false}, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "group individuals muted", &userpb.MuteGroupIndividualsResponse{Success: true, MutedUserIds: mutedUserIDs}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "group individuals muted", &userpb.MuteGroupIndividualsResponse{Success: true, MutedUserIds: mutedUserIDs}, nil, req.GroupId, nil)
 	return &userpb.MuteGroupIndividualsResponse{Success: true, MutedUserIds: mutedUserIDs}, nil
 }
 
 func (s *Service) BlockGroupIndividuals(ctx context.Context, req *userpb.BlockGroupIndividualsRequest) (*userpb.BlockGroupIndividualsResponse, error) {
+	action := "block_group_individuals"
 	blockedUserIDs, err := s.repo.BlockGroupIndividuals(ctx, req.UserId, req.GroupId, int(req.DurationMinutes), req.Metadata)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to block group individuals: %v", err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to block group individuals", codes.Internal)
+		s.handler.Error(ctx, action, codes.Internal, "failed to block group individuals", gErr, nil, req.GroupId)
+		return &userpb.BlockGroupIndividualsResponse{Success: false}, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "group individuals blocked", &userpb.BlockGroupIndividualsResponse{Success: true, BlockedUserIds: blockedUserIDs}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log})
+	s.handler.Success(ctx, action, codes.OK, "group individuals blocked", &userpb.BlockGroupIndividualsResponse{Success: true, BlockedUserIds: blockedUserIDs}, nil, req.GroupId, nil)
 	return &userpb.BlockGroupIndividualsResponse{Success: true, BlockedUserIds: blockedUserIDs}, nil
 }
 

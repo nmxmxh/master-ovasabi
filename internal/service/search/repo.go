@@ -413,3 +413,45 @@ func (r *Repository) SearchAllEntities(
 	}
 	return allResults, len(allResults), nil
 }
+
+// Suggest performs a prefix-based search on the title field for suggestions.
+func (r *Repository) Suggest(ctx context.Context, query string, limit int) ([]string, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// Use ILIKE for case-insensitive prefix matching.
+	// The query is parameterized to prevent SQL injection.
+	sqlQuery := `
+		SELECT title
+		FROM service_search_index
+		WHERE title ILIKE $1
+		ORDER BY title
+		LIMIT $2
+	`
+	args := []interface{}{query + "%", limit}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	rows, err := r.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute suggest query: %w", err)
+	}
+	defer rows.Close()
+
+	var suggestions []string
+	for rows.Next() {
+		var title string
+		if err := rows.Scan(&title); err != nil {
+			return nil, fmt.Errorf("failed to scan suggestion row: %w", err)
+		}
+		suggestions = append(suggestions, title)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating suggestion rows: %w", err)
+	}
+
+	return suggestions, nil
+}

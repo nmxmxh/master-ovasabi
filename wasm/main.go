@@ -8,9 +8,11 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"runtime"
 	"sync"
 	"syscall/js"
+	"time"
 
 	"unsafe"
 )
@@ -41,7 +43,7 @@ func getEmbeddedServiceRegistration() []byte {
 	return data
 }
 
-// emitToNexus sends event results/state to the Nexus event bus (not directly to frontend)
+// emitToNexus sends event results/state to the Nexus event bus
 func emitToNexus(eventType string, payload interface{}, metadata json.RawMessage) {
 	// Validate metadata and correlation_id
 	var metaMap map[string]interface{}
@@ -52,7 +54,6 @@ func emitToNexus(eventType string, payload interface{}, metadata json.RawMessage
 	if _, ok := metaMap["correlation_id"]; !ok {
 		log("[NEXUS WARN] Event missing correlation_id in metadata:", eventType)
 	}
-	// Optionally, validate other required fields (campaign, user, device, session, etc.)
 
 	env := EventEnvelope{
 		Type:     eventType,
@@ -71,7 +72,7 @@ func emitToNexus(eventType string, payload interface{}, metadata json.RawMessage
 		return
 	}
 
-	// Send to Nexus event bus via WebSocket (reuse sendWSMessage)
+	// Send to Nexus event bus via WebSocket
 	sendWSMessage(0, envelopeBytes)
 	log("[NEXUS EMIT]", env.Type, string(env.Payload))
 }
@@ -179,13 +180,51 @@ func initWebSocket() {
 	configureWebSocketCallbacks()
 }
 
+// reconnectWebSocket handles WebSocket reconnection from WASM side
+func reconnectWebSocket() {
+	if !ws.IsNull() {
+		ws.Call("close")
+	}
+
+	log("[WASM] Attempting WebSocket reconnection...")
+	initWebSocket()
+}
+
+// jsReconnectWebSocket exposes reconnection to JavaScript
+func jsReconnectWebSocket(this js.Value, args []js.Value) interface{} {
+	reconnectWebSocket()
+	return nil
+}
+
 func configureWebSocketCallbacks() {
 	ws.Set("binaryType", "arraybuffer") // Enable binary messages
 
 	ws.Set("onopen", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		log("[WASM] WebSocket connection opened.")
-		sendWSMessage(0, []byte(`{"type":"ping"}`)) // JSON ping
-		notifyFrontendReady()                       // Notify JS/React that WASM is ready and connected
+		// Send echo event with metadata instead of ping
+		echoEvent := map[string]interface{}{
+			"type": "echo",
+			"payload": map[string]interface{}{
+				"message":   "Connection heartbeat",
+				"timestamp": time.Now().Format(time.RFC3339),
+				"source":    "wasm-client",
+			},
+			"metadata": map[string]interface{}{
+				"service_specific": map[string]interface{}{
+					"echo": map[string]interface{}{
+						"service":   "wasm-client",
+						"message":   "Connection heartbeat",
+						"timestamp": time.Now().Format(time.RFC3339),
+					},
+				},
+			},
+		}
+		if echoJSON, err := json.Marshal(echoEvent); err == nil {
+			sendWSMessage(0, echoJSON)
+		} else {
+			log("[WASM] Failed to marshal echo event:", err)
+		}
+		notifyFrontendReady() // Notify JS/React that WASM is ready and connected
 		return nil
 	}))
 
@@ -212,70 +251,143 @@ func configureWebSocketCallbacks() {
 	}))
 	ws.Set("onclose", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		log("[WASM] WebSocket connection closed.")
+
+		// Notify frontend about connection loss
+		if onMsgHandler := js.Global().Get("onWasmMessage"); onMsgHandler.Type() == js.TypeFunction {
+			closeEvent := js.Global().Get("Object").New()
+			closeEvent.Set("type", "connection:closed")
+			closeEvent.Set("payload", js.Global().Get("Object").New())
+			closeEvent.Set("metadata", js.Global().Get("Object").New())
+			onMsgHandler.Invoke(closeEvent)
+		}
+
 		return nil
 	}))
 }
 
-// --- Message Processing Pipeline ---
+// processMessages handles incoming WebSocket messages and performs Backend→WASM type conversion
 func processMessages() {
 	for msg := range messageQueue {
 		switch msg.dataType {
-		case 0: // JSON
+		case 0: // JSON from backend - convert to proper EventEnvelope
 			var event EventEnvelope
 			if err := json.Unmarshal(msg.payload, &event); err == nil {
+				// Forward properly typed event to frontend via WASM→Frontend boundary
+				forwardEventToFrontend(event)
+
+				// Process internally in WASM
 				if handler := eventBus.GetHandler(event.Type); handler != nil {
-					go handler(event) // Pass the full EventEnvelope
-				} else {
-					log("[WASM] No handler registered for JSON event type:", event.Type)
+					go handler(event)
 				}
 			} else {
-				log("[WASM] Error unmarshaling JSON event:", err)
+				log("[WASM] Error unmarshaling JSON from backend:", err, string(msg.payload))
 			}
 
-		case 1: // Binary
-			// For binary messages, we assume the first 5 bytes are version and type,
-			// and the rest is payload. This doesn't fit the EventEnvelope directly
-			// unless we wrap the binary payload inside a JSON EventEnvelope.
-			// For now, keep it separate or decide on a unified binary envelope.
-			// The prompt implies a unified envelope, so let's try to adapt binary too.
-			// If binary is also expected to be part of the EventEnvelope, then
-			// the `sendBinary` function and this `case 1` need significant refactor.
-			// Given the prompt's focus on "Formalize the Event System" and "Nexus pattern",
-			// it's more likely that binary data would be part of a JSON envelope (e.g., base64 encoded).
-			// For now, I'll create a dummy EventEnvelope for dispatch, but note this as a point of future unification.
-
+		case 1: // Binary from backend - convert to EventEnvelope
 			if len(msg.payload) < 5 { // Version (1 byte) + Type (4 bytes)
 				log("[WASM] Binary message too short")
 				continue
 			}
 
-			// Current binary processing (as-is, not fully Nexus-unified)
-			// This creates a dummy EventEnvelope to fit the new handler signature.
-			// Ideally, binary data would be base64-encoded within a JSON EventEnvelope
-			// or a separate, well-defined binary envelope.
-
-			version := msg.payload[0]
 			msgType := string(msg.payload[1:5])
-			payload := msg.payload[5:]
+			event := EventEnvelope{
+				Type:     msgType,
+				Payload:  msg.payload[5:],
+				Metadata: json.RawMessage(`{}`),
+			}
 
-			if version == BinaryMsgVersion {
-				eventBus.RLock()
-				// For binary, we'll create a dummy EventEnvelope for dispatch
-				// This is a temporary bridge, ideally binary would be part of a JSON envelope
-				dummyEvent := EventEnvelope{
-					Type:     msgType,
-					Payload:  payload,               // Binary payload directly
-					Metadata: json.RawMessage(`{}`), // Empty metadata for binary
-				}
-				if handler := eventBus.GetHandler(dummyEvent.Type); handler != nil {
-					go handler(dummyEvent)
-				} else {
-					log("[WASM] No handler registered for binary event type:", dummyEvent.Type)
-				}
-			} else {
-				log("[WASM] Unknown binary message version:", version)
+			// Forward to frontend
+			forwardEventToFrontend(event)
+
+			// Process internally in WASM
+			if handler := eventBus.GetHandler(event.Type); handler != nil {
+				go handler(event)
 			}
 		}
+	}
+}
+
+// forwardEventToFrontend handles WASM→Frontend type conversion at the boundary
+func forwardEventToFrontend(event EventEnvelope) {
+	if onMsgHandler := js.Global().Get("onWasmMessage"); onMsgHandler.Type() == js.TypeFunction {
+		// Convert EventEnvelope to proper JS object at WASM boundary
+		jsEvent := goEventToJSValue(event)
+		onMsgHandler.Invoke(jsEvent)
+	}
+}
+
+// goEventToJSValue converts Go EventEnvelope to proper JavaScript object
+func goEventToJSValue(event EventEnvelope) js.Value {
+	jsObj := js.Global().Get("Object").New()
+
+	// Set type
+	jsObj.Set("type", event.Type)
+
+	// Convert payload - properly handle JSON vs raw bytes
+	if len(event.Payload) > 0 {
+		var payloadObj interface{}
+		if err := json.Unmarshal(event.Payload, &payloadObj); err == nil {
+			// It's valid JSON - convert to JS object
+			jsObj.Set("payload", goValueToJSValue(payloadObj))
+		} else {
+			// It's raw bytes - convert to Uint8Array
+			uint8Array := js.Global().Get("Uint8Array").New(len(event.Payload))
+			js.CopyBytesToJS(uint8Array, event.Payload)
+			jsObj.Set("payload", uint8Array)
+		}
+	}
+
+	// Convert metadata - ensure it's a proper JS object
+	if len(event.Metadata) > 0 {
+		var metadataObj interface{}
+		if err := json.Unmarshal(event.Metadata, &metadataObj); err == nil {
+			jsObj.Set("metadata", goValueToJSValue(metadataObj))
+		} else {
+			// Fallback to empty object
+			jsObj.Set("metadata", js.Global().Get("Object").New())
+		}
+	} else {
+		jsObj.Set("metadata", js.Global().Get("Object").New())
+	}
+
+	return jsObj
+}
+
+// goValueToJSValue recursively converts Go interface{} to JavaScript values
+func goValueToJSValue(v interface{}) js.Value {
+	switch val := v.(type) {
+	case nil:
+		return js.Null()
+	case bool:
+		return js.ValueOf(val)
+	case int, int8, int16, int32, int64:
+		return js.ValueOf(val)
+	case uint, uint8, uint16, uint32, uint64:
+		return js.ValueOf(val)
+	case float32, float64:
+		return js.ValueOf(val)
+	case string:
+		return js.ValueOf(val)
+	case []interface{}:
+		// Array
+		jsArray := js.Global().Get("Array").New(len(val))
+		for i, item := range val {
+			jsArray.SetIndex(i, goValueToJSValue(item))
+		}
+		return jsArray
+	case map[string]interface{}:
+		// Object
+		jsObj := js.Global().Get("Object").New()
+		for k, item := range val {
+			jsObj.Set(k, goValueToJSValue(item))
+		}
+		return jsObj
+	default:
+		// Fallback: convert to JSON string
+		if jsonBytes, err := json.Marshal(val); err == nil {
+			return js.ValueOf(string(jsonBytes))
+		}
+		return js.ValueOf("")
 	}
 }
 
@@ -459,61 +571,119 @@ func registerAllCanonicalEventHandlers() {
 	}
 }
 
-// jsSendWasmMessage is the function JS will call: window.sendWasmMessage(msg)
+// jsSendWasmMessage handles Frontend→WASM type conversion at the boundary
 func jsSendWasmMessage(this js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		log("[WASM] sendWasmMessage called with no arguments")
 		return nil
 	}
-	msg := args[0]
-	log("[WASM] sendWasmMessage received from JS:", msg)
-	var raw []byte
-	if msg.Type() == js.TypeString {
-		raw = []byte(msg.String())
-	} else if msg.InstanceOf(js.Global().Get("Object")) || msg.Type() == js.TypeObject {
-		eventObj := map[string]interface{}{}
-		keys := js.Global().Get("Object").Call("keys", msg)
-		for i := 0; i < keys.Length(); i++ {
-			k := keys.Index(i).String()
-			v := msg.Get(k)
-			switch v.Type() {
-			case js.TypeString:
-				eventObj[k] = v.String()
-			case js.TypeNumber:
-				eventObj[k] = v.Float()
-			case js.TypeBoolean:
-				eventObj[k] = v.Bool()
-			default:
-				jsonVal, err := json.Marshal(v)
-				if err == nil {
-					eventObj[k] = string(jsonVal)
-				} else {
-					eventObj[k] = nil
-				}
-			}
-		}
-		raw, _ = json.Marshal(eventObj)
-	} else {
-		jsonVal, err := json.Marshal(msg)
-		if err != nil {
-			log("[WASM] Failed to marshal JS message to JSON:", err)
-			return nil
-		}
-		raw = jsonVal
-	}
-	log("[WASM] Raw JSON from JS:", string(raw))
-	var event EventEnvelope
-	if err := json.Unmarshal(raw, &event); err != nil {
-		log("[WASM] Failed to unmarshal Nexus event from JS message:", err, string(raw))
+
+	jsMsg := args[0]
+	log("[WASM] sendWasmMessage received from JS:", jsMsg)
+
+	// Convert JavaScript object to Go EventEnvelope at the boundary
+	event, err := jsValueToEventEnvelope(jsMsg)
+	if err != nil {
+		log("[WASM] Failed to convert JS message to EventEnvelope:", err)
 		return nil
 	}
-	log("[WASM] Nexus event received from JS:", event.Type)
+
+	log("[WASM] Converted to EventEnvelope:", event.Type)
+
+	// Forward the event to the backend (Nexus)
+	emitToNexus(event.Type, event.Payload, event.Metadata)
+
+	// Process the properly typed event internally if a handler exists
 	if handler := eventBus.GetHandler(event.Type); handler != nil {
 		go handler(event)
 	} else {
-		log("[WASM] No handler registered for event type from JS:", event.Type)
+		log("[WASM] No internal handler registered for event type from JS:", event.Type)
 	}
 	return nil
+}
+
+// jsValueToEventEnvelope converts JavaScript value to Go EventEnvelope
+func jsValueToEventEnvelope(jsVal js.Value) (EventEnvelope, error) {
+	var event EventEnvelope
+
+	// Handle string input (JSON)
+	if jsVal.Type() == js.TypeString {
+		jsonStr := jsVal.String()
+		if err := json.Unmarshal([]byte(jsonStr), &event); err != nil {
+			return event, fmt.Errorf("failed to unmarshal JSON string: %w", err)
+		}
+		return event, nil
+	}
+
+	// Handle object input
+	if jsVal.Type() == js.TypeObject {
+		// Extract type
+		if typeVal := jsVal.Get("type"); typeVal.Type() == js.TypeString {
+			event.Type = typeVal.String()
+		} else {
+			return event, fmt.Errorf("event type is missing or not a string")
+		}
+
+		// Extract payload
+		if payloadVal := jsVal.Get("payload"); !payloadVal.IsUndefined() {
+			payloadGo := jsValueToGoValue(payloadVal)
+			if payloadBytes, err := json.Marshal(payloadGo); err == nil {
+				event.Payload = payloadBytes
+			} else {
+				return event, fmt.Errorf("failed to marshal payload: %w", err)
+			}
+		}
+
+		// Extract metadata
+		if metadataVal := jsVal.Get("metadata"); !metadataVal.IsUndefined() {
+			metadataGo := jsValueToGoValue(metadataVal)
+			if metadataBytes, err := json.Marshal(metadataGo); err == nil {
+				event.Metadata = metadataBytes
+			} else {
+				return event, fmt.Errorf("failed to marshal metadata: %w", err)
+			}
+		} else {
+			event.Metadata = json.RawMessage(`{}`)
+		}
+
+		return event, nil
+	}
+
+	return event, fmt.Errorf("unsupported JavaScript value type: %s", jsVal.Type().String())
+}
+
+// jsValueToGoValue recursively converts a JS value to a Go interface{}
+func jsValueToGoValue(v js.Value) interface{} {
+	switch v.Type() {
+	case js.TypeString:
+		return v.String()
+	case js.TypeNumber:
+		return v.Float()
+	case js.TypeBoolean:
+		return v.Bool()
+	case js.TypeObject:
+		if v.InstanceOf(js.Global().Get("Array")) {
+			// Handle arrays
+			length := v.Get("length").Int()
+			result := make([]interface{}, length)
+			for i := 0; i < length; i++ {
+				result[i] = jsValueToGoValue(v.Index(i))
+			}
+			return result
+		} else {
+			// Handle objects
+			result := make(map[string]interface{})
+			keys := js.Global().Get("Object").Call("keys", v)
+			for i := 0; i < keys.Length(); i++ {
+				key := keys.Index(i).String()
+				result[key] = jsValueToGoValue(v.Get(key))
+			}
+			return result
+		}
+	default:
+		// null, undefined, etc.
+		return nil
+	}
 }
 
 // --- AI/ML Inference and Task Submission ---
@@ -538,10 +708,7 @@ func jsMigrateUser(this js.Value, args []js.Value) interface{} {
 	return nil
 }
 
-// jsSendBinary is exposed to JavaScript for sending binary data.
-// This function needs to be refactored if binary data is to be fully unified
-// within the JSON EventEnvelope (e.g., base64 encoding).
-// For now, it sends a raw binary message with a 4-byte type prefix.
+// jsSendBinary handles binary data with proper Frontend→WASM type conversion
 func jsSendBinary(this js.Value, args []js.Value) interface{} {
 	if len(args) < 3 { // Expecting type, payload, and metadata
 		log("[WASM] sendBinary requires type, payload, and metadata arguments")
@@ -552,7 +719,7 @@ func jsSendBinary(this js.Value, args []js.Value) interface{} {
 	payloadJS := args[1]
 	metadataJS := args[2]
 
-	// Convert payloadJS to []byte
+	// Convert payload to proper Go format at the boundary
 	var payloadBytes []byte
 	if payloadJS.InstanceOf(js.Global().Get("Uint8Array")) || payloadJS.InstanceOf(js.Global().Get("ArrayBuffer")) {
 		payloadBytes = make([]byte, payloadJS.Get("byteLength").Int())
@@ -560,37 +727,39 @@ func jsSendBinary(this js.Value, args []js.Value) interface{} {
 	} else if payloadJS.Type() == js.TypeString {
 		payloadBytes = []byte(payloadJS.String())
 	} else {
-		// Attempt to JSON marshal other JS types
-		jsonPayload, err := json.Marshal(payloadJS.String()) // This might not work for complex JS objects directly
-		if err != nil {
+		// Convert JS object to JSON at the boundary
+		payloadGo := jsValueToGoValue(payloadJS)
+		if jsonBytes, err := json.Marshal(payloadGo); err == nil {
+			payloadBytes = jsonBytes
+		} else {
 			log("[WASM] Failed to marshal payload to JSON:", err)
 			return nil
 		}
-		payloadBytes = jsonPayload
 	}
 
-	// Convert metadataJS to JSON RawMessage
+	// Convert metadata to proper Go format at the boundary
 	var metadataBytes json.RawMessage
 	if metadataJS.Type() == js.TypeString {
 		metadataBytes = json.RawMessage(metadataJS.String())
 	} else {
-		// Attempt to JSON marshal other JS types
-		jsonMetadata, err := json.Marshal(metadataJS.String()) // This might not work for complex JS objects directly
-		if err != nil {
+		// Convert JS object to JSON at the boundary
+		metadataGo := jsValueToGoValue(metadataJS)
+		if jsonBytes, err := json.Marshal(metadataGo); err == nil {
+			metadataBytes = jsonBytes
+		} else {
 			log("[WASM] Failed to marshal metadata to JSON:", err)
 			return nil
 		}
-		metadataBytes = jsonMetadata
 	}
 
-	// Construct the EventEnvelope
+	// Construct the EventEnvelope with properly converted types
 	event := EventEnvelope{
 		Type:     eventType,
 		Payload:  payloadBytes,
 		Metadata: metadataBytes,
 	}
 
-	// Marshal the envelope to JSON for sending over WebSocket
+	// Marshal and send to backend
 	envelopeBytes, err := json.Marshal(event)
 	if err != nil {
 		log("[WASM] Failed to marshal EventEnvelope:", err)
@@ -664,21 +833,12 @@ func handleStateUpdate(event EventEnvelope) {
 	}
 }
 
-// Generic event handler for all canonical event types, per communication standards
+// Generic event handler for all canonical event types
 func genericEventHandler(event EventEnvelope) {
-	// Log the event receipt with canonical event type
 	log("[WASM][", event.Type, "] State: received", string(event.Payload))
 
-	// Forward the event to all relevant channels (Nexus, WebSocket, etc.)
-	emitToNexus(event.Type, event.Payload, event.Metadata)
-	emitToWebSocket(event.Type, event.Payload, event.Metadata)
-	// Add more emitters as needed (e.g., Redis, gRPC, etc.)
-}
-
-// emitToWebSocket sends event results/state to the WebSocket channel (stub, to be implemented as needed)
-func emitToWebSocket(eventType string, payload json.RawMessage, metadata json.RawMessage) {
-	// Implement WebSocket emission logic here, e.g., using JS interop or a Go WebSocket client
-	log("[WS EMIT]", eventType, string(payload))
+	// Forwarding is handled by the entry points (jsSendWasmMessage and processMessages).
+	// This handler is for logging or internal WASM processing.
 }
 
 // --- Utility Functions ---
@@ -699,38 +859,66 @@ func log(args ...interface{}) {
 	js.Global().Get("console").Call("log", args...)
 }
 
-// --- Shared Buffer for WASM/JS Interop ---
-// This buffer is exposed to JS/React as a shared ArrayBuffer for real-time/animation state.
-// The frontend can access it via window.getSharedBuffer().
+// startHeartbeat sends periodic echo events to maintain connection
+func startHeartbeat() {
+	ticker := time.NewTicker(300 * time.Second) // Send heartbeat every 300 seconds
+	defer ticker.Stop()
 
-// --- Main Initialization ---
-// main initializes the WASM client, registers all canonical event types, and ensures robust concurrency and event handling.
-// See docs/communication_standards.md and pkg/registration/generator.go for event type generation logic.
+	for range ticker.C {
+		// Only send heartbeat if WebSocket is connected
+		if !ws.IsNull() && ws.Get("readyState").Int() == 1 {
+			echoEvent := map[string]interface{}{
+				"type": "echo",
+				"payload": map[string]interface{}{
+					"message":   "Periodic heartbeat",
+					"timestamp": time.Now().Format(time.RFC3339),
+					"source":    "wasm-client",
+					"sequence":  time.Now().Unix(),
+				},
+				"metadata": map[string]interface{}{
+					"service_specific": map[string]interface{}{
+						"echo": map[string]interface{}{
+							"service":   "wasm-client",
+							"message":   "Periodic heartbeat",
+							"timestamp": time.Now().Format(time.RFC3339),
+							"purpose":   "connection-maintenance",
+						},
+					},
+				},
+			}
+			if echoJSON, err := json.Marshal(echoEvent); err == nil {
+				sendWSMessage(0, echoJSON)
+				log("[WASM] Sent heartbeat echo event")
+			} else {
+				log("[WASM] Failed to marshal heartbeat echo event:", err)
+			}
+		}
+	}
+}
+
+// main initializes the WASM client with canonical event system
 func main() {
 	log("[WASM] Starting WASM client (canonical event system)")
 
-	// Expose sendWasmMessage to JS BEFORE anything else that might trigger onWasmReady
+	// Expose sendWasmMessage to JS BEFORE anything else
 	js.Global().Set("sendWasmMessage", js.FuncOf(jsSendWasmMessage))
-
-	// Expose getSharedBuffer for JS/React shared memory access
-	js.Global().Set("getSharedBuffer", js.FuncOf(getSharedBuffer))
-
-	// Expose getSharedBuffer for JS/React shared memory access
 	js.Global().Set("getSharedBuffer", js.FuncOf(getSharedBuffer))
 
 	// Initialize core systems
 	initUserSession()
-	eventBus = NewWASMEventBus() // Initialize the event bus
+	eventBus = NewWASMEventBus()
 	initWebSocket()
 
-	// Start processing pipelines (concurrent, non-blocking)
+	// Start processing pipelines
 	go processMessages()
 	go processComputeTasks()
+	// go startHeartbeat() // Start heartbeat to maintain connection (NOBERT COMMENT)
 
 	// Expose APIs to JavaScript
 	js.Global().Set("infer", js.FuncOf(jsInfer))
 	js.Global().Set("migrateUser", js.FuncOf(jsMigrateUser))
 	js.Global().Set("sendBinary", js.FuncOf(jsSendBinary))
+	js.Global().Set("reconnectWebSocket", js.FuncOf(jsReconnectWebSocket))
 	js.Global().Set("submitGPUTask", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		if len(args) < 2 || !args[0].InstanceOf(js.Global().Get("Function")) || !args[1].InstanceOf(js.Global().Get("Function")) {
 			return nil
@@ -740,16 +928,13 @@ func main() {
 		return nil
 	}))
 
-	// Register core message handlers (now accept EventEnvelope)
+	// Register core message handlers
 	eventBus.RegisterHandler("gpu_frame", handleGPUFrame)
 	eventBus.RegisterHandler("state_update", handleStateUpdate)
 
-	// Register all canonical event types with the generic handler at startup
+	// Register all canonical event types with generic handler
 	registerAllCanonicalEventHandlers()
 
-	// The WASM event bus now supports all canonical event types in the format {service}:{action}:v{version}:{state}
-	// All event emission and handling is now generic and standards-compliant.
-
-	// Keep running without blocking main thread
+	// Keep running
 	select {}
 }

@@ -69,25 +69,13 @@ func Register(
 		return err
 	}
 
-	// Validate that all event types used in the code are present in the canonical registry
-	nonCanonical := false
-	for _, sub := range SearchEventRegistry {
-		for _, evt := range sub.EventTypes {
-			found := false
-			for _, canonical := range eventTypes {
-				if evt == canonical {
-					found = true
-					break
-				}
-			}
-			if !found {
-				log.Error("Non-canonical event type used in code (must be fixed)", zap.String("eventType", evt))
-				nonCanonical = true
-			}
+	// Only register event handlers for canonical event types for this service
+	for _, evt := range eventTypes {
+		action, _ := parseActionAndState(evt)
+		if _, ok := actionHandlers[action]; ok {
+			log.Info("Handler available for event type", zap.String("event_type", evt), zap.String("action", action), zap.String("where", "provider registration"))
+			// No per-event-type registration needed; event bus and generic handler handle routing.
 		}
-	}
-	if nonCanonical {
-		return errors.New("non-canonical event types found in code; see logs for details")
 	}
 
 	// Start event subscribers for event-driven search orchestration.

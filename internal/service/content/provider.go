@@ -59,6 +59,18 @@ func Register(
 		log.With(zap.String("service", "content")).Warn("Failed to get content cache", zap.Error(err), zap.String("cache", "content"), zap.String("context", ctxValue(ctx)))
 	}
 	contentService := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("create_content", handleCreateContent)
+	RegisterActionHandler("update_content", handleUpdateContent)
+	RegisterActionHandler("delete_content", handleDeleteContent)
+	RegisterActionHandler("add_comment", handleAddComment)
+	RegisterActionHandler("add_reaction", handleAddReaction)
+	RegisterActionHandler("list_content", handleListContent)
+	RegisterActionHandler("list_comments", handleListComments)
+	RegisterActionHandler("list_reactions", handleListReactions)
+	RegisterActionHandler("delete_comment", handleDeleteComment)
+	RegisterActionHandler("moderate_content", handleModerateContent)
+	RegisterActionHandler("log_content_event", handleLogContentEvent)
 	if err := container.Register((*contentpb.ContentServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return contentService, nil
 	}); err != nil {

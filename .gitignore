@@ -58,6 +58,10 @@ internal/ai/python/models/*.gguf
 /api/protos/*.pb.go
 /api/protos/*.pb.gw.go
 /api/protos/*.swagger.json
+# frontend/protos
+# internal/ai/python/ai
+# internal/ai/python/common
+# internal/ai/python/nexus
 
 # Docker
 .docker/

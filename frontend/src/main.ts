@@ -1,100 +1,52 @@
 // @ts-ignore: no types for wasm-feature-detect
 import { threads } from 'wasm-feature-detect';
 
-// --- Ensure WASM onWasmReady handler is defined before any WASM is loaded ---
-(window as any).onWasmReady = function () {
-  console.log('[frontend] WASM is ready!');
-  // You can trigger any app logic here, e.g. set a React state, dispatch an event, etc.
+// This file contains the low-level "glue" code for loading the Go WASM module
+// and establishing the global functions for communication.
+
+// --- Global Bridge Functions ---
+// These functions are defined here so the application can use them,
+// but they will be replaced by the actual functions exposed by the Go WASM module.
+// The Zustand store will handle queueing messages until `onWasmReady` is called.
+
+window.onWasmReady = () => {
+  console.log('[WASM] onWasmReady called, but no store listener is attached yet.');
 };
 
-// --- WASM concurrency interop demo ---
-// We'll use a JS array as a message queue, and Go can pull from it via syscall/js
-(window as any).__WASM_EVENT_QUEUE = [];
+window.onWasmMessage = msg => {
+  console.warn('[WASM] onWasmMessage called, but no store listener is attached yet.', msg);
+};
 
-// --- PRODUCTION-GRADE WASM BRIDGE GLUE ---
 // Helper to load Go WASM and wire up the JS <-> WASM bridge
 async function loadGoWasm(wasmUrl: string) {
   // @ts-ignore
+  if (!window.Go) {
+    console.error(
+      'Go WASM bootstrap script not loaded. Make sure wasm_exec.js is included in your index.html.'
+    );
+    return;
+  }
+  // @ts-ignore
   const go = new window.Go();
-  const result = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);
-
-  // Robust: Track when sendWasmMessage is set, and queue messages until available
-  let wasmSendQueue: any[] = [];
-  let sendWasmMessageReady = false;
-  Object.defineProperty(window, 'sendWasmMessage', {
-    configurable: true,
-    set(fn) {
-      console.log('[WASM] window.sendWasmMessage has been set by Go WASM runtime');
-      Object.defineProperty(window, 'sendWasmMessage', {
-        value: fn,
-        writable: true,
-        configurable: true
-      });
-      sendWasmMessageReady = true;
-      // Flush queued messages
-      if (wasmSendQueue.length > 0) {
-        console.log('[WASM] Flushing queued messages to sendWasmMessage:', wasmSendQueue.length);
-        wasmSendQueue.forEach(msg => {
-          try {
-            fn(msg);
-          } catch (e) {
-            console.error('[WASM] Error sending queued message:', msg, e);
-          }
-        });
-        wasmSendQueue = [];
-      }
-    },
-    get() {
-      return undefined;
-    }
-  });
-
-  // Expose JS -> WASM message send (called by frontend)
-  window.wasmSendMessage = function (msg) {
-    if (sendWasmMessageReady && typeof window.sendWasmMessage === 'function') {
-      console.log('[WASM] window.sendWasmMessage is available, sending message:', msg);
-      window.sendWasmMessage(msg);
-    } else {
-      console.warn('[WASM] sendWasmMessage not available, queueing message:', msg);
-      wasmSendQueue.push(msg);
-    }
-  };
-
-  // Expose WASM -> JS message receive (called by Go)
-  // Go should call window.onWasmMessage(msg) to deliver messages to JS/React
-  if (typeof window.onWasmMessage !== 'function') {
-    window.onWasmMessage = function (msg) {
-      // This will be set by the React bridge (see useWasmBridge)
-      // No-op fallback
-      console.warn('[WASM] onWasmMessage called but no handler registered', msg);
-    };
+  try {
+    const result = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);
+    // Run the Go WASM instance. This is a blocking call, so it should be last.
+    go.run(result.instance);
+  } catch (error) {
+    console.error(`[WASM] Error instantiating WASM from ${wasmUrl}:`, error);
   }
-
-  // Go should call window.onWasmReady() when ready (after WebSocket is connected)
-  if (typeof window.onWasmReady !== 'function') {
-    window.onWasmReady = function () {
-      // This will be set by the React bridge (see useWasmBridge)
-      // No-op fallback
-      if (!sendWasmMessageReady) {
-        console.warn(
-          '[WASM] onWasmReady called but sendWasmMessage is not set yet. Will wait until it is set.'
-        );
-        // When sendWasmMessage is set, the queue will be flushed and bridge will be ready.
-      } else {
-        console.warn('[WASM] onWasmReady called but no handler registered');
-      }
-    };
-  }
-
-  // Actually run the Go WASM instance
-  go.run(result.instance);
 }
 
+// --- Main Execution ---
 (async () => {
-  const supportsThreads = await threads();
-  const wasmUrl = supportsThreads ? '/main.threads.wasm' : '/main.wasm';
-  // Set global variable for Go WASM to log
-  (window as any).__WASM_VERSION = wasmUrl;
-  await loadGoWasm(wasmUrl);
-  console.log(`[WASM] Loaded ${wasmUrl} (threads: ${supportsThreads})`);
+  try {
+    const supportsThreads = await threads();
+    const wasmUrl = supportsThreads ? '/main.threads.wasm' : '/main.wasm';
+    // Set global variable for Go WASM to log
+    (window as any).__WASM_VERSION = wasmUrl;
+    await loadGoWasm(wasmUrl);
+    console.log(`[WASM] Loaded ${wasmUrl} (threads: ${supportsThreads})`);
+  } catch (error) {
+    console.error('[WASM] Failed to detect features or load WASM module:', error);
+  }
 })();

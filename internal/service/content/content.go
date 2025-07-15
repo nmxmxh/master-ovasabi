@@ -37,6 +37,7 @@ type Service struct {
 	Cache        *redis.Cache
 	eventEmitter events.EventEmitter
 	eventEnabled bool
+	handler      *graceful.Handler
 }
 
 func NewService(
@@ -52,6 +53,7 @@ func NewService(
 		Cache:        cache,
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
+		handler:      graceful.NewHandler(log, eventEmitter, cache, "content", "v1", eventEnabled),
 	}
 }
 
@@ -94,34 +96,19 @@ func (s *Service) CreateContent(ctx context.Context, req *contentpb.CreateConten
 	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "content", content.Id, content.Tags, "success", "enrich content metadata")
 	content.Metadata = metadata.MapToProto(normMap)
 	if err := metadata.ValidateMetadata(content.Metadata); err != nil {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
+		s.handler.Error(ctx, "create_content", codes.InvalidArgument, "invalid metadata", gErr, content.Metadata, content.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	c, err := s.repo.CreateContent(ctx, content)
 	if err != nil {
 		s.log.Error("CreateContent failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create content: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to create content: %v", err)
+		s.handler.Error(ctx, "create_content", codes.Internal, "failed to create content", gErr, content.Metadata, content.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	resp := &contentpb.ContentResponse{Content: c}
-	success := graceful.WrapSuccess(ctx, codes.OK, "content created", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     c.Id,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     c.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "content.created",
-		EventID:      c.Id,
-		PatternType:  "content",
-		PatternID:    c.Id,
-		PatternMeta:  c.Metadata,
-	})
+	s.handler.Success(ctx, "create_content", codes.OK, "content created", resp, c.Metadata, c.Id, nil)
 	return resp, nil
 }
 
@@ -139,22 +126,22 @@ func (s *Service) GetContent(ctx context.Context, req *contentpb.GetContentReque
 func (s *Service) UpdateContent(ctx context.Context, req *contentpb.UpdateContentRequest) (*contentpb.ContentResponse, error) {
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		err := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
+		s.handler.Error(ctx, "update_content", codes.Unauthenticated, "missing authentication", gErr, nil, req.Content.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isAdmin := utils.IsServiceAdmin(roles, "content")
 	content, err := s.repo.GetContent(ctx, req.Content.Id)
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.NotFound, "content not found", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.NotFound, "content not found", nil)
+		s.handler.Error(ctx, "update_content", codes.NotFound, "content not found", gErr, nil, req.Content.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if !isAdmin && content.AuthorId != authUserID {
-		err := graceful.WrapErr(ctx, codes.PermissionDenied, "cannot update content you do not own", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.PermissionDenied, "cannot update content you do not own", nil)
+		s.handler.Error(ctx, "update_content", codes.PermissionDenied, "cannot update content you do not own", gErr, nil, req.Content.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if req.Content.Metadata == nil {
 		req.Content.Metadata = &commonpb.Metadata{}
@@ -201,120 +188,85 @@ func (s *Service) UpdateContent(ctx context.Context, req *contentpb.UpdateConten
 	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "content", req.Content.Id, req.Content.Tags, "success", "enrich content metadata")
 	req.Content.Metadata = metadata.MapToProto(normMap)
 	if err := metadata.ValidateMetadata(req.Content.Metadata); err != nil {
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
+		s.handler.Error(ctx, "update_content", codes.InvalidArgument, "invalid metadata", gErr, req.Content.Metadata, req.Content.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	c, err := s.repo.UpdateContent(ctx, req.Content)
 	if err != nil {
 		s.log.Error("UpdateContent failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to update content: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to update content: %v", err)
+		s.handler.Error(ctx, "update_content", codes.Internal, "failed to update content", gErr, req.Content.Metadata, req.Content.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	resp := &contentpb.ContentResponse{Content: c}
-	success := graceful.WrapSuccess(ctx, codes.OK, "content updated", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     c.Id,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     c.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "content.updated",
-		EventID:      c.Id,
-		PatternType:  "content",
-		PatternID:    c.Id,
-		PatternMeta:  c.Metadata,
-	})
+	s.handler.Success(ctx, "update_content", codes.OK, "content updated", resp, c.Metadata, c.Id, nil)
 	return resp, nil
 }
 
 func (s *Service) DeleteContent(ctx context.Context, req *contentpb.DeleteContentRequest) (*contentpb.DeleteContentResponse, error) {
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		return nil, graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
+		gErr := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
+		s.handler.Error(ctx, "delete_content", codes.Unauthenticated, "missing authentication", gErr, nil, req.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isAdmin := utils.IsServiceAdmin(roles, "content")
 	content, err := s.repo.GetContent(ctx, req.Id)
 	if err != nil {
-		return nil, graceful.WrapErr(ctx, codes.NotFound, "content not found", nil)
+		gErr := graceful.WrapErr(ctx, codes.NotFound, "content not found", nil)
+		s.handler.Error(ctx, "delete_content", codes.NotFound, "content not found", gErr, nil, req.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if !isAdmin && content.AuthorId != authUserID {
-		return nil, graceful.WrapErr(ctx, codes.PermissionDenied, "cannot delete content you do not own", nil)
+		gErr := graceful.WrapErr(ctx, codes.PermissionDenied, "cannot delete content you do not own", nil)
+		s.handler.Error(ctx, "delete_content", codes.PermissionDenied, "cannot delete content you do not own", gErr, nil, req.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	successVal, err := s.repo.DeleteContent(ctx, req.Id)
 	if err != nil {
 		s.log.Error("DeleteContent failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to delete content: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to delete content: %v", err)
+		s.handler.Error(ctx, "delete_content", codes.Internal, "failed to delete content", gErr, content.Metadata, req.Id)
+		return nil, graceful.ToStatusError(gErr)
 	}
-
 	resp := &contentpb.DeleteContentResponse{Success: successVal}
-	success := graceful.WrapSuccess(ctx, codes.OK, "content deleted", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     req.Id,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     content.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "content.deleted",
-		EventID:      req.Id,
-		PatternType:  "content",
-		PatternID:    req.Id,
-		PatternMeta:  content.Metadata,
-	})
+	s.handler.Success(ctx, "delete_content", codes.OK, "content deleted", resp, content.Metadata, req.Id, nil)
 	return resp, nil
 }
-
 func (s *Service) ListContent(ctx context.Context, req *contentpb.ListContentRequest) (*contentpb.ListContentResponse, error) {
 	results, total, err := s.repo.ListContent(ctx, req.AuthorId, req.Type, req.CampaignId, int(req.Page), int(req.PageSize))
 	if err != nil {
-		s.log.Error("ListContent failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list content: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to list content: %v", err)
+		s.handler.Error(ctx, "list_content", codes.Internal, "failed to list content", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if total > int(^int32(0)) || total < int(^int32(0))*-1 {
-		return nil, graceful.WrapErr(ctx, codes.Internal, "total count overflow", nil)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "total count overflow", nil)
+		s.handler.Error(ctx, "list_content", codes.Internal, "total count overflow", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
-	return &contentpb.ListContentResponse{Contents: results, Total: int32(total)}, nil
+	resp := &contentpb.ListContentResponse{Contents: results, Total: int32(total)}
+	s.handler.Success(ctx, "list_content", codes.OK, "content listed", resp, nil, "", nil)
+	return resp, nil
 }
 
 func (s *Service) AddReaction(ctx context.Context, req *contentpb.AddReactionRequest) (*contentpb.ReactionResponse, error) {
 	count, err := s.repo.AddReaction(ctx, req.ContentId, req.UserId, req.Reaction)
 	if err != nil {
 		s.log.Error("AddReaction failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to add reaction: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to add reaction: %v", err)
+		s.handler.Error(ctx, "add_reaction", codes.Internal, "failed to add reaction", gErr, nil, req.ContentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if count > int(^int32(0)) || count < int(^int32(0))*-1 {
-		return nil, graceful.WrapErr(ctx, codes.Internal, "reaction count overflow", nil)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "reaction count overflow", nil)
+		s.handler.Error(ctx, "add_reaction", codes.Internal, "reaction count overflow", gErr, nil, req.ContentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	resp := &contentpb.ReactionResponse{ContentId: req.ContentId, Reaction: req.Reaction, Count: int32(count)}
-	success := graceful.WrapSuccess(ctx, codes.OK, "reaction added", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     fmt.Sprintf("reaction:%s:%s", req.ContentId, req.Reaction),
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "content.reaction_added",
-		EventID:      req.ContentId,
-		PatternType:  "reaction",
-		PatternID:    req.ContentId,
-		PatternMeta:  nil, // Optionally fetch content metadata if needed
-	})
+	s.handler.Success(ctx, "add_reaction", codes.OK, "reaction added", resp, nil, req.ContentId, nil)
 	return resp, nil
 }
 
@@ -322,15 +274,16 @@ func (s *Service) ListReactions(ctx context.Context, req *contentpb.ListReaction
 	m, err := s.repo.ListReactions(ctx, req.ContentId)
 	if err != nil {
 		s.log.Error("ListReactions failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list reactions: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to list reactions: %v", err)
+		s.handler.Error(ctx, "list_reactions", codes.Internal, "failed to list reactions", gErr, nil, req.ContentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	// Preallocate slice for performance
 	reactions := make([]*contentpb.ReactionResponse, 0, len(m))
 	for reaction, count := range m {
 		if count > int(^int32(0)) || count < int(^int32(0))*-1 {
-			return nil, graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("reaction count overflow for type %s", reaction), nil)
+			gErr := graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("reaction count overflow for type %s", reaction), nil)
+			s.handler.Error(ctx, "list_reactions", codes.Internal, "reaction count overflow", gErr, nil, req.ContentId)
+			return nil, graceful.ToStatusError(gErr)
 		}
 		reactions = append(reactions, &contentpb.ReactionResponse{
 			ContentId: req.ContentId,
@@ -338,7 +291,9 @@ func (s *Service) ListReactions(ctx context.Context, req *contentpb.ListReaction
 			Count:     int32(count),
 		})
 	}
-	return &contentpb.ListReactionsResponse{Reactions: reactions}, nil
+	resp := &contentpb.ListReactionsResponse{Reactions: reactions}
+	s.handler.Success(ctx, "list_reactions", codes.OK, "reactions listed", resp, nil, req.ContentId, nil)
+	return resp, nil
 }
 
 func (s *Service) AddComment(ctx context.Context, req *contentpb.AddCommentRequest) (*contentpb.CommentResponse, error) {
@@ -350,7 +305,6 @@ func (s *Service) AddComment(ctx context.Context, req *contentpb.AddCommentReque
 	}); err != nil {
 		s.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
 	}
-	// Bad actor: extract, increment flag_count, and update last_flagged_at
 	metaMap := metadata.ProtoToMap(req.Metadata)
 	flagCount := 0
 	if ss, ok := metaMap["service_specific"].(map[string]interface{}); ok {
@@ -374,32 +328,19 @@ func (s *Service) AddComment(ctx context.Context, req *contentpb.AddCommentReque
 	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "comment", "", nil, "success", "enrich comment metadata")
 	req.Metadata = metadata.MapToProto(normMap)
 	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		return nil, graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
+		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
+		s.handler.Error(ctx, "add_comment", codes.InvalidArgument, "invalid metadata", gErr, req.Metadata, req.ContentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	comment, err := s.repo.AddComment(ctx, req.ContentId, req.AuthorId, req.Body, req.Metadata)
 	if err != nil {
 		s.log.Error("AddComment failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to add comment: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to add comment: %v", err)
+		s.handler.Error(ctx, "add_comment", codes.Internal, "failed to add comment", gErr, req.Metadata, req.ContentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	resp := &contentpb.CommentResponse{Comment: comment}
-	success := graceful.WrapSuccess(ctx, codes.OK, "comment added", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     fmt.Sprintf("comment:%s", comment.Id),
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     comment.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "content.comment_added",
-		EventID:      comment.Id,
-		PatternType:  "comment",
-		PatternID:    comment.Id,
-		PatternMeta:  comment.Metadata,
-	})
+	s.handler.Success(ctx, "add_comment", codes.OK, "comment added", resp, comment.Metadata, req.ContentId, nil)
 	return resp, nil
 }
 
@@ -407,54 +348,49 @@ func (s *Service) ListComments(ctx context.Context, req *contentpb.ListCommentsR
 	comments, total, err := s.repo.ListComments(ctx, req.ContentId, int(req.Page), int(req.PageSize))
 	if err != nil {
 		s.log.Error("ListComments failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list comments: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to list comments: %v", err)
+		s.handler.Error(ctx, "list_comments", codes.Internal, "failed to list comments", gErr, nil, req.ContentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if total > int(^int32(0)) || total < int(^int32(0))*-1 {
-		return nil, graceful.WrapErr(ctx, codes.Internal, "total count overflow", nil)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "total count overflow", nil)
+		s.handler.Error(ctx, "list_comments", codes.Internal, "total count overflow", gErr, nil, req.ContentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	return &contentpb.ListCommentsResponse{Comments: comments, Total: int32(total)}, nil
+	resp := &contentpb.ListCommentsResponse{Comments: comments, Total: int32(total)}
+	s.handler.Success(ctx, "list_comments", codes.OK, "comments listed", resp, nil, req.ContentId, nil)
+	return resp, nil
 }
 
 func (s *Service) DeleteComment(ctx context.Context, req *contentpb.DeleteCommentRequest) (*contentpb.DeleteCommentResponse, error) {
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		return nil, graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
+		gErr := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
+		s.handler.Error(ctx, "content:delete_comment:v1:failed", codes.Unauthenticated, "missing authentication", gErr, nil, req.CommentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isAdmin := utils.IsServiceAdmin(roles, "content")
 	comment, err := s.repo.GetComment(ctx, req.CommentId)
 	if err != nil {
-		return nil, graceful.WrapErr(ctx, codes.NotFound, "comment not found", nil)
+		gErr := graceful.WrapErr(ctx, codes.NotFound, "comment not found", nil)
+		s.handler.Error(ctx, "delete_comment", codes.NotFound, "comment not found", gErr, nil, req.CommentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if !isAdmin && comment.AuthorId != authUserID {
-		return nil, graceful.WrapErr(ctx, codes.PermissionDenied, "cannot delete comment you do not own", nil)
+		gErr := graceful.WrapErr(ctx, codes.PermissionDenied, "cannot delete comment you do not own", nil)
+		s.handler.Error(ctx, "delete_comment", codes.PermissionDenied, "cannot delete comment you do not own", gErr, nil, req.CommentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	successVal, err := s.repo.DeleteComment(ctx, req.CommentId)
 	if err != nil {
 		s.log.Error("DeleteComment failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to delete comment: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to delete comment: %v", err)
+		s.handler.Error(ctx, "delete_comment", codes.Internal, "failed to delete comment", gErr, comment.Metadata, req.CommentId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	resp := &contentpb.DeleteCommentResponse{Success: successVal}
-	success := graceful.WrapSuccess(ctx, codes.OK, "comment deleted", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     fmt.Sprintf("comment:%s", req.CommentId),
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     comment.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "content.comment_deleted",
-		EventID:      req.CommentId,
-		PatternType:  "comment",
-		PatternID:    req.CommentId,
-		PatternMeta:  comment.Metadata,
-	})
+	s.handler.Success(ctx, "delete_comment", codes.OK, "comment deleted", resp, comment.Metadata, req.CommentId, nil)
 	return resp, nil
 }
 
@@ -462,45 +398,47 @@ func (s *Service) SearchContent(ctx context.Context, req *contentpb.SearchConten
 	results, total, err := s.repo.SearchContentFlexible(ctx, req)
 	if err != nil {
 		s.log.Error("SearchContent failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to search content: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to search content: %v", err)
+		s.handler.Error(ctx, "search_content", codes.Internal, "failed to search content", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	if total > int(^int32(0)) || total < int(^int32(0))*-1 {
-		return nil, graceful.WrapErr(ctx, codes.Internal, "total count overflow", nil)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "total count overflow", nil)
+		s.handler.Error(ctx, "search_content", codes.Internal, "total count overflow", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
-	return &contentpb.ListContentResponse{Contents: results, Total: int32(total)}, nil
+	resp := &contentpb.ListContentResponse{Contents: results, Total: int32(total)}
+	s.handler.Success(ctx, "search_content", codes.OK, "content search completed", resp, nil, "", nil)
+	return resp, nil
 }
 
 func (s *Service) LogContentEvent(ctx context.Context, req *contentpb.LogContentEventRequest) (*contentpb.LogContentEventResponse, error) {
 	err := s.repo.LogContentEvent(ctx, req.Event)
 	if err != nil {
 		s.log.Error("LogContentEvent failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to log content event: %v", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to log content event: %v", err)
+		s.handler.Error(ctx, "log_content_event", codes.Internal, "failed to log content event", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
-	return &contentpb.LogContentEventResponse{Success: true}, nil
+	resp := &contentpb.LogContentEventResponse{Success: true}
+	s.handler.Success(ctx, "log_content_event", codes.OK, "content event logged", resp, nil, "", nil)
+	return resp, nil
 }
 
 func (s *Service) ModerateContent(ctx context.Context, req *contentpb.ModerateContentRequest) (*contentpb.ModerateContentResponse, error) {
-	// The repository's ModerateContent now returns only an error.
-	// The req.Action (e.g., "APPROVE", "REJECT") is passed as the status to the repository.
 	err := s.repo.ModerateContent(ctx, req.ContentId, req.ModeratorId, req.Action, req.Reason)
 	if err != nil {
 		s.log.Error("ModerateContent failed", zap.Error(err))
 		gErr := graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to moderate content: %v", err), err)
-		gErr.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "moderate_content", codes.Internal, "failed to moderate content", gErr, nil, req.ContentId)
 		return nil, graceful.ToStatusError(gErr)
 	}
-	// Enrich moderation event with versioning and bad_actor (increment flag_count)
 	meta := &commonpb.Metadata{}
 	if err := metadata.SetServiceSpecificField(meta, "content", "versioning", map[string]interface{}{
 		"system_version": "1.0.0", "service_version": "1.0.0", "environment": "prod",
 	}); err != nil {
 		s.log.Warn("Failed to set service-specific metadata field (versioning)", zap.Error(err))
 	}
-	// Extract, increment flag_count, and update last_flagged_at
 	metaMap := metadata.ProtoToMap(meta)
 	flagCount := 0
 	if ss, ok := metaMap["service_specific"].(map[string]interface{}); ok {
@@ -517,31 +455,16 @@ func (s *Service) ModerateContent(ctx context.Context, req *contentpb.ModerateCo
 		"flag_count":      flagCount,
 		"last_flagged_at": time.Now().Format(time.RFC3339),
 	}
-	if err := metadata.SetServiceSpecificField(meta, "content", "bad_actor", badActorMetaMap); err != nil { // Corrected variable name
+	if err := metadata.SetServiceSpecificField(meta, "content", "bad_actor", badActorMetaMap); err != nil {
 		s.log.Warn("Failed to set service-specific metadata field (bad_actor)", zap.Error(err))
 	}
 	metaMap = metadata.ProtoToMap(meta)
 	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "moderation", req.ContentId, nil, "success", "enrich moderation metadata")
 	meta = metadata.MapToProto(normMap)
 	resp := &contentpb.ModerateContentResponse{
-		Success: true,       // Operation was successful if no error from repo
-		Status:  req.Action, // The action requested becomes the new status
+		Success: true,
+		Status:  req.Action,
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "content moderated", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     fmt.Sprintf("moderation:%s", req.ContentId),
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     meta,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "content.moderated",
-		EventID:      req.ContentId,
-		PatternType:  "moderation",
-		PatternID:    req.ContentId,
-		PatternMeta:  meta,
-	})
+	s.handler.Success(ctx, "moderate_content", codes.OK, "content moderated", resp, meta, req.ContentId, nil)
 	return resp, nil
 }

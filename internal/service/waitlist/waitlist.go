@@ -24,6 +24,7 @@ type Service struct {
 	cache        *redis.Cache
 	eventEmitter events.EventEmitter
 	eventEnabled bool
+	handler      *graceful.Handler
 }
 
 // NewService creates a new waitlist service instance
@@ -40,6 +41,7 @@ func NewService(
 		cache:        cache,
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
+		handler:      graceful.NewHandler(log, eventEmitter, cache, "waitlist", "entry", eventEnabled),
 	}
 }
 
@@ -185,13 +187,12 @@ func (s *Service) CreateWaitlistEntry(ctx context.Context, req *waitlistpb.Creat
 	// Clear cache
 	s.clearCache(ctx, "waitlist_stats", "leaderboard")
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
-		"action":   "create_entry",
+		"action":   "create",
 		"entry_id": createdEntry.Id,
 	}
-
 	successData := map[string]interface{}{
 		"entry_id":     createdEntry.Id,
 		"entry_uuid":   createdEntry.Uuid,
@@ -200,28 +201,16 @@ func (s *Service) CreateWaitlistEntry(ctx context.Context, req *waitlistpb.Creat
 		"campaign":     createdEntry.CampaignName,
 		"has_referral": req.ReferralUsername != nil && *req.ReferralUsername != "",
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully created waitlist entry", successData, process,
-		zap.Int64("entry_id", createdEntry.Id),
-		zap.String("entry_uuid", createdEntry.Uuid))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.entry.created",
-			EventID:      createdEntry.Uuid,
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("entry-%d", createdEntry.Id),
-			Metadata:     createdEntry.Metadata,
-			Tags:         []string{"waitlist", "create", "entry"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"create_entry", // action
+		codes.OK,
+		"Successfully created waitlist entry",
+		successData,
+		process,
+		"waitlist.entry.created",
+		nil, // cache info
+	)
 	return &waitlistpb.CreateWaitlistEntryResponse{
 		Entry: createdEntry,
 	}, nil
@@ -488,13 +477,12 @@ func (s *Service) UpdateWaitlistEntry(ctx context.Context, req *waitlistpb.Updat
 	// Clear cache
 	s.clearCache(ctx, "waitlist_stats", "leaderboard")
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
-		"action":   "update_entry",
+		"action":   "update",
 		"entry_id": result.Id,
 	}
-
 	resultData := map[string]interface{}{
 		"entry_id":   result.Id,
 		"entry_uuid": result.Uuid,
@@ -502,28 +490,16 @@ func (s *Service) UpdateWaitlistEntry(ctx context.Context, req *waitlistpb.Updat
 		"tier":       result.Tier,
 		"campaign":   result.CampaignName,
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully updated waitlist entry", resultData, process,
-		zap.Int64("entry_id", result.Id),
-		zap.String("entry_uuid", result.Uuid))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.entry.updated",
-			EventID:      result.Uuid,
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("entry-%d", result.Id),
-			Metadata:     result.Metadata,
-			Tags:         []string{"waitlist", "update", "entry"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"update_entry",
+		codes.OK,
+		"Successfully updated waitlist entry",
+		resultData,
+		process,
+		"waitlist.entry.updated",
+		nil,
+	)
 	return &waitlistpb.UpdateWaitlistEntryResponse{
 		Entry: result,
 	}, nil
@@ -636,13 +612,12 @@ func (s *Service) InviteUser(ctx context.Context, req *waitlistpb.InviteUserRequ
 	// Clear cache
 	s.clearCache(ctx, "waitlist_stats", "leaderboard")
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
 		"action":   "invite_user",
 		"entry_id": req.Id,
 	}
-
 	resultData := map[string]interface{}{
 		"entry_id":   req.Id,
 		"entry_uuid": existing.Uuid,
@@ -650,28 +625,16 @@ func (s *Service) InviteUser(ctx context.Context, req *waitlistpb.InviteUserRequ
 		"tier":       existing.Tier,
 		"campaign":   existing.CampaignName,
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully invited user", resultData, process,
-		zap.Int64("entry_id", req.Id),
-		zap.String("entry_uuid", existing.Uuid))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.user.invited",
-			EventID:      existing.Uuid,
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("entry-%d", req.Id),
-			Metadata:     existing.Metadata,
-			Tags:         []string{"waitlist", "invite", "user"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"invite_user",
+		codes.OK,
+		"Successfully invited user",
+		resultData,
+		process,
+		"waitlist.user.invited",
+		nil,
+	)
 	return &waitlistpb.InviteUserResponse{
 		Success: true,
 		Message: "user invited successfully",
@@ -701,38 +664,26 @@ func (s *Service) CheckUsernameAvailability(ctx context.Context, req *waitlistpb
 		return nil, graceful.ToStatusError(ctxErr)
 	}
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
 		"action":   "check_username_availability",
 		"username": req.Username,
 	}
-
 	resultData := map[string]interface{}{
 		"username":  req.Username,
 		"available": !exists,
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully checked username availability", resultData, process,
-		zap.String("username", req.Username),
-		zap.Bool("available", !exists))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.username.checked",
-			EventID:      fmt.Sprintf("username-%s", req.Username),
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("username-%s", req.Username),
-			Tags:         []string{"waitlist", "username", "check"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"check_username_availability",
+		codes.OK,
+		"Successfully checked username availability",
+		resultData,
+		process,
+		"waitlist.username.checked",
+		nil,
+	)
 	return &waitlistpb.CheckUsernameAvailabilityResponse{
 		Available: !exists,
 	}, nil
@@ -753,38 +704,26 @@ func (s *Service) ValidateReferralUsername(ctx context.Context, req *waitlistpb.
 		return nil, graceful.ToStatusError(ctxErr)
 	}
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
 		"action":   "validate_referral_username",
 		"username": req.Username,
 	}
-
 	resultData := map[string]interface{}{
 		"username": req.Username,
 		"valid":    valid,
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully validated referral username", resultData, process,
-		zap.String("username", req.Username),
-		zap.Bool("valid", valid))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.referral.validated",
-			EventID:      fmt.Sprintf("referral-%s", req.Username),
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("referral-%s", req.Username),
-			Tags:         []string{"waitlist", "referral", "validate"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"validate_referral_username",
+		codes.OK,
+		"Successfully validated referral username",
+		resultData,
+		process,
+		"waitlist.referral.validated",
+		nil,
+	)
 	return &waitlistpb.ValidateReferralUsernameResponse{
 		Valid: valid,
 	}, nil
@@ -865,7 +804,7 @@ func (s *Service) GetLeaderboard(ctx context.Context, req *waitlistpb.GetLeaderb
 		s.cache.Set(ctx, cacheKey, "entries", entries, 5*time.Minute)
 	}
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
 		"action":   "get_leaderboard",
@@ -873,35 +812,22 @@ func (s *Service) GetLeaderboard(ctx context.Context, req *waitlistpb.GetLeaderb
 		"limit":    limit,
 		"campaign": campaign,
 	}
-
 	resultData := map[string]interface{}{
 		"entry_count": len(entries),
 		"limit":       limit,
 		"campaign":    campaign,
 		"cached":      false,
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully retrieved leaderboard from database", resultData, process,
-		zap.Int("entry_count", len(entries)),
-		zap.Int("limit", limit),
-		zap.String("campaign", campaign))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.leaderboard.retrieved",
-			EventID:      fmt.Sprintf("leaderboard-%d-%s", limit, campaign),
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("leaderboard-%d-%s", limit, campaign),
-			Tags:         []string{"waitlist", "leaderboard", "database"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"get_leaderboard",
+		codes.OK,
+		"Successfully retrieved leaderboard from database",
+		resultData,
+		process,
+		"waitlist.leaderboard.retrieved",
+		nil,
+	)
 	return &waitlistpb.GetLeaderboardResponse{
 		Entries: entries,
 	}, nil
@@ -916,38 +842,26 @@ func (s *Service) GetReferralsByUser(ctx context.Context, req *waitlistpb.GetRef
 		return nil, graceful.ToStatusError(ctxErr)
 	}
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service": "waitlist",
 		"action":  "get_referrals_by_user",
 		"user_id": req.UserId,
 	}
-
 	resultData := map[string]interface{}{
 		"user_id":        req.UserId,
 		"referral_count": len(referrals),
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully retrieved referrals by user", resultData, process,
-		zap.Int64("user_id", req.UserId),
-		zap.Int("referral_count", len(referrals)))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.referrals.retrieved",
-			EventID:      fmt.Sprintf("referrals-user-%d", req.UserId),
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("referrals-user-%d", req.UserId),
-			Tags:         []string{"waitlist", "referrals", "user"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"get_referrals_by_user",
+		codes.OK,
+		"Successfully retrieved referrals by user",
+		resultData,
+		process,
+		"waitlist.referrals.retrieved",
+		nil,
+	)
 	return &waitlistpb.GetReferralsByUserResponse{
 		Referrals: referrals,
 	}, nil
@@ -1017,40 +931,28 @@ func (s *Service) GetLocationStats(ctx context.Context, req *waitlistpb.GetLocat
 		s.cache.Set(ctx, cacheKey, "stats", stats, 10*time.Minute)
 	}
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
 		"action":   "get_location_stats",
 		"source":   "database",
 		"campaign": campaign,
 	}
-
 	resultData := map[string]interface{}{
 		"stats_count": len(stats),
 		"campaign":    campaign,
 		"cached":      false,
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully retrieved location stats from database", resultData, process,
-		zap.Int("stats_count", len(stats)),
-		zap.String("campaign", campaign))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.location_stats.retrieved",
-			EventID:      fmt.Sprintf("location-stats-%s", campaign),
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("location-stats-%s", campaign),
-			Tags:         []string{"waitlist", "location", "stats", "database"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"get_location_stats",
+		codes.OK,
+		"Successfully retrieved location stats from database",
+		resultData,
+		process,
+		"waitlist.location_stats.retrieved",
+		nil,
+	)
 	return &waitlistpb.GetLocationStatsResponse{
 		Stats: stats,
 	}, nil
@@ -1071,7 +973,7 @@ func (s *Service) GetWaitlistStats(ctx context.Context, req *waitlistpb.GetWaitl
 			// Success orchestration for cache hit
 			process := map[string]interface{}{
 				"service":  "waitlist",
-				"action":   "get_waitlist_stats",
+				"action":   "get_stats",
 				"source":   "cache",
 				"campaign": campaign,
 			}
@@ -1081,24 +983,16 @@ func (s *Service) GetWaitlistStats(ctx context.Context, req *waitlistpb.GetWaitl
 				"cached":   true,
 			}
 
-			successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-				"Successfully retrieved waitlist stats from cache", resultData, process,
-				zap.String("campaign", campaign))
-
-			// Run success orchestration
-			if s.eventEmitter != nil {
-				successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-					Log:          s.log,
-					Cache:        s.cache,
-					EventEmitter: s.eventEmitter,
-					EventEnabled: s.eventEnabled,
-					EventType:    "waitlist.stats.retrieved",
-					EventID:      fmt.Sprintf("waitlist-stats-%s", campaign),
-					PatternType:  "waitlist",
-					PatternID:    fmt.Sprintf("waitlist-stats-%s", campaign),
-					Tags:         []string{"waitlist", "stats", "cached"},
-				})
-			}
+			s.handler.Success(
+				ctx,
+				"get_stats", // canonical action name
+				codes.OK,
+				"Successfully retrieved waitlist stats from cache",
+				resultData,
+				process,
+				"waitlist.stats.retrieved",
+				nil, // cache info
+			)
 
 			return &waitlistpb.GetWaitlistStatsResponse{
 				Stats: cachedStats,
@@ -1118,38 +1012,27 @@ func (s *Service) GetWaitlistStats(ctx context.Context, req *waitlistpb.GetWaitl
 		s.cache.Set(ctx, cacheKey, "stats", stats, 5*time.Minute)
 	}
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
 		"action":   "get_waitlist_stats",
 		"source":   "database",
 		"campaign": campaign,
 	}
-
 	resultData := map[string]interface{}{
 		"campaign": campaign,
 		"cached":   false,
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully retrieved waitlist stats from database", resultData, process,
-		zap.String("campaign", campaign))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.stats.retrieved",
-			EventID:      fmt.Sprintf("waitlist-stats-%s", campaign),
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("waitlist-stats-%s", campaign),
-			Tags:         []string{"waitlist", "stats", "database"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"get_waitlist_stats",
+		codes.OK,
+		"Successfully retrieved waitlist stats from database",
+		resultData,
+		process,
+		"waitlist.stats.retrieved",
+		nil,
+	)
 	return &waitlistpb.GetWaitlistStatsResponse{
 		Stats: stats,
 	}, nil
@@ -1164,38 +1047,26 @@ func (s *Service) GetWaitlistPosition(ctx context.Context, req *waitlistpb.GetWa
 		return nil, graceful.ToStatusError(ctxErr)
 	}
 
-	// Success orchestration
+	// Success orchestration (graceful handler)
 	process := map[string]interface{}{
 		"service":  "waitlist",
 		"action":   "get_waitlist_position",
 		"entry_id": req.Id,
 	}
-
 	resultData := map[string]interface{}{
 		"entry_id": req.Id,
 		"position": position,
 	}
-
-	successCtx := graceful.LogAndWrapSuccess(ctx, s.log, codes.OK,
-		"Successfully retrieved waitlist position", resultData, process,
-		zap.Int64("entry_id", req.Id),
-		zap.Int("position", position))
-
-	// Run success orchestration
-	if s.eventEmitter != nil {
-		successCtx.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.cache,
-			EventEmitter: s.eventEmitter,
-			EventEnabled: s.eventEnabled,
-			EventType:    "waitlist.position.retrieved",
-			EventID:      fmt.Sprintf("position-%d", req.Id),
-			PatternType:  "waitlist",
-			PatternID:    fmt.Sprintf("position-%d", req.Id),
-			Tags:         []string{"waitlist", "position", "entry"},
-		})
-	}
-
+	s.handler.Success(
+		ctx,
+		"get_waitlist_position",
+		codes.OK,
+		"Successfully retrieved waitlist position",
+		resultData,
+		process,
+		"waitlist.position.retrieved",
+		nil,
+	)
 	return &waitlistpb.GetWaitlistPositionResponse{
 		Position: int32(position),
 	}, nil

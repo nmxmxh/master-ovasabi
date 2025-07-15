@@ -9,6 +9,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	servernexus "github.com/nmxmxh/master-ovasabi/internal/server/nexus"
@@ -116,6 +119,15 @@ func main() {
 
 	// Register the Nexus gRPC service
 	nexusv1.RegisterNexusServiceServer(grpcServer, nexusService)
+
+	// Register health server for Docker health checks
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
+	reflection.Register(grpcServer)
+
+	// Set nexus service as serving
+	healthServer.SetServingStatus("nexus.NexusService", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING) // overall health
 
 	log.Info("Nexus event bus gRPC server starting", zap.String("address", addr))
 	if err := grpcServer.Serve(lis); err != nil {

@@ -2,29 +2,48 @@
 
 ## Overview
 
-This document details the refactor of the Search Service to comply with the OVASABI Communication & Event Naming Standards. The refactor ensures consistent event naming, robust metadata handling, seamless orchestration with `graceful`, correct state event emission, support for partial updates, and proper integration with system and shared packages.
+This document details the July 2025 refactor of the Search Service, focusing on:
+
+- Canonical event emission via centralized `graceful.Handler` orchestration
+- Generic action handler pattern (single handler, action/state dispatch)
+- Provider-driven event registration and routing
+- Registry-driven event constants and validation
+- Robust metadata propagation and observability
+- Support for partial updates and state transitions
+- Security, access control, and backward compatibility
 
 ---
 
 ## 1. Event & Channel Naming
 
-- All events, channels, and keys now use the canonical format:  
   `{service}:{action}:v{version}:{state}`  
   Example: `search:search:v1:requested`, `search:suggest:v1:success`
-- All event types and keys use only the allowed states: `requested`, `started`, `success`, `failed`, `completed`
-- All event emission, subscription, and key usage reference generated constants (see `events/constants.go` or equivalent in TypeScript)
 
 ---
 
-## 2. Generic Canonical Event Handling (2025 Pattern)
 
-- **All search service actions (e.g., `search`, `suggest`, etc.) are handled by a single, generic event handler.**
-- The event handler parses the `{action}` and `{state}` from the canonical event type and dispatches to the correct business logic using a map (e.g., `actionHandlers`).
-- **All per-action event handler functions (e.g., `HandleSearchRequestedEvent`, `HandleSuggestRequestedEvent`) have been removed.**
-- All business logic for each action is implemented in a generic handler function (e.g., `handleSearchAction`) and registered in the `actionHandlers` map in `events.go`.
-- All orchestration, error handling, and state transitions use canonical event types and key patterns, and are performed via the generic handler.
-- Adding a new action only requires registering a new business logic handler in the `actionHandlers` map.
-- All event types and keys are validated and loaded from the registry at startup.
+- All service actions (e.g., `search`, `suggest`) are handled by a single, generic event handler.
+- The handler parses `{action}` and `{state}` from the event type and dispatches to business logic via an `actionHandlers` map.
+- Per-action handler functions are removed; all logic is implemented in generic handler functions and registered in the map.
+### Event/Action Naming (Canonical, Search-Referenced)
+
+All event/action names must use the canonical `service:action:version:state` pattern, referencing the search service standard. Allowed states: `requested`, `started`, `success`, `failed`, `completed`.
+
+#### Example:
+
+```go
+handler.Success(ctx, "admin:user:create:v1:completed", ...)
+handler.Error(ctx, "admin:user:create:v1:failed", ...)
+handler.Success(ctx, "search:search:v1:completed", ...)
+handler.Error(ctx, "search:search:v1:failed", ...)
+```
+
+Do not use underscores, dots, or 'metadata' as an action/state. Actions should be verbs, state should be one of the allowed states above.
+
+Reference: See `internal/service/search/search.go` for canonical event naming and orchestration patterns.
+- Defensive filtering ensures only relevant events are processed by each handler.
+- Event bus (Nexus) routes events to subscribers based on explicit event type registration.
+- Only relevant handlers receive events, preventing cross-action processing and improving isolation.
 
 ---
 
@@ -37,12 +56,11 @@ This document details the refactor of the Search Service to comply with the OVAS
 
 ---
 
-## 4. Integration with `graceful` Orchestration
+## 4. Centralized Orchestration via graceful.Handler
 
-- All orchestration, error handling, and state transitions use canonical event types and key patterns
-- State transitions (e.g., from `requested` to `started` to `success`/`failed`/`completed`) are explicitly emitted as events
-- Graceful workflows emit and listen for events using the `{service}:{action}:v{version}:{state}` format
-- All orchestration logic references generated event constants
+- All event emission, error handling, and state transitions use the handler, which emits canonical envelopes and logs all actions.
+- Legacy event emission methods are removed; only `EmitEventEnvelopeWithLogging` is used.
+- Handler is injected into all services and orchestrates all event flows.
 
 ---
 
@@ -67,56 +85,22 @@ This document details the refactor of the Search Service to comply with the OVAS
 
 ---
 
-## 7. System, Pkg, and Service Registration Integration
+## 7. Registry-Driven Constants & Validation
 
-- All event, channel, and key constants are imported from shared packages (e.g., `pkg/events`, `pkg/constants`).
-- Shared utilities for event emission, metadata propagation, and validation are used throughout the service.
-- System-level events (e.g., health checks, system-wide notifications) also follow the canonical format and are handled in the same way.
-
-### Service Registration Generator as Source of Truth
-
-The `pkg/registration/generator.go` provides a dynamic, registry-driven mechanism for generating all canonical event types, key patterns, and Go/TypeScript constants for every service, including the search service. This ensures:
-
-- **Automatic Event Type Generation:**
-  - The generator analyzes service registration configs (from proto/service definitions) and produces all valid event types in the `{service}:{action}:v{version}:{state}` format, using the canonical state vocabulary.
-- **Go/TS Constant Generation:**
-  - Outputs Go constants (for use in code) and JSON (for docs/validation) via `WriteEventTypesGo` and `WriteEventTypesJSON`.
-- **Registry-Driven:**
-  - All event types, keys, and patterns are derived from the service registration registry, ensuring a single source of truth.
-- **Validation:**
-  - At build/startup, emitted/subscribed event types and Redis keys can be validated against the generated registry.
-
-#### How to Use in Service Refactor
-
-1. **Update Service Registration:**
-   Ensure your service and its methods are correctly defined in the service registration config (e.g., `service_registration.json`) or proto files.
-2. **Run the Generator:**
-   Use the generator to produce event type constants and key patterns for your service:
-   - Go: `WriteEventTypesGo` → outputs Go constants for use in your service code.
-   - JSON: `WriteEventTypesJSON` → outputs for documentation and validation.
-3. **Reference Generated Constants:**
-   In your service code, always use the generated constants for event emission, subscription, and key usage.
-4. **CI/Validation:**
-   Integrate validation to ensure all event types used in code are present in the generated registry.
-
-#### Service Registration Validity
-
-- The current `service_registration.json` entry for the search service is valid and includes:
-  - `name`: "search"
-  - `version`: "v1"
-  - `schema.methods`: ["Search", "Suggest"]
-  - `action_map` for both `search` and `suggest` actions, mapping to proto methods and request/response models.
-- This structure enables the generator to produce all canonical event types and key patterns for the search service, ensuring compliance with the July 2025 standards.
-
-This approach guarantees that all event, channel, and key usage in the codebase is always up-to-date, consistent, and validated against the canonical service registration schema.
+- All event, channel, and key constants are generated from the service registration registry.
+- Go/TypeScript constants and JSON docs are auto-generated and referenced in code.
+- Startup validation ensures all event types used in code are present in the registry.
 
 ---
 
 ## 8. Event Routing
 
-- Event payloads include `campaign_id` and/or `user_id` as appropriate for routing
-- Routing is determined by payload fields, not event type
-- No per-event-type routing logic; the gateway and Nexus use generic handlers
+## 8. Provider-Driven Event Registration & Routing
+
+- Provider registers all canonical event types and handlers at startup, using the registry as the source of truth.
+- Event bus routes events to subscribers based on explicit event type registration.
+- Only relevant handlers receive events, preventing cross-action processing.
+- All event types and keys are validated against the registry at build/startup.
 
 ---
 

@@ -114,14 +114,42 @@ func Register(
 		return fmt.Errorf("failed to type assert provider as *service.Provider")
 	}
 	serviceInstance := NewNexusService(repo, eventRepo, cache, log, eventBus, eventEnabled, prov)
+
+	// Log canonical event types for observability and validation
+	eventTypes := loadNexusEvents()
+	log.Info("Canonical event types for nexus service", zap.Strings("eventTypes", eventTypes))
+
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("emit_event", handleEmitEvent)
+	RegisterActionHandler("mine_patterns", handleMinePatterns)
+	RegisterActionHandler("handle_ops", handleHandleOps)
+	RegisterActionHandler("orchestrate", handleOrchestrate)
+	RegisterActionHandler("trace_pattern", handleTracePattern)
+	RegisterActionHandler("register_pattern", handleRegisterPattern)
+	RegisterActionHandler("list_patterns", handleListPatterns)
+	// feedback and subscribe_events are registry-driven but have no canonical handler implementation
+
 	if err := container.Register((*nexusv1.NexusServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {
 		log.With(zap.String("service", "nexus")).Error("Failed to register nexus service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
-	// Inos: Register the hello-world event loop for service health and orchestration
+
+	// Start event subscribers for all canonical Nexus event types
 	if prov != nil {
+		go func() {
+			for _, sub := range NexusEventRegistry {
+				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+					if svc, ok := serviceInstance.(*Service); ok {
+						sub.Handler(ctx, svc, event.GetEventType(), event.GetPayload())
+					}
+				})
+				if err != nil {
+					log.With(zap.String("service", "nexus")).Error("Failed to subscribe to nexus events", zap.Error(err))
+				}
+			}
+		}()
 		hello.StartHelloWorldLoop(ctx, prov, log, "nexus")
 	}
 	_ = eventEmitter

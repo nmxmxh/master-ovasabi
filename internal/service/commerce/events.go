@@ -2,20 +2,113 @@ package commerce
 
 import (
 	"context"
+	"strings"
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
-	"github.com/nmxmxh/master-ovasabi/internal/service"
-	"go.uber.org/zap"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 )
 
-type EventHandlerFunc func(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger)
+type EventHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
 type EventSubscription struct {
 	EventTypes []string
 	Handler    EventHandlerFunc
 }
 
-// StartEventSubscribers is a stub for future event orchestration. Context and provider are currently unused.
-func StartEventSubscribers(_ context.Context, _ *service.Provider, log *zap.Logger) {
-	log.Info("Commerce event subscribers are not yet implemented.")
+// CanonicalEventTypeRegistry provides lookup and validation for canonical event types.
+var CanonicalEventTypeRegistry map[string]string
+
+// InitCanonicalEventTypeRegistry initializes the canonical event type registry from service_registration.json.
+func InitCanonicalEventTypeRegistry() {
+	CanonicalEventTypeRegistry = make(map[string]string)
+	evts := loadCommerceEvents()
+	for _, evt := range evts {
+		// Example: evt = "commerce:quote:v1:created"; key = "quote:created"
+		parts := strings.Split(evt, ":")
+		if len(parts) >= 4 {
+			key := parts[1] + ":" + parts[3] // action:state
+			CanonicalEventTypeRegistry[key] = evt
+		}
+	}
 }
+
+// GetCanonicalEventType returns the canonical event type for a given action and state (e.g., "quote", "created").
+func GetCanonicalEventType(action, state string) string {
+	if CanonicalEventTypeRegistry == nil {
+		InitCanonicalEventTypeRegistry()
+	}
+	key := action + ":" + state
+	if evt, ok := CanonicalEventTypeRegistry[key]; ok {
+		return evt
+	}
+	return ""
+}
+
+// Use generic canonical loader for event types
+func loadCommerceEvents() []string {
+	return events.LoadCanonicalEvents("commerce")
+}
+
+// ActionHandlerFunc defines the signature for business logic handlers for each action.
+type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
+
+// actionHandlers maps action names (e.g., "quote", "order") to their business logic handlers.
+var actionHandlers = map[string]ActionHandlerFunc{}
+
+// RegisterActionHandler allows registration of business logic handlers for actions.
+func RegisterActionHandler(action string, handler ActionHandlerFunc) {
+	actionHandlers[action] = handler
+}
+
+// parseActionAndState extracts the action and state from a canonical event type.
+func parseActionAndState(eventType string) (action, state string) {
+	// Format: {service}:{action}:v{version}:{state}
+	parts := strings.Split(eventType, ":")
+	if len(parts) >= 4 {
+		return parts[1], parts[3]
+	}
+	return "", ""
+}
+
+// HandleCommerceEvent is the generic event handler for all commerce service actions.
+func HandleCommerceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	eventType := event.GetEventType()
+	action, _ := parseActionAndState(eventType)
+	handler, ok := actionHandlers[action]
+	if !ok {
+		// Optionally log: no handler for action
+		return
+	}
+	// Defensive: Only process if eventType matches expected canonical event type for this action
+	expectedPrefix := "commerce:" + action + ":"
+	if !strings.HasPrefix(eventType, expectedPrefix) {
+		// Optionally log: event type does not match handler action
+		return
+	}
+	handler(ctx, s, event)
+}
+
+// Register all canonical event types to the generic handler
+var eventTypeToHandler = func() map[string]EventHandlerFunc {
+	evts := loadCommerceEvents()
+	m := make(map[string]EventHandlerFunc)
+	for _, evt := range evts {
+		m[evt] = HandleCommerceEvent
+	}
+	return m
+}()
+
+// CommerceEventRegistry defines all event subscriptions for the commerce service, using canonical event types.
+var CommerceEventRegistry = func() []EventSubscription {
+	evts := loadCommerceEvents()
+	var subs []EventSubscription
+	for _, evt := range evts {
+		if handler, ok := eventTypeToHandler[evt]; ok {
+			subs = append(subs, EventSubscription{
+				EventTypes: []string{evt},
+				Handler:    handler,
+			})
+		}
+	}
+	return subs
+}()

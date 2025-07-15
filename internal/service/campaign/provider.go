@@ -67,10 +67,14 @@ func Register(
 		log.With(zap.String("service", "campaign")).Warn("Failed to get campaign cache", zap.Error(err), zap.String("cache", "campaign"), zap.String("context", ctxValue(ctx)))
 	}
 
-	// Instantiate the service with all its dependencies.
 	campaignService := NewService(log, repo, cache, eventEmitter, eventEnabled)
 
-	// Register the gRPC server implementation.
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("create", handleCampaignAction)
+	RegisterActionHandler("update", handleCampaignAction)
+	RegisterActionHandler("delete", handleCampaignAction)
+	RegisterActionHandler("report", handleCampaignAction)
+
 	if err := container.Register((*campaignpb.CampaignServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return campaignService, nil
 	}); err != nil {
@@ -86,62 +90,23 @@ func Register(
 		return err
 	}
 
-	// Register EventEmitter for handler orchestration and cross-service communication.
-	if err := container.Register((*events.EventEmitter)(nil), func(_ *di.Container) (interface{}, error) {
-		return eventEmitter, nil
-	}); err != nil {
-		log.With(zap.String("service", "campaign")).Error("Failed to register campaign EventEmitter", zap.Error(err), zap.String("context", ctxValue(ctx)))
-		return err
-	}
-
-	// Register redis.Cache for handler orchestration.
-	if err := container.Register((*redis.Cache)(nil), func(_ *di.Container) (interface{}, error) {
-		return cache, nil
-	}); err != nil {
-		log.With(zap.String("service", "campaign")).Error("Failed to register campaign cache", zap.Error(err), zap.String("context", ctxValue(ctx)))
-		return err
-	}
-
-	// Start event subscribers for real-time orchestration.
-	startEventSubscribers(ctx, provider, log)
-
-	// Start the hello-world event loop for service health and orchestration.
-	if prov, ok := provider.(*service.Provider); ok && prov != nil {
+	// Event subscriber logic (matching admin provider)
+	prov, ok := provider.(*service.Provider)
+	if ok && prov != nil {
+		go func() {
+			for _, sub := range CampaignEventRegistry {
+				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+					sub.Handler(ctx, campaignService, event)
+				})
+				if err != nil {
+					log.With(zap.String("service", "campaign")).Error("Failed to subscribe to campaign events", zap.Error(err))
+				}
+			}
+		}()
 		hello.StartHelloWorldLoop(ctx, prov, log, "campaign")
 	}
 
 	return nil
-}
-
-// startEventSubscribers initializes the event listeners for the campaign service.
-func startEventSubscribers(ctx context.Context, provider interface{}, log *zap.Logger) {
-	prov, ok := provider.(*service.Provider)
-	if !ok || prov == nil || prov.NexusClient == nil {
-		log.Warn("Provider or NexusClient not available, campaign event orchestration not enabled")
-		return
-	}
-
-	eventTypes := []string{"campaign.created", "campaign.updated", "user.joined", "localization.translated"}
-	go func() {
-		err := prov.SubscribeEvents(ctx, eventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
-			eventType := extractEventType(event, log)
-			switch eventType {
-			case "campaign.created":
-				handleCampaignCreated(ctx, event, log)
-			case "campaign.updated":
-				handleCampaignUpdated(ctx, event, log)
-			case "user.joined":
-				handleUserJoined(ctx, event, log)
-			case "localization.translated":
-				handleLocalizationTranslated(ctx, event, log)
-			default:
-				log.Warn("Unhandled campaign event type", zap.String("event_type", eventType))
-			}
-		})
-		if err != nil {
-			log.Error("Failed to subscribe to campaign events from Nexus", zap.Error(err))
-		}
-	}()
 }
 
 // ctxValue extracts a string for logging from context (e.g., request ID or trace ID).
@@ -153,32 +118,6 @@ func ctxValue(ctx context.Context) string {
 		if s, ok := v.(string); ok {
 			return s
 		}
-	}
-	return ""
-}
-
-// Helper to extract event type from event metadata.
-func extractEventType(event *nexusv1.EventResponse, log *zap.Logger) string {
-	if event == nil || event.Metadata == nil || event.Metadata.ServiceSpecific == nil {
-		return ""
-	}
-	ss := event.Metadata.ServiceSpecific.AsMap()
-	if et, ok := ss["event_type"].(string); ok && et != "" {
-		return et
-	}
-	// Fallback: build from event_service and event_action
-	svcName, ok := ss["event_service"].(string)
-	if !ok {
-		log.Warn("event_service is not a string in event metadata", zap.Any("value", ss["event_service"]))
-		// Optionally, update metadata or orchestrate with graceful here
-	}
-	action, ok := ss["event_action"].(string)
-	if !ok {
-		log.Warn("event_action is not a string in event metadata", zap.Any("value", ss["event_action"]))
-		// Optionally, update metadata or orchestrate with graceful here
-	}
-	if svcName != "" && action != "" {
-		return svcName + "." + action
 	}
 	return ""
 }

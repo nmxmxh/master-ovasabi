@@ -84,6 +84,17 @@ clean:
 	find $(PROTO_PATH) -name "*.pb.go" -delete
 	find $(PROTO_PATH) -name "*.pb.gw.go" -delete
 
+# Build the common Go builder image, which is a dependency for other Docker builds
+.PHONY: build-builder
+build-builder:
+	@echo "Building common Go builder image..."
+	docker build -f deployments/docker/Dockerfile.builder -t ovasabi-go-builder:latest .
+
+# The existing docker-build target will be modified to depend on build-builder.
+# If it doesn't exist, this will create it correctly.
+docker-build: build-builder proto check-service-registration
+	$(DOCKER_COMPOSE) build
+
 # run linter
 lint:
 	@echo "Running Go linter checks (excluding amadeus directory)..."
@@ -135,9 +146,6 @@ ts-proto:
 	@echo "TypeScript proto generation complete. Output in frontend/protos"
 
 # Docker Compose Commands
-docker-build: proto check-service-registration
-	$(DOCKER_COMPOSE) build
-
 docker-slim-all:
 	$(MAKE) -f deployments/docker/docker-slim.mk docker-slim-all
 

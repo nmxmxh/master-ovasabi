@@ -1,25 +1,19 @@
-# ----------- Build Stage -----------
-FROM golang:1.24-alpine AS builder
+# Dockerfile for media-streaming, using the common go-builder.
+# syntax=docker/dockerfile:1.4
+# --- Build Stage ---
+# Use the common builder stage which contains all source code and dependencies.
+FROM ovasabi-go-builder:latest AS builder
 
-WORKDIR /media
+# The working directory is /app, inherited from the builder.
+# All source code is present, and protoc has been run.
 
-COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+# Build the media-streaming binary.
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/media-streaming ./cmd/media-streaming
 
-COPY . .
-
-# Build the media-streaming binary
-RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /media/media-streaming ./cmd/media-streaming/main.go
-
-# ----------- Final Stage (Distroless) -----------
-FROM gcr.io/distroless/base-debian11
-
-WORKDIR /media
-
-COPY --from=builder /media/media-streaming .
-
-USER nonroot:nonroot
-
-EXPOSE 8085
-
-ENTRYPOINT ["/media/media-streaming"]
+# --- Final Stage ---
+FROM alpine:3.19
+WORKDIR /media-streaming
+COPY --from=builder /app/media-streaming /media-streaming/
+# Copy curl from the builder stage for health checks
+COPY --from=builder /usr/bin/curl /usr/bin/curl
+CMD ["/media-streaming/media-streaming"]

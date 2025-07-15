@@ -19,11 +19,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -32,7 +30,6 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/config"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
-	chaos "github.com/nmxmxh/master-ovasabi/pkg/chaos"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
@@ -48,7 +45,6 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
 	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"
 	"github.com/nmxmxh/master-ovasabi/internal/service/campaign"
-	thecat "github.com/nmxmxh/master-ovasabi/pkg/thecathasnoname"
 	redisv9 "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -378,9 +374,6 @@ func Run() {
 
 	log.Info("Logger initialized (from server.Run)")
 
-	registry := chaos.NewEventHandlerRegistry()
-	// The rest of the setup (ctx, provider, etc.) comes after logger is initialized
-
 	// Determine ports from environment variables, with documented fallbacks
 	httpPortStr := os.Getenv("HTTP_PORT")
 	if httpPortStr == "" {
@@ -395,8 +388,6 @@ func Run() {
 	if grpcPort == "" {
 		grpcPort = "8082" // Standard gRPC endpoint port for master-ovasabi
 	}
-
-	startAggregatedLogger(log)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -462,14 +453,6 @@ func Run() {
 		return
 	}
 
-	// --- Start the generic event dispatcher after all dependencies are ready ---
-	if err := chaos.RegisterServiceHandlersFromConfig(registry, "config/service_registration.json"); err != nil {
-		log.Error("Failed to register service handlers from config", zap.Error(err))
-	} else {
-		chaos.StartGenericEventDispatcher(ctx, provider, log, registry, []string{"orchestration.*", "service.*"})
-		log.Info("Generic event dispatcher started for all services")
-	}
-
 	// Start the campaign orchestrator to manage active campaigns.
 	// This runs in the background, periodically scanning for and orchestrating campaigns.
 	go startCampaignOrchestrator(ctx, provider, log)
@@ -480,71 +463,6 @@ func Run() {
 		log.Error("Server failed to start", zap.Error(err))
 		return
 	}
-
-	// --- Chaos Orchestrator Integration ---
-	go func() {
-		loggerStd := zap.NewStdLog(log)
-		cat := thecat.New(loggerStd)
-		jsonData, err := os.ReadFile("config/service_registration.json")
-		if err != nil {
-			log.Error("Failed to read service_registration.json for chaos orchestrator", zap.Error(err))
-			return
-		}
-		services, err := chaos.LoadServiceRegistrationsFromJSON(jsonData)
-		if err != nil {
-			log.Error("Failed to parse service registrations for chaos orchestrator", zap.Error(err))
-			return
-		}
-		nexusAddr := os.Getenv("NEXUS_GRPC_ADDR")
-		if nexusAddr == "" {
-			nexusAddr = "localhost:50051"
-		}
-		conn, err := grpc.Dial(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			log.Error("[chaos] Failed to connect to Nexus gRPC server", zap.Error(err))
-			return
-		}
-		defer conn.Close()
-		nexusClient := nexusv1.NewNexusServiceClient(conn)
-		orchestrator := chaos.NewChaosOrchestrator(loggerStd, cat, services, 10, nil)
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		zaplog := log
-		for {
-			select {
-			case <-ticker.C:
-				// Emit to 5-15 random services concurrently
-				numEvents := 5 + rand.Intn(11) // 5 to 15
-				var wg sync.WaitGroup
-				for i := 0; i < numEvents; i++ {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						orchestrationEvent := orchestrator.RunChaosDemoWithProtos(ctx, zaplog)
-						if orchestrationEvent != nil {
-							eventReq := chaos.BuildNexusEventRequest(orchestrationEvent)
-							if eventReq != nil {
-								// --------->
-								fmt.Printf("\033[36m[CHAOS] ---------> [NEXUS] Emitting event to Nexus\033[0m\n")
-								resp, err := nexusClient.EmitEvent(ctx, eventReq)
-								if err != nil {
-									zaplog.Error("Chaos orchestrator failed to emit event to Nexus", zap.Error(err))
-								} else {
-									fmt.Printf("\033[32m[NEXUS] <--------- [CHAOS] Received event: id=%s, success=%v, message=%s\033[0m\n", resp.GetEventId(), resp.GetSuccess(), resp.GetMessage())
-									zaplog.Info("Chaos orchestrator emitted event to Nexus", zap.String("event_id", resp.GetEventId()), zap.Bool("success", resp.GetSuccess()), zap.String("message", resp.GetMessage()))
-								}
-							}
-						}
-					}()
-				}
-				wg.Wait()
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 
 	<-ctx.Done()
 	log.Warn("Shutdown signal received")
@@ -586,23 +504,6 @@ func startCampaignOrchestrator(ctx context.Context, provider *service.Provider, 
 			return
 		}
 	}
-}
-
-// Add this function to start the aggregated logger.
-func startAggregatedLogger(log *zap.Logger) {
-	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-		for {
-			<-ticker.C
-			audits := atomic.SwapInt64(&securityAuditCount, 0)
-			healths := atomic.SwapInt64(&healthCheckCount, 0)
-			log.Info("Aggregated server metrics (per minute)",
-				zap.Int64("security_audits", audits),
-				zap.Int64("health_checks", healths),
-			)
-		}
-	}()
 }
 
 // HTTP middleware to inject request ID, trace ID, and feature flags into context.

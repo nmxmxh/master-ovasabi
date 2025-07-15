@@ -1,30 +1,25 @@
-# ----------- Build Stage -----------
-FROM golang:1.24-alpine AS builder
+# Dockerfile for the Nexus service, using the common go-builder.
+# syntax=docker/dockerfile:1.4
+# --- Build Stage ---
+# Use the common builder stage which contains all source code and dependencies.
+FROM ovasabi-go-builder:latest AS builder
 
-WORKDIR /nexus
+# The working directory is /app, inherited from the builder.
+# All source code is present, and protoc has been run.
 
-COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
-
-COPY . .
-# Log and fail if service_registration.json is missing before COPY
-RUN if [ ! -f config/service_registration.json ]; then \
-  echo "[DOCKER] ERROR: config/service_registration.json is missing! Docker will create a directory if this file is absent."; \
-  exit 1; \
-  fi
-# Copy service_registration.json for embedding or runtime
-COPY config/service_registration.json ./config/service_registration.json
-
-# Build the Nexus binary
-RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /nexus/nexus ./cmd/nexus
+# Build the Nexus binary.
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/nexus ./cmd/nexus
 
 # ----------- Final Stage (Distroless) -----------
 FROM gcr.io/distroless/base-debian11
 
 WORKDIR /nexus
 
-COPY --from=builder /nexus/nexus .
-COPY --from=builder /nexus/config/service_registration.json /nexus/config/service_registration.json
+# Copy the pre-downloaded health probe tool
+COPY --from=builder /app/tools/grpc_health_probe /bin/grpc_health_probe
+
+COPY --from=builder /app/nexus .
+COPY --from=builder /app/config/service_registration.json /nexus/config/
 
 USER nonroot:nonroot
 

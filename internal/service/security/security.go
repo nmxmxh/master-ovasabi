@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
@@ -71,14 +70,17 @@ type Service struct {
 	cache        *redis.Cache // optional, can be nil
 	repo         *Repository
 	eventEnabled bool
+	handler      *graceful.Handler // Canonical handler for orchestration
 }
 
 func NewService(_ context.Context, log *zap.Logger, cache *redis.Cache, repo *Repository, eventEnabled bool) *Service {
+	handler := graceful.NewHandler(log, nil, cache, "security", "v1", eventEnabled)
 	s := &Service{
 		log:          log,
 		cache:        cache,
 		repo:         repo,
 		eventEnabled: eventEnabled,
+		handler:      handler,
 	}
 	return s
 }
@@ -111,16 +113,7 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		metaMap := map[string]interface{}{"security": meta}
 		fullMap := map[string]interface{}{"service_specific": metaMap}
 		normMeta := metadata.MapToProto(fullMap)
-		failure := graceful.WrapErr(ctx, codes.PermissionDenied, "authentication failed", nil)
-		failure.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:         s.log,
-			Metadata:    normMeta,
-			EventType:   "security.authenticate.failed",
-			EventID:     principal,
-			PatternType: "security",
-			PatternID:   principal,
-			PatternMeta: normMeta,
-		})
+		s.handler.Error(ctx, "authenticate", codes.PermissionDenied, "authentication failed", nil, normMeta, principal)
 		return &securitypb.AuthenticateResponse{
 			SessionToken: "",
 			Metadata:     normMeta,
@@ -134,7 +127,7 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		metaBytes, err := json.Marshal(metadata.ProtoToMap(normMeta))
 		if err != nil {
 			s.log.Error("failed to marshal metadata", zap.Error(err))
-			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal metadata", err))
+			return nil, graceful.ToStatusError(s.handler.Error(ctx, "security.marshal_metadata_error", codes.Internal, "failed to marshal metadata", err, nil, principal))
 		}
 		master := &Master{
 			Type:     "user",
@@ -143,28 +136,20 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		}
 		_, masterUUID, err := s.repo.CreateMaster(ctx, master)
 		if err != nil {
-			err = graceful.WrapErr(ctx, codes.Internal, "failed to create master", err)
-			var ce *graceful.ContextError
-			if errors.As(err, &ce) {
-				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			}
+			err = s.handler.Error(ctx, "security.create_master_error", codes.Internal, "failed to create master", err, nil, principal)
 			return nil, graceful.ToStatusError(err)
 		}
 		var masterBigintID int64
 		row := s.repo.GetDB().QueryRowContext(ctx, `SELECT master_id FROM service_security_master WHERE uuid = $1`, masterUUID)
 		if err := row.Scan(&masterBigintID); err != nil {
-			err = graceful.WrapErr(ctx, codes.Internal, "failed to fetch master_id for new security master", err)
-			var ce *graceful.ContextError
-			if errors.As(err, &ce) {
-				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			}
+			err = s.handler.Error(ctx, "fetch_master_id", codes.Internal, "failed to fetch master_id for new security master", err, nil, principal)
 			return nil, graceful.ToStatusError(err)
 		}
 		normCred := metadata.MapToProto(map[string]interface{}{"service_specific": map[string]interface{}{"security": cred}})
 		credBytes, err := json.Marshal(metadata.ProtoToMap(normCred))
 		if err != nil {
 			s.log.Error("failed to marshal metadata", zap.Error(err))
-			return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to marshal metadata", err))
+			return nil, graceful.ToStatusError(s.handler.Error(ctx, "security.marshal_metadata_error", codes.Internal, "failed to marshal metadata", err, nil, principal))
 		}
 		identity = &Identity{
 			MasterID:     masterBigintID,
@@ -176,11 +161,7 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		}
 		_, err = s.repo.CreateIdentity(ctx, identity)
 		if err != nil {
-			err = graceful.WrapErr(ctx, codes.Internal, "failed to create identity", err)
-			var ce *graceful.ContextError
-			if errors.As(err, &ce) {
-				ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			}
+			err = s.handler.Error(ctx, "security.create_identity_error", codes.Internal, "failed to create identity", err, nil, principal)
 			return nil, graceful.ToStatusError(err)
 		}
 	}
@@ -203,17 +184,7 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 	normMeta := metadata.MapToProto(fullMap)
 
 	// Canonical orchestration: use graceful.WrapSuccess and StandardOrchestrate for all post-success flows
-	success := graceful.WrapSuccess(ctx, codes.OK, "authentication succeeded", nil, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    normMeta,
-		EventType:   "security.authenticate.succeeded",
-		EventID:     principal,
-		PatternType: "security",
-		PatternID:   principal,
-		PatternMeta: normMeta,
-	})
-
+	s.handler.Success(ctx, "authenticate", codes.OK, "authentication succeeded", nil, normMeta, principal, nil)
 	return &securitypb.AuthenticateResponse{
 		SessionToken: "session-token-stub",
 		Metadata:     normMeta,
@@ -248,17 +219,10 @@ func (s *Service) Authorize(ctx context.Context, req *securitypb.AuthorizeReques
 	fullMap := map[string]interface{}{"service_specific": metaMap}
 	normMeta := metadata.MapToProto(fullMap)
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "authorization checked", nil, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    normMeta,
-		EventType:   "security.authorize.checked",
-		EventID:     principal,
-		PatternType: "security",
-		PatternID:   principal,
-		PatternMeta: normMeta,
-	})
+	// If you want to log to repository, implement LogAuthorization in Repository.
+	// For now, just log and use handler for error reporting if needed.
 
+	s.handler.Success(ctx, "authorize", codes.OK, "authorization checked", nil, normMeta, principal, nil)
 	return &securitypb.AuthorizeResponse{
 		Allowed:  allowed,
 		Reason:   reason,
@@ -291,17 +255,10 @@ func (s *Service) ValidateCredential(ctx context.Context, req *securitypb.Valida
 	fullMap := map[string]interface{}{"service_specific": metaMap}
 	normMeta := metadata.MapToProto(fullMap)
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "credential validated", nil, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    normMeta,
-		EventType:   "security.credential.validated",
-		EventID:     cred,
-		PatternType: "security",
-		PatternID:   cred,
-		PatternMeta: normMeta,
-	})
+	// If you want to log to repository, implement LogCredentialValidation in Repository.
+	// For now, just log and use handler for error reporting if needed.
 
+	s.handler.Success(ctx, "validate_credential", codes.OK, "credential validated", nil, normMeta, cred, nil)
 	return &securitypb.ValidateCredentialResponse{
 		Valid:    valid,
 		Metadata: normMeta,
@@ -362,17 +319,7 @@ func (s *Service) DetectThreats(ctx context.Context, req *securitypb.DetectThrea
 	fullMap := map[string]interface{}{"service_specific": metaMap}
 	normMeta := metadata.MapToProto(fullMap)
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "threats detected", nil, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    normMeta,
-		EventType:   "security.threats.detected",
-		EventID:     principal,
-		PatternType: "security",
-		PatternID:   principal,
-		PatternMeta: normMeta,
-	})
-
+	s.handler.Success(ctx, "detect_threats", codes.OK, "threats detected", nil, normMeta, principal, nil)
 	return &securitypb.DetectThreatsResponse{
 		Threats:  threats,
 		Metadata: normMeta,
@@ -478,17 +425,7 @@ func (s *Service) AuditEvent(ctx context.Context, req *securitypb.AuditEventRequ
 	normMeta = metadata.MapToProto(fullMap)
 	recordAuditEventAggregate(req.GetEventType(), req.GetAction(), req.GetPrincipalId())
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "audit event recorded", nil, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    normMeta,
-		EventType:   "security.audit_event.recorded",
-		EventID:     principal,
-		PatternType: "security",
-		PatternID:   principal,
-		PatternMeta: normMeta,
-	})
-
+	s.handler.Success(ctx, "audit_event", codes.OK, "audit event recorded", nil, normMeta, principal, nil)
 	return &securitypb.AuditEventResponse{
 		Success:  true,
 		Metadata: normMeta,
@@ -526,24 +463,12 @@ func (s *Service) QueryEvents(ctx context.Context, req *securitypb.QueryEventsRe
 	fullMap := map[string]interface{}{"service_specific": metaMap}
 	normMeta := metadata.MapToProto(fullMap)
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "events queried", nil, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:         s.log,
-		Metadata:    normMeta,
-		EventType:   "security.events.queried",
-		EventID:     "security-query",
-		PatternType: "security",
-		PatternID:   "security-query",
-		PatternMeta: normMeta,
-	})
-
+	s.handler.Success(ctx, "query_events", codes.OK, "events queried", nil, normMeta, "security-query", nil)
 	return &securitypb.QueryEventsResponse{
 		Events:   protoEvents,
 		Metadata: normMeta,
 	}, nil
 }
-
-// --- Helper methods for metadata extraction and orchestration ---
 
 // boolToResult returns "success" or "fail" for a boolean.
 func boolToResult(b bool) string {

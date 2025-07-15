@@ -26,6 +26,7 @@ import (
 	"context"
 	"database/sql"
 
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	productpb "github.com/nmxmxh/master-ovasabi/api/protos/product/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
@@ -61,12 +62,30 @@ func Register(
 		log.With(zap.String("service", "product")).Error("Failed to register product service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
-	// Inos: Register the hello-world event loop for service health and orchestration
+
+	// Canonical registry-driven event orchestration (consistent with admin/search)
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		eventTypes := getCanonicalProductEventTypes()
+		// Subscribe to all canonical product event types and route to generic handler
+		err := prov.SubscribeEvents(ctx, eventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+			HandleProductServiceEvent(ctx, productService, event)
+		})
+		if err != nil {
+			log.With(zap.String("service", "product")).Error("Failed to subscribe to product events", zap.Error(err))
+		}
 		hello.StartHelloWorldLoop(ctx, prov, log, "product")
 	}
 	return nil
+}
+
+// getCanonicalProductEventTypes returns all canonical product event types for registry-driven orchestration
+func getCanonicalProductEventTypes() []string {
+	eventTypes := make([]string, 0, len(eventTypeToHandler))
+	for eventType := range eventTypeToHandler {
+		eventTypes = append(eventTypes, eventType)
+	}
+	return eventTypes
 }
 
 // ctxValue extracts a string for logging from context (e.g., request ID or trace ID).

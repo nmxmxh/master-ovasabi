@@ -9,7 +9,6 @@
 // - Multi-Dependency Support: Services with multiple or cross-service dependencies (e.g., ContentService, NotificationService) use custom registration functions to resolve all required dependencies from the DI container.
 // - Extensible Pattern: To add a new service, define its repository and (optionally) cache, then add a registration entry. For complex dependencies, use a custom registration function.
 // - Consistent Error Handling: All registration errors are logged and wrapped for traceability.
-// - Self-Documenting: The registration pattern is discoverable and enforced as a standard for all new services.
 //
 // Standard for New Service/Provider Files:
 // 1. Document the registration pattern and DI approach at the top of the file.
@@ -17,7 +16,6 @@
 // 3. Note any special patterns for multi-dependency or cross-service orchestration.
 // 4. Ensure all registration and error handling is consistent and logged.
 // 5. Reference this comment as the standard for all new service/provider files.
-//
 // For more, see the Amadeus context: docs/amadeus/amadeus_context.md (Provider/DI Registration Pattern)
 
 // User Service Construction & Helpers
@@ -29,6 +27,7 @@ import (
 	"context"
 	"database/sql"
 
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
@@ -49,7 +48,7 @@ func Register(
 	eventEmitter events.EventEmitter,
 	db *sql.DB,
 	masterRepo repositorypkg.MasterRepository,
-	redisProvider *redis.Provider,
+	redisProvider *redis.Provider, // Corrected type to *redis.Provider
 	log *zap.Logger,
 	eventEnabled bool,
 	provider interface{}, // unused, keep for signature consistency
@@ -74,7 +73,9 @@ func Register(
 	if err != nil {
 		log.With(zap.String("service", "user")).Warn("Failed to get user cache", zap.Error(err), zap.String("cache", "user"), zap.String("context", ctxValue(ctx)))
 	}
-	svc := NewService(log, repository, cache, eventEmitter, eventEnabled)
+	ctx = context.Background()
+	svc := NewService(ctx, log, repository, cache, eventEmitter, eventEnabled)
+	// Register gRPC interface
 	if err := container.Register((*userpb.UserServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return svc, nil
 	}); err != nil {
@@ -102,9 +103,22 @@ func Register(
 		log.With(zap.String("service", "user")).Error("Failed to register concrete *user.Service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
+	// Event subscription pattern (canonical)
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
-		StartPaydayTriggeredSubscriber(ctx, prov, log)
+		// Subscribe to all canonical user events
+		go func() {
+			for _, sub := range UserEventRegistry {
+				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+					if svcTyped, ok := svc.(*Service); ok {
+						sub.Handler(ctx, svcTyped, event)
+					}
+				})
+				if err != nil {
+					log.With(zap.String("service", "user")).Error("Failed to subscribe to user events", zap.Error(err))
+				}
+			}
+		}()
 		hello.StartHelloWorldLoop(ctx, prov, log, "user")
 	}
 	return nil

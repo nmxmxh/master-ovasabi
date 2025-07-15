@@ -27,6 +27,7 @@ import (
 	"database/sql"
 
 	messagingpb "github.com/nmxmxh/master-ovasabi/api/protos/messaging/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
@@ -34,9 +35,21 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
+
+// ServiceImpl is the concrete implementation for the messaging service.
+// Ensure this matches the definition in messaging/events.go and messaging.go.
+// Service is the orchestration type expected by event handler signatures (see events.go)
+
+type ServiceImpl struct {
+	messagingpb.UnimplementedMessagingServiceServer
+	log          *zap.Logger
+	repo         *Repository
+	cache        *redis.Cache
+	eventEmitter events.EventEmitter
+	eventEnabled bool
+	// Add other fields as needed (e.g. handler)
+}
 
 // Register registers the messaging service with the DI container and event bus support.
 // Parameters used: ctx, container, eventEmitter, db, masterRepo, redisProvider, log, eventEnabled. provider is unused.
@@ -56,29 +69,61 @@ func Register(
 	if err != nil {
 		log.Warn("failed to get messaging cache", zap.Error(err))
 	}
-	messagingService := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	// Instantiate the concrete ServiceImpl for messaging
+	svcImpl := &ServiceImpl{
+		log:          log,
+		repo:         repo,
+		cache:        cache,
+		eventEmitter: eventEmitter,
+		eventEnabled: eventEnabled,
+		// Add other fields as needed (e.g. handler)
+	}
+
+	// Register all canonical action handlers for event-driven orchestration (registry-driven)
+	RegisterActionHandler("send_message", handleSendMessage)
+	RegisterActionHandler("receive_message", handleReceiveMessage)
+	RegisterActionHandler("delete_message", handleDeleteMessage)
+	RegisterActionHandler("list_messages", handleListMessages)
+	RegisterActionHandler("broadcast_message", handleBroadcastMessage)
+	RegisterActionHandler("stream_presence", handleStreamPresence)
+	RegisterActionHandler("mark_as_read", handleMarkAsRead)
+	RegisterActionHandler("edit_message", handleEditMessage)
+	RegisterActionHandler("list_threads", handleListThreads)
+	RegisterActionHandler("get_message", handleGetMessage)
+	RegisterActionHandler("stream_typing", handleStreamTyping)
+	RegisterActionHandler("stream_messages", handleStreamMessages)
+	RegisterActionHandler("react_to_message", handleReactToMessage)
+
+	// Register the gRPC interface for the server to use.
 	if err := container.Register((*messagingpb.MessagingServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
-		return messagingService, nil
+		return svcImpl, nil
 	}); err != nil {
 		log.Error("Failed to register messaging service", zap.Error(err))
 		return err
 	}
+
+	// Register the concrete implementation for internal handlers (e.g., REST endpoints) to resolve.
+	if err := container.Register((*ServiceImpl)(nil), func(_ *di.Container) (interface{}, error) {
+		return svcImpl, nil
+	}); err != nil {
+		log.Error("Failed to register messaging service implementation", zap.Error(err))
+	}
+
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		// Start event subscribers for messaging events (canonical pattern)
+		go func() {
+			for _, sub := range MessagingEventRegistry {
+				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+					sub.Handler(ctx, svcImpl, event)
+				})
+				if err != nil {
+					log.Error("Failed to subscribe to messaging events", zap.Error(err))
+				}
+			}
+		}()
 		hello.StartHelloWorldLoop(ctx, prov, log, "messaging")
 	}
+	_ = masterRepo // used for signature consistency and future extensibility
 	return nil
-}
-
-// NewMessagingClient creates a new gRPC client connection and returns a MessagingServiceClient and a cleanup function.
-// Replace grpc.Dial with the modern NewClient pattern if available.
-// TODO: Replace with messagingpb.NewClient when available in generated code.
-func NewMessagingClient(target string) (messagingpb.MessagingServiceClient, func() error, error) {
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, nil, err
-	}
-	client := messagingpb.NewMessagingServiceClient(conn)
-	cleanup := func() error { return conn.Close() }
-	return client, cleanup, nil
 }

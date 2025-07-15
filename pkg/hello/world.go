@@ -80,7 +80,7 @@ func getServiceColor(serviceName string) string {
 func helloEventHandler(serviceName string) WorldHandlerFunc {
 	return func(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger) {
 		go func() {
-			time.Sleep(1 * time.Second)
+			time.Sleep(5 * time.Second)
 			var msg string
 			if event.Payload != nil && event.Payload.Data != nil {
 				if v, ok := event.Payload.Data.Fields["message"]; ok {
@@ -123,7 +123,7 @@ func StartHelloWorldSubscriber(ctx context.Context, provider *service.Provider, 
 // StartHelloWorldLoop emits a hello event every 36s and logs it colorfully after a 1s lag.
 func StartHelloWorldLoop(ctx context.Context, provider *service.Provider, log *zap.Logger, serviceName string) {
 	go func() {
-		ticker := time.NewTicker(60 * time.Second)
+		ticker := time.NewTicker(600 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {

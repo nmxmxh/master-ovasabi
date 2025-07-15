@@ -19,25 +19,6 @@ import (
 )
 
 // --- Graceful Orchestration Adapter for EventEmitter (for DRY orchestration) ---
-type EventEmitterAdapter struct {
-	Emitter events.EventEmitter
-}
-
-func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	if a.Emitter == nil {
-		log.Warn("Event emitter not configured", zap.String("event_type", eventType))
-		return "", false
-	}
-	return a.Emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
-}
-
-func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	if a.Emitter == nil {
-		log.Warn("Event emitter not configured", zap.String("event_type", eventType))
-		return "", false
-	}
-	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
-}
 
 // --- Service and Dispatcher Types ---
 type Service struct {
@@ -49,6 +30,7 @@ type Service struct {
 	eventEnabled bool
 	dispatcher   *Dispatcher
 	shutdown     chan struct{}
+	handler      *graceful.Handler
 }
 
 type Dispatcher struct {
@@ -79,16 +61,9 @@ var _ crawlerpb.CrawlerServiceServer = (*Service)(nil)
 // SubmitTask submits a new crawl task and orchestrates via graceful
 func (s *Service) SubmitTask(ctx context.Context, req *crawlerpb.SubmitTaskRequest) (*crawlerpb.SubmitTaskResponse, error) {
 	if req == nil || req.Task == nil {
-		errCtx := graceful.WrapErr(ctx, codes.InvalidArgument, "missing task in request", nil)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:          s.log,
-			Context:      ctx,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "crawler.task_submit_error",
-			PatternType:  "crawler_task",
-		})
-		return nil, graceful.ToStatusError(errCtx)
+		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "missing task in request", nil)
+		s.handler.Error(ctx, "submit_task", codes.InvalidArgument, "missing task in request", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 
 	// Normalize and version metadata
@@ -101,20 +76,9 @@ func (s *Service) SubmitTask(ctx context.Context, req *crawlerpb.SubmitTaskReque
 	createdTask, err := s.repo.CreateCrawlTask(ctx, req.Task)
 	if err != nil {
 		s.log.Error("failed to create crawl task", zap.Error(err))
-		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to create crawl task", err)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:          s.log,
-			Context:      ctx,
-			Metadata:     req.Task.Metadata,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "crawler.task_submit_error",
-			EventID:      req.Task.Uuid,
-			PatternType:  "crawler_task",
-			PatternID:    req.Task.Uuid,
-			PatternMeta:  req.Task.Metadata,
-		})
-		return nil, graceful.ToStatusError(errCtx)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to create crawl task", err)
+		s.handler.Error(ctx, "submit_task", codes.Internal, "failed to create crawl task", gErr, req.Task.Metadata, req.Task.Uuid)
+		return nil, graceful.ToStatusError(gErr)
 	}
 
 	// Enqueue the task for processing
@@ -122,20 +86,9 @@ func (s *Service) SubmitTask(ctx context.Context, req *crawlerpb.SubmitTaskReque
 	case s.dispatcher.jobQueue <- createdTask:
 		// ok
 	default:
-		errCtx := graceful.WrapErr(ctx, codes.ResourceExhausted, "task queue is full", nil)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:          s.log,
-			Context:      ctx,
-			Metadata:     createdTask.Metadata,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "crawler.task_queue_full",
-			EventID:      createdTask.Uuid,
-			PatternType:  "crawler_task",
-			PatternID:    createdTask.Uuid,
-			PatternMeta:  createdTask.Metadata,
-		})
-		return nil, graceful.ToStatusError(errCtx)
+		gErr := graceful.WrapErr(ctx, codes.ResourceExhausted, "task queue is full", nil)
+		s.handler.Error(ctx, "submit_task", codes.ResourceExhausted, "task queue is full", gErr, createdTask.Metadata, createdTask.Uuid)
+		return nil, graceful.ToStatusError(gErr)
 	}
 
 	resp := &crawlerpb.SubmitTaskResponse{
@@ -143,54 +96,23 @@ func (s *Service) SubmitTask(ctx context.Context, req *crawlerpb.SubmitTaskReque
 		Status:  createdTask.Status,
 		Message: "Task submitted successfully",
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "crawler task submitted", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     createdTask.Uuid,
-		CacheValue:   createdTask,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     createdTask.Metadata,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-		EventType:    "crawler.task_submitted",
-		EventID:      createdTask.Uuid,
-		PatternType:  "crawler_task",
-		PatternID:    createdTask.Uuid,
-		PatternMeta:  createdTask.Metadata,
-	})
+	s.handler.Success(ctx, "submit_task", codes.OK, "crawler task submitted", resp, createdTask.Metadata, createdTask.Uuid, &graceful.CacheInfo{Key: createdTask.Uuid, Value: createdTask, TTL: 10 * time.Minute})
 	return resp, nil
 }
 
 // GetTaskStatus returns the current status of a crawl task
 func (s *Service) GetTaskStatus(ctx context.Context, req *crawlerpb.GetTaskStatusRequest) (*crawlerpb.CrawlTask, error) {
 	if req == nil || req.Uuid == "" {
-		errCtx := graceful.WrapErr(ctx, codes.InvalidArgument, "missing uuid in request", nil)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:          s.log,
-			Context:      ctx,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "crawler.task_status_error",
-			PatternType:  "crawler_task",
-		})
-		return nil, graceful.ToStatusError(errCtx)
+		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "missing uuid in request", nil)
+		s.handler.Error(ctx, "get_task_status", codes.InvalidArgument, "missing uuid in request", gErr, nil, "")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	task, err := s.repo.GetCrawlTask(ctx, req.Uuid)
 	if err != nil {
 		s.log.Error("failed to get crawl task", zap.Error(err))
-		errCtx := graceful.WrapErr(ctx, codes.NotFound, "crawl task not found", err)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:          s.log,
-			Context:      ctx,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "crawler.task_status_error",
-			EventID:      req.Uuid,
-			PatternType:  "crawler_task",
-			PatternID:    req.Uuid,
-		})
-		return nil, graceful.ToStatusError(errCtx)
+		gErr := graceful.WrapErr(ctx, codes.NotFound, "crawl task not found", err)
+		s.handler.Error(ctx, "get_task_status", codes.NotFound, "crawl task not found", gErr, nil, req.Uuid)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	// Optionally orchestrate success (not always needed for read-only)
 	return task, nil
@@ -200,50 +122,25 @@ func (s *Service) GetTaskStatus(ctx context.Context, req *crawlerpb.GetTaskStatu
 func (s *Service) StreamResults(req *crawlerpb.StreamResultsRequest, stream crawlerpb.CrawlerService_StreamResultsServer) error {
 	ctx := stream.Context()
 	if req == nil || req.TaskUuid == "" {
-		errCtx := graceful.WrapErr(ctx, codes.InvalidArgument, "missing task_uuid in request", nil)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:          s.log,
-			Context:      ctx,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "crawler.stream_results_error",
-			PatternType:  "crawler_task",
-		})
-		return graceful.ToStatusError(errCtx)
+		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "missing task_uuid in request", nil)
+		s.handler.Error(ctx, "stream_results", codes.InvalidArgument, "missing task_uuid in request", gErr, nil, "")
+		return graceful.ToStatusError(gErr)
 	}
 
 	// For demo: just send the latest result (extend to real streaming if needed)
 	result, err := s.repo.GetCrawlResult(ctx, req.TaskUuid)
 	if err != nil {
 		s.log.Error("failed to get crawl result", zap.Error(err))
-		errCtx := graceful.WrapErr(ctx, codes.NotFound, "crawl result not found", err)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:          s.log,
-			Context:      ctx,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "crawler.stream_results_error",
-			EventID:      req.TaskUuid,
-			PatternType:  "crawler_task",
-			PatternID:    req.TaskUuid,
-		})
-		return graceful.ToStatusError(errCtx)
+		gErr := graceful.WrapErr(ctx, codes.NotFound, "crawl result not found", err)
+		s.handler.Error(ctx, "stream_results", codes.NotFound, "crawl result not found", gErr, nil, req.TaskUuid)
+		return graceful.ToStatusError(gErr)
 	}
 
 	if err := stream.Send(result); err != nil {
 		s.log.Error("failed to stream result", zap.Error(err))
-		errCtx := graceful.WrapErr(ctx, codes.Internal, "failed to stream result", err)
-		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:          s.log,
-			Context:      ctx,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "crawler.stream_results_error",
-			EventID:      req.TaskUuid,
-			PatternType:  "crawler_task",
-			PatternID:    req.TaskUuid,
-		})
-		return graceful.ToStatusError(errCtx)
+		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to stream result", err)
+		s.handler.Error(ctx, "stream_results", codes.Internal, "failed to stream result", gErr, nil, req.TaskUuid)
+		return graceful.ToStatusError(gErr)
 	}
 	// Optionally orchestrate success (not always needed for streaming)
 	return nil
@@ -272,6 +169,7 @@ func NewService(
 		eventEnabled: eventEnabled,
 		dispatcher:   dispatcher,
 		shutdown:     make(chan struct{}),
+		handler:      graceful.NewHandler(log, eventEmitter, cache, "crawler", "v1", eventEnabled),
 	}
 
 	dispatcher.Start()

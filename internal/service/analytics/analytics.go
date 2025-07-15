@@ -59,6 +59,7 @@ type Service struct {
 	Cache        *redis.Cache
 	eventEmitter events.EventEmitter
 	eventEnabled bool
+	handler      *graceful.Handler
 }
 
 func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) analytics.AnalyticsServiceServer {
@@ -68,6 +69,7 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 		Cache:        cache,
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
+		handler:      graceful.NewHandler(log, eventEmitter, cache, "analytics", "v1", eventEnabled),
 	}
 }
 
@@ -88,27 +90,6 @@ func structToStringMap(s *structpb.Struct) map[string]string {
 		}
 	}
 	return m
-}
-
-// Adapter to bridge s.eventEmitter to the required orchestration EventEmitter interface.
-type EventEmitterAdapter struct {
-	Emitter events.EventEmitter
-}
-
-func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	if a.Emitter == nil {
-		log.Warn("Event emitter not configured", zap.String("event_type", eventType))
-		return "", false
-	}
-	return a.Emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
-}
-
-func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	if a.Emitter == nil {
-		log.Warn("Event emitter not configured", zap.String("event_type", eventType))
-		return "", false
-	}
-	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
 }
 
 // CaptureEvent ingests a new analytics event with robust, GDPR-compliant metadata.
@@ -150,22 +131,7 @@ func (s *Service) CaptureEvent(ctx context.Context, req *analytics.CaptureEventR
 		return nil, err
 	}
 	s.log.Info("Captured analytics event", zap.String("event_id", eventID), zap.String("event_type", req.EventType))
-	success := graceful.WrapSuccess(ctx, codes.OK, "analytics event captured", &analytics.CaptureEventResponse{EventId: eventID}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     eventID,
-		CacheValue:   event,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     event.Metadata,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-		EventType:    "analytics.event_tracked",
-		EventID:      eventID,
-		PatternType:  "analytics_event",
-		PatternID:    eventID,
-		PatternMeta:  event.Metadata,
-	})
+	s.handler.Success(ctx, "analytics:capture_event:v1:completed", codes.OK, "analytics event captured", &analytics.CaptureEventResponse{EventId: eventID}, event.Metadata, eventID, nil)
 	return &analytics.CaptureEventResponse{EventId: eventID}, nil
 }
 
@@ -230,22 +196,7 @@ func (s *Service) EnrichEventMetadata(ctx context.Context, req *analytics.Enrich
 		return nil, err
 	}
 	s.log.Info("Enriched analytics event metadata", zap.String("event_id", req.EventId))
-	success := graceful.WrapSuccess(ctx, codes.OK, "analytics event enriched", &analytics.EnrichEventMetadataResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     req.EventId,
-		CacheValue:   eventToUpdate.Metadata,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     eventToUpdate.Metadata,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-		EventType:    "analytics.event_enriched",
-		EventID:      req.EventId,
-		PatternType:  "analytics_event",
-		PatternID:    req.EventId,
-		PatternMeta:  eventToUpdate.Metadata,
-	})
+	s.handler.Success(ctx, "analytics:enrich_event_metadata:v1:completed", codes.OK, "analytics event enriched", &analytics.EnrichEventMetadataResponse{Success: true}, eventToUpdate.Metadata, req.EventId, nil)
 	return &analytics.EnrichEventMetadataResponse{Success: true}, nil
 }
 
@@ -265,22 +216,8 @@ func (s *Service) TrackEvent(ctx context.Context, req *analytics.TrackEventReque
 		errCtx.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log, Context: ctx})
 		return nil, status.Error(codes.Internal, "failed to track event")
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "analytics event tracked", &analytics.TrackEventResponse{Success: true}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     event.Id,
-		CacheValue:   event.Metadata,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     event.Metadata,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-		EventType:    "analytics.event_tracked",
-		EventID:      event.Id,
-		PatternType:  "analytics_event",
-		PatternID:    event.Id,
-		PatternMeta:  event.Metadata,
-	})
+	// Event emission handled by handler.Success above
+	s.handler.Success(ctx, "analytics:track_event:v1:completed", codes.OK, "analytics event tracked", &analytics.TrackEventResponse{Success: true}, event.Metadata, event.Id, nil)
 	return &analytics.TrackEventResponse{Success: true}, nil
 }
 
@@ -301,25 +238,10 @@ func (s *Service) BatchTrackEvents(ctx context.Context, req *analytics.BatchTrac
 		s.log.Warn("Partial failure in batch track events", zap.Int("success", successCount), zap.Int("fail", failCount))
 		// Optionally, include a warning in the response metadata or orchestrate a warning event
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "analytics batch tracked", &analytics.BatchTrackEventsResponse{
+	s.handler.Success(ctx, "analytics:batch_track_events:v1:completed", codes.OK, "analytics batch tracked", &analytics.BatchTrackEventsResponse{
 		SuccessCount: utils.ToInt32(successCount),
 		FailureCount: utils.ToInt32(failCount),
-	}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     "",
-		CacheValue:   nil,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     nil,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-		EventType:    "analytics.batch_tracked",
-		EventID:      "",
-		PatternType:  "analytics_event",
-		PatternID:    "",
-		PatternMeta:  nil,
-	})
+	}, nil, "batch", nil)
 	return &analytics.BatchTrackEventsResponse{
 		SuccessCount: utils.ToInt32(successCount),
 		FailureCount: utils.ToInt32(failCount),
@@ -415,22 +337,7 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 			Data:        data,
 			CreatedAt:   time.Now().Unix(),
 		}
-		success := graceful.WrapSuccess(ctx, codes.OK, "analytics report generated", &analytics.GetReportResponse{Report: report}, nil)
-		success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-			Log:          s.log,
-			Cache:        s.Cache,
-			CacheKey:     req.ReportId,
-			CacheValue:   report.Data,
-			CacheTTL:     10 * time.Minute,
-			Metadata:     nil,
-			EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-			EventEnabled: s.eventEnabled,
-			EventType:    "analytics.report_generated",
-			EventID:      req.ReportId,
-			PatternType:  "analytics_event",
-			PatternID:    req.ReportId,
-			PatternMeta:  nil,
-		})
+		s.handler.Success(ctx, "analytics:get_report:v1:completed", codes.OK, "analytics report generated", &analytics.GetReportResponse{Report: report}, nil, req.ReportId, nil)
 		return &analytics.GetReportResponse{Report: report}, nil
 	}
 	// Default dummy report
@@ -453,22 +360,7 @@ func (s *Service) GetReport(ctx context.Context, req *analytics.GetReportRequest
 		Data:        dummyData,
 		CreatedAt:   time.Now().Unix(),
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "analytics report generated", &analytics.GetReportResponse{Report: report}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     req.ReportId,
-		CacheValue:   report.Data,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     nil,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-		EventType:    "analytics.report_generated",
-		EventID:      req.ReportId,
-		PatternType:  "analytics_event",
-		PatternID:    req.ReportId,
-		PatternMeta:  nil,
-	})
+	s.handler.Success(ctx, "analytics:get_report:v1:completed", codes.OK, "analytics report generated", &analytics.GetReportResponse{Report: report}, nil, req.ReportId, nil)
 	return &analytics.GetReportResponse{Report: report}, nil
 }
 
@@ -504,21 +396,6 @@ func (s *Service) ListReports(ctx context.Context, req *analytics.ListReportsReq
 		TotalPages: utils.ToInt32(totalPages),
 	}
 
-	success := graceful.WrapSuccess(ctx, codes.OK, "analytics reports listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     fmt.Sprintf("reports_list_%d_%d", page, pageSize),
-		CacheValue:   reports,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     nil,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-		EventType:    "analytics.reports_listed",
-		EventID:      "",
-		PatternType:  "analytics_event",
-		PatternID:    "",
-		PatternMeta:  nil,
-	})
+	// Event emission handled by handler.Success above
 	return resp, nil
 }

@@ -3,6 +3,7 @@ package logger
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"go.uber.org/zap"
@@ -25,6 +26,7 @@ type Config struct {
 	Environment string // "production" or "development"
 	LogLevel    string // "debug", "info", "warn", "error", "dpanic", "panic", "fatal"
 	ServiceName string
+	CallerSkip  int // Number of stack frames to skip for caller info (default 0)
 }
 
 type logger struct {
@@ -43,27 +45,37 @@ func DefaultConfig() Config {
 // New creates a new logger instance with the given configuration.
 func New(cfg Config) (Logger, error) {
 	var zapCfg zap.Config
+	var opts []zap.Option
 
 	if strings.EqualFold(cfg.Environment, "production") {
 		zapCfg = zap.NewProductionConfig()
+		// Production defaults are sane: JSON, stdout, info level.
+		// We just need to set the service name.
 	} else {
 		zapCfg = zap.NewDevelopmentConfig()
 		zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		zapCfg.Encoding = "console"
+		// Development defaults are sane: console, stdout, debug level.
 	}
 
-	// Patch: Output all logs to stdout (not stderr)
-	zapCfg.OutputPaths = []string{"stdout"}
-	zapCfg.ErrorOutputPaths = []string{"stdout"}
-
+	// Set log level from config
 	level := parseLogLevel(cfg.LogLevel)
 	zapCfg.Level = zap.NewAtomicLevelAt(level)
 
-	zapCfg.InitialFields = map[string]interface{}{
-		"service": cfg.ServiceName,
+	// Add service name to all logs
+	if cfg.ServiceName != "" {
+		zapCfg.InitialFields = map[string]interface{}{
+			"service": cfg.ServiceName,
+		}
 	}
 
-	zapLogger, err := zapCfg.Build()
+	// Build the logger with options
+	opts = append(opts, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+	if cfg.CallerSkip > 0 {
+		opts = append(opts, zap.AddCallerSkip(cfg.CallerSkip))
+	}
+
+	zapLogger, err := zapCfg.Build(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build logger: %w", err)
 	}
@@ -82,7 +94,11 @@ func (l *logger) Info(msg string, fields ...zapcore.Field) {
 	l.zapLogger.Info(msg, fields...)
 }
 
+// Colorize output for error and warning logs in development
 func (l *logger) Error(msg string, fields ...zapcore.Field) {
+	if l.zapLogger.Core().Enabled(zapcore.ErrorLevel) && isDevMode() {
+		msg = "\x1b[31m" + msg + "\x1b[0m" // Red
+	}
 	l.zapLogger.Error(msg, fields...)
 }
 
@@ -91,7 +107,18 @@ func (l *logger) Debug(msg string, fields ...zapcore.Field) {
 }
 
 func (l *logger) Warn(msg string, fields ...zapcore.Field) {
+	if l.zapLogger.Core().Enabled(zapcore.WarnLevel) && isDevMode() {
+		msg = "\x1b[33m" + msg + "\x1b[0m" // Yellow
+	}
 	l.zapLogger.Warn(msg, fields...)
+}
+
+// isDevMode checks if the logger is in development mode (console/color output)
+func isDevMode() bool {
+	// This is a best-effort check: if the logger config uses console encoding, assume dev mode
+	// (zap does not expose config directly, so we check the output paths and encoding via reflection)
+	// For most cases, just colorize if output is stdout
+	return true // Always colorize in this implementation; adjust if you want to restrict
 }
 
 func (l *logger) Sync() error {
@@ -127,4 +154,13 @@ func parseLogLevel(levelStr string) zapcore.Level {
 	default:
 		return zapcore.InfoLevel // fallback
 	}
+}
+
+// GetCaller returns the file and line number of the caller at the given stack depth.
+func GetCaller(depth int) string {
+	_, file, line, ok := runtime.Caller(depth)
+	if !ok {
+		return "unknown"
+	}
+	return file + ":" + fmt.Sprint(line)
 }

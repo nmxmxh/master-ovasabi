@@ -27,13 +27,11 @@ package scheduler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
@@ -45,32 +43,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )
-
-// EventEmitterAdapter bridges any EventEmitter to the canonical interface.
-type EventEmitterAdapter struct {
-	Emitter events.EventEmitter
-}
-
-func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	if a.Emitter != nil {
-		return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
-	}
-	return "", false
-}
-
-func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	if emitter, ok := a.Emitter.(interface {
-		EmitRawEventWithLogging(context.Context, *zap.Logger, string, string, []byte) (string, bool)
-	}); ok {
-		return emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
-	}
-	return "", false
-}
-
-// Handler registry for job execution.
-var jobExecutionHandlers = map[string]func(ctx context.Context, provider *service.Provider, job *schedulerpb.Job, log *zap.Logger){
-	"payday": HandlePaydayJob, // canonical handler for payday jobs
-}
 
 // Service implements the Scheduler business logic with rich metadata handling and gRPC server interface.
 type Service struct {
@@ -85,6 +57,7 @@ type Service struct {
 	cleanerWG                                       sync.WaitGroup
 	cronScheduler                                   *cron.Cron
 	stopScheduler                                   chan struct{}
+	handler                                         *graceful.Handler // Canonical graceful handler for orchestration, error, and success flows
 }
 
 // NewService constructs a new SchedulerService.
@@ -99,6 +72,7 @@ func NewService(ctx context.Context, log *zap.Logger, repo RepositoryItf, cache 
 		stopCleaner:   make(chan struct{}),
 		cronScheduler: cron.New(cron.WithSeconds()),
 		stopScheduler: make(chan struct{}),
+		handler:       graceful.NewHandler(log, eventEmitter, cache, "scheduler", "v1", eventEnabled),
 	}
 	svc.startCleanerLoop(ctx)
 	svc.startAdvancedSchedulerLoop(ctx)
@@ -118,15 +92,11 @@ func (s *Service) CreateJob(ctx context.Context, req *schedulerpb.CreateJobReque
 	}
 	job, err := s.createJobLogic(ctx, req.Job)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to create job", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to create job", codes.Internal)
+		s.handler.Error(ctx, "create_job", codes.Internal, "failed to create job", gErr, nil, req.Job.GetId())
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "job created", job, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: job.Id, CacheValue: job, CacheTTL: 10 * time.Minute, Metadata: job.Metadata, EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter}, EventEnabled: s.eventEnabled, EventType: "scheduler.job_created", EventID: job.Id, PatternType: "scheduler", PatternID: job.Id, PatternMeta: job.Metadata})
+	s.handler.Success(ctx, "create_job", codes.OK, "job created", job, job.Metadata, job.Id, nil)
 	return &schedulerpb.CreateJobResponse{Job: job}, nil
 }
 
@@ -137,15 +107,11 @@ func (s *Service) UpdateJob(ctx context.Context, req *schedulerpb.UpdateJobReque
 	}
 	job, err := s.updateJobLogic(ctx, req.Job)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to update job", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to update job", codes.Internal)
+		s.handler.Error(ctx, "update_job", codes.Internal, "failed to update job", gErr, nil, req.Job.GetId())
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "job updated", job, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: job.Id, CacheValue: job, CacheTTL: 10 * time.Minute, Metadata: job.Metadata, EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter}, EventEnabled: s.eventEnabled, EventType: "scheduler.job_updated", EventID: job.Id, PatternType: "scheduler", PatternID: job.Id, PatternMeta: job.Metadata})
+	s.handler.Success(ctx, "update_job", codes.OK, "job updated", job, job.Metadata, job.Id, nil)
 	return &schedulerpb.UpdateJobResponse{Job: job}, nil
 }
 
@@ -153,15 +119,11 @@ func (s *Service) UpdateJob(ctx context.Context, req *schedulerpb.UpdateJobReque
 func (s *Service) DeleteJob(ctx context.Context, req *schedulerpb.DeleteJobRequest) (*schedulerpb.DeleteJobResponse, error) {
 	err := s.deleteJobLogic(ctx, req.JobId)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to delete job", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to delete job", codes.Internal)
+		s.handler.Error(ctx, "delete_job", codes.Internal, "failed to delete job", gErr, nil, req.JobId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "job deleted", req.JobId, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: req.JobId, CacheValue: req.JobId, CacheTTL: 10 * time.Minute, Metadata: nil, EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter}, EventEnabled: s.eventEnabled, EventType: "scheduler.job_deleted", EventID: req.JobId, PatternType: "scheduler", PatternID: req.JobId, PatternMeta: nil})
+	s.handler.Success(ctx, "delete_job", codes.OK, "job deleted", req.JobId, nil, req.JobId, nil)
 	return &schedulerpb.DeleteJobResponse{}, nil
 }
 
@@ -169,16 +131,12 @@ func (s *Service) DeleteJob(ctx context.Context, req *schedulerpb.DeleteJobReque
 func (s *Service) GetJob(ctx context.Context, req *schedulerpb.GetJobRequest) (*schedulerpb.GetJobResponse, error) {
 	job, err := s.getJobLogic(ctx, req.JobId, req.CampaignId)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to get job", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to fetch job", codes.Internal)
+		s.handler.Error(ctx, "get_job", codes.Internal, "failed to fetch job", gErr, nil, req.JobId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	resp := &schedulerpb.GetJobResponse{Job: job}
-	success := graceful.WrapSuccess(ctx, codes.OK, "job fetched", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: job.Id, CacheValue: job, CacheTTL: 5 * time.Minute, Metadata: job.Metadata, EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter}, EventEnabled: s.eventEnabled, EventType: "scheduler.job_fetched", EventID: job.Id, PatternType: "scheduler", PatternID: job.Id, PatternMeta: job.Metadata})
+	s.handler.Success(ctx, "get_job", codes.OK, "job fetched", resp, job.Metadata, job.Id, nil)
 	return resp, nil
 }
 
@@ -186,17 +144,13 @@ func (s *Service) GetJob(ctx context.Context, req *schedulerpb.GetJobRequest) (*
 func (s *Service) ListJobs(ctx context.Context, req *schedulerpb.ListJobsRequest) (*schedulerpb.ListJobsResponse, error) {
 	jobs, total, err := s.listJobsLogic(ctx, int(req.Page), int(req.PageSize), req.Status, req.CampaignId)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to list jobs", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to list jobs", codes.Internal)
+		s.handler.Error(ctx, "list_jobs", codes.Internal, "failed to list jobs", gErr, nil, "jobs")
+		return nil, graceful.ToStatusError(gErr)
 	}
 	total32 := utils.ToInt32(total)
 	resp := &schedulerpb.ListJobsResponse{Jobs: jobs, TotalCount: total32}
-	success := graceful.WrapSuccess(ctx, codes.OK, "jobs listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: "scheduler:jobs", CacheValue: resp, CacheTTL: 5 * time.Minute, Metadata: nil, EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter}, EventEnabled: s.eventEnabled, EventType: "scheduler.jobs_listed", EventID: "jobs", PatternType: "scheduler", PatternID: "jobs", PatternMeta: nil})
+	s.handler.Success(ctx, "list_jobs", codes.OK, "jobs listed", resp, nil, "jobs", nil)
 	return resp, nil
 }
 
@@ -204,15 +158,11 @@ func (s *Service) ListJobs(ctx context.Context, req *schedulerpb.ListJobsRequest
 func (s *Service) RunJob(ctx context.Context, req *schedulerpb.RunJobRequest) (*schedulerpb.RunJobResponse, error) {
 	run, err := s.runJobLogic(ctx, req.JobId, req.CampaignId)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to run job", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to run job", codes.Internal)
+		s.handler.Error(ctx, "run_job", codes.Internal, "failed to run job", gErr, nil, req.JobId)
+		return nil, graceful.ToStatusError(gErr)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "job run", run, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: run.Id, CacheValue: run, CacheTTL: 10 * time.Minute, Metadata: run.Metadata, EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter}, EventEnabled: s.eventEnabled, EventType: "scheduler.job_run", EventID: run.Id, PatternType: "scheduler", PatternID: run.Id, PatternMeta: run.Metadata})
+	s.handler.Success(ctx, "run_job", codes.OK, "job run", run, run.Metadata, run.Id, nil)
 	return &schedulerpb.RunJobResponse{Run: run}, nil
 }
 
@@ -220,17 +170,13 @@ func (s *Service) RunJob(ctx context.Context, req *schedulerpb.RunJobRequest) (*
 func (s *Service) ListJobRuns(ctx context.Context, req *schedulerpb.ListJobRunsRequest) (*schedulerpb.ListJobRunsResponse, error) {
 	runs, total, err := s.listJobRunsLogic(ctx, req.JobId, int(req.Page), int(req.PageSize), req.CampaignId)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to list job runs", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		gErr := graceful.MapAndWrapErr(ctx, err, "failed to list job runs", codes.Internal)
+		s.handler.Error(ctx, "list_job_runs", codes.Internal, "failed to list job runs", gErr, nil, req.JobId)
+		return nil, graceful.ToStatusError(gErr)
 	}
 	total32 := utils.ToInt32(total)
 	resp := &schedulerpb.ListJobRunsResponse{Runs: runs, TotalCount: total32}
-	success := graceful.WrapSuccess(ctx, codes.OK, "job runs listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Cache: s.cache, CacheKey: "scheduler:job_runs:" + req.JobId, CacheValue: resp, CacheTTL: 5 * time.Minute, Metadata: nil, EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter}, EventEnabled: s.eventEnabled, EventType: "scheduler.job_runs_listed", EventID: req.JobId, PatternType: "scheduler", PatternID: req.JobId, PatternMeta: nil})
+	s.handler.Success(ctx, "list_job_runs", codes.OK, "job runs listed", resp, nil, req.JobId, nil)
 	return resp, nil
 }
 
@@ -306,20 +252,7 @@ func (s *Service) runJobLogic(ctx context.Context, jobID string, campaignID int6
 	if _, err := ExtractSchedulerMetadata(run.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to extract scheduler metadata: %w", err)
 	}
-	// --- Custom handler dispatch ---
-	if run != nil && run.JobId != "" {
-		job, err := s.repo.GetJob(ctx, run.JobId, campaignID)
-		if err != nil {
-			zap.L().Warn("Failed to get job", zap.Error(err))
-		} else if job != nil {
-			if job.Name != "" && len(job.Name) >= 16 && job.Name[:16] == "payday_monday_9am" {
-				handler := jobExecutionHandlers["payday"]
-				if handler != nil && s.provider != nil {
-					handler(ctx, s.provider, job, s.log)
-				}
-			}
-		}
-	}
+
 	return run, nil
 }
 

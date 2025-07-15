@@ -27,6 +27,7 @@ import (
 	"database/sql"
 
 	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
@@ -46,7 +47,7 @@ func Register(
 	container *di.Container,
 	eventEmitter events.EventEmitter,
 	db *sql.DB,
-	masterRepo repository.MasterRepository, // Use canonical type for consistency, even if unused.
+	masterRepo repository.MasterRepository,
 	redisProvider *redis.Provider,
 	log *zap.Logger,
 	eventEnabled bool,
@@ -58,6 +59,18 @@ func Register(
 		log.With(zap.String("service", "media")).Warn("Failed to get media cache", zap.Error(err), zap.String("cache", "media"), zap.String("context", ctxValue(ctx)))
 	}
 	mediaService := NewService(log, repo, cache, eventEmitter, eventEnabled)
+
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("upload_light_media", handleUploadLightMedia)
+	RegisterActionHandler("start_heavy_media_upload", handleStartHeavyMediaUpload)
+	RegisterActionHandler("stream_media_chunk", handleStreamMediaChunk)
+	RegisterActionHandler("complete_media_upload", handleCompleteMediaUpload)
+	RegisterActionHandler("get_media", handleGetMedia)
+	RegisterActionHandler("stream_media_content", handleStreamMediaContent)
+	RegisterActionHandler("delete_media", handleDeleteMedia)
+	RegisterActionHandler("list_user_media", handleListUserMedia)
+	RegisterActionHandler("list_system_media", handleListSystemMedia)
+	RegisterActionHandler("broadcast_system_media", handleBroadcastSystemMedia)
 
 	// Register the gRPC interface for the server to use.
 	if err := container.Register((*mediapb.MediaServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
@@ -73,8 +86,20 @@ func Register(
 	}); err != nil {
 		log.With(zap.String("service", "media")).Error("Failed to register media service implementation", zap.Error(err), zap.String("context", ctxValue(ctx)))
 	}
+
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		// Start event subscribers for media events (canonical pattern)
+		go func() {
+			for _, sub := range MediaEventRegistry {
+				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+					sub.Handler(ctx, mediaService, event)
+				})
+				if err != nil {
+					log.With(zap.String("service", "media")).Error("Failed to subscribe to media events", zap.Error(err))
+				}
+			}
+		}()
 		hello.StartHelloWorldLoop(ctx, prov, log, "media")
 	}
 	_ = masterRepo // used for signature consistency and future extensibility
@@ -94,9 +119,6 @@ func ctxValue(ctx context.Context) string {
 	return ""
 }
 
-// NewMediaClient creates a new gRPC client connection and returns a MediaServiceClient and a cleanup function.
-// Replace grpc.Dial with the modern NewClient pattern if available.
-// TODO: Replace with mediapb.NewClient when available in generated code.
 func NewMediaClient(target string) (mediapb.MediaServiceClient, func() error, error) {
 	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -106,5 +128,3 @@ func NewMediaClient(target string) (mediapb.MediaServiceClient, func() error, er
 	cleanup := func() error { return conn.Close() }
 	return client, cleanup, nil
 }
-
-// Add any media service-specific interfaces or helpers below.

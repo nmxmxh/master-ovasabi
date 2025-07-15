@@ -6,26 +6,22 @@ import (
 	"fmt"
 	"time"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-
 	"github.com/nmxmxh/master-ovasabi/amadeus/pkg/kg"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Common errors.
 var (
 	ErrServiceDegraded = fmt.Errorf("service is in degraded mode")
 )
-
-// EventEmitter defines the interface for publishing events to Nexus.
-type EventEmitter interface {
-	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, entityID string, payload []byte) (string, bool)
-}
 
 // EventSubscriber defines the interface for subscribing to Nexus events.
 type EventSubscriber interface {
@@ -35,28 +31,35 @@ type EventSubscriber interface {
 // Provider is an interface that groups event emitting and subscribing capabilities.
 // This is typically implemented by the central service provider.
 type Provider interface {
-	EventEmitter
+	events.EventEmitter
 	EventSubscriber
 }
-
-// KGService manages the knowledge graph service.
 type KGService struct {
+	// KGService manages the knowledge graph service.
 	hooks        *KGHooks
 	redis        *redis.Client
 	logger       *zap.Logger
 	degraded     atomic.Bool
 	kg           *kg.KnowledgeGraph // in-memory knowledge graph
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
+	provider     interface {
+		events.EventEmitter
+		SubscribeEvents(ctx context.Context, eventTypes []string, meta *commonpb.Metadata, handler func(context.Context, *nexusv1.EventResponse)) error
+	}
 }
 
 // NewKGService creates a new KGService instance.
-func NewKGService(redisClient *redis.Client, logger *zap.Logger, provider Provider) *KGService {
+func NewKGService(redisClient *redis.Client, logger *zap.Logger, provider interface {
+	events.EventEmitter
+	SubscribeEvents(ctx context.Context, eventTypes []string, meta *commonpb.Metadata, handler func(context.Context, *nexusv1.EventResponse)) error
+}) *KGService {
 	return &KGService{
 		hooks:        NewKGHooks(redisClient, logger, provider),
 		redis:        redisClient,
 		logger:       logger,
 		kg:           kg.DefaultKnowledgeGraph(),
 		eventEmitter: provider,
+		provider:     provider,
 	}
 }
 
@@ -151,17 +154,37 @@ func (s *KGService) PublishUpdate(ctx context.Context, update *KGUpdate) error {
 		return graceful.WrapErr(ctx, codes.Internal, "failed to marshal update", err)
 	}
 
-	// Publish to Nexus event bus
-	eventType := "knowledge_graph.update"
-	entityID := update.ServiceID // Use service ID as the entity ID for routing/analytics
+	// Publish to Nexus event bus using canonical EventEnvelope
+	envelope := &events.EventEnvelope{
+		ID:        update.ID,
+		Type:      "knowledge_graph.update",
+		Timestamp: update.Timestamp.Unix(),
+		// Payload: marshal update to commonpb.Payload
+	}
+	// Marshal update to commonpb.Payload
+	payloadStruct := &commonpb.Payload{}
+	// Unmarshal the JSON data into payloadStruct.data
+	// For now, set data as a Struct with the update marshaled as map[string]interface{}
+	var updateMap map[string]interface{}
+	if err := json.Unmarshal(data, &updateMap); err == nil {
+		// Use google.protobuf.Struct for data
+		if structData, err := mapToProtoStruct(updateMap); err == nil {
+			payloadStruct.Data = structData
+		}
+	}
+	// ...existing code...
 
-	eventID, ok := s.eventEmitter.EmitRawEventWithLogging(ctx, s.logger, eventType, entityID, data)
-	if !ok {
+	envelope.Payload = payloadStruct
+	// Optionally set Metadata if available
+	// envelope.Metadata = ...
+	eventID, err := s.eventEmitter.EmitEventEnvelope(ctx, envelope)
+	if err != nil {
 		s.logger.Error("Failed to publish knowledge graph update to Nexus event bus",
 			zap.String("update_id", update.ID),
-			zap.String("type", string(update.Type)))
+			zap.String("type", string(update.Type)),
+			zap.Error(err))
 		s.degraded.Store(true)
-		return graceful.WrapErr(ctx, codes.Unavailable, "failed to publish update to nexus", nil)
+		return graceful.WrapErr(ctx, codes.Unavailable, "failed to publish update to nexus", err)
 	}
 
 	s.logger.Debug("Published knowledge graph update to Nexus",
@@ -283,4 +306,9 @@ func (s *KGService) RecoverFromDegradedMode(ctx context.Context) error {
 	s.degraded.Store(false)
 	s.logger.Info("Successfully recovered from degraded mode")
 	return nil
+}
+
+// mapToProtoStruct converts a map[string]interface{} to a *structpb.Struct.
+func mapToProtoStruct(m map[string]interface{}) (*structpb.Struct, error) {
+	return structpb.NewStruct(m)
 }

@@ -54,16 +54,27 @@ func Register(
 	if err != nil {
 		log.With(zap.String("service", "analytics")).Warn("Failed to get analytics cache", zap.Error(err), zap.String("cache", "analytics"), zap.String("context", ctxValue(ctx)))
 	}
+
 	serviceInstance := NewService(log, repo, cache, eventEmitter, eventEnabled)
+
+	// Register canonical action handlers for supported actions
+	RegisterActionHandler("event", eventActionHandler)
+	RegisterActionHandler("report", reportActionHandler)
+
+	// Register gRPC server interface
 	if err := container.Register((*analytics.AnalyticsServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {
 		log.With(zap.String("service", "analytics")).Error("Failed to register analytics service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
-	// Inos: Register the hello-world event loop for service health and orchestration
+
+	// Start event subscribers using registry-driven pattern (pass Provider, not EventEmitter)
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		if svc, ok := serviceInstance.(*Service); ok {
+			StartEventSubscribers(ctx, svc, prov, log)
+		}
 		hello.StartHelloWorldLoop(ctx, prov, log, "analytics")
 	}
 	return nil

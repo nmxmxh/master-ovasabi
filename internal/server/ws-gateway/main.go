@@ -3,14 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
-	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -18,9 +15,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
-
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/logger"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -77,15 +75,24 @@ var (
 		WriteBufferSize: 1024,
 		CheckOrigin:     checkOrigin,
 	}
+	log logger.Logger // Global logger instance
 )
 
 // --- Main Application ---
 
 func main() {
-	// Setup logging
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-	slog.Info("[ws-gateway] Starting application...")
+	// Setup logging using central logger
+	logCfg := logger.Config{
+		Environment: os.Getenv("LOG_ENV"),
+		LogLevel:    os.Getenv("LOG_LEVEL"),
+		ServiceName: "ws-gateway",
+	}
+	var err error
+	log, err = logger.New(logCfg)
+	if err != nil {
+		panic("failed to initialize logger: " + err.Error())
+	}
+	log.Info("Starting application...")
 
 	// --- Configuration ---
 	wsPort := os.Getenv("HTTP_PORT") // ws-gateway uses HTTP_PORT in compose, but let's be specific
@@ -107,12 +114,12 @@ func main() {
 	// In production, use TLS credentials.
 	conn, err := grpc.NewClient(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		slog.Error("could not connect to Nexus", "error", err)
+		log.Error("could not connect to Nexus", zap.Error(err))
 		os.Exit(1)
 	}
 	defer conn.Close()
 	nexusClient = nexuspb.NewNexusServiceClient(conn)
-	slog.Info("[ws-gateway] Connected to Nexus gRPC server", "address", nexusAddr)
+	log.Info("Connected to Nexus gRPC server", zap.String("address", nexusAddr))
 
 	// --- Start Nexus Subscriber ---
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -140,29 +147,29 @@ func main() {
 
 	// --- Run and Shutdown ---
 	go func() {
-		slog.Info("[ws-gateway] Listening for WebSocket connections", "address", addr)
+		log.Info("Listening for WebSocket connections", zap.String("address", addr))
 		// ListenAndServe blocks. It will only return a non-nil error if it fails.
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errChan <- err
 		}
 	}()
 
-	slog.Info("[ws-gateway] Service started. Waiting for signal...")
+	log.Info("Service started. Waiting for signal...")
 	select {
 	case err := <-errChan:
-		slog.Error("[ws-gateway] Server failed", "error", err)
+		log.Error("Server failed", zap.Error(err))
 	case <-ctx.Done():
-		slog.Info("[ws-gateway] Shutdown signal received. Initiating graceful server shutdown...")
+		log.Info("Shutdown signal received. Initiating graceful server shutdown...")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		slog.Error("[ws-gateway] Error during server shutdown", "error", err)
+		log.Error("Error during server shutdown", zap.Error(err))
 	}
 
-	slog.Info("[ws-gateway] Server gracefully stopped.")
+	log.Info("Server gracefully stopped.")
 }
 
 // --- WebSocket Handlers & Pumps ---
@@ -182,7 +189,7 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		slog.Info("WebSocket upgrade failed", "error", err)
+		log.Info("WebSocket upgrade failed", zap.Error(err))
 		return
 	}
 
@@ -193,7 +200,7 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 		userID:     userID,
 	}
 	wsClientMap.Store(campaignID, userID, client)
-	slog.Info("Client connected", "campaign", campaignID, "user", userID, "remote", r.RemoteAddr)
+	log.Info("Client connected", zap.String("campaign", campaignID), zap.String("user", userID), zap.String("remote", r.RemoteAddr))
 
 	go client.writePump()
 	go client.readPump()
@@ -204,7 +211,7 @@ func (c *WSClient) readPump() {
 	defer func() {
 		wsClientMap.Delete(c.campaignID, c.userID)
 		c.conn.Close()
-		slog.Info("Client disconnected", "campaign", c.campaignID, "user", c.userID)
+		log.Info("Client disconnected", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 	}()
 	c.conn.SetReadLimit(1024) // Set a reasonable read limit
 	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -214,35 +221,108 @@ func (c *WSClient) readPump() {
 		_, msgBytes, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				slog.Warn("Error reading from client", "error", err)
+				log.Warn("Error reading from client", zap.Error(err))
 			} else {
-				slog.Info("Client closed connection", "error", err)
+				log.Info("Client closed connection", zap.Error(err))
 			}
 			break
 		}
 
 		var clientMsg ClientWebSocketMessage
-		slog.Info("[ws-gateway] Received raw message from client", "user", c.userID, "campaign", c.campaignID, "raw", string(msgBytes))
+		log.Info("Received raw message from client",
+			zap.String("user_id", c.userID),
+			zap.String("campaign_id", c.campaignID),
+			zap.String("raw", string(msgBytes)),
+		)
 		if err := json.Unmarshal(msgBytes, &clientMsg); err != nil {
-			slog.Warn("Error unmarshaling client message", "error", err, "raw", string(msgBytes))
+			log.Warn("Error unmarshaling client message", zap.Error(err), zap.String("raw", string(msgBytes)))
 			continue
 		}
 
-		slog.Info("[ws-gateway] Parsed client message", "user", c.userID, "type", clientMsg.Type, "metadata", clientMsg.Metadata)
+		log.Info("Parsed client message",
+			zap.String("user_id", c.userID),
+			zap.String("event_type", clientMsg.Type),
+			zap.Any("metadata", clientMsg.Metadata),
+		)
 		canonicalType := extractCanonicalEventType(clientMsg)
 		if canonicalType == "" {
-			slog.Warn("Missing canonical event type in client message", "user", c.userID, "msg", clientMsg)
+			log.Warn("Missing canonical event type in client message", zap.String("user", c.userID), zap.Any("msg", clientMsg))
 			continue
 		}
 
 		// Forward to Nexus using the canonical event type
 		var payloadMap map[string]interface{}
-		if err := json.Unmarshal(clientMsg.Payload, &payloadMap); err != nil {
-			slog.Error("Error unmarshaling client payload", "error", err, "payload_raw", string(clientMsg.Payload))
+		payloadRaw := string(clientMsg.Payload)
+
+		// If the event is an 'echo' and the payload is empty, just ignore it.
+		// This could be a keep-alive or a misconfigured client.
+		if (len(payloadRaw) == 0 || payloadRaw == "null") && canonicalType == "echo" {
+			log.Debug("Ignoring empty echo event", zap.String("user_id", c.userID))
 			continue
 		}
-		slog.Info("[ws-gateway] Parsed client payload", "user", c.userID, "payload", payloadMap)
-		// Always include a correlation_id in metadata for canonical compliance
+
+		if len(payloadRaw) == 0 || payloadRaw == "null" {
+			// Instead of skipping, emit an empty payload object
+			payloadMap = make(map[string]interface{})
+			log.Warn("Client payload is empty or null, emitting empty payload object",
+				zap.String("user_id", c.userID),
+				zap.String("event_type", clientMsg.Type),
+				zap.String("payload_raw", payloadRaw),
+			)
+		} else {
+			if err := json.Unmarshal(clientMsg.Payload, &payloadMap); err != nil {
+				log.Error("Error unmarshaling client payload", zap.Error(err), zap.String("payload_raw", payloadRaw))
+				continue
+			}
+			// Check for empty payload after unmarshal
+			if len(payloadMap) == 0 {
+				log.Warn("Client payload is empty after unmarshal, emitting empty payload object",
+					zap.String("user_id", c.userID),
+					zap.String("event_type", clientMsg.Type),
+					zap.String("payload_raw", payloadRaw),
+				)
+				payloadMap = make(map[string]interface{})
+			}
+		}
+		// Loop protection: skip if already emitted by gateway
+		if emitted, ok := payloadMap["emitted_by_gateway"]; ok {
+			if b, ok := emitted.(bool); ok && b {
+				log.Info("Skipping event re-emission to Nexus (loop protection)", zap.Any("payload", payloadMap))
+				continue
+			}
+		}
+		// Always inject campaign_id, canonical type, and loop marker
+		// user_id should go in metadata, not payload, to avoid protobuf unmarshal errors
+
+		// --- campaign_id type normalization: always emit 0 for now ---
+		payloadMap["campaign_id"] = int64(0)
+		payloadMap["type"] = canonicalType
+		payloadMap["emitted_by_gateway"] = true
+
+		// Remove any nil, empty string, or empty object fields from payloadMap (except required fields)
+		for k, v := range payloadMap {
+			if k == "campaign_id" || k == "type" {
+				continue
+			}
+			if v == nil {
+				delete(payloadMap, k)
+			} else if s, ok := v.(string); ok && s == "" {
+				delete(payloadMap, k)
+			} else if m, ok := v.(map[string]interface{}); ok && len(m) == 0 {
+				delete(payloadMap, k)
+			}
+		}
+
+		// Remove internal loop-protection marker before emitting to Nexus
+		delete(payloadMap, "emitted_by_gateway")
+		// Remove 'type' field before emitting to Nexus to avoid proto unmarshal errors
+		delete(payloadMap, "type")
+
+		log.Info("Parsed client payload (cleaned)",
+			zap.String("user_id", c.userID),
+			zap.Any("payload", payloadMap),
+		)
+		// Always include a correlation_id and user_id in metadata for canonical compliance
 		correlationID := uuid.NewString()
 		meta := clientMsg.Metadata
 		if meta == nil {
@@ -255,36 +335,53 @@ func (c *WSClient) readPump() {
 			meta.ServiceSpecific.Fields = map[string]*structpb.Value{}
 		}
 		meta.ServiceSpecific.Fields["correlation_id"] = structpb.NewStringValue(correlationID)
+		meta.ServiceSpecific.Fields["user_id"] = structpb.NewStringValue(c.userID)
 
 		structPayload, err := structpb.NewStruct(payloadMap)
 		if err != nil {
-			slog.Error("Error creating structpb.Struct for Nexus payload", "error", err, "payloadMap", payloadMap)
+			log.Error("Error creating structpb.Struct for Nexus payload", zap.Error(err), zap.Any("payloadMap", payloadMap))
 			continue
 		}
-		// Convert campaignID to int64 if possible, else use 0
-		var campaignIDInt int64 = 0
-		if c.campaignID != "" {
-			if v, err := strconv.ParseInt(c.campaignID, 10, 64); err == nil {
-				campaignIDInt = v
-			}
-		}
+		// Always use 0 for CampaignId in outgoing Nexus event
 		nexusEventRequest := &nexuspb.EventRequest{
 			EventId:    correlationID,
 			EventType:  canonicalType,
 			EntityId:   c.userID,
-			CampaignId: campaignIDInt,
+			CampaignId: 0,
 			Payload:    &commonpb.Payload{Data: structPayload},
 			Metadata:   meta,
 		}
-		// Log emission with clear field names
-		slog.Info("[ws-gateway] Emitting event to Nexus", "target_service", canonicalType, "user", c.userID, "nexusEventRequest", nexusEventRequest)
+		// Log emission with canonical field names
+		log.Info("Emitting event to Nexus",
+			zap.String("event_type", canonicalType),
+			zap.String("event_id", correlationID),
+			zap.String("user_id", c.userID),
+			zap.String("campaign_id", c.campaignID),
+			zap.String("trace_id", correlationID),
+			zap.Any("payload", payloadMap),
+			zap.Any("metadata", meta),
+		)
 		// Use a timeout for the gRPC call
 		emitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		resp, err := nexusClient.EmitEvent(emitCtx, nexusEventRequest)
 		if err != nil {
-			slog.Error("Error emitting event to Nexus", "error", err, "nexusEventRequest", nexusEventRequest)
+			log.Error("Error emitting event to Nexus",
+				zap.String("event_type", canonicalType),
+				zap.String("event_id", correlationID),
+				zap.String("user_id", c.userID),
+				zap.String("campaign_id", c.campaignID),
+				zap.String("trace_id", correlationID),
+				zap.Error(err),
+			)
 		} else {
-			slog.Info("[ws-gateway] Received response from Nexus", "target_service", canonicalType, "user", c.userID, "response", resp)
+			log.Info("Received response from Nexus",
+				zap.String("event_type", canonicalType),
+				zap.String("event_id", correlationID),
+				zap.String("user_id", c.userID),
+				zap.String("campaign_id", c.campaignID),
+				zap.String("trace_id", correlationID),
+				zap.Any("response", resp),
+			)
 		}
 		cancel()
 	}
@@ -308,13 +405,13 @@ func (c *WSClient) writePump() {
 			}
 
 			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
-				slog.Warn("Write error", "error", err)
+				log.Warn("Write error", zap.Error(err))
 				return
 			}
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				slog.Warn("Ping error", "error", err)
+				log.Warn("Ping error", zap.Error(err))
 				return
 			}
 		}
@@ -323,62 +420,149 @@ func (c *WSClient) writePump() {
 
 // --- Nexus Subscriber & Broadcasting ---
 
-// ExponentialBackoff implements a simple exponential backoff strategy.
-type ExponentialBackoff struct {
-	initialInterval time.Duration
-	maxInterval     time.Duration
-	multiplier      float64
-	jitter          float64 // 0.0 to 1.0, percentage of current interval to add/subtract randomly
-	currentInterval time.Duration
-	rand            *rand.Rand
-}
+func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
+	backoff := NewExponentialBackoff(1*time.Second, 30*time.Second, 2.0, 0.2)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("Nexus subscriber shutting down.")
+			return
+		default:
+			// Subscribe to all events to find the success ones
+			stream, err := client.SubscribeEvents(ctx, &nexuspb.SubscribeRequest{})
+			if err != nil {
+				log.Error("Failed to subscribe to Nexus events", zap.Error(err))
+				time.Sleep(backoff.NextInterval())
+				continue
+			}
+			log.Info("Successfully subscribed to Nexus event stream (all success types)")
+			backoff.Reset() // Reset backoff on successful connection
 
-// NewExponentialBackoff creates a new ExponentialBackoff.
-func NewExponentialBackoff(initial, max time.Duration, multiplier, jitter float64) *ExponentialBackoff {
-	return &ExponentialBackoff{
-		initialInterval: initial,
-		maxInterval:     max,
-		multiplier:      multiplier,
-		jitter:          jitter,
-		currentInterval: initial,
-		rand:            rand.New(rand.NewSource(time.Now().UnixNano())), // Seed with current time
+			for {
+				event, err := stream.Recv()
+				if err != nil {
+					if status.Code(err) == codes.Canceled || err == io.EOF {
+						log.Info("Nexus stream closed, will attempt to reconnect.", zap.Error(err))
+					} else {
+						log.Error("Error receiving event from Nexus", zap.Error(err))
+					}
+					break // Re-enter the outer loop to reconnect
+				}
+
+				// Determine broadcast scope
+				userID, campaignID, isSystem := getBroadcastScope(event)
+
+				// Marshal payload for WebSocket clients
+				wsEvent := WebSocketEvent{
+					Type:    event.EventType,
+					Payload: event.Payload,
+				}
+				payloadBytes, err := json.Marshal(wsEvent)
+				if err != nil {
+					log.Error("Failed to marshal event payload for client", zap.Error(err), zap.String("event_type", event.EventType))
+					continue
+				}
+
+				// Broadcast
+				if isSystem {
+					broadcastSystem(payloadBytes)
+				} else if campaignID != "" && userID != "" {
+					// This is a targeted user event
+					broadcastUser(userID, payloadBytes)
+				} else if campaignID != "" {
+					// This is a campaign-wide event
+					broadcastCampaign(campaignID, payloadBytes)
+				} else {
+					// Fallback to system broadcast if scope is unclear
+					log.Warn("Broadcasting event with unclear scope to system", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
+					broadcastSystem(payloadBytes)
+				}
+
+				// After broadcasting success, emit the completed event
+				if strings.HasSuffix(event.EventType, ":success") {
+					completedEventType := strings.TrimSuffix(event.EventType, ":success") + ":completed"
+
+					// Extract correlation_id from metadata to use as the event ID
+					var correlationID string
+					if meta := event.GetMetadata(); meta != nil {
+						if serviceSpecific := meta.GetServiceSpecific(); serviceSpecific != nil {
+							s := serviceSpecific.AsMap()
+							if id, ok := s["correlation_id"].(string); ok {
+								correlationID = id
+							}
+						}
+					}
+
+					// Fallback to the received event's ID if correlation_id is not found
+					if correlationID == "" {
+						log.Warn("Could not find correlation_id in metadata, falling back to event_id for completed event",
+							zap.String("event_type", event.EventType),
+							zap.String("fallback_event_id", event.EventId),
+						)
+						correlationID = event.EventId
+					}
+
+					log.Info("Transitioning event to completed state",
+						zap.String("from", event.EventType),
+						zap.String("to", completedEventType),
+						zap.String("event_id", correlationID), // Use the correlationID
+					)
+
+					// Create a new request for the completed event
+					completedEventRequest := &nexuspb.EventRequest{
+						EventId:   correlationID, // Use the original correlationID
+						EventType: completedEventType,
+						EntityId:  userID, // Use the userID from the broadcast scope
+						Payload:   event.Payload,
+						Metadata:  event.Metadata,
+					}
+
+					// Emit the new 'completed' event
+					emitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					_, err := nexusClient.EmitEvent(emitCtx, completedEventRequest)
+					if err != nil {
+						log.Error("Error emitting completed event to Nexus",
+							zap.String("event_type", completedEventType),
+							zap.String("event_id", correlationID),
+							zap.Error(err),
+						)
+					} else {
+						log.Info("Successfully emitted completed event to Nexus",
+							zap.String("event_type", completedEventType),
+							zap.String("event_id", correlationID),
+						)
+					}
+					cancel()
+				}
+			}
+		}
 	}
 }
 
-// NextInterval returns the next backoff interval and updates the current interval.
-func (eb *ExponentialBackoff) NextInterval() time.Duration {
-	interval := eb.currentInterval
-
-	// Apply jitter
-	if eb.jitter > 0 {
-		jitterAmount := time.Duration(float64(interval) * eb.jitter)
-		// Randomly add or subtract up to jitterAmount
-		interval += time.Duration(eb.rand.Int63n(int64(2*jitterAmount))) - jitterAmount
+// getBroadcastScope determines the target for a given event.
+func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string, isSystem bool) {
+	payload := event.GetPayload()
+	if payload == nil {
+		return "", "", true // Default to system if no payload
 	}
+	payloadMap := payload.GetData().AsMap()
 
-	// Calculate next interval
-	next := time.Duration(float64(eb.currentInterval) * eb.multiplier)
-	if next > eb.maxInterval {
-		eb.currentInterval = eb.maxInterval
-	} else {
-		eb.currentInterval = next
-	}
+	// Extract user_id and campaign_id from payload
+	userID, _ = payloadMap["user_id"].(string)
+	campaignID, _ = payloadMap["campaign_id"].(string)
 
-	return interval
-}
-
-// Reset resets the backoff to its initial interval.
-func (eb *ExponentialBackoff) Reset() {
-	eb.currentInterval = eb.initialInterval
+	// Determine if this is a system event based on event type or content
+	isSystem = event.EventType == "system" || strings.HasPrefix(event.EventType, "system:")
+	return
 }
 
 func broadcastSystem(payload []byte) {
-	slog.Debug("System broadcast received", "payload", string(payload))
+	log.Debug("System broadcast received", zap.String("payload", string(payload)))
 	wsClientMap.Range(func(_, _ string, client *WSClient) bool {
 		select {
 		case client.send <- payload:
 		default:
-			slog.Warn("Dropped frame for system broadcast client", "campaign", client.campaignID, "user", client.userID)
+			log.Warn("Dropped frame for system broadcast client", zap.String("campaign", client.campaignID), zap.String("user", client.userID))
 		}
 		return true
 	})
@@ -390,7 +574,7 @@ func broadcastCampaign(campaignID string, payload []byte) {
 			select {
 			case client.send <- payload:
 			default:
-				slog.Warn("Dropped frame for campaign broadcast client", "campaign", client.campaignID, "user", client.userID)
+				log.Warn("Dropped frame for campaign broadcast client", zap.String("campaign", client.campaignID), zap.String("user", client.userID))
 			}
 		}
 		return true
@@ -403,7 +587,7 @@ func broadcastUser(userID string, payload []byte) {
 			select {
 			case client.send <- payload:
 			default:
-				slog.Warn("Dropped frame for user broadcast client", "campaign", client.campaignID, "user", client.userID)
+				log.Warn("Dropped frame for user broadcast client", zap.String("campaign", client.campaignID), zap.String("user", client.userID))
 			}
 			// A user should only be connected once, so we can stop.
 			return false
@@ -423,134 +607,120 @@ func extractCanonicalEventType(msg ClientWebSocketMessage) string {
 	return msg.Type
 }
 
-// --- Nexus Subscriber (Refactored) ---
-// Forwards all canonical event types to the appropriate WebSocket clients.
-func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
-	backoff := NewExponentialBackoff(1*time.Second, 30*time.Second, 2.0, 0.1)
-	for {
-		select {
-		case <-ctx.Done():
-			slog.Info("[ws-gateway] Nexus subscriber context cancelled. Exiting.")
-			return
-		default:
+// --- Utility Functions ---
+
+func newWsClientMap() *ClientMap {
+	return &ClientMap{
+		clients: make(map[string]map[string]*WSClient),
+	}
+}
+
+func (m *ClientMap) Store(campaignID, userID string, client *WSClient) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.clients[campaignID]; !ok {
+		m.clients[campaignID] = make(map[string]*WSClient)
+	}
+	m.clients[campaignID][userID] = client
+}
+
+func (m *ClientMap) Delete(campaignID, userID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if camp, ok := m.clients[campaignID]; ok {
+		delete(camp, userID)
+		if len(camp) == 0 {
+			delete(m.clients, campaignID)
 		}
-		// Subscribe to all events (wildcard or all known canonical event types)
-		stream, err := client.SubscribeEvents(ctx, &nexuspb.SubscribeRequest{
-			EventTypes: []string{"*"}, // Subscribe to all events; adjust if Nexus requires explicit list
-		})
-		if err != nil {
-			slog.Error("Failed to subscribe to Nexus event stream, retrying...", "error", err, "next_retry_in", backoff.NextInterval())
-			time.Sleep(backoff.NextInterval())
-			continue
-		}
-		slog.Info("[ws-gateway] Subscribed to Nexus event stream (all canonical event types)")
-		for {
-			event, err := stream.Recv()
-			if err != nil {
-				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
-					slog.Warn("[ws-gateway] Nexus event stream closed. Reconnecting...")
-				} else {
-					slog.Error("[ws-gateway] Error receiving from Nexus stream. Reconnecting...", "error", err)
-				}
-				break
-			}
-			canonicalType := event.GetEventType()
-			payloadStruct := event.GetPayload().GetData()
-			if payloadStruct == nil {
-				slog.Warn("[ws-gateway] Received Nexus event with empty payload data", "event_type", canonicalType)
-				continue
-			}
-			payloadMap := payloadStruct.AsMap()
-			payloadBytes, err := json.Marshal(payloadMap)
-			if err != nil {
-				slog.Error("[ws-gateway] Error marshaling payload from structpb.Struct", "error", err, "event_type", canonicalType)
-				continue
-			}
-			// Log receipt
-			slog.Info("[ws-gateway] Received event from Nexus", "event_type", canonicalType)
-			// Generic routing: broadcast to all clients, or filter by campaign/user if present in payload
-			campaignID, _ := payloadMap["campaign_id"].(string)
-			userID, _ := payloadMap["user_id"].(string)
-			if campaignID != "" {
-				broadcastCampaign(campaignID, payloadBytes)
-			} else if userID != "" {
-				broadcastUser(userID, payloadBytes)
-			} else {
-				broadcastSystem(payloadBytes)
+	}
+}
+
+func (m *ClientMap) Range(f func(campaignID, userID string, client *WSClient) bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for campID, users := range m.clients {
+		for userID, client := range users {
+			if !f(campID, userID, client) {
+				return
 			}
 		}
 	}
 }
 
-// newWsClientMap creates a new ClientMap.
-func newWsClientMap() *ClientMap {
-	return &ClientMap{clients: make(map[string]map[string]*WSClient)}
-}
-
-// getAllowedOrigins returns allowed origins for CORS.
 func getAllowedOrigins() []string {
-	origins := os.Getenv("WS_ALLOWED_ORIGINS")
+	origins := os.Getenv("ALLOWED_ORIGINS")
 	if origins == "" {
-		return []string{"*"} // Default to allow all for local dev
+		return []string{"*"} // Default to all origins if not set
 	}
 	return strings.Split(origins, ",")
 }
 
-// checkOrigin is used by the WebSocket upgrader for CORS.
 func checkOrigin(r *http.Request) bool {
-	originStr := r.Header.Get("Origin")
-	if originStr == "" {
+	if allowedOrigins[0] == "*" {
 		return true
 	}
-	for _, allowed := range allowedOrigins {
-		if allowed == "*" || strings.Contains(originStr, allowed) {
+	origin := r.Header.Get("Origin")
+	for _, o := range allowedOrigins {
+		if o == origin {
 			return true
 		}
 	}
 	return false
 }
 
-// Store adds a client to the map.
-func (w *ClientMap) Store(campaignID, userID string, client *WSClient) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.clients[campaignID] == nil {
-		w.clients[campaignID] = make(map[string]*WSClient)
-	}
-	w.clients[campaignID][userID] = client
+// --- Exponential Backoff ---
+
+// ExponentialBackoff provides a simple mechanism for retrying operations with increasing delays.
+type ExponentialBackoff struct {
+	minInterval time.Duration
+	maxInterval time.Duration
+	multiplier  float64
+	jitter      float64
+	current     time.Duration
+	mu          sync.Mutex
 }
 
-// Delete removes a client from the map.
-func (w *ClientMap) Delete(campaignID, userID string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if m, ok := w.clients[campaignID]; ok {
-		if client, ok := m[userID]; ok {
-			close(client.send)
-		}
-		delete(m, userID)
-		if len(m) == 0 {
-			delete(w.clients, campaignID)
-		}
+// NewExponentialBackoff creates and initializes a new ExponentialBackoff instance.
+func NewExponentialBackoff(min, max time.Duration, multiplier, jitter float64) *ExponentialBackoff {
+	return &ExponentialBackoff{
+		minInterval: min,
+		maxInterval: max,
+		multiplier:  multiplier,
+		jitter:      jitter,
+		current:     min,
 	}
 }
 
-// Range iterates over all clients, calling f for each.
-func (w *ClientMap) Range(f func(campaignID, userID string, client *WSClient) bool) {
-	w.mu.RLock()
-	copiedClients := make(map[string]map[string]*WSClient)
-	for cid, users := range w.clients {
-		copiedClients[cid] = make(map[string]*WSClient)
-		for uid, client := range users {
-			copiedClients[cid][uid] = client
-		}
+// NextInterval calculates and returns the next backoff duration.
+func (b *ExponentialBackoff) NextInterval() time.Duration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	interval := b.current
+	b.current = time.Duration(float64(b.current) * b.multiplier)
+
+	if b.current > b.maxInterval {
+		b.current = b.maxInterval
 	}
-	w.mu.RUnlock()
-	for cid, m := range copiedClients {
-		for uid, c := range m {
-			if !f(cid, uid, c) {
-				return
-			}
-		}
+
+	if b.jitter > 0 {
+		jitterAmount := time.Duration(float64(interval) * b.jitter * (rand.Float64()*2 - 1))
+		interval += jitterAmount
 	}
+
+	if interval < b.minInterval {
+		interval = b.minInterval
+	}
+	if interval > b.maxInterval {
+		interval = b.maxInterval
+	}
+
+	return interval
+}
+
+// Reset resets the backoff interval to its minimum value.
+func (b *ExponentialBackoff) Reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.current = b.minInterval
 }

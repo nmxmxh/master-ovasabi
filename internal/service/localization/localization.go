@@ -11,6 +11,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -37,31 +38,15 @@ type Service struct {
 	log          *zap.Logger
 	repo         *Repository
 	Cache        *redis.Cache
-	eventEmitter EventEmitter
+	eventEmitter events.EventEmitter
 	eventEnabled bool
 	ltCfg        LibreTranslateConfig // LibreTranslate config for dynamic endpoint/timeout
+	handler      *graceful.Handler
 }
 
 // EventEmitter defines the interface for emitting events.
-type EventEmitter interface {
-	EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool)
-	EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool)
-}
 
-// Adapter to bridge event emission to the required orchestration EventEmitter interface.
-type EventEmitterAdapter struct {
-	Emitter EventEmitter
-}
-
-func (a *EventEmitterAdapter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	return a.Emitter.EmitRawEventWithLogging(ctx, log, eventType, eventID, payload)
-}
-
-func (a *EventEmitterAdapter) EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	return a.Emitter.EmitEventWithLogging(ctx, event, log, eventType, eventID, meta)
-}
-
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter EventEmitter, eventEnabled bool, ltCfg LibreTranslateConfig) localizationpb.LocalizationServiceServer {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool, ltCfg LibreTranslateConfig) localizationpb.LocalizationServiceServer {
 	return &Service{
 		log:          log,
 		repo:         repo,
@@ -69,6 +54,7 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
 		ltCfg:        ltCfg,
+		handler:      graceful.NewHandler(log, nil, cache, "localization", "v1", eventEnabled),
 	}
 }
 
@@ -77,11 +63,12 @@ func (s *Service) Translate(ctx context.Context, req *localizationpb.TranslateRe
 	value, err := s.repo.Translate(ctx, req.Key, req.Locale)
 	if err != nil {
 		s.log.Error("Translate failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to translate", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "translate", codes.Internal, "failed to translate", err, nil, req.Key)
 		return nil, graceful.ToStatusError(err)
 	}
-	return &localizationpb.TranslateResponse{Value: value}, nil
+	resp := &localizationpb.TranslateResponse{Value: value}
+	s.handler.Success(ctx, "translate", codes.OK, "translation fetched", resp, nil, req.Key, nil)
+	return resp, nil
 }
 
 // BatchTranslate returns translations for multiple keys in a given locale.
@@ -92,19 +79,12 @@ func (s *Service) BatchTranslate(ctx context.Context, req *localizationpb.BatchT
 		s.log.Warn("Partial batch translate: some keys missing, calling LibreTranslate", zap.Strings("missing_keys", missing))
 		missingTexts := make(map[string]string)
 		for _, k := range missing {
-			missingTexts[k] = k // Use the key as the text to translate (or fetch from another source if needed)
+			missingTexts[k] = k
 		}
 		ltTranslations, failed, ltErr := BatchTranslateLibre(ctx, s.ltCfg, missingTexts, "auto", req.Locale)
 		if ltErr != nil {
 			s.log.Error("LibreTranslate batch failed", zap.Error(ltErr))
-			err := graceful.WrapErr(ctx, codes.Internal, "failed to batch translate with LibreTranslate", ltErr)
-			err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-			if err := metadata.SetServiceSpecificField(meta, "localization", "missing_keys", missing); err != nil {
-				s.log.Error("Failed to set missing_keys in metadata", zap.Error(err))
-				err := graceful.WrapErr(ctx, codes.Internal, "failed to set missing_keys in metadata", err)
-				err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-				return &localizationpb.BatchTranslateResponse{Values: values, Metadata: meta}, nil
-			}
+			s.handler.Error(ctx, "batch_translate", codes.Internal, "failed to batch translate with LibreTranslate", ltErr, nil, req.Locale)
 			return &localizationpb.BatchTranslateResponse{Values: values, Metadata: meta}, nil
 		}
 		for k, v := range ltTranslations {
@@ -112,35 +92,32 @@ func (s *Service) BatchTranslate(ctx context.Context, req *localizationpb.BatchT
 		}
 		if err := metadata.SetServiceSpecificField(meta, "localization", "machine_translated_keys", ltTranslations); err != nil {
 			s.log.Error("Failed to set machine_translated_keys in metadata", zap.Error(err))
-			err := graceful.WrapErr(ctx, codes.Internal, "failed to set machine_translated_keys in metadata", err)
-			err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+			s.handler.Error(ctx, "batch_translate", codes.Internal, "failed to set machine_translated_keys in metadata", err, nil, req.Locale)
 			return &localizationpb.BatchTranslateResponse{Values: values, Metadata: meta}, nil
 		}
 		if len(failed) > 0 {
 			if err := metadata.SetServiceSpecificField(meta, "localization", "missing_keys", failed); err != nil {
 				s.log.Error("Failed to set missing_keys (failed) in metadata", zap.Error(err))
-				err := graceful.WrapErr(ctx, codes.Internal, "failed to set missing_keys (failed) in metadata", err)
-				err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+				s.handler.Error(ctx, "batch_translate", codes.Internal, "failed to set missing_keys (failed) in metadata", err, nil, req.Locale)
 				return &localizationpb.BatchTranslateResponse{Values: values, Metadata: meta}, nil
 			}
 		}
 	}
 	if err != nil {
 		s.log.Error("BatchTranslate failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to batch translate", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "batch_translate", codes.Internal, "failed to batch translate", err, nil, req.Locale)
 		return nil, graceful.ToStatusError(err)
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "batch translate completed", &localizationpb.BatchTranslateResponse{Values: values, Metadata: meta}, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
-	return &localizationpb.BatchTranslateResponse{Values: values, Metadata: meta}, nil
+	resp := &localizationpb.BatchTranslateResponse{Values: values, Metadata: meta}
+	s.handler.Success(ctx, "batch_translate", codes.OK, "batch translate completed", resp, meta, req.Locale, nil)
+	return resp, nil
 }
 
 // CreateTranslation creates a new translation entry.
 func (s *Service) CreateTranslation(ctx context.Context, req *localizationpb.CreateTranslationRequest) (*localizationpb.CreateTranslationResponse, error) {
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		// orchestration handled by graceful.Handler
 		return nil, graceful.ToStatusError(err)
 	}
 	// Canonical: Set or enrich localization metadata fields using metadata.SetServiceSpecificField
@@ -150,12 +127,12 @@ func (s *Service) CreateTranslation(ctx context.Context, req *localizationpb.Cre
 	}
 	if err := metadata.SetServiceSpecificField(meta, "localization", "versioning", map[string]interface{}{"system_version": "1.0.0", "service_version": "1.0.0", "environment": "prod"}); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to set versioning in localization metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		// orchestration handled by graceful.Handler
 		return nil, graceful.ToStatusError(err)
 	}
 	if err := metadata.SetServiceSpecificField(meta, "localization", "audit", map[string]interface{}{"created_by": "system", "history": []string{"created"}}); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to set audit in localization metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		// orchestration handled by graceful.Handler
 		return nil, graceful.ToStatusError(err)
 	}
 	// Translation Provenance: set all canonical fields
@@ -170,7 +147,7 @@ func (s *Service) CreateTranslation(ctx context.Context, req *localizationpb.Cre
 	}
 	if err := metadata.SetServiceSpecificField(meta, "localization", "translation_provenance", prov); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to set translation provenance in localization metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		// orchestration handled by graceful.Handler
 		return nil, graceful.ToStatusError(err)
 	}
 	// Accessibility & Compliance: set all canonical fields
@@ -204,7 +181,7 @@ func (s *Service) CreateTranslation(ctx context.Context, req *localizationpb.Cre
 	}
 	if err := metadata.SetServiceSpecificField(meta, "localization", "compliance", compliance); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to set compliance in localization metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		// orchestration handled by graceful.Handler
 		return nil, graceful.ToStatusError(err)
 	}
 	// [CANONICAL] Always normalize metadata before persistence or emission.
@@ -223,37 +200,20 @@ func (s *Service) CreateTranslation(ctx context.Context, req *localizationpb.Cre
 	id, err := s.repo.CreateTranslation(ctx, req.Key, req.Language, req.Value, masterID, masterUUID, req.Metadata, req.CampaignId)
 	if err != nil {
 		s.log.Error("CreateTranslation failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create translation", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "create_translation", codes.Internal, "failed to create translation", err, req.Metadata, req.Key)
 		return nil, graceful.ToStatusError(err)
 	}
 	tr, err := s.repo.GetTranslation(ctx, id)
 	if err != nil {
 		s.log.Error("GetTranslation after create failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to fetch created translation", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "create_translation", codes.Internal, "failed to fetch created translation", err, req.Metadata, req.Key)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &localizationpb.CreateTranslationResponse{
 		Translation: mapTranslationToProto(tr),
 		Success:     true,
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "translation created", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     tr.ID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     tr.Metadata,
-		EventType:    "localization.translation_created",
-		EventID:      tr.ID,
-		PatternType:  "translation",
-		PatternID:    tr.ID,
-		PatternMeta:  tr.Metadata,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-	})
+	s.handler.Success(ctx, "create_translation", codes.OK, "translation created", resp, tr.Metadata, req.Key, nil)
 	return resp, nil
 }
 
@@ -262,13 +222,14 @@ func (s *Service) GetTranslation(ctx context.Context, req *localizationpb.GetTra
 	tr, err := s.repo.GetTranslation(ctx, req.TranslationId)
 	if err != nil {
 		s.log.Error("GetTranslation failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.NotFound, "translation not found", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "get_translation", codes.NotFound, "translation not found", err, nil, req.TranslationId)
 		return nil, graceful.ToStatusError(err)
 	}
-	return &localizationpb.GetTranslationResponse{
+	resp := &localizationpb.GetTranslationResponse{
 		Translation: mapTranslationToProto(tr),
-	}, nil
+	}
+	s.handler.Success(ctx, "get_translation", codes.OK, "translation fetched", resp, tr.Metadata, req.TranslationId, nil)
+	return resp, nil
 }
 
 // ListTranslations lists translations for a language with pagination.
@@ -276,8 +237,7 @@ func (s *Service) ListTranslations(ctx context.Context, req *localizationpb.List
 	trs, total, err := s.repo.ListTranslations(ctx, req.Language, int(req.Page), int(req.PageSize), req.CampaignId)
 	if err != nil {
 		s.log.Error("ListTranslations failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list translations", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "list_translations", codes.Internal, "failed to list translations", err, nil, req.Language)
 		return nil, graceful.ToStatusError(err)
 	}
 	protos := make([]*localizationpb.Translation, 0, len(trs))
@@ -312,13 +272,14 @@ func (s *Service) GetPricingRule(ctx context.Context, req *localizationpb.GetPri
 	rule, err := s.repo.GetPricingRule(ctx, req.CountryCode, req.Region, req.City)
 	if err != nil {
 		s.log.Error("GetPricingRule failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.NotFound, "pricing rule not found", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "get_pricing_rule", codes.NotFound, "pricing rule not found", err, nil, req.CountryCode)
 		return nil, graceful.ToStatusError(err)
 	}
-	return &localizationpb.GetPricingRuleResponse{
+	resp := &localizationpb.GetPricingRuleResponse{
 		Rule: mapPricingRuleToProto(rule),
-	}, nil
+	}
+	s.handler.Success(ctx, "get_pricing_rule", codes.OK, "pricing rule fetched", resp, rule.Metadata, req.CountryCode, nil)
+	return resp, nil
 }
 
 // SetPricingRule creates or updates a pricing rule.
@@ -331,12 +292,12 @@ func (s *Service) SetPricingRule(ctx context.Context, req *localizationpb.SetPri
 	}
 	if err := metadata.SetServiceSpecificField(meta, "localization", "versioning", map[string]interface{}{"system_version": "1.0.0", "service_version": "1.0.0", "environment": "prod"}); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to set versioning in localization metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		// orchestration handled by graceful.Handler
 		return nil, graceful.ToStatusError(err)
 	}
 	if err := metadata.SetServiceSpecificField(meta, "localization", "audit", map[string]interface{}{"created_by": "system", "history": []string{"created"}}); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to set audit in localization metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		// orchestration handled by graceful.Handler
 		return nil, graceful.ToStatusError(err)
 	}
 	// Accessibility & Compliance: set all canonical fields
@@ -370,7 +331,7 @@ func (s *Service) SetPricingRule(ctx context.Context, req *localizationpb.SetPri
 	}
 	if err := metadata.SetServiceSpecificField(meta, "localization", "compliance", compliance); err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to set compliance in localization metadata", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		// orchestration handled by graceful.Handler
 		return nil, graceful.ToStatusError(err)
 	}
 	// [CANONICAL] Always normalize metadata before persistence or emission.
@@ -380,27 +341,12 @@ func (s *Service) SetPricingRule(ctx context.Context, req *localizationpb.SetPri
 	rule.Metadata = meta
 	if err := s.repo.SetPricingRule(ctx, rule); err != nil {
 		s.log.Error("SetPricingRule failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to set pricing rule", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "set_pricing_rule", codes.Internal, "failed to set pricing rule", err, rule.Metadata, rule.ID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &localizationpb.SetPricingRuleResponse{Success: true}
-	success := graceful.WrapSuccess(ctx, codes.OK, "pricing rule set", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.Cache,
-		CacheKey:     rule.ID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     rule.Metadata,
-		EventType:    "localization.pricing_rule_set",
-		EventID:      rule.ID,
-		PatternType:  "pricing_rule",
-		PatternID:    rule.ID,
-		PatternMeta:  rule.Metadata,
-		EventEmitter: &EventEmitterAdapter{Emitter: s.eventEmitter},
-		EventEnabled: s.eventEnabled,
-	})
+	s.handler.Success(ctx, "set_pricing_rule", codes.OK, "pricing rule set", resp, rule.Metadata, rule.ID, nil)
+	// All orchestration handled by graceful handler; no StandardOrchestrate config needed
 	return resp, nil
 }
 
@@ -409,8 +355,7 @@ func (s *Service) ListPricingRules(ctx context.Context, req *localizationpb.List
 	rules, total, err := s.repo.ListPricingRules(ctx, req.CountryCode, req.Region, int(req.Page), int(req.PageSize))
 	if err != nil {
 		s.log.Error("ListPricingRules failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list pricing rules", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "list_pricing_rules", codes.Internal, "failed to list pricing rules", err, nil, req.CountryCode)
 		return nil, graceful.ToStatusError(err)
 	}
 	protos := make([]*localizationpb.PricingRule, 0, len(rules))
@@ -432,12 +377,14 @@ func (s *Service) ListPricingRules(ctx context.Context, req *localizationpb.List
 	} else {
 		totalCountRules = int32(math.Min(float64(total), float64(math.MaxInt32)))
 	}
-	return &localizationpb.ListPricingRulesResponse{
+	resp := &localizationpb.ListPricingRulesResponse{
 		Rules:      protos,
 		TotalCount: totalCountRules,
 		Page:       req.Page,
 		TotalPages: totalPagesRules,
-	}, nil
+	}
+	s.handler.Success(ctx, "list_pricing_rules", codes.OK, "pricing rules listed", resp, nil, req.CountryCode, nil)
+	return resp, nil
 }
 
 // ListLocales returns all supported locales.
@@ -445,17 +392,18 @@ func (s *Service) ListLocales(ctx context.Context, _ *localizationpb.ListLocales
 	locales, err := s.repo.ListLocales(ctx)
 	if err != nil {
 		s.log.Error("ListLocales failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list locales", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "list_locales", codes.Internal, "failed to list locales", err, nil, "locales")
 		return nil, graceful.ToStatusError(err)
 	}
 	protos := make([]*localizationpb.Locale, 0, len(locales))
 	for _, l := range locales {
 		protos = append(protos, mapLocaleToProto(l))
 	}
-	return &localizationpb.ListLocalesResponse{
+	resp := &localizationpb.ListLocalesResponse{
 		Locales: protos,
-	}, nil
+	}
+	s.handler.Success(ctx, "list_locales", codes.OK, "locales listed", resp, nil, "locales", nil)
+	return resp, nil
 }
 
 // GetLocaleMetadata returns metadata for a locale.
@@ -463,13 +411,14 @@ func (s *Service) GetLocaleMetadata(ctx context.Context, req *localizationpb.Get
 	l, err := s.repo.GetLocaleMetadata(ctx, req.Locale)
 	if err != nil {
 		s.log.Error("GetLocaleMetadata failed", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.NotFound, "locale not found", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
+		s.handler.Error(ctx, "get_locale_metadata", codes.NotFound, "locale not found", err, nil, req.Locale)
 		return nil, graceful.ToStatusError(err)
 	}
-	return &localizationpb.GetLocaleMetadataResponse{
+	resp := &localizationpb.GetLocaleMetadataResponse{
 		Locale: mapLocaleToProto(l),
-	}, nil
+	}
+	s.handler.Success(ctx, "get_locale_metadata", codes.OK, "locale metadata fetched", resp, nil, req.Locale, nil)
+	return resp, nil
 }
 
 // getAvailableLanguages returns all target languages for translation using the canonical LibreTranslate Docker service, with fallback to DB/env/default.

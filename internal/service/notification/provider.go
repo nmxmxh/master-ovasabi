@@ -59,13 +59,21 @@ func Register(
 		log.With(zap.String("service", "notification")).Warn("Failed to get notification cache", zap.Error(err), zap.String("cache", "notification"), zap.String("context", ctxValue(ctx)))
 	}
 	serviceInstance := NewService(log, repository, cache, eventEmitter, eventEnabled)
+	// Register gRPC server interface
 	if err := container.Register((*notificationpb.NotificationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {
 		log.With(zap.String("service", "notification")).Error("Failed to register notification service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
-	// Inos: Register the hello-world event loop for service health and orchestration
+	// Register concrete *Service for event handler/DI resolution (canonical pattern)
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return serviceInstance, nil
+	}); err != nil {
+		log.With(zap.String("service", "notification")).Error("Failed to register concrete notification service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		return err
+	}
+	// Register the hello-world event loop for service health and orchestration
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
 		hello.StartHelloWorldLoop(ctx, prov, log, "notification")
@@ -86,4 +94,5 @@ func ctxValue(ctx context.Context) string {
 	return ""
 }
 
+// Business logic methods (SendSMS, SendEmail, BroadcastEvent) should be exposed via the Service struct, not the provider.
 // Add any notification service-specific interfaces or helpers below.

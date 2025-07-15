@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
@@ -32,18 +33,58 @@ func Register(
 	if err != nil {
 		log.With(zap.String("service", "commerce")).Warn("Failed to get commerce cache", zap.Error(err), zap.String("cache", "commerce"), zap.String("context", ctxValue(ctx)))
 	}
+
 	serviceInstance := NewService(log, repo, cache, eventEmitter, eventEnabled)
+
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("quote", HandleCommerceEvent)
+	RegisterActionHandler("order", HandleCommerceEvent)
+	RegisterActionHandler("payment", HandleCommerceEvent)
+	RegisterActionHandler("transaction", HandleCommerceEvent)
+	RegisterActionHandler("portfolio", HandleCommerceEvent)
+	RegisterActionHandler("listing", HandleCommerceEvent)
+	RegisterActionHandler("balance", HandleCommerceEvent)
+	RegisterActionHandler("asset", HandleCommerceEvent)
+	RegisterActionHandler("exchange_rate", HandleCommerceEvent)
+	RegisterActionHandler("offer", HandleCommerceEvent)
+	RegisterActionHandler("event", HandleCommerceEvent)
+
 	if err := container.Register((*commercepb.CommerceServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {
 		log.With(zap.String("service", "commerce")).Error("Failed to register commerce service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
-	// Inos: Register the hello-world event loop for service health and orchestration
+
+	// Register the concrete *Service type for direct resolution (e.g., in event handlers)
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return serviceInstance, nil
+	}); err != nil {
+		log.With(zap.String("service", "commerce")).Error("Failed to register concrete *commerce.Service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		return err
+	}
+
+	// Event subscriber logic (matching admin provider)
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
-		hello.StartHelloWorldLoop(ctx, prov, log, "commerce")
+		svc, ok := serviceInstance.(*Service)
+		if !ok {
+			log.With(zap.String("service", "commerce")).Error("Failed to assert *Service for event subscriber")
+		} else {
+			go func() {
+				for _, sub := range CommerceEventRegistry {
+					err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+						sub.Handler(ctx, svc, event)
+					})
+					if err != nil {
+						log.With(zap.String("service", "commerce")).Error("Failed to subscribe to commerce events", zap.Error(err))
+					}
+				}
+			}()
+			hello.StartHelloWorldLoop(ctx, prov, log, "commerce")
+		}
 	}
+
 	return nil
 }
 

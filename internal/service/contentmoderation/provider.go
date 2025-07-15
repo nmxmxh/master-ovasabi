@@ -55,6 +55,10 @@ func Register(
 		log.With(zap.String("service", "contentmoderation")).Warn("Failed to get contentmoderation cache", zap.Error(err), zap.String("cache", "contentmoderation"), zap.String("context", ctxValue(ctx)))
 	}
 	serviceInstance := NewContentModerationService(log, repo, cache, eventEmitter, eventEnabled)
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("submit_content_for_moderation", handleSubmitContentForModeration)
+	RegisterActionHandler("approve_content", handleApproveContent)
+	RegisterActionHandler("reject_content", handleRejectContent)
 	if err := container.Register((*contentmoderationpb.ContentModerationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {

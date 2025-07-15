@@ -32,6 +32,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/lib/pq v1.10.9
 	github.com/markbates/goth v1.81.0
+	github.com/mitchellh/mapstructure v1.4.3
 	github.com/olekukonko/tablewriter v1.0.7
 	github.com/open-feature/go-sdk v1.14.1
 	github.com/pion/webrtc/v3 v3.3.5
@@ -112,7 +113,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
-	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/multiformats/go-multihash v0.2.3 // indirect

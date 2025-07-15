@@ -7,17 +7,22 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	nexusrepo "github.com/nmxmxh/master-ovasabi/internal/service/nexus"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	pkgredis "github.com/nmxmxh/master-ovasabi/pkg/redis"
+	"github.com/nmxmxh/master-ovasabi/pkg/registration"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+const eventLockKey = "nexus:event_lock:"
 
 // ServiceRegistration holds the config for a single service.
 type ServiceRegistration struct {
@@ -76,7 +81,7 @@ type RedisEventBus struct {
 	client  *redis.Client
 	log     *zap.Logger
 	channel string
-	subs    map[chan *nexusv1.EventResponse]struct{}
+	subs    map[chan *nexusv1.EventResponse]struct{} // all subscribers
 	mu      sync.RWMutex
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -113,12 +118,18 @@ func (b *RedisEventBus) listen() {
 			b.log.Error("Failed to unmarshal event", zap.Error(err))
 			continue
 		}
+		b.log.Info("[RedisEventBus] Received event from Redis", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
 		b.mu.RLock()
+		delivered := 0
 		for ch := range b.subs {
 			select {
 			case ch <- &event:
+				delivered++
 			default:
 			}
+		}
+		if delivered > 0 {
+			b.log.Info("[RedisEventBus] Delivered event to subscribers", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Int("subscriber_count", delivered))
 		}
 		b.mu.RUnlock()
 	}
@@ -140,6 +151,7 @@ func (b *RedisEventBus) Unsubscribe(ch chan *nexusv1.EventResponse) {
 }
 
 func (b *RedisEventBus) Publish(event *nexusv1.EventResponse) {
+	b.log.Info("[RedisEventBus] Publishing event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
 	data, err := json.Marshal(event)
 	if err != nil {
 		b.log.Error("Failed to marshal event", zap.Error(err))
@@ -158,11 +170,12 @@ func (b *RedisEventBus) Close() {
 
 type Server struct {
 	nexusv1.UnimplementedNexusServiceServer
-	log      *zap.Logger
-	eventBus *RedisEventBus
-	registry *ServiceRegistry
-	repo     *nexusrepo.Repository
-	cache    *pkgredis.Cache
+	log              *zap.Logger
+	eventBus         *RedisEventBus
+	registry         *ServiceRegistry
+	repo             *nexusrepo.Repository
+	cache            *pkgredis.Cache
+	payloadValidator *registration.PayloadValidator
 }
 
 // NewNexusServer creates a new Nexus gRPC server with Redis event streaming.
@@ -173,17 +186,27 @@ func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repo
 	if err != nil {
 		log.Warn("Failed to load service registration config", zap.Error(err))
 	}
+
+	// Initialize payload validator
+	payloadValidator, err := registration.NewPayloadValidator(log, "api/protos")
+	if err != nil {
+		log.Warn("Failed to initialize payload validator", zap.Error(err))
+		payloadValidator = nil // Continue without payload validation
+	}
+
 	return &Server{
-		log:      log,
-		eventBus: NewRedisEventBus(cache.GetClient(), log, "nexus:events"),
-		registry: registry,
-		repo:     repo,
-		cache:    cache,
+		log:              log,
+		eventBus:         NewRedisEventBus(cache.GetClient(), log, "nexus:events"),
+		registry:         registry,
+		repo:             repo,
+		cache:            cache,
+		payloadValidator: payloadValidator,
 	}
 }
 
 // PublishEvent allows other parts of the system to publish events to all subscribers.
 func (s *Server) PublishEvent(event *nexusv1.EventResponse) {
+	s.log.Info("[Nexus] PublishEvent", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
 	s.eventBus.Publish(event)
 }
 
@@ -241,6 +264,10 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 	for _, et := range req.EventTypes {
 		eventTypeSet[et] = struct{}{}
 	}
+	// If no specific event types are requested, subscribe to a default set including 'success'
+	if len(eventTypeSet) == 0 {
+		eventTypeSet["success"] = struct{}{}
+	}
 
 	for {
 		select {
@@ -278,6 +305,13 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		}
 	}
 
+	// If EventId is empty, generate a new UUID.
+	eventID := req.EventId
+	if eventID == "" {
+		eventID = uuid.New().String()
+		s.log.Info("[Nexus] Generated new EventID for empty request", zap.String("new_event_id", eventID))
+	}
+
 	// Extract tracing span if present
 	span := trace.SpanFromContext(ctx)
 	var traceID string
@@ -295,8 +329,9 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	// Extract campaign_id and user_id from payload.data if present
 	campaignID := ""
 	if req.Payload != nil && req.Payload.Data != nil && req.Payload.Data.Fields != nil {
-		if v, ok := req.Payload.Data.Fields["campaign_id"]; ok {
-			campaignID = v.GetStringValue()
+		if _, ok := req.Payload.Data.Fields["campaign_id"]; ok {
+			// Always force campaignID to "0" (string) to match ws-gateway normalization
+			campaignID = "0"
 		}
 		if v, ok := req.Payload.Data.Fields["user_id"]; ok {
 			userID = v.GetStringValue()
@@ -325,35 +360,79 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		}
 		if traceID != "" {
 			nexusMap["trace_id"] = structpb.NewStringValue(traceID)
+			ss.Fields["trace_id"] = structpb.NewStringValue(traceID)
 		}
 		if userID != "" {
 			nexusMap["user_id"] = structpb.NewStringValue(userID)
+			ss.Fields["user_id"] = structpb.NewStringValue(userID)
 		}
 		if campaignID != "" {
 			nexusMap["campaign_id"] = structpb.NewStringValue(campaignID)
+			ss.Fields["campaign_id"] = structpb.NewStringValue(campaignID)
 		}
 		ss.Fields["nexus"] = structpb.NewStructValue(&structpb.Struct{Fields: nexusMap})
 	}
 
+	// Clean payload to only include valid protobuf fields for the target service
+	cleanedPayload := req.Payload
+	if s.payloadValidator != nil && req.Payload != nil && req.Payload.Data != nil {
+		if cleaned, err := s.payloadValidator.ValidateAndCleanPayload(eventType, req.Payload.Data); err == nil {
+			cleanedPayload = &commonpb.Payload{Data: cleaned}
+			s.log.Debug("[Nexus] Cleaned payload for service",
+				zap.String("event_type", eventType),
+				zap.String("event_id", eventID),
+				zap.Int("original_fields", len(req.Payload.Data.Fields)),
+				zap.Int("cleaned_fields", len(cleaned.Fields)))
+
+			// Debug: Log the exact field names being sent
+			cleanedFieldNames := make([]string, 0, len(cleaned.Fields))
+			for fieldName := range cleaned.Fields {
+				cleanedFieldNames = append(cleanedFieldNames, fieldName)
+			}
+			s.log.Debug("[Nexus] Sending cleaned payload fields",
+				zap.String("event_type", eventType),
+				zap.String("event_id", eventID),
+				zap.Strings("cleaned_field_names", cleanedFieldNames))
+		} else {
+			s.log.Warn("[Nexus] Failed to clean payload, using original",
+				zap.String("event_type", eventType),
+				zap.String("event_id", eventID),
+				zap.Error(err))
+		}
+	}
+
 	resp := &nexusv1.EventResponse{
 		Success:   true,
-		EventId:   req.EventId,
+		EventId:   eventID,
 		EventType: eventType,
 		Message:   eventType,
 		Metadata:  meta,
-		Payload:   req.Payload,
+		Payload:   cleanedPayload,
 	}
 
 	// --- Logging with full context ---
 	s.log.Info("[Nexus] EmitEvent",
 		zap.String("event_type", eventType),
-		zap.String("event_id", req.EventId),
-		zap.String("user_id", userID),
+		zap.String("event_id", eventID),
+		zap.String("user_id", req.EntityId), // Use EntityId from the request for consistent logging
 		zap.String("campaign_id", campaignID),
 		zap.String("trace_id", traceID),
 	)
 
-	s.PublishEvent(resp)
+	// Use a distributed lock to prevent duplicate event publishing from multiple instances
+	lockKey := eventLockKey + eventID
+	lockAcquired, err := s.cache.GetClient().SetNX(ctx, lockKey, "1", 10*time.Second).Result()
+	if err != nil {
+		s.log.Error("Failed to acquire event lock", zap.Error(err), zap.String("event_id", eventID))
+		// Fallback to publishing, but log the error
+	}
+
+	if lockAcquired {
+		s.PublishEvent(resp)
+	} else {
+		s.log.Info("Event already published by another instance, skipping", zap.String("event_id", eventID))
+	}
+
 	return &nexusv1.EventResponse{Success: true, Message: "Event broadcasted", Metadata: resp.Metadata}, nil
 }
 

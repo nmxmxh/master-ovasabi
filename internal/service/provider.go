@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -32,29 +34,38 @@ type Provider struct {
 	DB            *sql.DB
 	RedisProvider *redis.Provider
 	NexusClient   nexusv1.NexusServiceClient
+	nexusConn     *grpc.ClientConn // Add connection reference for cleanup
 	Container     *di.Container
 	JWTSecret     string
 	ctx           context.Context
 	cancel        context.CancelFunc
 	services      map[string]interface{}
 	eventHandlers map[string]func(context.Context, interface{}) error
+	EventEmitter  events.EventEmitter // Canonical event emitter for envelope emission
 }
 
 func NewProvider(log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, nexusAddr string, container *di.Container, jwtSecret string) (*Provider, error) {
-	conn, err := grpc.DialContext(context.Background(), nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // grpc.DialContext is required until generated client supports NewClient API
+	conn, err := grpc.NewClient(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Error("Failed to connect to Nexus event bus", zap.Error(err))
-		return nil, fmt.Errorf("failed to dial nexus: %w", err)
+		return nil, fmt.Errorf("failed to connect to nexus: %w", err)
 	}
 	log.Info("Connected to Nexus event bus", zap.String("address", nexusAddr))
 	nexusClient := nexusv1.NewNexusServiceClient(conn)
+
+	// Create context with cancellation for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Provider{
 		Log:           log,
 		DB:            db,
 		RedisProvider: redisProvider,
 		NexusClient:   nexusClient,
+		nexusConn:     conn,
 		Container:     container,
 		JWTSecret:     jwtSecret,
+		ctx:           ctx,
+		cancel:        cancel,
 		services:      make(map[string]interface{}),
 		eventHandlers: make(map[string]func(context.Context, interface{}) error),
 	}, nil
@@ -71,13 +82,15 @@ func getRequestID(ctx context.Context) string {
 // EmitEvent emits an event to the Nexus event bus.
 func (p *Provider) EmitEvent(ctx context.Context, eventType, entityID string, meta *commonpb.Metadata) error {
 	if p.NexusClient == nil {
+		err := fmt.Errorf("nexus client is not initialized")
 		if p.Log != nil {
 			p.Log.Error("NexusClient is nil, cannot emit event",
 				zap.String("eventType", eventType),
 				zap.String("entityID", entityID),
+				zap.Error(err),
 			)
 		}
-		return graceful.WrapErr(ctx, codes.Internal, "NexusClient is nil", nil)
+		return graceful.WrapErr(ctx, codes.Internal, "nexus client not initialized", err)
 	}
 
 	req := &nexusv1.EventRequest{
@@ -95,10 +108,11 @@ func (p *Provider) EmitEvent(ctx context.Context, eventType, entityID string, me
 				zap.Error(err),
 			)
 		}
-		return graceful.WrapErr(ctx, codes.Internal, "failed to emit event to Nexus", err)
+		return graceful.WrapErr(ctx, codes.Internal, "failed to emit event to nexus", err)
 	}
+
 	if p.Log != nil {
-		p.Log.Info("Event emitted to Nexus",
+		p.Log.Debug("Event emitted to Nexus",
 			zap.String("eventType", eventType),
 			zap.String("entityID", entityID),
 		)
@@ -167,89 +181,32 @@ func (p *Provider) SubscribeEvents(ctx context.Context, eventTypes []string, met
 	return nil
 }
 
-// EmitEventWithLogging emits an event to Nexus and logs the outcome, orchestrating errors with graceful.
-func (p *Provider) EmitEventWithLogging(ctx context.Context, _ interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	if p.NexusClient == nil {
-		if log != nil {
-			log.Error("NexusClient is nil, cannot emit event",
-				zap.String("eventType", eventType),
-				zap.String("eventID", eventID),
-			)
-		}
-		return "", false
-	}
-
-	// Use the canonical EmitEvent method
-	err := p.EmitEvent(ctx, eventType, eventID, meta)
-	if err != nil {
-		if log != nil {
-			log.Error("Failed to emit event to Nexus",
-				zap.String("eventType", eventType),
-				zap.String("eventID", eventID),
-				zap.Error(err),
-			)
-		}
-		graceful.WrapErr(ctx, codes.Internal, "failed to emit event to Nexus", err).StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{
-			Log:     log,
-			Context: ctx,
-		})
-		return "", false
-	}
-	if log != nil {
-		log.Info("Event emitted to Nexus",
-			zap.String("eventType", eventType),
-			zap.String("eventID", eventID),
-			zap.String("nexus_message", "event emitted"),
-		)
-	}
-	return eventID, true
-}
-
-// EmitRawEventWithLogging emits a raw event (with payload) to Nexus and logs the outcome.
-func (p *Provider) EmitRawEventWithLogging(_ context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	if p.NexusClient == nil {
-		if log != nil {
-			log.Error("NexusClient is nil, cannot emit raw event",
-				zap.String("eventType", eventType),
-				zap.String("eventID", eventID),
-			)
-		}
-		return "", false
-	}
-	// For demonstration, just log the payload and event info. In production, you would unmarshal and send as needed.
-	if log != nil {
-		log.Info("EmitRawEventWithLogging called",
-			zap.String("eventType", eventType),
-			zap.String("eventID", eventID),
-			zap.ByteString("payload", payload),
-		)
-	}
-	// Optionally, you could unmarshal payload and send to NexusClient.EmitEvent if needed.
-	return eventID, true
-}
-
 // EmitEchoEvent emits a canonical 'echo' event to Nexus for testing and onboarding.
 func (p *Provider) EmitEchoEvent(ctx context.Context, serviceName, message string) (string, bool) {
-	meta := &commonpb.Metadata{
-		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
-			"echo": map[string]interface{}{
-				"service":   serviceName,
-				"message":   message,
-				"timestamp": time.Now().Format(time.RFC3339),
-			},
-			// Ensure required nexus.actor field for validation
-			"nexus": map[string]interface{}{
-				"actor": map[string]interface{}{
-					"user_id": serviceName,
-					"roles":   []string{"system"},
+	envelope := &events.EventEnvelope{
+		Type: "echo",
+		ID:   serviceName,
+		Metadata: &commonpb.Metadata{
+			ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
+				"echo": map[string]interface{}{
+					"service":   serviceName,
+					"message":   message,
+					"timestamp": time.Now().Format(time.RFC3339),
 				},
-			},
-		}, nil),
+				"nexus": map[string]interface{}{
+					"actor": map[string]interface{}{
+						"user_id": serviceName,
+						"roles":   []string{"system"},
+					},
+				},
+			}, nil),
+		},
 	}
-	return p.EmitEventWithLogging(ctx, nil, p.Log, "echo", serviceName, meta)
+	id, err := p.EmitEventEnvelope(ctx, envelope)
+	return id, err == nil
 }
 
-// Update all logging calls to use the helper function.
+// RegisterService registers a service with the provider.
 func (p *Provider) RegisterService(name string, service interface{}) error {
 	p.Log.Info("Registering service",
 		zap.String("service", name),
@@ -259,6 +216,7 @@ func (p *Provider) RegisterService(name string, service interface{}) error {
 	return nil
 }
 
+// GetService retrieves a service from the provider.
 func (p *Provider) GetService(name string) (interface{}, error) {
 	p.Log.Info("Getting service",
 		zap.String("service", name),
@@ -270,6 +228,7 @@ func (p *Provider) GetService(name string) (interface{}, error) {
 	return nil, fmt.Errorf("service %s not found", name)
 }
 
+// HandleEvent processes events using registered handlers.
 func (p *Provider) HandleEvent(eventType string, payload interface{}) error {
 	p.Log.Info("Handling event",
 		zap.String("event_type", eventType),
@@ -281,9 +240,54 @@ func (p *Provider) HandleEvent(eventType string, payload interface{}) error {
 	return fmt.Errorf("no handler registered for event type %s", eventType)
 }
 
+// Shutdown gracefully shuts down the provider.
 func (p *Provider) Shutdown() {
 	p.Log.Info("Shutting down provider",
 		zap.String("request_id", getRequestID(p.ctx)),
 	)
-	p.cancel()
+
+	// Cancel context to stop all operations
+	if p.cancel != nil {
+		p.cancel()
+	}
+
+	// Close gRPC connection
+	if p.nexusConn != nil {
+		if err := p.nexusConn.Close(); err != nil {
+			p.Log.Warn("Failed to close Nexus connection", zap.Error(err))
+		}
+	}
+}
+
+// EmitEventEnvelope emits a canonical EventEnvelope to Nexus and logs the outcome. This is the preferred event emission method.
+func (p *Provider) EmitEventEnvelope(ctx context.Context, envelope *events.EventEnvelope) (string, error) {
+	if p.NexusClient == nil {
+		return "", fmt.Errorf("nexus client is not initialized")
+	}
+
+	payloadBytes, err := json.Marshal(envelope)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal EventEnvelope: %w", err)
+	}
+
+	var payloadMap map[string]interface{}
+	if err := json.Unmarshal(payloadBytes, &payloadMap); err != nil {
+		return "", fmt.Errorf("failed to unmarshal EventEnvelope for structpb conversion: %w", err)
+	}
+
+	structData := metadata.NewStructFromMap(payloadMap, nil)
+
+	req := &nexusv1.EventRequest{
+		EventType: envelope.Type,
+		EventId:   envelope.ID,
+		Metadata:  envelope.Metadata,
+		Payload:   &commonpb.Payload{Data: structData},
+	}
+
+	_, err = p.NexusClient.EmitEvent(ctx, req)
+	if err != nil {
+		return envelope.ID, fmt.Errorf("failed to emit EventEnvelope to Nexus: %w", err)
+	}
+
+	return envelope.ID, nil
 }

@@ -61,6 +61,11 @@ func Register(
 		return fmt.Errorf("failed to create crawler service: %w", err)
 	}
 
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("submit_task", handleSubmitTask)
+	RegisterActionHandler("get_task_status", handleGetTaskStatus)
+	RegisterActionHandler("stream_results", handleStreamResults)
+
 	// Register the gRPC interface for the crawler service
 	if err := container.Register((*crawlerpb.CrawlerServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return crawlerService, nil

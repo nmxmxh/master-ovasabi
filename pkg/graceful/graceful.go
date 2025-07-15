@@ -17,7 +17,20 @@ import (
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"go.uber.org/zap"
 )
+
+// ServiceHandlerConfig holds the common, reusable components for handling service events.
+// This simplifies calls to HandleServiceError and HandleServiceSuccess by pre-configuring these values.
+type ServiceHandlerConfig struct {
+	Log          *zap.Logger
+	EventEmitter interface {
+		EmitEventEnvelope(ctx context.Context, envelope *events.EventEnvelope) (string, error)
+	}
+	EventEnabled bool
+	PatternType  string
+}
 
 // KGUpdater defines the interface for updating the knowledge graph.
 // This is implemented by the KGService.
@@ -49,6 +62,7 @@ type CanonicalOrchestrationPayload struct {
 	Code          string      `json:"code"` // e.g., "INTERNAL", "OK"
 	Message       string      `json:"message"`
 	Metadata      interface{} `json:"metadata"` // Canonical metadata (can be *commonpb.Metadata)
+	Result        interface{} `json:"result,omitempty"`
 	YinYang       string      `json:"yin_yang"` // "yin" (error) or "yang" (success)
 	CorrelationID string      `json:"correlation_id"`
 	Service       string      `json:"service"`

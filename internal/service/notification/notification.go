@@ -35,6 +35,7 @@ type Service struct {
 	cache        *redis.Cache
 	eventEmitter events.EventEmitter
 	eventEnabled bool
+	handler      *graceful.Handler
 }
 
 func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) notificationpb.NotificationServiceServer {
@@ -44,6 +45,7 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 		cache:        cache,
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
+		handler:      graceful.NewHandler(log, eventEmitter, cache, "notification", "v1", eventEnabled),
 	}
 }
 
@@ -151,6 +153,8 @@ func (s *Service) SendNotification(ctx context.Context, req *notificationpb.Send
 func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRequest) (*notificationpb.SendEmailResponse, error) {
 	userID := s.extractAuthContext(ctx, req.Metadata)
 	if userID == "" {
+		s.log.Error("unauthenticated: user_id required for email")
+		s.handler.Error(ctx, "send_email", codes.Unauthenticated, "unauthenticated: user_id required for email", nil, req.Metadata, "")
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id required for email", nil))
 	}
 	notification := &Notification{
@@ -164,29 +168,11 @@ func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRe
 	}
 	created, err := s.repo.Create(ctx, notification)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to save email notification", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		s.log.Error("failed to save email notification", zap.Error(err))
+		s.handler.Error(ctx, "send_email", codes.Internal, "failed to save email notification", err, req.Metadata, "")
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to save email notification", err))
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "email notification sent", created, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     fmt.Sprint(created.ID),
-		CacheValue:   created,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     created.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "notification.email_sent",
-		EventID:      fmt.Sprint(created.ID),
-		PatternType:  "notification",
-		PatternID:    fmt.Sprint(created.ID),
-		PatternMeta:  created.Metadata,
-	})
+	s.handler.Success(ctx, "send_email", codes.OK, "email notification sent", created, req.Metadata, fmt.Sprint(created.ID), nil)
 	return &notificationpb.SendEmailResponse{
 		MessageId: fmt.Sprint(created.ID),
 		Status:    string(created.Status),
@@ -197,6 +183,8 @@ func (s *Service) SendEmail(ctx context.Context, req *notificationpb.SendEmailRe
 func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSRequest) (*notificationpb.SendSMSResponse, error) {
 	userID := s.extractAuthContext(ctx, req.Metadata)
 	if userID == "" {
+		s.log.Error("unauthenticated: user_id required for SMS")
+		s.handler.Error(ctx, "send_sms", codes.Unauthenticated, "unauthenticated: user_id required for SMS", nil, req.Metadata, "")
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id required for SMS", nil))
 	}
 	notification := &Notification{
@@ -210,29 +198,11 @@ func (s *Service) SendSMS(ctx context.Context, req *notificationpb.SendSMSReques
 	}
 	created, err := s.repo.Create(ctx, notification)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to save SMS notification", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		s.log.Error("failed to save SMS notification", zap.Error(err))
+		s.handler.Error(ctx, "send_sms", codes.Internal, "failed to save SMS notification", err, req.Metadata, "")
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to save SMS notification", err))
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "sms notification sent", created, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     fmt.Sprint(created.ID),
-		CacheValue:   created,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     created.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "notification.sms_sent",
-		EventID:      fmt.Sprint(created.ID),
-		PatternType:  "notification",
-		PatternID:    fmt.Sprint(created.ID),
-		PatternMeta:  created.Metadata,
-	})
+	s.handler.Success(ctx, "send_sms", codes.OK, "sms notification sent", created, req.Metadata, fmt.Sprint(created.ID), nil)
 	return &notificationpb.SendSMSResponse{
 		MessageId: fmt.Sprint(created.ID),
 		Status:    string(created.Status),
@@ -290,9 +260,13 @@ func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.Broadc
 	userID := s.extractAuthContext(ctx, req.Payload)
 	isGuest := userID == ""
 	if !isGuest && userID == "" {
+		s.log.Error("unauthenticated: user_id or guest_nickname/device_id required")
+		s.handler.Error(ctx, "broadcast_event", codes.Unauthenticated, "unauthenticated: user_id or guest_nickname/device_id required", nil, req.Payload, "")
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id or guest_nickname/device_id required", nil))
 	}
 	if isGuest && req.CampaignId == 0 {
+		s.log.Error("guests can only broadcast to campaigns")
+		s.handler.Error(ctx, "broadcast_event", codes.PermissionDenied, "guests can only broadcast to campaigns", nil, req.Payload, "")
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.PermissionDenied, "guests can only broadcast to campaigns", nil))
 	}
 	broadcast := &Notification{
@@ -307,29 +281,11 @@ func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.Broadc
 	}
 	created, err := s.repo.CreateBroadcast(ctx, broadcast)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to create broadcast", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		s.log.Error("failed to create broadcast", zap.Error(err))
+		s.handler.Error(ctx, "broadcast_event", codes.Internal, "failed to create broadcast", err, req.Payload, "")
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to create broadcast", err))
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "broadcast sent", created, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     fmt.Sprint(created.ID),
-		CacheValue:   created,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     created.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "notification.broadcast_sent",
-		EventID:      fmt.Sprint(created.ID),
-		PatternType:  "notification",
-		PatternID:    fmt.Sprint(created.ID),
-		PatternMeta:  created.Metadata,
-	})
+	s.handler.Success(ctx, "broadcast_event", codes.OK, "broadcast sent", created, req.Payload, fmt.Sprint(created.ID), nil)
 	return &notificationpb.BroadcastEventResponse{
 		BroadcastId: fmt.Sprint(created.ID),
 		Status:      "created",
@@ -375,38 +331,17 @@ func (s *Service) AcknowledgeNotification(ctx context.Context, req *notification
 	id := s.parseInt64(req.NotificationId)
 	notification, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.NotFound, "notification not found", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		s.log.Error("notification not found", zap.Error(err))
+		s.handler.Error(ctx, "acknowledge_notification", codes.NotFound, "notification not found", err, nil, req.NotificationId)
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.NotFound, "notification not found", err))
 	}
 	notification.Status = StatusSent // or a new 'read' status if supported
 	if err := s.repo.Update(ctx, notification); err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to acknowledge notification", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
+		s.log.Error("failed to acknowledge notification", zap.Error(err))
+		s.handler.Error(ctx, "acknowledge_notification", codes.Internal, "failed to acknowledge notification", err, notification.Metadata, req.NotificationId)
+		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Internal, "failed to acknowledge notification", err))
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "notification acknowledged", notification, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          s.log,
-		Cache:        s.cache,
-		CacheKey:     fmt.Sprint(notification.ID),
-		CacheValue:   notification,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     notification.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "notification.acknowledged",
-		EventID:      fmt.Sprint(notification.ID),
-		PatternType:  "notification",
-		PatternID:    fmt.Sprint(notification.ID),
-		PatternMeta:  notification.Metadata,
-	})
+	s.handler.Success(ctx, "acknowledge_notification", codes.OK, "notification acknowledged", notification, notification.Metadata, req.NotificationId, nil)
 	return &notificationpb.AcknowledgeNotificationResponse{Status: "acknowledged"}, nil
 }
 
@@ -464,6 +399,11 @@ func (s *Service) StreamAssetChunks(req *notificationpb.StreamAssetChunksRequest
 func (s *Service) parseInt64(str string) int64 {
 	id, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
+		errWrapped := graceful.WrapErr(context.Background(), codes.InvalidArgument, "Failed to parse int64", err)
+		var ce *graceful.ContextError
+		if errors.As(errWrapped, &ce) {
+			ce.StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
 		s.log.Warn("Failed to parse int64", zap.String("input", str), zap.Error(err))
 		return 0
 	}
@@ -472,6 +412,11 @@ func (s *Service) parseInt64(str string) int64 {
 
 func (s *Service) toTimePtr(ts *timestamppb.Timestamp) *time.Time {
 	if ts == nil {
+		errWrapped := graceful.WrapErr(context.Background(), codes.InvalidArgument, "Timestamp is nil", errors.New("timestamp is nil"))
+		var ce *graceful.ContextError
+		if errors.As(errWrapped, &ce) {
+			ce.StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
 		return nil
 	}
 	t := ts.AsTime()
@@ -480,10 +425,15 @@ func (s *Service) toTimePtr(ts *timestamppb.Timestamp) *time.Time {
 
 func (s *Service) mapNotificationToProto(n *Notification) *notificationpb.Notification {
 	if n == nil {
+		errWrapped := graceful.WrapErr(context.Background(), codes.NotFound, "Notification is nil", errors.New("notification is nil"))
+		var ce *graceful.ContextError
+		if errors.As(errWrapped, &ce) {
+			ce.StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{Log: s.log})
+		}
 		return nil
 	}
 	read := n.Status == StatusSent
-
+	// Registry-driven extensibility: add custom fields or event-driven mapping here if needed
 	return &notificationpb.Notification{
 		Id:        fmt.Sprint(n.ID),
 		UserId:    fmt.Sprint(n.UserID),
@@ -494,6 +444,7 @@ func (s *Service) mapNotificationToProto(n *Notification) *notificationpb.Notifi
 		CreatedAt: timestamppb.New(n.CreatedAt),
 		UpdatedAt: timestamppb.New(n.UpdatedAt),
 		Read:      read, // Now mapped from status
+		// Extensible: add registry-driven fields here
 	}
 }
 

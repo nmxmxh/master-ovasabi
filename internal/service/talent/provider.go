@@ -61,13 +61,20 @@ func Register(
 		log.Warn("failed to get talent cache", zap.Error(err))
 	}
 	talentService := NewService(ctx, log, repository, cache, eventEmitter, eventEnabled)
+
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("create_talent_profile", handleCreateTalentProfile)
+	RegisterActionHandler("update_talent_profile", handleUpdateTalentProfile)
+	RegisterActionHandler("delete_talent_profile", handleDeleteTalentProfile)
+	RegisterActionHandler("book_talent", handleBookTalent)
+	// Add more handlers here for full coverage
+
 	if err := container.Register((*talentpb.TalentServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return talentService, nil
 	}); err != nil {
 		log.Error("Failed to register talent service", zap.Error(err))
 		return err
 	}
-	// Inos: Register the hello-world event loop for service health and orchestration
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
 		hello.StartHelloWorldLoop(ctx, prov, log, "talent")

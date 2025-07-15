@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	adminpb "github.com/nmxmxh/master-ovasabi/api/protos/admin/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
@@ -45,6 +46,11 @@ func Register(
 	}
 
 	adminService := NewService(log, repo, userClient, cache, eventEmitter, eventEnabled)
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("user", handleUserAction)
+	RegisterActionHandler("role", handleRoleAction)
+	RegisterActionHandler("settings", handleSettingsAction)
+
 	if err := container.Register((*adminpb.AdminServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return adminService, nil
 	}); err != nil {
@@ -53,6 +59,19 @@ func Register(
 	}
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		// Start event subscribers for admin events
+		go func() {
+			for _, sub := range AdminEventRegistry {
+				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+					if svc, ok := adminService.(*Service); ok {
+						sub.Handler(ctx, svc, event)
+					}
+				})
+				if err != nil {
+					log.With(zap.String("service", "admin")).Error("Failed to subscribe to admin events", zap.Error(err))
+				}
+			}
+		}()
 		hello.StartHelloWorldLoop(ctx, prov, log, "admin")
 	}
 	return nil

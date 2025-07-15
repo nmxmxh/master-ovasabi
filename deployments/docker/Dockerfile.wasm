@@ -32,6 +32,8 @@ RUN --mount=type=cache,target=/root/.yarn YARN_CACHE_FOLDER=/root/.yarn yarn bui
 # --- Production Nginx Stage ---
 # This is the final, lean image that will serve the static frontend.
 FROM nginx:alpine AS prod
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
 # Copy the custom Nginx configuration.
 COPY deployments/docker/nginx.conf /etc/nginx/conf.d/default.conf
 # Copy the built frontend assets from the frontend-builder stage.

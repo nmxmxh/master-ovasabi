@@ -41,7 +41,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'grpc_health_probe', '-addr=localhost:8080']
+      test: ['CMD', '/usr/local/bin/grpc_health_probe', '-addr=localhost:8080']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -94,6 +94,8 @@ services:
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgresql18.conf:/etc/postgresql/postgresql.conf:ro
+    command: ['postgres', '-c', 'config_file=/etc/postgresql/postgresql.conf']
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 10s
@@ -184,6 +186,7 @@ services:
       - ../../.env
     volumes:
       - ../../config:/nexus/config:ro
+      - ../../api:/nexus/api:ro
       # Only mount service_registration.json for development/hot-reload. For production, rely on Dockerfile COPY.
       # - ${PWD}/config/service_registration.json:/nexus/config/service_registration.json:ro
     networks:
@@ -197,7 +200,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'grpc_health_probe', '-addr=localhost:50052']
+      test: ['CMD', '/bin/grpc_health_probe', '-addr=localhost:50052']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -235,7 +238,7 @@ services:
     env_file:
       - ../../.env
     healthcheck:
-      test: ['CMD', 'grpc_health_probe', '-addr=localhost:8085']
+      test: ['CMD', '/bin/curl', '-f', 'http://localhost:8085/healthz']
       interval: 30s
       timeout: 10s
       retries: 3

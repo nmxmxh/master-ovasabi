@@ -1,39 +1,15 @@
 # Dockerfile for main app (master-ovasabi)
-# This Dockerfile builds and packages the main app using a multi-stage build and Alpine runtime.
-# For the Nexus service, see Dockerfile.nexus.
+# This Dockerfile builds and packages the main app using the common go-builder.
+# syntax=docker/dockerfile:1.4
+# --- Build Stage ---
+# Use the common builder stage which contains all source code and dependencies.
+FROM ovasabi-go-builder:latest AS builder
 
-# ----------- Build Stage -----------
-FROM golang:1.24-alpine AS builder
+# The working directory is /app, inherited from the builder.
+# All source code is present, and protoc has been run.
 
-# Install build dependencies
-RUN apk add --no-cache git make protobuf protobuf-dev curl
-
-# Set working directory
-WORKDIR /app
-
-# Install protoc plugins
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0 && \
-  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0 && \
-  export PATH="$PATH:$(go env GOPATH)/bin"
-
-# Copy go mod files first (for caching)
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy the rest of the source code
-COPY . .
-# Log and fail if service_registration.json is missing before COPY
-RUN if [ ! -f config/service_registration.json ]; then \
-  echo "[DOCKER] ERROR: config/service_registration.json is missing! Docker will create a directory if this file is absent."; \
-  exit 1; \
-  fi
-# Copy service_registration.json for embedding or runtime
-COPY config/service_registration.json ./config/service_registration.json
-
-# Generate protobuf code and build
-RUN export PATH="$PATH:$(go env GOPATH)/bin" && \
-  make proto && \
-  CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/master-ovasabi ./cmd/server
+# Build the master-ovasabi binary.
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/master-ovasabi ./cmd/server
 
 # ----------- Final Stage -----------
 FROM alpine:latest
@@ -52,8 +28,8 @@ COPY --from=builder /app/master-ovasabi /
 COPY --from=builder /app/config/config.yaml /config/
 COPY --from=builder /app/config/service_registration.json /config/
 
-# Add grpc_health_probe for gRPC health checks
-ADD https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.19/grpc_health_probe-linux-amd64 /usr/local/bin/grpc_health_probe
+# Copy the pre-downloaded health probe tool
+COPY --from=builder /app/tools/grpc_health_probe /usr/local/bin/grpc_health_probe
 RUN chmod +x /usr/local/bin/grpc_health_probe
 
 # Expose application port

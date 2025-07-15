@@ -28,6 +28,7 @@ import (
 	"time"
 
 	localizationpb "github.com/nmxmxh/master-ovasabi/api/protos/localization/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
@@ -56,7 +57,6 @@ func Register(
 	if err != nil {
 		log.With(zap.String("service", "localization")).Warn("Failed to get localization cache", zap.Error(err), zap.String("cache", "localization"), zap.String("context", ctxValue(ctx)))
 	}
-	// Get LibreTranslate config from DI container or config struct
 	ltEndpoint, _ := container.GetString("libretranslate_endpoint")
 	ltTimeoutStr, _ := container.GetString("libretranslate_timeout")
 	if ltEndpoint == "" {
@@ -73,8 +73,9 @@ func Register(
 		Endpoint: ltEndpoint,
 		Timeout:  dur,
 	}
-	// Only use the 6-argument NewService constructor
 	serviceInstance := NewService(log, repo, cache, eventEmitter, eventEnabled, ltCfg)
+	RegisterActionHandler("translate", handleTranslate)
+	// Add more handlers as needed for other actions
 	if err := container.Register((*localizationpb.LocalizationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {
@@ -82,8 +83,21 @@ func Register(
 		return err
 	}
 	prov, ok := provider.(*service.Provider)
-	// Start campaign.created event subscription (local only)
 	if ok && prov != nil {
+		// Start registry-driven event subscribers for localization
+		for _, sub := range LocalizationEventRegistry {
+			go func(sub EventSubscription) {
+				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+					svc, ok := serviceInstance.(*Service)
+					if ok {
+						sub.Handler(ctx, svc, event)
+					}
+				})
+				if err != nil {
+					log.Error("Failed to subscribe to localization events", zap.Strings("eventTypes", sub.EventTypes), zap.Error(err))
+				}
+			}(sub)
+		}
 		hello.StartHelloWorldLoop(ctx, prov, log, "localization")
 	}
 	return nil

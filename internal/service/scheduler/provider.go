@@ -61,22 +61,29 @@ func Register(
 		return errors.New("provider is not *service.Provider")
 	}
 	schedulerService := NewService(ctx, log, repo, cache, eventEmitter, eventEnabled, svcProvider)
+
+	// Log canonical event types at registration (for observability and validation)
+	eventTypes := loadSchedulerEvents()
+	log.Info("Canonical event types for scheduler service", zap.Strings("eventTypes", eventTypes))
+
+	// Register gRPC server interface
 	if err := container.Register((*schedulerpb.SchedulerServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return schedulerService, nil
 	}); err != nil {
 		log.With(zap.String("service", "scheduler")).Error("Failed to register scheduler service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
+	// Register concrete *Service for event handler/DI resolution
 	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
 		return schedulerService, nil
 	}); err != nil {
 		log.With(zap.String("service", "scheduler")).Error("Failed to register concrete *scheduler.Service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
-	prov, ok := provider.(*service.Provider)
-	if ok && prov != nil {
-		hello.StartHelloWorldLoop(ctx, prov, log, "scheduler")
-	}
+
+	// Start event subscribers for event-driven scheduler orchestration.
+	StartEventSubscribers(ctx, schedulerService)
+	hello.StartHelloWorldLoop(ctx, svcProvider, log, "scheduler")
 	return nil
 }
 

@@ -53,19 +53,29 @@ func Register(
 	eventEnabled bool,
 	provider interface{},
 ) error {
-	repository := NewRepository(db, masterRepo, log)
+	repo := NewRepository(db, masterRepo, log)
 	cache, err := redisProvider.GetCache(ctx, "security")
 	if err != nil {
 		log.With(zap.String("service", "security")).Warn("Failed to get security cache", zap.Error(err), zap.String("cache", "security"), zap.String("context", ctxValue(ctx)))
 	}
-	serviceInstance := NewService(ctx, log, cache, repository, eventEnabled)
+	serviceInstance := NewService(ctx, log, cache, repo, eventEnabled)
+
+	// Register canonical action handlers for event-driven orchestration
+	RegisterActionHandler("authorize", handleAuthorize)
+	RegisterActionHandler("query_events", handleQueryEvents)
+	RegisterActionHandler("set_policy", handleSetPolicy)
+	RegisterActionHandler("issue_secret", handleIssueSecret)
+	RegisterActionHandler("audit_event", handleAuditEvent)
+	RegisterActionHandler("authenticate", handleAuthenticate)
+	RegisterActionHandler("get_policy", handleGetPolicy)
+	// Add more handlers here for full coverage, matching the explicit messaging pattern
+
 	if err := container.Register((*securitypb.SecurityServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
 	}); err != nil {
 		log.With(zap.String("service", "security")).Error("Failed to register security service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
-	// Inos: Register the hello-world event loop for service health and orchestration
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
 		hello.StartHelloWorldLoop(ctx, prov, log, "security")

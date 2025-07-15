@@ -6,12 +6,10 @@ import (
 	"sync"
 	"time"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type Event struct {
@@ -32,7 +30,6 @@ type ErrorEvent struct {
 type EventBus interface {
 	Subscribe(topic string, handler func(context.Context, *nexuspb.EventRequest)) error
 	Publish(topic string, event *nexuspb.EventRequest) error
-	EmitEventWithLogging(ctx context.Context, event interface{}, log *zap.Logger, eventType string, eventID string, meta *commonpb.Metadata) (string, bool)
 }
 
 const (
@@ -111,18 +108,39 @@ func (eb *eventBusImpl) redisSubscribe(topic string) {
 			continue
 		}
 		// Deliver to local handlers via the normal path
-		if err := eb.Publish(topic, &event); err != nil {
+		if err := eb.localPublish(topic, &event); err != nil {
 			if eb.log != nil {
-				eb.log.Error("Failed to publish event to Redis", zap.Error(err))
+				eb.log.Error("Failed to publish event locally", zap.Error(err))
 			}
 		}
 	}
 }
 
+// localPublish delivers the event to all local handlers for the topic.
+func (eb *eventBusImpl) localPublish(topic string, event *nexuspb.EventRequest) error {
+	eb.mu.RLock()
+	w, exists := eb.topics[topic]
+	eb.mu.RUnlock()
+
+	if exists {
+		select {
+		case w.ch <- event:
+			// delivered to worker
+			return nil
+		default:
+			if eb.log != nil {
+				eb.log.Warn("Event bus buffer full, dropping event", zap.String("topic", topic))
+			}
+			return errors.New("event bus buffer full")
+		}
+	}
+	return nil
+}
+
 // Publish delivers the event to all handlers for the topic, with backpressure and distributed delivery.
 func (eb *eventBusImpl) Publish(topic string, event *nexuspb.EventRequest) error {
 	eb.mu.RLock()
-	w, exists := eb.topics[topic]
+	_, exists := eb.topics[topic]
 	eb.mu.RUnlock()
 	if eb.log != nil {
 		eb.log.Info("Publishing event", zap.String("topic", topic), zap.Any("event", event))
@@ -144,16 +162,7 @@ func (eb *eventBusImpl) Publish(topic string, event *nexuspb.EventRequest) error
 		}
 	}
 	if exists {
-		select {
-		case w.ch <- event:
-			// delivered to worker
-			return nil
-		default:
-			if eb.log != nil {
-				eb.log.Warn("Event bus buffer full, dropping event", zap.String("topic", topic))
-			}
-			return errors.New("event bus buffer full")
-		}
+		return eb.localPublish(topic, event)
 	}
 	return nil
 }
@@ -210,84 +219,4 @@ func safeCallHandler(h func(context.Context, *nexuspb.EventRequest), evt *nexusp
 	}
 	h(ctx, evt)
 	return nil
-}
-
-// EmitEventWithLogging emits an event with logging and metadata merging, for graceful orchestration compliance.
-func (eb *eventBusImpl) EmitEventWithLogging(
-	ctx context.Context,
-	event interface{},
-	log *zap.Logger,
-	eventType string,
-	eventID string,
-	meta *commonpb.Metadata,
-) (string, bool) {
-	// Always set Metadata field if present
-	var ev *nexuspb.EventRequest
-	switch e := event.(type) {
-	case *nexuspb.EventRequest:
-		ev = e
-	default:
-		return "", false
-	}
-
-	// Initialize metadata if not present
-	if ev.Metadata == nil {
-		ev.Metadata = &commonpb.Metadata{}
-	}
-
-	// Initialize ServiceSpecific if not present
-	if ev.Metadata.ServiceSpecific == nil {
-		ev.Metadata.ServiceSpecific = &structpb.Struct{
-			Fields: make(map[string]*structpb.Value),
-		}
-	}
-
-	// Copy request ID from context if present
-	if reqID := ctx.Value(requestIDKey); reqID != nil {
-		if reqIDStr, ok := reqID.(string); ok && reqIDStr != "" {
-			ev.Metadata.ServiceSpecific.Fields["request_id"] = structpb.NewStringValue(reqIDStr)
-		}
-	}
-
-	// Add event ID and type if provided
-	if eventID != "" {
-		ev.EventId = eventID
-	}
-	if eventType != "" {
-		ev.EventType = eventType
-	}
-
-	// Merge provided metadata if present
-	if meta != nil {
-		if meta.ServiceSpecific != nil {
-			for k, v := range meta.ServiceSpecific.Fields {
-				ev.Metadata.ServiceSpecific.Fields[k] = v
-			}
-		}
-	}
-
-	// Log event emission
-	if requestID, ok := ctx.Value(requestIDKey).(string); ok {
-		log = log.With(zap.String("request_id", requestID))
-	}
-	if log != nil {
-		log.Info("Emitting event",
-			zap.String("event_id", ev.EventId),
-			zap.String("event_type", ev.EventType),
-		)
-	}
-
-	// Publish event
-	if err := eb.Publish(ev.EventType, ev); err != nil {
-		if log != nil {
-			log.Error("Failed to emit event",
-				zap.String("event_id", ev.EventId),
-				zap.String("event_type", ev.EventType),
-				zap.Error(err),
-			)
-		}
-		return "", false
-	}
-
-	return ev.EventId, true
 }

@@ -34,6 +34,7 @@ type Service struct {
 	cache        *redis.Cache
 	eventEmitter events.EventEmitter
 	eventEnabled bool
+	handler      *graceful.Handler
 }
 
 // NewService creates a new MessagingService instance with event bus support.
@@ -44,6 +45,7 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 		cache:        cache,
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
+		handler:      graceful.NewHandler(log, eventEmitter, cache, "messaging", "v1", eventEnabled),
 	}
 }
 
@@ -249,6 +251,7 @@ func (s *Service) ReactToMessage(ctx context.Context, req *messagingpb.ReactToMe
 		}
 		return nil, graceful.ToStatusError(err)
 	}
+	// Canonical: hydrate metadata and orchestrate reaction event
 	// Minimal metadata for reaction
 	meta := &commonpb.Metadata{
 		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
@@ -257,8 +260,7 @@ func (s *Service) ReactToMessage(ctx context.Context, req *messagingpb.ReactToMe
 		}, nil),
 	}
 	resp := &messagingpb.ReactToMessageResponse{Message: mapRepoMessageToProto(msg)}
-	success := graceful.WrapSuccess(ctx, codes.OK, "reaction added", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "react_to_message", codes.OK, "reaction added", resp, meta, req.UserId, nil)
 	return resp, nil
 }
 
@@ -272,14 +274,14 @@ func (s *Service) GetMessage(ctx context.Context, req *messagingpb.GetMessageReq
 		}
 		return nil, graceful.ToStatusError(err)
 	}
+	// Canonical: hydrate metadata and orchestrate get_message event
 	meta := &commonpb.Metadata{
 		ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{
 			"message_id": msg.ID,
 		}, nil),
 	}
 	resp := &messagingpb.GetMessageResponse{Message: mapRepoMessageToProto(msg)}
-	success := graceful.WrapSuccess(ctx, codes.OK, "message fetched", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "get_message", codes.OK, "message fetched", resp, meta, req.GetMessageId(), nil)
 	return resp, nil
 }
 
@@ -293,6 +295,7 @@ func (s *Service) ListMessages(ctx context.Context, req *messagingpb.ListMessage
 		}
 		return nil, graceful.ToStatusError(err)
 	}
+	// Canonical: hydrate metadata and orchestrate list_messages event
 	protoMsgs := make([]*messagingpb.Message, 0, len(msgs))
 	for _, m := range msgs {
 		pm := mapRepoMessageToProto(m)
@@ -352,8 +355,7 @@ func (s *Service) ListMessages(ctx context.Context, req *messagingpb.ListMessage
 		Page:       req.Page,
 		TotalPages: utils.ToInt32(totalPages),
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "messages listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "list_messages", codes.OK, "messages listed", resp, meta, req.GetThreadId(), nil)
 	return resp, nil
 }
 
@@ -532,10 +534,7 @@ func (s *Service) StreamMessages(req *messagingpb.StreamMessagesRequest, srv mes
 	}
 	if len(channels) == 0 {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "No channels to subscribe to (user_id, conversation_ids, or chat_group_ids required)", nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "stream_messages", codes.InvalidArgument, "No channels to subscribe to", err, nil, req.GetUserId())
 		return graceful.ToStatusError(err)
 	}
 
@@ -568,10 +567,7 @@ func (s *Service) StreamMessages(req *messagingpb.StreamMessagesRequest, srv mes
 				}
 				if err := srv.Send(event); err != nil {
 					err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during history send", err)
-					var ce *graceful.ContextError
-					if errors.As(err, &ce) {
-						ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-					}
+					s.handler.Error(ctx, "stream_messages", codes.Canceled, "client disconnected during history send", err, nil, req.UserId)
 					return graceful.ToStatusError(err)
 				}
 			}
@@ -585,16 +581,12 @@ func (s *Service) StreamMessages(req *messagingpb.StreamMessagesRequest, srv mes
 		select {
 		case <-ctx.Done():
 			meta := &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"stream": "StreamMessages closed by client"}, nil)}
-			success := graceful.WrapSuccess(ctx, codes.OK, "StreamMessages closed", nil, nil)
-			success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+			s.handler.Success(ctx, "stream_messages", codes.OK, "StreamMessages closed", nil, meta, req.UserId, nil)
 			return nil
 		case msg, ok := <-ch:
 			if !ok {
 				err := graceful.WrapErr(ctx, codes.Unavailable, "Redis pubsub channel closed", nil)
-				var ce *graceful.ContextError
-				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-				}
+				s.handler.Error(ctx, "stream_messages", codes.Unavailable, "Redis pubsub channel closed", err, nil, req.UserId)
 				return graceful.ToStatusError(err)
 			}
 			var event messagingpb.MessageEvent
@@ -604,10 +596,7 @@ func (s *Service) StreamMessages(req *messagingpb.StreamMessagesRequest, srv mes
 			}
 			if err := srv.Send(&event); err != nil {
 				err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during event send", err)
-				var ce *graceful.ContextError
-				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-				}
+				s.handler.Error(ctx, "stream_messages", codes.Canceled, "client disconnected during event send", err, nil, req.UserId)
 				return graceful.ToStatusError(err)
 			}
 		}
@@ -647,16 +636,12 @@ func (s *Service) StreamTyping(req *messagingpb.StreamTypingRequest, srv messagi
 		select {
 		case <-ctx.Done():
 			meta := &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"stream": "StreamTyping closed by client"}, nil)}
-			success := graceful.WrapSuccess(ctx, codes.OK, "StreamTyping closed", nil, nil)
-			success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+			s.handler.Success(ctx, "stream_typing", codes.OK, "StreamTyping closed", nil, meta, req.GetConversationId(), nil)
 			return nil
 		case msg, ok := <-ch:
 			if !ok {
 				err := graceful.WrapErr(ctx, codes.Unavailable, "Redis pubsub channel closed", nil)
-				var ce *graceful.ContextError
-				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-				}
+				s.handler.Error(ctx, "stream_typing", codes.Unavailable, "Redis pubsub channel closed", err, nil, req.GetConversationId())
 				return graceful.ToStatusError(err)
 			}
 			var event messagingpb.TypingEvent
@@ -666,10 +651,7 @@ func (s *Service) StreamTyping(req *messagingpb.StreamTypingRequest, srv messagi
 			}
 			if err := srv.Send(&event); err != nil {
 				err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during event send", err)
-				var ce *graceful.ContextError
-				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-				}
+				s.handler.Error(ctx, "stream_typing", codes.Canceled, "client disconnected during event send", err, nil, req.GetConversationId())
 				return graceful.ToStatusError(err)
 			}
 		}
@@ -718,16 +700,12 @@ func (s *Service) StreamPresence(req *messagingpb.StreamPresenceRequest, srv mes
 		select {
 		case <-ctx.Done():
 			meta := &commonpb.Metadata{ServiceSpecific: metadata.NewStructFromMap(map[string]interface{}{"stream": "StreamPresence closed by client"}, nil)}
-			success := graceful.WrapSuccess(ctx, codes.OK, "StreamPresence closed", nil, nil)
-			success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+			s.handler.Success(ctx, "stream_presence", codes.OK, "StreamPresence closed", nil, meta, req.GetUserId(), nil)
 			return nil
 		case msg, ok := <-ch:
 			if !ok {
 				err := graceful.WrapErr(ctx, codes.Unavailable, "Redis pubsub channel closed", nil)
-				var ce *graceful.ContextError
-				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-				}
+				s.handler.Error(ctx, "stream_presence", codes.Unavailable, "Redis pubsub channel closed", err, nil, req.GetUserId())
 				return graceful.ToStatusError(err)
 			}
 			var event messagingpb.PresenceEvent
@@ -737,10 +715,7 @@ func (s *Service) StreamPresence(req *messagingpb.StreamPresenceRequest, srv mes
 			}
 			if err := srv.Send(&event); err != nil {
 				err = graceful.WrapErr(ctx, codes.Canceled, "client disconnected during event send", err)
-				var ce *graceful.ContextError
-				if errors.As(err, &ce) {
-					ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-				}
+				s.handler.Error(ctx, "stream_presence", codes.Canceled, "client disconnected during event send", err, nil, req.GetUserId())
 				return graceful.ToStatusError(err)
 			}
 		}
@@ -751,10 +726,7 @@ func (s *Service) MarkAsRead(ctx context.Context, req *messagingpb.MarkAsReadReq
 	successVal, err := s.repo.MarkAsRead(ctx, req)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to mark as read", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "mark_as_read", codes.Internal, "failed to mark as read", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := &commonpb.Metadata{
@@ -764,8 +736,7 @@ func (s *Service) MarkAsRead(ctx context.Context, req *messagingpb.MarkAsReadReq
 		}, nil),
 	}
 	resp := &messagingpb.MarkAsReadResponse{Success: successVal}
-	success := graceful.WrapSuccess(ctx, codes.OK, "message marked as read", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "mark_as_read", codes.OK, "message marked as read", resp, meta, req.GetUserId(), nil)
 	return resp, nil
 }
 
@@ -773,10 +744,7 @@ func (s *Service) MarkAsDelivered(ctx context.Context, req *messagingpb.MarkAsDe
 	successVal, err := s.repo.MarkAsDelivered(ctx, req)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to mark as delivered", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "mark_as_delivered", codes.Internal, "failed to mark as delivered", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := &commonpb.Metadata{
@@ -786,8 +754,7 @@ func (s *Service) MarkAsDelivered(ctx context.Context, req *messagingpb.MarkAsDe
 		}, nil),
 	}
 	resp := &messagingpb.MarkAsDeliveredResponse{Success: successVal}
-	success := graceful.WrapSuccess(ctx, codes.OK, "message marked as delivered", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "mark_as_delivered", codes.OK, "message marked as delivered", resp, meta, req.GetUserId(), nil)
 	return resp, nil
 }
 
@@ -795,10 +762,7 @@ func (s *Service) AcknowledgeMessage(ctx context.Context, req *messagingpb.Ackno
 	successVal, err := s.repo.AcknowledgeMessage(ctx, req)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to acknowledge message", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "acknowledge_message", codes.Internal, "failed to acknowledge message", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := &commonpb.Metadata{
@@ -808,8 +772,7 @@ func (s *Service) AcknowledgeMessage(ctx context.Context, req *messagingpb.Ackno
 		}, nil),
 	}
 	resp := &messagingpb.AcknowledgeMessageResponse{Success: successVal}
-	success := graceful.WrapSuccess(ctx, codes.OK, "message acknowledged", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "acknowledge_message", codes.OK, "message acknowledged", resp, meta, req.GetUserId(), nil)
 	return resp, nil
 }
 
@@ -817,10 +780,7 @@ func (s *Service) CreateChatGroup(ctx context.Context, req *messagingpb.CreateCh
 	group, err := s.repo.CreateChatGroupWithRequest(ctx, req)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to create chat group", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "create_chat_group", codes.Internal, "failed to create chat group", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := &commonpb.Metadata{
@@ -829,8 +789,7 @@ func (s *Service) CreateChatGroup(ctx context.Context, req *messagingpb.CreateCh
 		}, nil),
 	}
 	resp := &messagingpb.CreateChatGroupResponse{ChatGroup: mapRepoChatGroupToProto(group)}
-	success := graceful.WrapSuccess(ctx, codes.OK, "chat group created", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "create_chat_group", codes.OK, "chat group created", resp, meta, "", nil)
 	return resp, nil
 }
 
@@ -838,10 +797,7 @@ func (s *Service) AddChatGroupMember(ctx context.Context, req *messagingpb.AddCh
 	group, err := s.repo.AddChatGroupMember(ctx, req)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to add chat group member", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "add_chat_group_member", codes.Internal, "failed to add chat group member", err, nil, req.UserId)
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := &commonpb.Metadata{
@@ -851,8 +807,7 @@ func (s *Service) AddChatGroupMember(ctx context.Context, req *messagingpb.AddCh
 		}, nil),
 	}
 	resp := &messagingpb.AddChatGroupMemberResponse{ChatGroup: mapRepoChatGroupToProto(group)}
-	success := graceful.WrapSuccess(ctx, codes.OK, "chat group member added", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "add_chat_group_member", codes.OK, "chat group member added", resp, meta, req.UserId, nil)
 	return resp, nil
 }
 
@@ -860,10 +815,7 @@ func (s *Service) RemoveChatGroupMember(ctx context.Context, req *messagingpb.Re
 	group, err := s.repo.RemoveChatGroupMember(ctx, req)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to remove chat group member", err)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "remove_chat_group_member", codes.Internal, "failed to remove chat group member", err, nil, req.UserId)
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := &commonpb.Metadata{
@@ -873,8 +825,7 @@ func (s *Service) RemoveChatGroupMember(ctx context.Context, req *messagingpb.Re
 		}, nil),
 	}
 	resp := &messagingpb.RemoveChatGroupMemberResponse{ChatGroup: mapRepoChatGroupToProto(group)}
-	success := graceful.WrapSuccess(ctx, codes.OK, "chat group member removed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "remove_chat_group_member", codes.OK, "chat group member removed", resp, meta, req.UserId, nil)
 	return resp, nil
 }
 
@@ -883,10 +834,7 @@ func (s *Service) ListChatGroupMembers(ctx context.Context, req *messagingpb.Lis
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.NotFound, "chat group not found", err)
 		s.log.Warn("failed to fetch chat group", zap.Error(err))
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "list_chat_group_members", codes.NotFound, "chat group not found", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	members := group.MemberIDs
@@ -926,38 +874,28 @@ func (s *Service) ListChatGroupMembers(ctx context.Context, req *messagingpb.Lis
 		Page:       utils.ToInt32(page),
 		TotalPages: utils.ToInt32(totalPages),
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "chat group members listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "list_chat_group_members", codes.OK, "chat group members listed", resp, meta, "", nil)
 	return resp, nil
 }
 
 func (s *Service) UpdateMessagingPreferences(ctx context.Context, req *messagingpb.UpdateMessagingPreferencesRequest) (*messagingpb.UpdateMessagingPreferencesResponse, error) {
 	if req.UserId == "" || req.Preferences == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "user_id and preferences required", nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "update_messaging_preferences", codes.InvalidArgument, "user_id and preferences required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	err := s.repo.UpdateMessagingPreferences(ctx, req.UserId, req.Preferences)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to update preferences", err)
 		s.log.Warn("failed to update messaging preferences", zap.Error(err))
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "update_messaging_preferences", codes.Internal, "failed to update preferences", err, nil, req.UserId)
 		return nil, graceful.ToStatusError(err)
 	}
 	prefs, updatedAt, err := s.repo.GetMessagingPreferences(ctx, req.UserId)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to fetch updated preferences", err)
 		s.log.Warn("failed to fetch updated preferences", zap.Error(err))
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "update_messaging_preferences", codes.Internal, "failed to fetch updated preferences", err, nil, req.UserId)
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := &commonpb.Metadata{
@@ -969,18 +907,14 @@ func (s *Service) UpdateMessagingPreferences(ctx context.Context, req *messaging
 		Preferences: prefs,
 		UpdatedAt:   updatedAt,
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "messaging preferences updated", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "update_messaging_preferences", codes.OK, "messaging preferences updated", resp, meta, req.UserId, nil)
 	return resp, nil
 }
 
 func (s *Service) ListMessageEvents(ctx context.Context, req *messagingpb.ListMessageEventsRequest) (*messagingpb.ListMessageEventsResponse, error) {
 	if req.UserId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "user_id required", nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "list_message_events", codes.InvalidArgument, "user_id required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	pageSize := int(req.PageSize)
@@ -996,10 +930,7 @@ func (s *Service) ListMessageEvents(ctx context.Context, req *messagingpb.ListMe
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to list message events", err)
 		s.log.Warn("failed to list message events", zap.Error(err))
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
+		s.handler.Error(ctx, "list_message_events", codes.Internal, "failed to list message events", err, nil, req.UserId)
 		return nil, graceful.ToStatusError(err)
 	}
 	protoEvents := make([]*messagingpb.MessageEvent, 0, len(msgEvents))
@@ -1024,7 +955,6 @@ func (s *Service) ListMessageEvents(ctx context.Context, req *messagingpb.ListMe
 		Page:       utils.ToInt32(page),
 		TotalPages: utils.ToInt32(totalPages),
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "message events listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{Log: s.log, Metadata: meta})
+	s.handler.Success(ctx, "list_message_events", codes.OK, "message events listed", resp, meta, req.UserId, nil)
 	return resp, nil
 }

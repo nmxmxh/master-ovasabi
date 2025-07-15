@@ -2,29 +2,22 @@
 
 ## Overview
 
-This document defines the canonical standards for event, channel, and key naming across all communication layers in the OVASABI platform. These standards ensure consistency, observability, and maintainability for all services, including their integration with the `graceful` orchestration framework.
+Defines canonical standards for event, channel, and key naming, event routing, and orchestration across all OVASABI services. All services must use centralized orchestration via `graceful.Handler`, generic action handler patterns, and provider-driven event registration.
 
 ---
 
 ## 1. Canonical Event Type Format
 
-All events, channels, and keys MUST use the following format:
+All events, channels, and keys MUST use:
 
 ```text
 {service}:{action}:v{version}:{state}
 ```
 
-- **service**: The normalized service name (e.g., `search`, `user`, `media`).
-- **action**: The snake_case method or action name (e.g., `search`, `suggest`, `create_user`).
-- **version**: The API/service version (e.g., `v1`).
-- **state**: One of a controlled set of states (see below).
-
-### Example Event Types
-
-- `search:search:v1:requested`
-- `search:search:v1:success`
-- `search:suggest:v1:failed`
-- `user:create_user:v1:completed`
+- **service**: Normalized service name (e.g., `search`, `user`)
+- **action**: Snake_case method/action name (e.g., `search`, `suggest`)
+- **version**: API/service version (e.g., `v1`)
+- **state**: Controlled vocabulary: `requested`, `started`, `success`, `failed`, `completed`
 
 ---
 
@@ -44,6 +37,9 @@ All event types and keys must use one of the following states:
 
 - **Event Bus (Nexus/Redis/NATS):**
   - Use the canonical event type as the channel/topic name.
+  - Event bus routes events to subscribers based on explicit event type registration.
+  - Only relevant handlers receive events, preventing cross-action processing.
+  - Defensive filtering is implemented in backend handlers.
 - **Redis Keys:**
   - Use `{event_type}:{id}` for data keys (e.g., `search:search:v1:success:12345`).
   - Use the event type alone for pub/sub channels.
@@ -91,8 +87,9 @@ All event types and keys must use one of the following states:
 
 ## 9. Integration with `graceful`
 
-- All orchestration, error handling, and state transitions in `graceful` must use canonical event types and key patterns.
-- Graceful workflows should emit and listen for events using the `{service}:{action}:v{version}:{state}` format.
+- All event emission, error handling, and state transitions use the handler, which emits canonical envelopes and logs all actions.
+- Legacy event emission methods are removed; only `EmitEventEnvelopeWithLogging` is used.
+- Handler is injected into all services and orchestrates all event flows.
 
 ---
 
@@ -107,7 +104,7 @@ All event types and keys must use one of the following states:
 
 ## 11. Auto-Generated Reference
 
-- See `events/constants.go` and `events/event_types.json` for the full list of valid event types and key patterns.
+- See registry-generated constants, `events/constants.go`, and `events/event_types.json` for valid event types and key patterns.
 
 ---
 

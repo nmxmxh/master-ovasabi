@@ -29,6 +29,8 @@ import (
 	"context"
 	"database/sql"
 
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+
 	waitlistpb "github.com/nmxmxh/master-ovasabi/api/protos/waitlist/v1"
 	repositorypkg "github.com/nmxmxh/master-ovasabi/internal/repository"
 	servicepkg "github.com/nmxmxh/master-ovasabi/internal/service"
@@ -85,10 +87,19 @@ func Register(
 
 	svc := NewService(log, repository, cache, eventEmitter, eventEnabled)
 
+	// Register gRPC interface for waitlist service
 	if err := container.Register((*waitlistpb.WaitlistServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return svc, nil
 	}); err != nil {
 		log.With(zap.String("service", "waitlist")).Error("Failed to register waitlist service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		return err
+	}
+
+	// Register the concrete *Service type for direct resolution (e.g., in event handlers)
+	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
+		return svc, nil
+	}); err != nil {
+		log.With(zap.String("service", "waitlist")).Error("Failed to register concrete *waitlist.Service", zap.Error(err), zap.String("context", ctxValue(ctx)))
 		return err
 	}
 
@@ -108,8 +119,27 @@ func Register(
 		return err
 	}
 
+	// Canonical registry-driven event orchestration
 	prov, ok := provider.(*servicepkg.Provider)
 	if ok && prov != nil {
+		eventTypes := loadWaitlistEvents()
+		err := prov.SubscribeEvents(ctx, eventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+			// Canonical per-action routing: parse event type, route to handler
+			if event == nil {
+				log.Warn("Received nil event in waitlist event handler")
+				return
+			}
+			// Use event.EventType as canonical event type
+			result, err := RouteEventToActionHandler(ctx, svc, event.EventType, event.Payload)
+			if err != nil {
+				log.Error("Waitlist event handler error", zap.String("event_type", event.EventType), zap.Error(err))
+			} else {
+				log.Info("Waitlist event handled", zap.String("event_type", event.EventType), zap.Any("result", result))
+			}
+		})
+		if err != nil {
+			log.With(zap.String("service", "waitlist")).Error("Failed to subscribe to waitlist events", zap.Error(err))
+		}
 		hello.StartHelloWorldLoop(ctx, prov, log, "waitlist")
 	}
 

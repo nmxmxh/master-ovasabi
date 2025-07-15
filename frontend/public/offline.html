@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OVASABI - Offline</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
+          'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+
+      .offline-container {
+        max-width: 500px;
+        padding: 2rem;
+      }
+
+      .offline-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 2rem;
+        background: #6366f1;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+      }
+
+      h1 {
+        margin: 0 0 1rem;
+        color: #6366f1;
+        font-size: 2.5rem;
+        font-weight: 700;
+      }
+
+      p {
+        margin: 0 0 2rem;
+        color: #a1a1aa;
+        line-height: 1.6;
+        font-size: 1.1rem;
+      }
+
+      .retry-button {
+        background: #6366f1;
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      .retry-button:hover {
+        background: #5855eb;
+      }
+
+      .offline-features {
+        margin-top: 3rem;
+        text-align: left;
+      }
+
+      .feature {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        color: #d1d5db;
+      }
+
+      .feature-icon {
+        width: 20px;
+        height: 20px;
+        margin-right: 12px;
+        background: #10b981;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="offline-container">
+      <div class="offline-icon">📡</div>
+      <h1>You're Offline</h1>
+      <p>
+        No internet connection detected. Don't worry - OVASABI works offline too! Some features are
+        still available while you're disconnected.
+      </p>
+
+      <button class="retry-button" onclick="window.location.reload()">Try Again</button>
+
+      <div class="offline-features">
+        <div class="feature">
+          <div class="feature-icon">✓</div>
+          <span>View cached content and media</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">✓</div>
+          <span>Access previously loaded campaigns</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">✓</div>
+          <span>Use WASM-powered tools locally</span>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">✓</div>
+          <span>Changes sync when reconnected</span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Check for connectivity changes
+      window.addEventListener('online', () => {
+        console.log('Connection restored');
+        window.location.reload();
+      });
+
+      // Show connection status
+      if (navigator.onLine) {
+        window.location.reload();
+      }
+    </script>
+  </body>
+</html>

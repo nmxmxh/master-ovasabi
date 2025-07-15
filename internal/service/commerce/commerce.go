@@ -8,6 +8,7 @@ import (
 	"time"
 
 	commercepb "github.com/nmxmxh/master-ovasabi/api/protos/commerce/v1"
+	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
@@ -15,9 +16,344 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func handleQuoteAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "create":
+		var req commercepb.CreateQuoteRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal quote create event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.CreateQuote(ctx, &req)
+	case "update":
+		// Implement update logic if needed
+	case "delete":
+		// Implement delete logic if needed
+	}
+}
+
+func handleOrderAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "create":
+		var req commercepb.CreateOrderRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal order create event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.CreateOrder(ctx, &req)
+	case "update":
+		var req commercepb.UpdateOrderStatusRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal order update event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.UpdateOrderStatus(ctx, &req)
+	case "delete":
+		// Implement delete logic if needed
+	}
+}
+
+func handlePaymentAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "initiate":
+		var req commercepb.InitiatePaymentRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal payment initiate event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.InitiatePayment(ctx, &req)
+	case "confirm":
+		var req commercepb.ConfirmPaymentRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal payment confirm event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.ConfirmPayment(ctx, &req)
+	case "refund":
+		var req commercepb.RefundPaymentRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal payment refund event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.RefundPayment(ctx, &req)
+	}
+}
+
+func handleTransactionAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "get":
+		var req commercepb.GetTransactionRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal get transaction event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.GetTransaction(ctx, &req)
+	case "list":
+		var req commercepb.ListTransactionsRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal list transactions event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.ListTransactions(ctx, &req)
+	}
+}
+
+func handlePortfolioAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "get":
+		var req commercepb.GetPortfolioRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal get portfolio event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.GetPortfolio(ctx, &req)
+	case "list":
+		var req commercepb.ListPortfoliosRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal list portfolios event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.ListPortfolios(ctx, &req)
+	}
+}
+
+func handleListingAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "create":
+		var req commercepb.CreateListingRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal create listing event payload", zap.Error(err))
+				return
+			}
+		}
+		// svc.CreateListing(ctx, &req) // Implement CreateListing method
+	case "list":
+		var req commercepb.ListListingsRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal list listings event payload", zap.Error(err))
+				return
+			}
+		}
+		// svc.ListListings(ctx, &req) // Implement ListListings method
+	}
+}
+
+func handleBalanceAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "get":
+		var req commercepb.GetBalanceRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal get balance event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.GetBalance(ctx, &req)
+	case "list":
+		var req commercepb.ListBalancesRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal list balances event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.ListBalances(ctx, &req)
+	}
+}
+
+func handleAssetAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "list":
+		var req commercepb.ListAssetsRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal list assets event payload", zap.Error(err))
+				return
+			}
+		}
+		// svc.ListAssets(ctx, &req) // Implement ListAssets method
+	}
+}
+
+func handleExchangeRateAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "get":
+		var req commercepb.GetExchangeRateRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal get exchange rate event payload", zap.Error(err))
+				return
+			}
+		}
+		// svc.GetExchangeRate(ctx, &req) // Implement GetExchangeRate method
+	case "create":
+		var req commercepb.CreateExchangeRateRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal create exchange rate event payload", zap.Error(err))
+				return
+			}
+		}
+		// svc.CreateExchangeRate(ctx, &req) // Implement CreateExchangeRate method
+	}
+}
+
+func handleOfferAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "make":
+		var req commercepb.MakeOfferRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal make offer event payload", zap.Error(err))
+				return
+			}
+		}
+		// svc.MakeOffer(ctx, &req) // Implement MakeOffer method
+	}
+}
+
+func handleEventAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	_, state := parseActionAndState(event.GetEventType())
+	switch state {
+	case "list":
+		var req commercepb.ListEventsRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
+			}
+			if err != nil {
+				svc.log.Error("Failed to unmarshal list events event payload", zap.Error(err))
+				return
+			}
+		}
+		svc.ListEvents(ctx, &req)
+	}
+}
+
+// Register all canonical commerce action handlers
+func init() {
+	RegisterActionHandler("quote", handleQuoteAction)
+	RegisterActionHandler("order", handleOrderAction)
+	RegisterActionHandler("payment", handlePaymentAction)
+	RegisterActionHandler("transaction", handleTransactionAction)
+	RegisterActionHandler("portfolio", handlePortfolioAction)
+	RegisterActionHandler("listing", handleListingAction)
+	RegisterActionHandler("balance", handleBalanceAction)
+	RegisterActionHandler("asset", handleAssetAction)
+	RegisterActionHandler("exchange_rate", handleExchangeRateAction)
+	RegisterActionHandler("offer", handleOfferAction)
+	RegisterActionHandler("event", handleEventAction)
+}
 
 // Provider/DI Registration Pattern (Modern, Extensible, DRY)
 // ---------------------------------------------------------
@@ -32,6 +368,7 @@ type Service struct {
 	Cache        *redis.Cache
 	eventEmitter events.EventEmitter
 	eventEnabled bool
+	handler      *graceful.Handler
 }
 
 func NewService(log *zap.Logger, repo Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) commercepb.CommerceServiceServer {
@@ -45,6 +382,7 @@ func NewService(log *zap.Logger, repo Repository, cache *redis.Cache, eventEmitt
 		Cache:        cache,
 		eventEmitter: eventEmitter,
 		eventEnabled: eventEnabled,
+		handler:      graceful.NewHandler(log, eventEmitter, cache, "commerce", "v1", eventEnabled),
 	}
 }
 
@@ -116,10 +454,9 @@ func toTransactionStatus(s string) commercepb.TransactionStatus {
 }
 
 func (s *Service) CreateQuote(ctx context.Context, req *commercepb.CreateQuoteRequest) (*commercepb.CreateQuoteResponse, error) {
-	log := s.log.With(zap.String("operation", "create_quote"), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "create_quote", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := req.Metadata
@@ -136,8 +473,7 @@ func (s *Service) CreateQuote(ctx context.Context, req *commercepb.CreateQuoteRe
 		CampaignID: req.CampaignId,
 	}
 	if err := s.repo.CreateQuote(ctx, quote); err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create quote", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "create_quote", codes.Internal, "failed to create quote", err, meta, quote.QuoteID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.CreateQuoteResponse{
@@ -154,41 +490,25 @@ func (s *Service) CreateQuote(ctx context.Context, req *commercepb.CreateQuoteRe
 			CampaignId: quote.CampaignID,
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "quote created", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     quote.QuoteID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     quote.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.quote_created",
-		EventID:      quote.QuoteID,
-		PatternType:  "quote",
-		PatternID:    quote.QuoteID,
-		PatternMeta:  quote.Metadata,
-	})
+	s.handler.Success(ctx, "create_quote", codes.OK, "quote created", resp, quote.Metadata, quote.QuoteID, nil)
 	return resp, nil
 }
 
 func (s *Service) GetQuote(ctx context.Context, req *commercepb.GetQuoteRequest) (*commercepb.GetQuoteResponse, error) {
-	log := s.log.With(zap.String("operation", "get_quote"), zap.String("quote_id", req.GetQuoteId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_quote", codes.InvalidArgument, "request is required", err, nil, req.GetQuoteId())
 		return nil, graceful.ToStatusError(err)
 	}
 	quote, err := s.repo.GetQuote(ctx, req.QuoteId)
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to get quote", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_quote", codes.Internal, "failed to get quote", err, nil, req.GetQuoteId())
 		return nil, graceful.ToStatusError(err)
 	}
 	if quote == nil {
 		err := graceful.WrapErr(ctx, codes.NotFound, "quote not found", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_quote", codes.NotFound, "quote not found", err, nil, req.GetQuoteId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.GetQuoteResponse{
@@ -204,36 +524,20 @@ func (s *Service) GetQuote(ctx context.Context, req *commercepb.GetQuoteRequest)
 			UpdatedAt: timestamppb.New(quote.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "quote fetched", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     quote.QuoteID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     quote.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.quote_fetched",
-		EventID:      quote.QuoteID,
-		PatternType:  "quote",
-		PatternID:    quote.QuoteID,
-		PatternMeta:  quote.Metadata,
-	})
+	s.handler.Success(ctx, "get_quote", codes.OK, "quote fetched", resp, quote.Metadata, quote.QuoteID, nil)
 	return resp, nil
 }
 
 func (s *Service) ListQuotes(ctx context.Context, req *commercepb.ListQuotesRequest) (*commercepb.ListQuotesResponse, error) {
-	log := s.log.With(zap.String("operation", "list_quotes"), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "list_quotes", codes.InvalidArgument, "request is required", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	quotes, total, err := s.repo.ListQuotes(ctx, req.UserId, req.CampaignId, int(req.Page), int(req.PageSize))
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to list quotes", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "list_quotes", codes.Internal, "failed to list quotes", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.ListQuotesResponse{
@@ -253,28 +557,20 @@ func (s *Service) ListQuotes(ctx context.Context, req *commercepb.ListQuotesRequ
 			UpdatedAt: timestamppb.New(q.UpdatedAt),
 		}
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "quotes listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        log,
-		Cache:      s.Cache,
-		CacheKey:   fmt.Sprintf("quotes:user:%s", req.UserId),
-		CacheValue: resp,
-		CacheTTL:   5 * time.Minute,
-	})
+	s.handler.Success(ctx, "list_quotes", codes.OK, "quotes listed", resp, nil, req.GetUserId(), nil)
 	return resp, nil
 }
 
 // Reference: docs/amadeus/amadeus_context.md, section 'Canonical Metadata Integration Pattern (System-Wide)'.
 func (s *Service) CreateOrder(ctx context.Context, req *commercepb.CreateOrderRequest) (*commercepb.CreateOrderResponse, error) {
-	log := s.log.With(zap.String("operation", "create_order"), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "create_order", codes.InvalidArgument, "request is required", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.Metadata == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "metadata is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "create_order", codes.InvalidArgument, "metadata is required", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := req.Metadata
@@ -302,10 +598,8 @@ func (s *Service) CreateOrder(ctx context.Context, req *commercepb.CreateOrderRe
 	for _, item := range req.Items {
 		order.Total += item.Price * float64(item.Quantity)
 	}
-	if err := s.repo.CreateOrder(ctx, order, repoItems); err != nil { // Pass repoItems instead of nil
-		s.log.Error("failed to create order", zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create order", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+	if err := s.repo.CreateOrder(ctx, order, repoItems); err != nil {
+		s.handler.Error(ctx, "create_order", codes.Internal, "failed to create order", err, meta, orderID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.CreateOrderResponse{
@@ -321,48 +615,32 @@ func (s *Service) CreateOrder(ctx context.Context, req *commercepb.CreateOrderRe
 			UpdatedAt:  timestamppb.New(order.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "order created", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     order.OrderID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     order.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.order_created",
-		EventID:      order.OrderID,
-		PatternType:  "order",
-		PatternID:    order.OrderID,
-		PatternMeta:  order.Metadata,
-	})
+	s.handler.Success(ctx, "create_order", codes.OK, "order created", resp, order.Metadata, order.OrderID, nil)
 	return resp, nil
 }
 
 func (s *Service) GetOrder(ctx context.Context, req *commercepb.GetOrderRequest) (*commercepb.GetOrderResponse, error) {
-	log := s.log.With(zap.String("operation", "get_order"), zap.String("order_id", req.GetOrderId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_order", codes.InvalidArgument, "request is required", err, nil, req.GetOrderId())
 		return nil, graceful.ToStatusError(err)
 	}
 	order, err := s.repo.GetOrder(ctx, req.OrderId)
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to get order", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_order", codes.Internal, "failed to get order", err, nil, req.GetOrderId())
 		return nil, graceful.ToStatusError(err)
 	}
 	if order == nil {
 		err := graceful.WrapErr(ctx, codes.NotFound, "order not found", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_order", codes.NotFound, "order not found", err, nil, req.GetOrderId())
 		return nil, graceful.ToStatusError(err)
 	}
 	// Load order items
 	orderItems, err := s.repo.ListOrderItems(ctx, order.OrderID)
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to list order items", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:order:v1:failed", codes.Internal, "failed to list order items", err, nil, order.OrderID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.GetOrderResponse{
@@ -389,36 +667,20 @@ func (s *Service) GetOrder(ctx context.Context, req *commercepb.GetOrderRequest)
 			UpdatedAt: timestamppb.New(order.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "order fetched", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     order.OrderID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     order.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.order_fetched",
-		EventID:      order.OrderID,
-		PatternType:  "order",
-		PatternID:    order.OrderID,
-		PatternMeta:  order.Metadata,
-	})
+	s.handler.Success(ctx, "get_order", codes.OK, "order fetched", resp, order.Metadata, order.OrderID, nil)
 	return resp, nil
 }
 
 func (s *Service) ListOrders(ctx context.Context, req *commercepb.ListOrdersRequest) (*commercepb.ListOrdersResponse, error) {
-	log := s.log.With(zap.String("operation", "list_orders"), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "list_orders", codes.InvalidArgument, "request is required", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	orders, total, err := s.repo.ListOrders(ctx, req.UserId, req.CampaignId, int(req.Page), int(req.PageSize))
 	if err != nil {
 		err := graceful.WrapErr(ctx, codes.Internal, "failed to list orders", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "list_orders", codes.Internal, "failed to list orders", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.ListOrdersResponse{
@@ -438,14 +700,7 @@ func (s *Service) ListOrders(ctx context.Context, req *commercepb.ListOrdersRequ
 			UpdatedAt:  timestamppb.New(order.UpdatedAt),
 		}
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "orders listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        log,
-		Cache:      s.Cache,
-		CacheKey:   fmt.Sprintf("orders:user:%s", req.UserId),
-		CacheValue: resp,
-		CacheTTL:   5 * time.Minute,
-	})
+	s.handler.Success(ctx, "list_orders", codes.OK, "orders listed", resp, nil, req.GetUserId(), nil)
 	return resp, nil
 }
 
@@ -486,35 +741,19 @@ func (s *Service) UpdateOrderStatus(ctx context.Context, req *commercepb.UpdateO
 			UpdatedAt: timestamppb.New(order.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "order status updated", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     order.OrderID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     order.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.order_status_updated",
-		EventID:      order.OrderID,
-		PatternType:  "order",
-		PatternID:    order.OrderID,
-		PatternMeta:  order.Metadata,
-	})
+	s.handler.Success(ctx, "update_order_status", codes.OK, "order status updated", resp, order.Metadata, order.OrderID, nil)
 	return resp, nil
 }
 
 func (s *Service) InitiatePayment(ctx context.Context, req *commercepb.InitiatePaymentRequest) (*commercepb.InitiatePaymentResponse, error) {
-	log := s.log.With(zap.String("operation", "initiate_payment"), zap.String("order_id", req.GetOrderId()), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "initiate_payment", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.OrderId == "" || req.UserId == "" || req.Amount <= 0 || req.Currency == "" || req.Method == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "missing or invalid payment fields", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "initiate_payment", codes.InvalidArgument, "missing or invalid payment fields", err, nil, req.GetOrderId())
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := req.Metadata
@@ -532,8 +771,7 @@ func (s *Service) InitiatePayment(ctx context.Context, req *commercepb.InitiateP
 		CampaignID: req.CampaignId, // Pass CampaignId from request
 	}
 	if err := s.repo.CreatePayment(ctx, payment); err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create payment", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "initiate_payment", codes.Internal, "failed to create payment", err, meta, payment.PaymentID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.InitiatePaymentResponse{
@@ -551,48 +789,30 @@ func (s *Service) InitiatePayment(ctx context.Context, req *commercepb.InitiateP
 			UpdatedAt:  timestamppb.New(payment.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "payment initiated", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     payment.PaymentID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     payment.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.payment_initiated",
-		EventID:      payment.PaymentID,
-		PatternType:  "payment",
-		PatternID:    payment.PaymentID,
-		PatternMeta:  payment.Metadata,
-	})
+	s.handler.Success(ctx, "initiate_payment", codes.OK, "payment initiated", resp, payment.Metadata, payment.PaymentID, nil)
 	return resp, nil
 }
 
 func (s *Service) ConfirmPayment(ctx context.Context, req *commercepb.ConfirmPaymentRequest) (*commercepb.ConfirmPaymentResponse, error) {
-	log := s.log.With(zap.String("operation", "confirm_payment"), zap.String("payment_id", req.GetPaymentId()), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "confirm_payment", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.PaymentId == "" || req.UserId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "missing or invalid payment fields", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "confirm_payment", codes.InvalidArgument, "missing or invalid payment fields", err, nil, req.GetPaymentId())
 		return nil, graceful.ToStatusError(err)
 	}
 	_ = metadata.ExtractServiceVariables(req.Metadata, "commerce")
 	err := s.repo.UpdatePaymentStatus(ctx, req.PaymentId, "SUCCEEDED")
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to update payment status", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "confirm_payment", codes.Internal, "failed to update payment status", err, nil, req.GetPaymentId())
 		return nil, graceful.ToStatusError(err)
 	}
 	payment, err := s.repo.GetPayment(ctx, req.PaymentId)
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to fetch payment", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "confirm_payment", codes.Internal, "failed to fetch payment", err, nil, req.GetPaymentId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.ConfirmPaymentResponse{
@@ -610,48 +830,30 @@ func (s *Service) ConfirmPayment(ctx context.Context, req *commercepb.ConfirmPay
 			UpdatedAt:  timestamppb.New(payment.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "payment confirmed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     payment.PaymentID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     payment.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.payment_confirmed",
-		EventID:      payment.PaymentID,
-		PatternType:  "payment",
-		PatternID:    payment.PaymentID,
-		PatternMeta:  payment.Metadata,
-	})
+	s.handler.Success(ctx, "confirm_payment", codes.OK, "payment confirmed", resp, payment.Metadata, payment.PaymentID, nil)
 	return resp, nil
 }
 
 func (s *Service) RefundPayment(ctx context.Context, req *commercepb.RefundPaymentRequest) (*commercepb.RefundPaymentResponse, error) {
-	log := s.log.With(zap.String("operation", "refund_payment"), zap.String("payment_id", req.GetPaymentId()), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "refund_payment", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.PaymentId == "" || req.UserId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "missing or invalid payment fields", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "refund_payment", codes.InvalidArgument, "missing or invalid payment fields", err, nil, req.GetPaymentId())
 		return nil, graceful.ToStatusError(err)
 	}
 	_ = metadata.ExtractServiceVariables(req.Metadata, "commerce")
 	err := s.repo.UpdatePaymentStatus(ctx, req.PaymentId, "REFUNDED")
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to update payment status", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "refund_payment", codes.Internal, "failed to update payment status", err, nil, req.GetPaymentId())
 		return nil, graceful.ToStatusError(err)
 	}
 	payment, err := s.repo.GetPayment(ctx, req.PaymentId)
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to fetch payment", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "refund_payment", codes.Internal, "failed to fetch payment", err, nil, req.GetPaymentId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.RefundPaymentResponse{
@@ -669,46 +871,29 @@ func (s *Service) RefundPayment(ctx context.Context, req *commercepb.RefundPayme
 			UpdatedAt:  timestamppb.New(payment.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "payment refunded", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     payment.PaymentID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     payment.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.payment_refunded",
-		EventID:      payment.PaymentID,
-		PatternType:  "payment",
-		PatternID:    payment.PaymentID,
-		PatternMeta:  payment.Metadata,
-	})
+	s.handler.Success(ctx, "refund_payment", codes.OK, "payment refunded", resp, payment.Metadata, payment.PaymentID, nil)
 	return resp, nil
 }
 
 func (s *Service) GetTransaction(ctx context.Context, req *commercepb.GetTransactionRequest) (*commercepb.GetTransactionResponse, error) {
-	log := s.log.With(zap.String("operation", "get_transaction"), zap.String("transaction_id", req.GetTransactionId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_transaction", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.TransactionId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "transaction_id is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_transaction", codes.InvalidArgument, "transaction_id is required", err, nil, req.GetTransactionId())
 		return nil, graceful.ToStatusError(err)
 	}
 	transaction, err := s.repo.GetTransaction(ctx, req.TransactionId)
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to get transaction", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_transaction", codes.Internal, "failed to get transaction", err, nil, req.GetTransactionId())
 		return nil, graceful.ToStatusError(err)
 	}
 	if transaction == nil {
 		err := graceful.WrapErr(ctx, codes.NotFound, "transaction not found", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "get_transaction", codes.NotFound, "transaction not found", err, nil, req.GetTransactionId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.GetTransactionResponse{
@@ -726,35 +911,19 @@ func (s *Service) GetTransaction(ctx context.Context, req *commercepb.GetTransac
 			UpdatedAt:     timestamppb.New(transaction.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "transaction fetched", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     transaction.TransactionID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     transaction.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.transaction_fetched",
-		EventID:      transaction.TransactionID,
-		PatternType:  "transaction",
-		PatternID:    transaction.TransactionID,
-		PatternMeta:  transaction.Metadata,
-	})
+	s.handler.Success(ctx, "get_transaction", codes.OK, "transaction fetched", resp, transaction.Metadata, transaction.TransactionID, nil)
 	return resp, nil
 }
 
 func (s *Service) ListTransactions(ctx context.Context, req *commercepb.ListTransactionsRequest) (*commercepb.ListTransactionsResponse, error) {
-	log := s.log.With(zap.String("operation", "list_transactions"), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "list_transactions", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.UserId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "user_id is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "list_transactions", codes.InvalidArgument, "user_id is required", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	page := int(req.Page)
@@ -767,8 +936,7 @@ func (s *Service) ListTransactions(ctx context.Context, req *commercepb.ListTran
 	}
 	transactions, total, err := s.repo.ListTransactions(ctx, req.UserId, req.CampaignId, page, pageSize)
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list transactions", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "list_transactions", codes.Internal, "failed to list transactions", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.ListTransactionsResponse{
@@ -790,14 +958,7 @@ func (s *Service) ListTransactions(ctx context.Context, req *commercepb.ListTran
 			UpdatedAt:     timestamppb.New(tx.UpdatedAt),
 		}
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "transactions listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        log,
-		Cache:      s.Cache,
-		CacheKey:   fmt.Sprintf("transactions:user:%s", req.UserId),
-		CacheValue: resp,
-		CacheTTL:   5 * time.Minute,
-	})
+	s.handler.Success(ctx, "list_transactions", codes.OK, "transactions listed", resp, nil, req.GetUserId(), nil)
 	return resp, nil
 }
 
@@ -834,41 +995,24 @@ func (s *Service) GetBalance(ctx context.Context, req *commercepb.GetBalanceRequ
 			CampaignId: balance.CampaignID, // Include CampaignId in response
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "balance fetched", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     fmt.Sprintf("balance:user:%s:currency:%s", req.GetUserId(), req.GetCurrency()),
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     balance.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.balance_fetched",
-		EventID:      balance.UserID + ":" + balance.Currency,
-		PatternType:  "balance",
-		PatternID:    balance.UserID + ":" + balance.Currency,
-		PatternMeta:  balance.Metadata,
-	})
+	s.handler.Success(ctx, "get_balance", codes.OK, "balance fetched", resp, balance.Metadata, balance.UserID+":"+balance.Currency, nil)
 	return resp, nil
 }
 
 func (s *Service) ListBalances(ctx context.Context, req *commercepb.ListBalancesRequest) (*commercepb.ListBalancesResponse, error) {
-	log := s.log.With(zap.String("operation", "list_balances"), zap.String("user_id", req.GetUserId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:balance:v1:failed", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.UserId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "user_id is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:balance:v1:failed", codes.InvalidArgument, "user_id is required", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	balances, err := s.repo.ListBalances(ctx, req.UserId)
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list balances", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:balance:v1:failed", codes.Internal, "failed to list balances", err, nil, req.GetUserId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.ListBalancesResponse{
@@ -884,27 +1028,19 @@ func (s *Service) ListBalances(ctx context.Context, req *commercepb.ListBalances
 			CampaignId: b.CampaignID, // Include CampaignId in response
 		}
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "balances listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        log,
-		Cache:      s.Cache,
-		CacheKey:   fmt.Sprintf("balances:user:%s", req.GetUserId()),
-		CacheValue: resp,
-		CacheTTL:   5 * time.Minute,
-	})
+	s.handler.Success(ctx, "list_balances", codes.OK, "balances listed", resp, nil, req.GetUserId(), nil)
 	return resp, nil
 }
 
 func (s *Service) ListEvents(ctx context.Context, req *commercepb.ListEventsRequest) (*commercepb.ListEventsResponse, error) {
-	log := s.log.With(zap.String("operation", "list_events"), zap.String("entity_id", req.GetEntityId()), zap.String("entity_type", req.GetEntityType()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:list_events:v1:failed", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.EntityId == "" || req.EntityType == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "entity_id and entity_type are required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:list_events:v1:failed", codes.InvalidArgument, "entity_id and entity_type are required", err, nil, req.GetEntityId())
 		return nil, graceful.ToStatusError(err)
 	}
 	page := int(req.Page)
@@ -917,8 +1053,7 @@ func (s *Service) ListEvents(ctx context.Context, req *commercepb.ListEventsRequ
 	}
 	eventList, total, err := s.repo.ListEvents(ctx, req.EntityId, req.EntityType, req.CampaignId, page, pageSize) // Pass CampaignId
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list events", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:list_events:v1:failed", codes.Internal, "failed to list events", err, nil, req.GetEntityId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.ListEventsResponse{
@@ -937,28 +1072,20 @@ func (s *Service) ListEvents(ctx context.Context, req *commercepb.ListEventsRequ
 			Metadata:   e.Metadata,
 		}
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "events listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        log,
-		Cache:      s.Cache,
-		CacheKey:   fmt.Sprintf("events:entity:%s:type:%s", req.GetEntityId(), req.GetEntityType()),
-		CacheValue: resp,
-		CacheTTL:   5 * time.Minute,
-	})
+	s.handler.Success(ctx, "list_events", codes.OK, "events listed", resp, nil, req.GetEntityId(), nil)
 	return resp, nil
 }
 
 // --- Investment ---.
 func (s *Service) CreateInvestmentAccount(ctx context.Context, req *commercepb.CreateInvestmentAccountRequest) (*commercepb.CreateInvestmentAccountResponse, error) {
-	log := s.log.With(zap.String("operation", "create_investment_account"), zap.String("owner_id", req.GetOwnerId()), zap.String("currency", req.GetCurrency()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:investment_account:v1:failed", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.OwnerId == "" || req.Currency == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "owner_id and currency are required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:investment_account:v1:failed", codes.InvalidArgument, "owner_id and currency are required", err, nil, req.GetOwnerId())
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := req.Metadata
@@ -975,8 +1102,7 @@ func (s *Service) CreateInvestmentAccount(ctx context.Context, req *commercepb.C
 		UpdatedAt:  time.Now(),
 	}
 	if err := s.repo.CreateInvestmentAccount(ctx, account); err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create investment account", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "create_investment_account", codes.Internal, "failed to create investment account", err, meta, accountID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.CreateInvestmentAccountResponse{
@@ -990,35 +1116,19 @@ func (s *Service) CreateInvestmentAccount(ctx context.Context, req *commercepb.C
 			Metadata:   account.Metadata,
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "investment account created", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     account.AccountID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     account.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.investment_account_created",
-		EventID:      account.AccountID,
-		PatternType:  "investment_account",
-		PatternID:    account.AccountID,
-		PatternMeta:  account.Metadata,
-	})
+	s.handler.Success(ctx, "create_investment_account", codes.OK, "investment account created", resp, account.Metadata, account.AccountID, nil)
 	return resp, nil
 }
 
 func (s *Service) PlaceInvestmentOrder(ctx context.Context, req *commercepb.PlaceInvestmentOrderRequest) (*commercepb.PlaceInvestmentOrderResponse, error) {
-	log := s.log.With(zap.String("operation", "place_investment_order"), zap.String("account_id", req.GetAccountId()), zap.String("asset_id", req.GetAssetId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:investment_order:v1:failed", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.AccountId == "" || req.AssetId == "" || req.Quantity <= 0 || req.Price <= 0 || req.OrderType == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "account_id, asset_id, quantity, price, and order_type are required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:investment_order:v1:failed", codes.InvalidArgument, "account_id, asset_id, quantity, price, and order_type are required", err, nil, req.GetAccountId())
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := req.Metadata
@@ -1037,8 +1147,7 @@ func (s *Service) PlaceInvestmentOrder(ctx context.Context, req *commercepb.Plac
 		UpdatedAt:  time.Now(),
 	}
 	if err := s.repo.CreateInvestmentOrder(ctx, order); err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create investment order", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "place_investment_order", codes.Internal, "failed to create investment order", err, meta, orderID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.PlaceInvestmentOrderResponse{
@@ -1055,43 +1164,23 @@ func (s *Service) PlaceInvestmentOrder(ctx context.Context, req *commercepb.Plac
 			CreatedAt:  timestamppb.New(order.CreatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "investment order placed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     order.OrderID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     order.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.investment_order_placed",
-		EventID:      order.OrderID,
-		PatternType:  "investment_order",
-		PatternID:    order.OrderID,
-		PatternMeta:  order.Metadata,
-	})
+	s.handler.Success(ctx, "place_investment_order", codes.OK, "investment order placed", resp, order.Metadata, order.OrderID, nil)
 	return resp, nil
 }
 
 func (s *Service) GetPortfolio(ctx context.Context, req *commercepb.GetPortfolioRequest) (*commercepb.GetPortfolioResponse, error) {
-	log := s.log.With(zap.String("operation", "get_portfolio"), zap.String("portfolio_id", req.GetPortfolioId()))
 	if req == nil || req.PortfolioId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "portfolio_id is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:portfolio:v1:failed", codes.InvalidArgument, "portfolio_id is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	portfolio, err := s.repo.GetPortfolio(ctx, req.PortfolioId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			log.Warn("portfolio not found", zap.String("portfolio_id", req.GetPortfolioId()))
-			err := graceful.WrapErr(ctx, codes.NotFound, "portfolio not found", err)
-			err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+			s.handler.Error(ctx, "commerce:portfolio:v1:failed", codes.NotFound, "portfolio not found", err, nil, req.GetPortfolioId())
 			return nil, graceful.ToStatusError(err)
 		}
-		log.Error("failed to get portfolio", zap.String("portfolio_id", req.GetPortfolioId()), zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to get portfolio", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:portfolio:v1:failed", codes.Internal, "failed to get portfolio", err, nil, req.GetPortfolioId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.GetPortfolioResponse{
@@ -1104,44 +1193,24 @@ func (s *Service) GetPortfolio(ctx context.Context, req *commercepb.GetPortfolio
 			UpdatedAt:   timestamppb.New(portfolio.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "portfolio fetched", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     portfolio.PortfolioID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     portfolio.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.portfolio_fetched",
-		EventID:      portfolio.PortfolioID,
-		PatternType:  "portfolio",
-		PatternID:    portfolio.PortfolioID,
-		PatternMeta:  portfolio.Metadata,
-	})
+	s.handler.Success(ctx, "get_portfolio", codes.OK, "portfolio fetched", resp, portfolio.Metadata, portfolio.PortfolioID, nil)
 	return resp, nil
 }
 
 // --- Investment/Account/Asset Service Methods ---.
 func (s *Service) GetInvestmentAccount(ctx context.Context, req *commercepb.GetInvestmentAccountRequest) (*commercepb.GetInvestmentAccountResponse, error) {
-	log := s.log.With(zap.String("operation", "get_investment_account"), zap.String("account_id", req.GetAccountId()))
 	if req == nil || req.AccountId == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "account_id is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:investment_account:v1:failed", codes.InvalidArgument, "account_id is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	account, err := s.repo.GetInvestmentAccount(ctx, req.AccountId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			log.Warn("investment account not found", zap.String("account_id", req.GetAccountId()))
-			err := graceful.WrapErr(ctx, codes.NotFound, "investment account not found", err)
-			err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+			s.handler.Error(ctx, "commerce:investment_account:v1:failed", codes.NotFound, "investment account not found", err, nil, req.GetAccountId())
 			return nil, graceful.ToStatusError(err)
 		}
-		log.Error("failed to get investment account", zap.String("account_id", req.GetAccountId()), zap.Error(err))
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to get investment account", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:investment_account:v1:failed", codes.Internal, "failed to get investment account", err, nil, req.GetAccountId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.GetInvestmentAccountResponse{
@@ -1157,36 +1226,19 @@ func (s *Service) GetInvestmentAccount(ctx context.Context, req *commercepb.GetI
 			UpdatedAt:  timestamppb.New(account.UpdatedAt),
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "investment account fetched", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     account.AccountID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     account.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.investment_account_fetched",
-		EventID:      account.AccountID,
-		PatternType:  "investment_account",
-		PatternID:    account.AccountID,
-		PatternMeta:  account.Metadata,
-	})
+	s.handler.Success(ctx, "get_investment_account", codes.OK, "investment account fetched", resp, account.Metadata, account.AccountID, nil)
 	return resp, nil
 }
 
-func (s *Service) ListPortfolios(ctx context.Context, req *commercepb.ListPortfoliosRequest) (*commercepb.ListPortfoliosResponse, error) { // Updated signature
-	log := s.log.With(zap.String("operation", "list_portfolios"), zap.String("account_id", req.GetAccountId()), zap.Int64("campaign_id", req.GetCampaignId()))
-	if req == nil || req.AccountId == "" || req.CampaignId == 0 { // Added CampaignId check
-		err := graceful.WrapErr(ctx, codes.InvalidArgument, "account_id and campaign_id are required", nil) // Updated error message
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+func (s *Service) ListPortfolios(ctx context.Context, req *commercepb.ListPortfoliosRequest) (*commercepb.ListPortfoliosResponse, error) {
+	if req == nil || req.AccountId == "" || req.CampaignId == 0 {
+		err := graceful.WrapErr(ctx, codes.InvalidArgument, "account_id and campaign_id are required", nil)
+		s.handler.Error(ctx, "commerce:portfolio:v1:failed", codes.InvalidArgument, "account_id and campaign_id are required", err, nil, req.GetAccountId())
 		return nil, graceful.ToStatusError(err)
 	}
-	portfolios, err := s.repo.ListPortfolios(ctx, req.AccountId, req.CampaignId) // Pass campaignID to repo
+	portfolios, err := s.repo.ListPortfolios(ctx, req.AccountId, req.CampaignId)
 	if err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to list portfolios", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:portfolio:v1:failed", codes.Internal, "failed to list portfolios", err, nil, req.GetAccountId())
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.ListPortfoliosResponse{
@@ -1202,14 +1254,7 @@ func (s *Service) ListPortfolios(ctx context.Context, req *commercepb.ListPortfo
 			UpdatedAt:   timestamppb.New(p.UpdatedAt),
 		}
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "portfolios listed", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:        log,
-		Cache:      s.Cache,
-		CacheKey:   fmt.Sprintf("portfolios:account:%s", req.GetAccountId()),
-		CacheValue: resp,
-		CacheTTL:   5 * time.Minute,
-	})
+	s.handler.Success(ctx, "list_portfolios", codes.OK, "portfolios listed", resp, nil, req.GetAccountId(), nil)
 	return resp, nil
 }
 
@@ -1222,27 +1267,25 @@ func toProtoStruct(payload map[string]interface{}) *structpb.Struct {
 }
 
 func (s *Service) CreateExchangePair(ctx context.Context, req *commercepb.CreateExchangePairRequest) (*commercepb.CreateExchangePairResponse, error) {
-	log := s.log.With(zap.String("operation", "create_exchange_pair"), zap.String("pair_id", req.GetPairId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:exchange_pair:v1:failed", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.PairId == "" || req.BaseAsset == "" || req.QuoteAsset == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "pair_id, base_asset, and quote_asset are required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:exchange_pair:v1:failed", codes.InvalidArgument, "pair_id, base_asset, and quote_asset are required", err, nil, req.GetPairId())
 		return nil, graceful.ToStatusError(err)
 	}
 	meta := req.Metadata
-	pair := &ExchangePair{ // Removed MasterID: 0
+	pair := &ExchangePair{
 		PairID:     req.PairId,
 		BaseAsset:  req.BaseAsset,
 		QuoteAsset: req.QuoteAsset,
 		Metadata:   meta,
 	}
 	if err := s.repo.CreateExchangePair(ctx, pair); err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create exchange pair", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "create_exchange_pair", codes.Internal, "failed to create exchange pair", err, meta, pair.PairID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.CreateExchangePairResponse{
@@ -1254,44 +1297,27 @@ func (s *Service) CreateExchangePair(ctx context.Context, req *commercepb.Create
 			Metadata:   pair.Metadata,
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "exchange pair created", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     pair.PairID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     pair.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.exchange_pair_created",
-		EventID:      pair.PairID,
-		PatternType:  "exchange_pair",
-		PatternID:    pair.PairID,
-		PatternMeta:  pair.Metadata,
-	})
+	s.handler.Success(ctx, "create_exchange_pair", codes.OK, "exchange pair created", resp, pair.Metadata, pair.PairID, nil)
 	return resp, nil
 }
 
 func (s *Service) CreateExchangeRate(ctx context.Context, req *commercepb.CreateExchangeRateRequest) (*commercepb.CreateExchangeRateResponse, error) {
-	log := s.log.With(zap.String("operation", "create_exchange_rate"), zap.String("pair_id", req.GetPairId()))
 	if req == nil {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "request is required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:exchange_rate:v1:failed", codes.InvalidArgument, "request is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if req.PairId == "" || req.Rate == 0 {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "pair_id and rate are required", nil)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "commerce:exchange_rate:v1:failed", codes.InvalidArgument, "pair_id and rate are required", err, nil, req.GetPairId())
 		return nil, graceful.ToStatusError(err)
 	}
 	rate := &ExchangeRate{
-		PairID: req.PairId, // Removed MasterID: 0
+		PairID: req.PairId,
 		Rate:   req.Rate,
 	}
 	if err := s.repo.CreateExchangeRate(ctx, rate); err != nil {
-		err := graceful.WrapErr(ctx, codes.Internal, "failed to create exchange rate", err)
-		err.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: log})
+		s.handler.Error(ctx, "create_exchange_rate", codes.Internal, "failed to create exchange rate", err, nil, rate.PairID)
 		return nil, graceful.ToStatusError(err)
 	}
 	resp := &commercepb.CreateExchangeRateResponse{
@@ -1303,21 +1329,6 @@ func (s *Service) CreateExchangeRate(ctx context.Context, req *commercepb.Create
 			Metadata:   rate.Metadata,
 		},
 	}
-	success := graceful.WrapSuccess(ctx, codes.OK, "exchange rate created", resp, nil)
-	success.StandardOrchestrate(ctx, graceful.SuccessOrchestrationConfig{
-		Log:          log,
-		Cache:        s.Cache,
-		CacheKey:     rate.PairID,
-		CacheValue:   resp,
-		CacheTTL:     10 * time.Minute,
-		Metadata:     rate.Metadata,
-		EventEmitter: s.eventEmitter,
-		EventEnabled: s.eventEnabled,
-		EventType:    "commerce.exchange_rate_created",
-		EventID:      rate.PairID,
-		PatternType:  "exchange_rate",
-		PatternID:    rate.PairID,
-		PatternMeta:  rate.Metadata,
-	})
+	s.handler.Success(ctx, "create_exchange_rate", codes.OK, "exchange rate created", resp, rate.Metadata, rate.PairID, nil)
 	return resp, nil
 }
