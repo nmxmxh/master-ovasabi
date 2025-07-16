@@ -1,9 +1,4 @@
-# Inspect the service/event registry (mode=services or mode=events)
-registry-inspect:
-	go run ./cmd/registry-inspect/main.go --mode=services
 
-registry-inspect-events:
-	go run ./cmd/registry-inspect/main.go --mode=events
 .PHONY: setup build test test-unit test-integration test-bench coverage benchmark clean proto docker-* k8s-* docs backup lint-fix docs-format docs-check-format docs-check-links docs-validate restore js-setup docs-all docs-site-setup docs-site docs-serve docs-deploy-github docs-prepare-hosting lint-focused docs-fix-links openapi-gen openapi-validate openapi-diff sync-openapi update-doc-dates validate-doc-dates openapi-json-diff docs-generate-tests wasm-build frontend-build frontend-dev wasm-dev docker-wasm-build docker-wasm-up docker-wasm-down wasm-threaded serve-wasm helm-install helm-upgrade helm-uninstall helm-status helm-dry-run
 
 # Variables
@@ -727,6 +722,9 @@ kg-help:
 	   @echo "  kg-get-pattern   - Output a specific pattern by name (use NAME=...)";
 	   @echo "  kg-delete-service - Delete a service by name (use NAME=...)";
 	   @echo "  kg-delete-pattern - Delete a pattern by name (use NAME=...)";
+# Generate service registration config
+generate-service-registration:
+	go run cmd/service-registration/main.go
 
 # Check that config/service_registration.json is a file (not a directory) before building Docker images
 check-service-registration:

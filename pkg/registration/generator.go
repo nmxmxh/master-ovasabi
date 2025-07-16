@@ -159,8 +159,14 @@ func (g *DynamicServiceRegistrationGenerator) parseProtoFile(path string) (*Prot
 	var currentService string
 	var inService bool
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	var rpcBuffer string
+	var rpcActive bool
+	for idx := 0; idx < len(lines); idx++ {
+		line := strings.TrimSpace(lines[idx])
+		// Ignore comments and blank lines
+		if line == "" || strings.HasPrefix(line, "//") {
+			continue
+		}
 
 		// Extract service name
 		if strings.HasPrefix(line, "service ") {
@@ -169,15 +175,51 @@ func (g *DynamicServiceRegistrationGenerator) parseProtoFile(path string) (*Prot
 				currentService = strings.TrimSuffix(parts[1], " {")
 				serviceInfo.ServiceName = currentService
 				inService = true
+				g.logger.Debug("Entered service block", zap.String("service", currentService), zap.Int("line", idx))
 			}
+			continue
 		}
 
-		// Extract methods within service
-		if inService && strings.HasPrefix(line, "rpc ") {
-			method := g.parseRPCMethod(line)
-			if method != nil {
-				serviceInfo.Methods = append(serviceInfo.Methods, *method)
+		// Extract methods within service block
+		if inService {
+			if strings.HasPrefix(line, "rpc ") {
+				// Start collecting rpc definition
+				rpcBuffer = line
+				rpcActive = true
+				// If 'returns' is on the same line, parse immediately
+				if strings.Contains(line, "returns") {
+					g.logger.Debug("Found rpc line", zap.String("service", currentService), zap.String("line", rpcBuffer), zap.Int("idx", idx))
+					method := g.parseRPCMethod(rpcBuffer)
+					if method != nil {
+						serviceInfo.Methods = append(serviceInfo.Methods, *method)
+						g.logger.Debug("Extracted rpc method", zap.String("service", currentService), zap.String("method", method.Name))
+					}
+					rpcBuffer = ""
+					rpcActive = false
+				}
+				continue
 			}
+			if rpcActive {
+				// Continue collecting rpc definition until ';' or '{' or '}'
+				rpcBuffer += " " + line
+				if strings.Contains(line, "returns") || strings.HasSuffix(line, ";") || strings.HasSuffix(line, "{") || strings.HasSuffix(line, "}") {
+					g.logger.Debug("Found rpc line (multiline)", zap.String("service", currentService), zap.String("line", rpcBuffer), zap.Int("idx", idx))
+					method := g.parseRPCMethod(rpcBuffer)
+					if method != nil {
+						serviceInfo.Methods = append(serviceInfo.Methods, *method)
+						g.logger.Debug("Extracted rpc method", zap.String("service", currentService), zap.String("method", method.Name))
+					}
+					rpcBuffer = ""
+					rpcActive = false
+				}
+				continue
+			}
+			// Only exit service block on a line with only '}'
+			if line == "}" {
+				inService = false
+				g.logger.Debug("Exited service block", zap.String("service", currentService), zap.Int("line", idx))
+			}
+			continue
 		}
 
 		// Extract messages
@@ -188,11 +230,12 @@ func (g *DynamicServiceRegistrationGenerator) parseProtoFile(path string) (*Prot
 				serviceInfo.Messages = append(serviceInfo.Messages, messageName)
 			}
 		}
+	}
 
-		// End of service
-		if inService && line == "}" {
-			inService = false
-		}
+	// Ensure that if we found a service, but no methods, we still return the serviceInfo
+	// This is to prevent missing service blocks in output config
+	if serviceInfo.ServiceName != "" && len(serviceInfo.Methods) == 0 {
+		g.logger.Warn("Service block found but no methods extracted", zap.String("service", serviceInfo.ServiceName), zap.String("path", path))
 	}
 
 	if serviceInfo.ServiceName == "" {
@@ -204,19 +247,30 @@ func (g *DynamicServiceRegistrationGenerator) parseProtoFile(path string) (*Prot
 
 // parseRPCMethod parses an RPC method line from proto file
 func (g *DynamicServiceRegistrationGenerator) parseRPCMethod(line string) *ProtoMethodInfo {
+	// Support multi-line rpc definitions
 	// Example: rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
 	rpcRegex := regexp.MustCompile(`rpc\s+(\w+)\s*\(([^)]+)\)\s*returns\s*\(([^)]+)\)`)
 	matches := rpcRegex.FindStringSubmatch(line)
 
-	if len(matches) != 4 {
-		return nil
+	if len(matches) == 4 {
+		return &ProtoMethodInfo{
+			Name:       matches[1],
+			InputType:  matches[2],
+			OutputType: matches[3],
+		}
 	}
 
-	return &ProtoMethodInfo{
-		Name:       matches[1],
-		InputType:  matches[2],
-		OutputType: matches[3],
+	// Fallback: try to parse rpc without returns (for incomplete/malformed lines)
+	rpcRegexNoReturns := regexp.MustCompile(`rpc\s+(\w+)\s*\(([^)]+)\)`)
+	matches = rpcRegexNoReturns.FindStringSubmatch(line)
+	if len(matches) == 3 {
+		return &ProtoMethodInfo{
+			Name:       matches[1],
+			InputType:  matches[2],
+			OutputType: "", // Unknown output type
+		}
 	}
+	return nil
 }
 
 // generateServiceConfig generates a service configuration

@@ -115,17 +115,29 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 		s.handler.Error(ctx, "search", codes.InvalidArgument, "Missing payload or event_id in search requested event", nil, event.Metadata, event.EventId)
 		return
 	}
-	s.log.Info("[handleSearchAction] Invoked", zap.String("event_type", event.GetEventType()), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
-
-	// Debug: Log the raw payload fields to see what we're receiving
+	// Abbreviate payload and metadata for logging
+	payloadPreview := "nil"
 	if event.Payload != nil && event.Payload.Data != nil {
-		fieldNames := make([]string, 0, len(event.Payload.Data.Fields))
-		for fieldName := range event.Payload.Data.Fields {
-			fieldNames = append(fieldNames, fieldName)
+		keys := make([]string, 0, len(event.Payload.Data.Fields))
+		for k := range event.Payload.Data.Fields {
+			keys = append(keys, k)
 		}
-		s.log.Debug("[handleSearchAction] Received payload fields",
+		payloadPreview = "fields: [" + strings.Join(keys, ",") + "]"
+	}
+	metaPreview := "nil"
+	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
+		keys := make([]string, 0, len(event.Metadata.ServiceSpecific.Fields))
+		for k := range event.Metadata.ServiceSpecific.Fields {
+			keys = append(keys, k)
+		}
+		metaPreview = "serviceSpecific: [" + strings.Join(keys, ",") + "]"
+	}
+	s.log.Info("[handleSearchAction] Invoked", zap.String("event_type", event.GetEventType()), zap.String("payload", payloadPreview), zap.String("metadata", metaPreview))
+
+	// Debug: Log the raw payload field count to see what we're receiving
+	if event.Payload != nil && event.Payload.Data != nil {
+		s.log.Debug("[handleSearchAction] Received payload field count",
 			zap.String("event_type", event.GetEventType()),
-			zap.Strings("field_names", fieldNames),
 			zap.Int("field_count", len(event.Payload.Data.Fields)))
 	}
 
@@ -233,15 +245,9 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 	}
 
 	// --- Canonical Metadata Merging ---
-	// Only merge ServiceSpecific using MergeStructs
+	// Merge only the ServiceSpecific field, as backend metadata only supports ServiceSpecific
 	if event.Metadata != nil && meta != nil {
-		if event.Metadata.ServiceSpecific != nil {
-			if meta.ServiceSpecific != nil {
-				meta.ServiceSpecific = metadata.MergeStructs(meta.ServiceSpecific, event.Metadata.ServiceSpecific, s.log)
-			} else {
-				meta.ServiceSpecific = event.Metadata.ServiceSpecific
-			}
-		}
+		meta = metadata.MergeMetadata(meta, event.Metadata)
 	}
 
 	// --- Payload Serialization ---
@@ -254,7 +260,24 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 		}
 	}
 
-	s.log.Info("[handleSearchAction] Emitting completed event", zap.String("event_id", event.EventId), zap.Any("completedPayload", completedPayload), zap.Any("metadata", meta))
+	// Abbreviate completedPayload and metadata for logging
+	completedPreview := "nil"
+	if completedPayload != nil && completedPayload.Fields != nil {
+		keys := make([]string, 0, len(completedPayload.Fields))
+		for k := range completedPayload.Fields {
+			keys = append(keys, k)
+		}
+		completedPreview = "fields: [" + strings.Join(keys, ",") + "]"
+	}
+	metaPreview2 := "nil"
+	if meta != nil && meta.ServiceSpecific != nil {
+		keys := make([]string, 0, len(meta.ServiceSpecific.Fields))
+		for k := range meta.ServiceSpecific.Fields {
+			keys = append(keys, k)
+		}
+		metaPreview2 = "serviceSpecific: [" + strings.Join(keys, ",") + "]"
+	}
+	s.log.Info("[handleSearchAction] Emitting completed event", zap.String("event_id", event.EventId), zap.String("completedPayload", completedPreview), zap.String("metadata", metaPreview2))
 	s.handler.Success(ctx, "search", codes.OK, "event-driven search completed", completedPayload, meta, event.EventId, nil)
 }
 
@@ -290,7 +313,24 @@ func handleSuggestAction(ctx context.Context, s *Service, event *nexusv1.EventRe
 		s.log.Warn("[handleSuggestAction] Missing event")
 		return
 	}
-	s.log.Info("[handleSuggestAction] Invoked", zap.String("event_type", event.GetEventType()), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+	// Abbreviate payload and metadata for logging
+	payloadPreview := "nil"
+	if event.Payload != nil && event.Payload.Data != nil {
+		keys := make([]string, 0, len(event.Payload.Data.Fields))
+		for k := range event.Payload.Data.Fields {
+			keys = append(keys, k)
+		}
+		payloadPreview = "fields: [" + strings.Join(keys, ",") + "]"
+	}
+	metaPreview := "nil"
+	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
+		keys := make([]string, 0, len(event.Metadata.ServiceSpecific.Fields))
+		for k := range event.Metadata.ServiceSpecific.Fields {
+			keys = append(keys, k)
+		}
+		metaPreview = "serviceSpecific: [" + strings.Join(keys, ",") + "]"
+	}
+	s.log.Info("[handleSuggestAction] Invoked", zap.String("event_type", event.GetEventType()), zap.String("payload", payloadPreview), zap.String("metadata", metaPreview))
 
 	if event.Payload == nil || event.Payload.Data == nil {
 		s.log.Warn("[handleSuggestAction] Missing or invalid event payload", zap.Any("event", event))
@@ -339,7 +379,12 @@ func handleSuggestAction(ctx context.Context, s *Service, event *nexusv1.EventRe
 		return
 	}
 
-	s.log.Info("[handleSuggestAction] Suggest succeeded", zap.Any("response", resp))
+	// Abbreviate response for logging
+	respPreview := "nil"
+	if resp != nil && resp.Suggestions != nil {
+		respPreview = "suggestions: [" + strconv.Itoa(len(resp.Suggestions)) + "]"
+	}
+	s.log.Info("[handleSuggestAction] Suggest succeeded", zap.String("response", respPreview))
 	s.handler.Success(ctx, "suggest", codes.OK, "event-driven suggest completed", resp, meta, event.EventId, nil)
 }
 

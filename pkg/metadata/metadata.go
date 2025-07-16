@@ -15,6 +15,58 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+// MergeMetadata merges two *commonpb.Metadata structs, prioritizing meta2 for conflicts.
+// Only merges ServiceSpecific and Extra fields (deep merge), as these are canonical and extensible.
+func MergeMetadata(meta1, meta2 *commonpb.Metadata) *commonpb.Metadata {
+	if meta1 == nil && meta2 == nil {
+		return &commonpb.Metadata{}
+	}
+	if meta1 == nil {
+		return meta2
+	}
+	if meta2 == nil {
+		return meta1
+	}
+	merged := &commonpb.Metadata{}
+
+	// Deep merge ServiceSpecific only
+	merged.ServiceSpecific = mergeStructs(meta1.ServiceSpecific, meta2.ServiceSpecific)
+
+	// For all other fields, meta2 takes precedence if set, else meta1
+	// (add more fields here if proto is extended in future)
+
+	return merged
+}
+
+// mergeStructs deeply merges two *structpb.Struct, prioritizing s2 for conflicts.
+func mergeStructs(s1, s2 *structpb.Struct) *structpb.Struct {
+	if s1 == nil && s2 == nil {
+		return &structpb.Struct{Fields: map[string]*structpb.Value{}}
+	}
+	if s1 == nil {
+		return s2
+	}
+	if s2 == nil {
+		return s1
+	}
+	merged := &structpb.Struct{Fields: map[string]*structpb.Value{}}
+	for k, v := range s1.Fields {
+		merged.Fields[k] = v
+	}
+	for k, v2 := range s2.Fields {
+		if v1, ok := merged.Fields[k]; ok {
+			if v1.GetStructValue() != nil && v2.GetStructValue() != nil {
+				merged.Fields[k] = structpb.NewStructValue(mergeStructs(v1.GetStructValue(), v2.GetStructValue()))
+			} else {
+				merged.Fields[k] = v2
+			}
+		} else {
+			merged.Fields[k] = v2
+		}
+	}
+	return merged
+}
+
 type ServiceMetadata struct {
 	MFAChallenge      *MFAChallengeData    `json:"mfa_challenge,omitempty"`
 	Guest             bool                 `json:"guest,omitempty"`

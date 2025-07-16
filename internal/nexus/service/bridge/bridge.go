@@ -70,15 +70,19 @@ func (b *Service) initEventBus() {
 		b.handler.Error(context.Background(), "bridge.outbound_subscribe_error", codes.Unavailable, "Failed to subscribe to bridge.outbound", err, nil, "bridge.outbound")
 		return
 	}
-	// Subscribe to canonical event types for orchestration
-	for _, eventType := range []string{"search", "messaging", "content", "talent", "product", "campaign"} {
+	// Subscribe to canonical and custom event types for orchestration
+	eventTypes := []string{"search", "messaging", "content", "talent", "product", "campaign", "search:search:v1:success"}
+	for _, eventType := range eventTypes {
 		err := b.eventBus.Subscribe(eventType, func(ctx context.Context, event *nexuspb.EventRequest) {
 			envelope := &events.EventEnvelope{
 				ID:        event.EntityId,
-				Type:      "orchestration.events",
+				Type:      eventType, // Use actual event type for custom events
 				Metadata:  event.Metadata,
 				Payload:   event.Payload,
 				Timestamp: time.Now().Unix(),
+			}
+			if b.log != nil {
+				b.log.Info("Received event for broadcast", zap.String("type", eventType), zap.String("id", event.EntityId))
 			}
 			_, err := b.handler.EventEmitter.EmitEventEnvelope(ctx, envelope)
 			if b.log != nil {
@@ -96,6 +100,10 @@ func (b *Service) initEventBus() {
 		})
 		if err != nil {
 			b.log.Error("Failed to subscribe to event bus", zap.String("eventType", eventType), zap.Error(err))
+		} else {
+			if b.log != nil {
+				b.log.Info("Subscribed to event bus", zap.String("eventType", eventType))
+			}
 		}
 	}
 }

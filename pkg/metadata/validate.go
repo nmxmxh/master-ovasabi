@@ -96,24 +96,6 @@ func ValidateMetadata(meta *commonpb.Metadata) error {
 	return nil
 }
 
-// Example: Register a validator for the "localization" namespace
-// func init() {
-// 	RegisterServiceValidator("localization", func(meta *structpb.Struct) error {
-// 		if _, ok := meta.Fields["translation_provenance"]; !ok {
-// 			return fmt.Errorf("missing required 'translation_provenance' field")
-// 		}
-// 		return nil
-// 	})
-// }
-
-// Example: Register a validator for the "user" namespace
-// func init() {
-// 	RegisterServiceValidator("user", func(meta *structpb.Struct) error {
-// 		// Add user-specific validation here
-// 		return nil
-// 	})
-// }
-
 // Register a validator for the "media" namespace.
 func init() {
 	RegisterServiceValidator("media", func(meta *structpb.Struct) error {

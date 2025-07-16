@@ -207,15 +207,39 @@ func (a *WebSocketAdapter) Close() error {
 func (a *WebSocketAdapter) BroadcastEvent(eventType string, event interface{}) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
+	// Add custom event types to default filter set
+	defaultAllowed := map[string]bool{
+		"search": true, "messaging": true, "content": true, "talent": true, "product": true, "campaign": true,
+		"search:search:v1:success": true, // Ensure custom success event is included
+	}
 	for _, client := range a.clients {
-		// If client has no filters, default to all allowed event types
 		allowed := client.filters
 		if len(allowed) == 0 {
-			allowed = map[string]bool{"search": true, "messaging": true, "content": true, "talent": true, "product": true, "campaign": true}
+			allowed = defaultAllowed
+		} else {
+			// If client explicitly requests all, add custom event types
+			if allowed["search"] {
+				allowed["search:search:v1:success"] = true
+			}
 		}
 		if !allowed[eventType] {
 			continue
 		}
+		// Extract event_id if present
+		var eventID string
+		switch e := event.(type) {
+		case map[string]interface{}:
+			if id, ok := e["id"].(string); ok {
+				eventID = id
+			}
+		case struct{ ID string }:
+			eventID = e.ID
+		case *struct{ ID string }:
+			eventID = e.ID
+		default:
+			// Try to extract from marshaled JSON if possible
+		}
+		zap.L().Info("Broadcasting event to WebSocket client", zap.String("clientID", client.conn.RemoteAddr().String()), zap.String("eventType", eventType), zap.String("event_id", eventID))
 		if client.format == "protobuf" {
 			if pb, ok := event.(proto.Message); ok {
 				data, err := proto.Marshal(pb)

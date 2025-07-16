@@ -743,10 +743,6 @@
         "version": "v1"
       }
     },
-    "core_services": {
-      "name": "",
-      "category": ""
-    },
     "crawler": {
       "name": "crawler",
       "category": "dynamic_services",
@@ -1492,10 +1488,6 @@
         "version": "v1"
       }
     },
-    "token_services": {
-      "name": "",
-      "category": ""
-    },
     "user": {
       "name": "user",
       "category": "dynamic_services",
@@ -1786,12 +1778,7 @@
       }
     }
   },
-  "patterns": {
-    "core_patterns": {
-      "name": "",
-      "category": ""
-    }
-  },
+  "patterns": null,
   "database_practices": {
     "architecture": {
       "primary_database": {
