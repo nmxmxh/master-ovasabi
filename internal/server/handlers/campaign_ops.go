@@ -8,14 +8,9 @@ import (
 
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	securitypb "github.com/nmxmxh/master-ovasabi/api/protos/security/v1"
-	userpb "github.com/nmxmxh/master-ovasabi/api/protos/user/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/server/httputil"
-	"github.com/nmxmxh/master-ovasabi/internal/service/campaign"
-	"github.com/nmxmxh/master-ovasabi/internal/service/media"
-	"github.com/nmxmxh/master-ovasabi/internal/service/user"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
@@ -298,136 +293,5 @@ func CampaignStateHandler(container *di.Container) http.HandlerFunc {
 			return
 		}
 		httputil.WriteJSONError(w, log, http.StatusNotImplemented, "event bus orchestration response not yet implemented", nil)
-	}
-}
-
-func CampaignUserStateHandler(container *di.Container) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := contextx.Logger(r.Context())
-		ctx := contextx.WithLogger(r.Context(), log)
-		parts := strings.Split(r.URL.Path, "/")
-		if len(parts) < 6 {
-			httputil.WriteJSONError(w, log, http.StatusBadRequest, "invalid path", nil)
-			return
-		}
-		id := parts[3]
-		userID := parts[5]
-		fieldsParam := r.URL.Query().Get("fields")
-		var fields []string
-		if fieldsParam != "" {
-			fields = strings.Split(fieldsParam, ",")
-		}
-		// --- Resolve services ---
-		var campaignSvc *campaign.Service
-		if err := container.Resolve(&campaignSvc); err != nil {
-			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "Failed to resolve CampaignService", err)
-			return
-		}
-		var userSvc *user.Service
-		if err := container.Resolve(&userSvc); err != nil {
-			userSvc = nil // fallback to dummy
-		}
-		var mediaSvc *media.ServiceImpl
-		if err := container.Resolve(&mediaSvc); err != nil {
-			mediaSvc = nil // fallback to dummy
-		}
-		// --- Fetch real data ---
-		var campaignModel *campaign.Campaign
-		var userModel *user.User
-		var leaderboard []campaign.LeaderboardEntry
-		// Campaign
-		c, err := campaignSvc.GetCampaign(ctx, &campaignpb.GetCampaignRequest{Slug: id})
-		if err == nil && c != nil && c.Campaign != nil {
-			campaignModel = &campaign.Campaign{
-				Slug:        c.Campaign.Slug,
-				Title:       c.Campaign.Title,
-				Description: c.Campaign.Description,
-				Metadata:    c.Campaign.Metadata,
-			}
-		} else {
-			campaignModel = &campaign.Campaign{Slug: id, Title: "Spring Sale", Description: "Compete to win prizes!"}
-		}
-		// User
-		if userSvc != nil && userID != "" {
-			u, err := userSvc.GetUser(ctx, &userpb.GetUserRequest{UserId: userID})
-			if err == nil && u != nil && u.User != nil {
-				userModel = &user.User{ID: u.User.Id, Email: u.User.Email, Username: u.User.Username}
-			}
-		}
-		if userModel == nil {
-			userModel = &user.User{ID: userID, Email: "", Username: "guest"} // fallback minimal
-		}
-		// Leaderboard
-		leaderboard, err = campaignSvc.GetLeaderboard(ctx, id, 10)
-		if err != nil {
-			leaderboard = []campaign.LeaderboardEntry{{Username: "alice", Score: 120}, {Username: "bob", Score: 100}, {Username: userID, Score: 80}}
-		}
-		// Media state (stub: get first user media)
-		var mediaProto *mediapb.Media
-		if mediaSvc != nil && userID != "" {
-			mediaList, err := mediaSvc.ListUserMedia(ctx, &mediapb.ListUserMediaRequest{UserId: userModel.ID, PageSize: 1})
-			if err == nil && mediaList != nil && len(mediaList.Media) > 0 {
-				mediaProto = mediaList.Media[0]
-			} else if err == nil && mediaList != nil && len(mediaList.Media) == 0 {
-				mediaProto = nil
-			}
-		}
-		// --- Build state ---
-		var userStruct *structpb.Struct
-		if userModel != nil {
-			userMap := map[string]interface{}{
-				"id":       userModel.ID,
-				"email":    userModel.Email,
-				"username": userModel.Username,
-			}
-			userStruct, _ = structpb.NewStruct(userMap)
-		}
-		payload := campaign.BuildCampaignUserState(campaignModel, userStruct, leaderboard, mediaProto, campaign.WithFields(fields))
-		httputil.WriteJSONResponse(w, log, payload)
-	}
-}
-
-func CampaignLeaderboardHandler(container *di.Container) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := contextx.Logger(r.Context())
-		ctx := contextx.WithLogger(r.Context(), log)
-		id := strings.TrimPrefix(r.URL.Path, "/api/campaigns/")
-		id = strings.TrimSuffix(id, "/leaderboard")
-		// --- Resolve services ---
-		var campaignSvc *campaign.Service
-		if err := container.Resolve(&campaignSvc); err != nil {
-			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "Failed to resolve CampaignService", err)
-			return
-		}
-		// --- Fetch real data ---
-		var campaignModel *campaign.Campaign
-		var leaderboard []campaign.LeaderboardEntry
-		c, err := campaignSvc.GetCampaign(ctx, &campaignpb.GetCampaignRequest{Slug: id})
-		if err == nil && c != nil && c.Campaign != nil {
-			campaignModel = &campaign.Campaign{
-				Slug:        c.Campaign.Slug,
-				Title:       c.Campaign.Title,
-				Description: c.Campaign.Description,
-				Metadata:    c.Campaign.Metadata,
-			}
-		} else {
-			campaignModel = &campaign.Campaign{Slug: id, Title: "Spring Sale", Description: "Compete to win prizes!"}
-		}
-		leaderboard, err = campaignSvc.GetLeaderboard(ctx, id, 10)
-		if err != nil {
-			leaderboard = []campaign.LeaderboardEntry{{Username: "alice", Score: 120}, {Username: "bob", Score: 100}}
-		}
-		payload := campaign.BuildCampaignUserState(campaignModel, nil, leaderboard, nil, campaign.WithFields([]string{"campaign"}))
-		campaignMap, ok := payload["campaign"].(map[string]interface{})
-		if !ok {
-			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "failed to build campaign state", nil)
-			return
-		}
-		leaderboardData, ok := campaignMap["leaderboard"]
-		if !ok {
-			httputil.WriteJSONError(w, log, http.StatusInternalServerError, "leaderboard data not found in campaign state", nil)
-			return
-		}
-		httputil.WriteJSONResponse(w, log, map[string]interface{}{"leaderboard": leaderboardData})
 	}
 }

@@ -26,15 +26,7 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container, httpAddr string
 	mux.HandleFunc("/ws/proto/descriptors", handlers.ProtoDescriptorWebSocketHandler)
 	mux.HandleFunc("/api/campaigns_ops/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/state") && r.Method == http.MethodGet {
-			if strings.Contains(r.URL.Path, "/user/") {
-				handlers.CampaignUserStateHandler(container)(w, r)
-				return
-			}
 			handlers.CampaignStateHandler(container)(w, r)
-			return
-		}
-		if strings.HasSuffix(r.URL.Path, "/leaderboard") && r.Method == http.MethodGet {
-			handlers.CampaignLeaderboardHandler(container)(w, r)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
