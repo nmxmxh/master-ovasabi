@@ -142,8 +142,6 @@ func (b *TestMetadataBuilder) Build() *commonpb.Metadata {
 		}
 		meta.ServiceSpecific = MapToStruct(ssMap)
 	}
-	// Automatically enrich and hash metadata
-	EnrichAndHashMetadata(meta, "testbuilder.build")
 	return meta
 }
 

@@ -459,14 +459,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 	normMap := pkgmeta.Handler{}.NormalizeAndCalculate(metaMapOut, "media", req.UserId, nil, "success", "normalize media metadata")
 	metaStruct = pkgmeta.MapToStruct(normMap)
 	metaForValidation = &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
-	if err := pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid metadata: %v", err), nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
-		}
-		return nil, graceful.ToStatusError(err)
-	}
+
 	asset := &Model{
 		ID:        uuid.New(),
 		UserID:    uuid.MustParse(req.UserId),
@@ -676,14 +669,6 @@ func (s *ServiceImpl) StartHeavyMediaUpload(ctx context.Context, req *mediapb.St
 	}
 	metaStruct := pkgmeta.MapToStruct(metaMapOut)
 	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
-	if err = pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid metadata: %v", err), nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
-	}
 
 	accountName := os.Getenv("AZURE_BLOB_ACCOUNT")
 	accountKey := os.Getenv("AZURE_BLOB_KEY")
@@ -1253,14 +1238,7 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 	normMap := pkgmeta.Handler{}.NormalizeAndCalculate(metaMapOut, "media", req.UploadId, nil, "success", "normalize media metadata")
 	metaStruct := pkgmeta.MapToStruct(normMap)
 	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
-	if err := pkgmeta.ValidateMetadata(&commonpb.Metadata{ServiceSpecific: metaForValidation}); err != nil {
-		err = graceful.WrapErr(ctx, codes.InvalidArgument, fmt.Sprintf("invalid updated metadata: %v", err), nil)
-		var ce *graceful.ContextError
-		if errors.As(err, &ce) {
-			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
-		}
-		return nil, graceful.ToStatusError(err)
-	}
+
 	asset.Metadata = &commonpb.Metadata{ServiceSpecific: metaForValidation}
 	asset.URL = playbackURLs["hls"] // Use HLS as main URL for demo
 	asset.UpdatedAt = time.Now()

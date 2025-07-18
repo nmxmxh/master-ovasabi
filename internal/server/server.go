@@ -44,7 +44,6 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/ai"
 	"github.com/nmxmxh/master-ovasabi/internal/bootstrap"
 	kgserver "github.com/nmxmxh/master-ovasabi/internal/server/kg"
-	"github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	redisv9 "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -453,10 +452,6 @@ func Run() {
 		return
 	}
 
-	// Start the campaign orchestrator to manage active campaigns.
-	// This runs in the background, periodically scanning for and orchestrating campaigns.
-	go startCampaignOrchestrator(ctx, provider, log)
-
 	server := NewServer(container, log, httpAddr)
 
 	if err := server.Start(grpcPort); err != nil {
@@ -471,39 +466,6 @@ func Run() {
 		log.Error("Server failed to stop gracefully", zap.Error(err))
 	}
 
-}
-
-// Helper functions (copied or adapted from old main.go).
-// startCampaignOrchestrator starts a background ticker to periodically orchestrate active campaigns.
-func startCampaignOrchestrator(ctx context.Context, provider *service.Provider, log *zap.Logger) {
-	log.Info("Campaign orchestrator background process starting.")
-
-	// Resolve CampaignService directly from the DI container.
-	// This is a direct fix. The idiomatic approach would be to add a `Campaign()` accessor
-	// to the service.Provider for consistency with other services.
-	var campaignSvc *campaign.Service
-	if err := provider.Container.Resolve(&campaignSvc); err != nil {
-		log.Error("Failed to resolve CampaignService for orchestrator, cannot start", zap.Error(err))
-		return
-	}
-
-	// Using a ticker to periodically scan for active campaigns.
-	// A 1-minute interval is a safe default.
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			log.Info("Campaign orchestrator tick: scanning for active campaigns.")
-			// The number of workers for concurrent orchestration can be configured.
-			if err := campaignSvc.OrchestrateActiveCampaignsAdvanced(ctx, 10); err != nil {
-				log.Error("Error during campaign orchestration scan", zap.Error(err))
-			}
-		case <-ctx.Done():
-			log.Info("Campaign orchestrator background process shutting down.")
-			return
-		}
-	}
 }
 
 // HTTP middleware to inject request ID, trace ID, and feature flags into context.

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package campaign.v1;
 
+import "media/v1/media.proto";
 import "common/v1/metadata.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -71,6 +72,25 @@ message ListCampaignsRequest {
 
 message ListCampaignsResponse {
   repeated Campaign campaigns = 1;
+}
+
+// Broadcast event for campaign state updates, audit, and recovery
+
+
+// If campaign_id is empty, default to 'ovasabi_website' for global events
+message Broadcast {
+  string campaign_id = 1; // Defaults to 'ovasabi_website' if not provided
+  string timestamp = 2;
+  string event_type = 3;
+  string user_id = 4;
+  common.Metadata metadata = 5;
+
+  oneof payload {
+    string json_payload = 6;
+    bytes binary_payload = 7;
+  }
+
+  repeated media.v1.Media media = 8;
 }
 
 service CampaignService {

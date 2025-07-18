@@ -5,7 +5,7 @@ package media.v1;
 import "common/v1/metadata.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "master-ovasabi/api/protos/media/v1;mediav1";
+option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/media/v1";
 
 // MediaService handles storage and retrieval of media files 
 // (images, videos, 3D assets, etc.)

@@ -8,7 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
+
+	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
+
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	mediapb "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -26,6 +31,114 @@ type Repository struct {
 	// master is the MasterRepository, which is a dependency for creating master entries.
 	// It's part of the internal/repository package.
 	master repository.MasterRepository
+}
+
+// SaveBroadcastEvent persists a broadcast event for audit/recovery, including media links.
+func (r *Repository) SaveBroadcastEvent(ctx context.Context, event *campaignpb.Broadcast) error {
+	query := `
+		INSERT INTO service_campaign_broadcast_event (
+			campaign_id, timestamp, event_type, user_id, metadata, json_payload, binary_payload, media_links
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8
+		)`
+
+	var metadataJSON []byte
+	if event.Metadata != nil {
+		metadataJSON, _ = json.Marshal(event.Metadata)
+	}
+
+	var jsonPayload, binaryPayload interface{}
+	if event.GetJsonPayload() != "" {
+		jsonPayload = event.GetJsonPayload()
+	}
+	if len(event.GetBinaryPayload()) > 0 {
+		binaryPayload = event.GetBinaryPayload()
+	}
+
+	// Persist media links as JSON array of URLs
+	var mediaLinksJSON []byte
+	if len(event.Media) > 0 {
+		var links []string
+		for _, m := range event.Media {
+			if m != nil && m.Url != "" {
+				links = append(links, m.Url)
+			}
+		}
+		mediaLinksJSON, _ = json.Marshal(links)
+	}
+
+	_, err := r.GetDB().ExecContext(ctx, query,
+		event.CampaignId,
+		event.Timestamp,
+		event.EventType,
+		event.UserId,
+		metadataJSON,
+		jsonPayload,
+		binaryPayload,
+		mediaLinksJSON,
+	)
+	return err
+}
+
+// ListBroadcastEvents retrieves broadcast events for a campaign (for audit/history), including media links.
+func (r *Repository) ListBroadcastEvents(ctx context.Context, campaignID string, limit, offset int) ([]*campaignpb.Broadcast, error) {
+	query := `
+		SELECT campaign_id, timestamp, event_type, user_id, metadata, json_payload, binary_payload, media_links
+		FROM service_campaign_broadcast_event
+		WHERE campaign_id = $1
+		ORDER BY timestamp DESC
+		LIMIT $2 OFFSET $3`
+
+	rows, err := r.GetDB().QueryContext(ctx, query, campaignID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*campaignpb.Broadcast
+	for rows.Next() {
+		var (
+			campaignID, timestamp, eventType, userID string
+			metadataStr, jsonPayload, mediaLinksStr  string
+			binaryPayload                            []byte
+		)
+		err := rows.Scan(&campaignID, &timestamp, &eventType, &userID, &metadataStr, &jsonPayload, &binaryPayload, &mediaLinksStr)
+		if err != nil {
+			return nil, err
+		}
+		broadcast := &campaignpb.Broadcast{
+			CampaignId: campaignID,
+			Timestamp:  timestamp,
+			EventType:  eventType,
+			UserId:     userID,
+		}
+		if metadataStr != "" {
+			meta := &commonpb.Metadata{}
+			if json.Unmarshal([]byte(metadataStr), meta) == nil {
+				broadcast.Metadata = meta
+			}
+		}
+		if jsonPayload != "" {
+			broadcast.Payload = &campaignpb.Broadcast_JsonPayload{JsonPayload: jsonPayload}
+		}
+		if len(binaryPayload) > 0 {
+			broadcast.Payload = &campaignpb.Broadcast_BinaryPayload{BinaryPayload: binaryPayload}
+		}
+		// Load media links from JSON array
+		if mediaLinksStr != "" {
+			var links []string
+			if json.Unmarshal([]byte(mediaLinksStr), &links) == nil {
+				for _, url := range links {
+					broadcast.Media = append(broadcast.Media, &mediapb.Media{Url: url})
+				}
+			}
+		}
+		events = append(events, broadcast)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return events, nil
 }
 
 // NewRepository creates a new campaign repository instance.

@@ -79,15 +79,15 @@ clean:
 	find $(PROTO_PATH) -name "*.pb.go" -delete
 	find $(PROTO_PATH) -name "*.pb.gw.go" -delete
 
-# Build the common Go builder image, which is a dependency for other Docker builds
-.PHONY: build-builder
-build-builder:
-	@echo "Building common Go builder image..."
+
+# Only rebuild the builder image if go.mod, go.sum, or Dockerfile.builder change
+ovasabi-go-builder: go.mod go.sum deployments/docker/Dockerfile.builder
 	docker build -f deployments/docker/Dockerfile.builder -t ovasabi-go-builder:latest .
 
-# The existing docker-build target will be modified to depend on build-builder.
-# If it doesn't exist, this will create it correctly.
-docker-build: build-builder proto check-service-registration
+.PHONY: ovasabi-go-builder
+
+# docker-build depends on the builder image target, not always running the build
+docker-build: ovasabi-go-builder proto check-service-registration
 	$(DOCKER_COMPOSE) build
 
 # run linter

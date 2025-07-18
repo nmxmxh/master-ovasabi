@@ -85,9 +85,6 @@ func (s *Service) RegisterPattern(ctx context.Context, req *nexusv1.RegisterPatt
 		return &nexusv1.RegisterPatternResponse{Success: false, Error: "forbidden: admin or system role required"}, nil
 	}
 	metadata.MigrateMetadata(req.Metadata)
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		return &nexusv1.RegisterPatternResponse{Success: false, Error: err.Error()}, nil
-	}
 	if err := s.repo.RegisterPattern(ctx, req, userID, req.CampaignId); err != nil {
 		return &nexusv1.RegisterPatternResponse{Success: false, Error: err.Error()}, nil
 	}
@@ -109,9 +106,6 @@ func (s *Service) Orchestrate(ctx context.Context, req *nexusv1.OrchestrateReque
 		return nil, graceful.WrapErr(ctx, 16, "unauthenticated: user_id required", nil)
 	}
 	metadata.MigrateMetadata(req.Metadata)
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		return nil, graceful.WrapErr(ctx, 3, "invalid metadata", err)
-	}
 	id, err := s.repo.Orchestrate(ctx, req, userID, req.CampaignId)
 	if err != nil {
 		return nil, graceful.WrapErr(ctx, 13, "Orchestrate failed", err)
@@ -144,9 +138,6 @@ func (s *Service) Feedback(ctx context.Context, req *nexusv1.FeedbackRequest) (*
 		return &nexusv1.FeedbackResponse{Success: false, Error: "unauthenticated: user_id or guest_nickname/device_id required"}, nil
 	}
 	metadata.MigrateMetadata(req.Metadata)
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		return &nexusv1.FeedbackResponse{Success: false, Error: err.Error()}, nil
-	}
 	if err := s.repo.Feedback(ctx, req); err != nil {
 		return &nexusv1.FeedbackResponse{Success: false, Error: err.Error()}, nil
 	}
@@ -187,9 +178,6 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 			return &nexusv1.HandleOpsResponse{Success: false, Message: "At least one tag is required in metadata", Metadata: req.Metadata}, nil
 		}
 		metadata.MigrateMetadata(req.Metadata)
-		if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-			return &nexusv1.HandleOpsResponse{Success: false, Message: err.Error(), Metadata: req.Metadata}, nil
-		}
 		regReq := &nexusv1.RegisterPatternRequest{
 			PatternId:   patternID,
 			PatternType: patternType,
@@ -236,10 +224,6 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 		req.Metadata = &commonpb.Metadata{}
 	}
 	metadata.MigrateMetadata(req.Metadata)
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		s.log.Error("Invalid metadata in EmitEvent", zap.Error(err))
-		return nil, graceful.WrapErr(ctx, 3, "invalid metadata", err)
-	}
 
 	// Construct canonical EventEnvelope
 	envelope := &events.EventEnvelope{

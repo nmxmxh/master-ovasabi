@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: media/v1/media.proto
 
-package mediav1
+package v1
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -1966,7 +1966,7 @@ const file_media_v1_media_proto_rawDesc = "" +
 	"\x0fListSystemMedia\x12 .media.v1.ListSystemMediaRequest\x1a!.media.v1.ListSystemMediaResponse\x12e\n" +
 	"\x14SubscribeToUserMedia\x12%.media.v1.SubscribeToUserMediaRequest\x1a&.media.v1.SubscribeToUserMediaResponse\x12k\n" +
 	"\x16SubscribeToSystemMedia\x12'.media.v1.SubscribeToSystemMediaRequest\x1a(.media.v1.SubscribeToSystemMediaResponse\x12e\n" +
-	"\x14BroadcastSystemMedia\x12%.media.v1.BroadcastSystemMediaRequest\x1a&.media.v1.BroadcastSystemMediaResponseB,Z*master-ovasabi/api/protos/media/v1;mediav1b\x06proto3"
+	"\x14BroadcastSystemMedia\x12%.media.v1.BroadcastSystemMediaRequest\x1a&.media.v1.BroadcastSystemMediaResponseB6Z4github.com/nmxmxh/master-ovasabi/api/protos/media/v1b\x06proto3"
 
 var (
 	file_media_v1_media_proto_rawDescOnce sync.Once

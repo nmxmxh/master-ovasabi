@@ -95,11 +95,6 @@ func (s *Service) CreateContent(ctx context.Context, req *contentpb.CreateConten
 	metaMap := metadata.ProtoToMap(content.Metadata)
 	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "content", content.Id, content.Tags, "success", "enrich content metadata")
 	content.Metadata = metadata.MapToProto(normMap)
-	if err := metadata.ValidateMetadata(content.Metadata); err != nil {
-		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
-		s.handler.Error(ctx, "create_content", codes.InvalidArgument, "invalid metadata", gErr, content.Metadata, content.Id)
-		return nil, graceful.ToStatusError(gErr)
-	}
 	c, err := s.repo.CreateContent(ctx, content)
 	if err != nil {
 		s.log.Error("CreateContent failed", zap.Error(err))
@@ -187,11 +182,6 @@ func (s *Service) UpdateContent(ctx context.Context, req *contentpb.UpdateConten
 	metaMap = metadata.ProtoToMap(req.Content.Metadata)
 	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "content", req.Content.Id, req.Content.Tags, "success", "enrich content metadata")
 	req.Content.Metadata = metadata.MapToProto(normMap)
-	if err := metadata.ValidateMetadata(req.Content.Metadata); err != nil {
-		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
-		s.handler.Error(ctx, "update_content", codes.InvalidArgument, "invalid metadata", gErr, req.Content.Metadata, req.Content.Id)
-		return nil, graceful.ToStatusError(gErr)
-	}
 	c, err := s.repo.UpdateContent(ctx, req.Content)
 	if err != nil {
 		s.log.Error("UpdateContent failed", zap.Error(err))
@@ -327,11 +317,6 @@ func (s *Service) AddComment(ctx context.Context, req *contentpb.AddCommentReque
 	metaMap = metadata.ProtoToMap(req.Metadata)
 	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "comment", "", nil, "success", "enrich comment metadata")
 	req.Metadata = metadata.MapToProto(normMap)
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "invalid metadata: %v", err)
-		s.handler.Error(ctx, "add_comment", codes.InvalidArgument, "invalid metadata", gErr, req.Metadata, req.ContentId)
-		return nil, graceful.ToStatusError(gErr)
-	}
 	comment, err := s.repo.AddComment(ctx, req.ContentId, req.AuthorId, req.Body, req.Metadata)
 	if err != nil {
 		s.log.Error("AddComment failed", zap.Error(err))

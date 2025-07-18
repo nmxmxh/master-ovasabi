@@ -63,6 +63,48 @@ func main() {
 		"leaderboard":       *leaderboard,
 		"i18n_keys":         i18nKeysList,
 		"broadcast_enabled": *broadcastEnabled,
+		"ui_content": map[string]interface{}{
+			"banner": "Welcome to the campaign!",
+			"cta":    "Join now for rewards!",
+			"lead_form": map[string]interface{}{
+				"fields":      []string{"name", "email", "referral_code"},
+				"submit_text": "Get Started",
+			},
+		},
+		"dialogue_scripts": map[string]interface{}{
+			"waitlist": map[string]interface{}{
+				"main_text":     "You're on the waitlist!",
+				"options_title": "What would you like to do next?",
+				"questions": []map[string]interface{}{
+					{"question": "Invite friends for early access?", "options": []string{"Yes", "No"}},
+				},
+			},
+			"lead": map[string]interface{}{
+				"main_text":     "Request a quote or express interest.",
+				"options_title": "Choose your service:",
+				"questions": []map[string]interface{}{
+					{"question": "Which service are you interested in?", "options": []string{"Design", "Development", "Consulting"}},
+				},
+			},
+			"referral": map[string]interface{}{
+				"main_text":     "Enter your referral code.",
+				"options_title": "Referral Options",
+				"questions": []map[string]interface{}{
+					{"question": "Do you have a referral code?", "options": []string{"Yes", "No"}},
+				},
+			},
+		},
+		"communication": map[string]interface{}{
+			"broadcast": map[string]interface{}{
+				"enabled":   *broadcastEnabled,
+				"frequency": *wsFrequency,
+				"channels":  []string{"ovasabi_website", *slug},
+			},
+			"user": map[string]interface{}{
+				"registration": true,
+				"lead_capture": true,
+			},
+		},
 	}
 	if *customField != "" {
 		campaignFields["custom_field"] = *customField
@@ -70,19 +112,19 @@ func main() {
 
 	scheduling := map[string]interface{}{}
 	if *schedStart != "" {
-		scheduling["start_time"] = *schedStart
+		scheduling["start"] = *schedStart
 	}
 	if *schedEnd != "" {
-		scheduling["end_time"] = *schedEnd
+		scheduling["end"] = *schedEnd
 	}
 	if *wsFrequency != "" {
-		scheduling["ws_broadcast_frequency"] = *wsFrequency
+		scheduling["broadcast_frequency"] = *wsFrequency
 	}
 	if len(scheduling) == 0 {
-		scheduling = nil
+		scheduling["start"] = now
 	}
 
-	// Dialogue scripts for different user types
+	// Dialogue scripts, UI content, and communication logic are now included in campaignFields
 	scripts := map[string]interface{}{
 		"business": map[string]interface{}{
 			"main_text":         "Help us understand your business needs",

@@ -8,6 +8,7 @@ package campaign
 
 import (
 	v1 "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+	v11 "github.com/nmxmxh/master-ovasabi/api/protos/media/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -683,11 +684,142 @@ func (x *ListCampaignsResponse) GetCampaigns() []*Campaign {
 	return nil
 }
 
+// If campaign_id is empty, default to 'ovasabi_website' for global events
+type Broadcast struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	CampaignId string                 `protobuf:"bytes,1,opt,name=campaign_id,json=campaignId,proto3" json:"campaign_id,omitempty"` // Defaults to 'ovasabi_website' if not provided
+	Timestamp  string                 `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	EventType  string                 `protobuf:"bytes,3,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	UserId     string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Metadata   *v1.Metadata           `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*Broadcast_JsonPayload
+	//	*Broadcast_BinaryPayload
+	Payload       isBroadcast_Payload `protobuf_oneof:"payload"`
+	Media         []*v11.Media        `protobuf:"bytes,8,rep,name=media,proto3" json:"media,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Broadcast) Reset() {
+	*x = Broadcast{}
+	mi := &file_campaign_v1_campaign_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Broadcast) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Broadcast) ProtoMessage() {}
+
+func (x *Broadcast) ProtoReflect() protoreflect.Message {
+	mi := &file_campaign_v1_campaign_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Broadcast.ProtoReflect.Descriptor instead.
+func (*Broadcast) Descriptor() ([]byte, []int) {
+	return file_campaign_v1_campaign_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *Broadcast) GetCampaignId() string {
+	if x != nil {
+		return x.CampaignId
+	}
+	return ""
+}
+
+func (x *Broadcast) GetTimestamp() string {
+	if x != nil {
+		return x.Timestamp
+	}
+	return ""
+}
+
+func (x *Broadcast) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+func (x *Broadcast) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *Broadcast) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *Broadcast) GetPayload() isBroadcast_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *Broadcast) GetJsonPayload() string {
+	if x != nil {
+		if x, ok := x.Payload.(*Broadcast_JsonPayload); ok {
+			return x.JsonPayload
+		}
+	}
+	return ""
+}
+
+func (x *Broadcast) GetBinaryPayload() []byte {
+	if x != nil {
+		if x, ok := x.Payload.(*Broadcast_BinaryPayload); ok {
+			return x.BinaryPayload
+		}
+	}
+	return nil
+}
+
+func (x *Broadcast) GetMedia() []*v11.Media {
+	if x != nil {
+		return x.Media
+	}
+	return nil
+}
+
+type isBroadcast_Payload interface {
+	isBroadcast_Payload()
+}
+
+type Broadcast_JsonPayload struct {
+	JsonPayload string `protobuf:"bytes,6,opt,name=json_payload,json=jsonPayload,proto3,oneof"`
+}
+
+type Broadcast_BinaryPayload struct {
+	BinaryPayload []byte `protobuf:"bytes,7,opt,name=binary_payload,json=binaryPayload,proto3,oneof"`
+}
+
+func (*Broadcast_JsonPayload) isBroadcast_Payload() {}
+
+func (*Broadcast_BinaryPayload) isBroadcast_Payload() {}
+
 var File_campaign_v1_campaign_proto protoreflect.FileDescriptor
 
 const file_campaign_v1_campaign_proto_rawDesc = "" +
 	"\n" +
-	"\x1acampaign/v1/campaign.proto\x12\vcampaign.v1\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x96\x04\n" +
+	"\x1acampaign/v1/campaign.proto\x12\vcampaign.v1\x1a\x14media/v1/media.proto\x1a\x18common/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x96\x04\n" +
 	"\bCampaign\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x05R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x14\n" +
@@ -737,7 +869,19 @@ const file_campaign_v1_campaign_proto_rawDesc = "" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\"L\n" +
 	"\x15ListCampaignsResponse\x123\n" +
-	"\tcampaigns\x18\x01 \x03(\v2\x15.campaign.v1.CampaignR\tcampaigns2\xcc\x03\n" +
+	"\tcampaigns\x18\x01 \x03(\v2\x15.campaign.v1.CampaignR\tcampaigns\"\xb0\x02\n" +
+	"\tBroadcast\x12\x1f\n" +
+	"\vcampaign_id\x18\x01 \x01(\tR\n" +
+	"campaignId\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\tR\ttimestamp\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x03 \x01(\tR\teventType\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x12#\n" +
+	"\fjson_payload\x18\x06 \x01(\tH\x00R\vjsonPayload\x12'\n" +
+	"\x0ebinary_payload\x18\a \x01(\fH\x00R\rbinaryPayload\x12%\n" +
+	"\x05media\x18\b \x03(\v2\x0f.media.v1.MediaR\x05mediaB\t\n" +
+	"\apayload2\xcc\x03\n" +
 	"\x0fCampaignService\x12Y\n" +
 	"\x0eCreateCampaign\x12\".campaign.v1.CreateCampaignRequest\x1a#.campaign.v1.CreateCampaignResponse\x12P\n" +
 	"\vGetCampaign\x12\x1f.campaign.v1.GetCampaignRequest\x1a .campaign.v1.GetCampaignResponse\x12Y\n" +
@@ -757,7 +901,7 @@ func file_campaign_v1_campaign_proto_rawDescGZIP() []byte {
 	return file_campaign_v1_campaign_proto_rawDescData
 }
 
-var file_campaign_v1_campaign_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_campaign_v1_campaign_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_campaign_v1_campaign_proto_goTypes = []any{
 	(*Campaign)(nil),               // 0: campaign.v1.Campaign
 	(*CreateCampaignRequest)(nil),  // 1: campaign.v1.CreateCampaignRequest
@@ -770,38 +914,42 @@ var file_campaign_v1_campaign_proto_goTypes = []any{
 	(*DeleteCampaignResponse)(nil), // 8: campaign.v1.DeleteCampaignResponse
 	(*ListCampaignsRequest)(nil),   // 9: campaign.v1.ListCampaignsRequest
 	(*ListCampaignsResponse)(nil),  // 10: campaign.v1.ListCampaignsResponse
-	(*timestamppb.Timestamp)(nil),  // 11: google.protobuf.Timestamp
-	(*v1.Metadata)(nil),            // 12: common.Metadata
+	(*Broadcast)(nil),              // 11: campaign.v1.Broadcast
+	(*timestamppb.Timestamp)(nil),  // 12: google.protobuf.Timestamp
+	(*v1.Metadata)(nil),            // 13: common.Metadata
+	(*v11.Media)(nil),              // 14: media.v1.Media
 }
 var file_campaign_v1_campaign_proto_depIdxs = []int32{
-	11, // 0: campaign.v1.Campaign.start_date:type_name -> google.protobuf.Timestamp
-	11, // 1: campaign.v1.Campaign.end_date:type_name -> google.protobuf.Timestamp
-	12, // 2: campaign.v1.Campaign.metadata:type_name -> common.Metadata
-	11, // 3: campaign.v1.Campaign.created_at:type_name -> google.protobuf.Timestamp
-	11, // 4: campaign.v1.Campaign.updated_at:type_name -> google.protobuf.Timestamp
-	11, // 5: campaign.v1.CreateCampaignRequest.start_date:type_name -> google.protobuf.Timestamp
-	11, // 6: campaign.v1.CreateCampaignRequest.end_date:type_name -> google.protobuf.Timestamp
-	12, // 7: campaign.v1.CreateCampaignRequest.metadata:type_name -> common.Metadata
+	12, // 0: campaign.v1.Campaign.start_date:type_name -> google.protobuf.Timestamp
+	12, // 1: campaign.v1.Campaign.end_date:type_name -> google.protobuf.Timestamp
+	13, // 2: campaign.v1.Campaign.metadata:type_name -> common.Metadata
+	12, // 3: campaign.v1.Campaign.created_at:type_name -> google.protobuf.Timestamp
+	12, // 4: campaign.v1.Campaign.updated_at:type_name -> google.protobuf.Timestamp
+	12, // 5: campaign.v1.CreateCampaignRequest.start_date:type_name -> google.protobuf.Timestamp
+	12, // 6: campaign.v1.CreateCampaignRequest.end_date:type_name -> google.protobuf.Timestamp
+	13, // 7: campaign.v1.CreateCampaignRequest.metadata:type_name -> common.Metadata
 	0,  // 8: campaign.v1.CreateCampaignResponse.campaign:type_name -> campaign.v1.Campaign
 	0,  // 9: campaign.v1.GetCampaignResponse.campaign:type_name -> campaign.v1.Campaign
 	0,  // 10: campaign.v1.UpdateCampaignRequest.campaign:type_name -> campaign.v1.Campaign
 	0,  // 11: campaign.v1.UpdateCampaignResponse.campaign:type_name -> campaign.v1.Campaign
 	0,  // 12: campaign.v1.ListCampaignsResponse.campaigns:type_name -> campaign.v1.Campaign
-	1,  // 13: campaign.v1.CampaignService.CreateCampaign:input_type -> campaign.v1.CreateCampaignRequest
-	3,  // 14: campaign.v1.CampaignService.GetCampaign:input_type -> campaign.v1.GetCampaignRequest
-	5,  // 15: campaign.v1.CampaignService.UpdateCampaign:input_type -> campaign.v1.UpdateCampaignRequest
-	7,  // 16: campaign.v1.CampaignService.DeleteCampaign:input_type -> campaign.v1.DeleteCampaignRequest
-	9,  // 17: campaign.v1.CampaignService.ListCampaigns:input_type -> campaign.v1.ListCampaignsRequest
-	2,  // 18: campaign.v1.CampaignService.CreateCampaign:output_type -> campaign.v1.CreateCampaignResponse
-	4,  // 19: campaign.v1.CampaignService.GetCampaign:output_type -> campaign.v1.GetCampaignResponse
-	6,  // 20: campaign.v1.CampaignService.UpdateCampaign:output_type -> campaign.v1.UpdateCampaignResponse
-	8,  // 21: campaign.v1.CampaignService.DeleteCampaign:output_type -> campaign.v1.DeleteCampaignResponse
-	10, // 22: campaign.v1.CampaignService.ListCampaigns:output_type -> campaign.v1.ListCampaignsResponse
-	18, // [18:23] is the sub-list for method output_type
-	13, // [13:18] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	13, // 13: campaign.v1.Broadcast.metadata:type_name -> common.Metadata
+	14, // 14: campaign.v1.Broadcast.media:type_name -> media.v1.Media
+	1,  // 15: campaign.v1.CampaignService.CreateCampaign:input_type -> campaign.v1.CreateCampaignRequest
+	3,  // 16: campaign.v1.CampaignService.GetCampaign:input_type -> campaign.v1.GetCampaignRequest
+	5,  // 17: campaign.v1.CampaignService.UpdateCampaign:input_type -> campaign.v1.UpdateCampaignRequest
+	7,  // 18: campaign.v1.CampaignService.DeleteCampaign:input_type -> campaign.v1.DeleteCampaignRequest
+	9,  // 19: campaign.v1.CampaignService.ListCampaigns:input_type -> campaign.v1.ListCampaignsRequest
+	2,  // 20: campaign.v1.CampaignService.CreateCampaign:output_type -> campaign.v1.CreateCampaignResponse
+	4,  // 21: campaign.v1.CampaignService.GetCampaign:output_type -> campaign.v1.GetCampaignResponse
+	6,  // 22: campaign.v1.CampaignService.UpdateCampaign:output_type -> campaign.v1.UpdateCampaignResponse
+	8,  // 23: campaign.v1.CampaignService.DeleteCampaign:output_type -> campaign.v1.DeleteCampaignResponse
+	10, // 24: campaign.v1.CampaignService.ListCampaigns:output_type -> campaign.v1.ListCampaignsResponse
+	20, // [20:25] is the sub-list for method output_type
+	15, // [15:20] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_campaign_v1_campaign_proto_init() }
@@ -809,13 +957,17 @@ func file_campaign_v1_campaign_proto_init() {
 	if File_campaign_v1_campaign_proto != nil {
 		return
 	}
+	file_campaign_v1_campaign_proto_msgTypes[11].OneofWrappers = []any{
+		(*Broadcast_JsonPayload)(nil),
+		(*Broadcast_BinaryPayload)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_campaign_v1_campaign_proto_rawDesc), len(file_campaign_v1_campaign_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

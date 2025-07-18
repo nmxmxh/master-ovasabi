@@ -156,38 +156,3 @@ func StartEventSubscribers(ctx context.Context, s *Service, provider *service.Pr
 		}
 	}
 }
-
-// Campaign Orchestrator: Event-Driven Cross-Service Automation
-// -----------------------------------------------------------
-// This file implements the campaign orchestrator, responsible for cross-service automation
-// and workflow coordination based on campaign metadata and system events.
-//
-// Responsibilities:
-// - Subscribe to campaign lifecycle and cross-service events (see internal/service/nexus/events.go)
-// - Parse canonical CampaignMetadata and trigger actions in other services as needed
-// - Enable dynamic, metadata-driven orchestration (scheduling, localization, notifications, real-time, etc.)
-// - Log all orchestration actions for audit and debugging
-// - Make it easy to extend with new event handlers for future features/services
-//
-// References:
-// - docs/amadeus/amadeus_context.md
-// - docs/services/metadata.md
-// - docs-site.tar.pdf
-// - internal/service/campaign/metadata.go (for CampaignMetadata)
-// - internal/service/nexus/events.go (for event types)
-
-// EventHandlerFunc defines the signature for orchestrator event handlers.
-type EventHandlerFunc func(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger)
-
-// --- Helper Functions ---
-// contains checks if a string is in a slice.
-func contains(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
-// --- End Orchestrator ---

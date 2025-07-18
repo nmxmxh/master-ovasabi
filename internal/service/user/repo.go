@@ -167,11 +167,6 @@ func (r *Repository) Create(ctx context.Context, user *User) (*User, error) {
 		return nil, err
 	}
 
-	// Validate metadata
-	if err := metadatautil.ValidateMetadata(user.Metadata); err != nil {
-		return nil, err
-	}
-
 	// Validate password
 	if err := validatePassword(user.PasswordHash); err != nil {
 		return nil, err
@@ -330,11 +325,6 @@ func (r *Repository) Update(ctx context.Context, user *User) error {
 				return err
 			}
 		}
-	}
-
-	// Validate metadata
-	if err := metadatautil.ValidateMetadata(user.Metadata); err != nil {
-		return err
 	}
 
 	// Validate password
@@ -1954,11 +1944,6 @@ func (r *Repository) UpdateTx(ctx context.Context, tx *sql.Tx, user *User) error
 				return err
 			}
 		}
-	}
-
-	// Validate metadata
-	if err := metadatautil.ValidateMetadata(user.Metadata); err != nil {
-		return err
 	}
 
 	// Validate password

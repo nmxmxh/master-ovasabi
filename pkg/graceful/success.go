@@ -219,8 +219,6 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 				cfg.Log.Info("[StandardOrchestrate] Metadata normalized", zap.Any("metadata_after", normMeta))
 			}
 			cfg.Metadata = normMeta
-			// Enrich and hash metadata after normalization
-			metautil.EnrichAndHashMetadata(cfg.Metadata, "graceful.success")
 		}
 	}
 	// 1. Cache profile (as before)

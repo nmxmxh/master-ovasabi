@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/expr-lang/expr"
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
@@ -26,38 +24,19 @@ import (
 // Compile-time check.
 var _ campaignpb.CampaignServiceServer = (*Service)(nil)
 
-// Helper to check if a campaign is active based on metadata.
-func isCampaignActive(meta *commonpb.Metadata) bool {
-	if meta != nil && meta.ServiceSpecific != nil {
-		if campaignField, ok := meta.ServiceSpecific.Fields["campaign"]; ok {
-			if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
-				if statusVal, ok := campaignStruct.Fields["status"]; ok {
-					return statusVal.GetStringValue() == "active"
-				}
-			}
-		}
-	}
-	return false
-}
-
 // Adapter to bridge event emission to the required orchestration EventEmitter interface.
 // EventEmitterAdapter is obsolete. Use graceful event emission and orchestration handlers directly.
 
 // Service implements the CampaignService gRPC interface.
 type Service struct {
 	campaignpb.UnimplementedCampaignServiceServer
-	log          *zap.Logger
-	repo         *Repository
-	cache        *redis.Cache
-	eventEmitter events.EventEmitter
-	eventEnabled bool
-
-	// Broadcast and job scheduling fields
-	broadcastMu      sync.Mutex
+	log              *zap.Logger
+	repo             *Repository
+	cache            *redis.Cache
+	eventEmitter     events.EventEmitter
+	eventEnabled     bool
 	activeBroadcasts map[string]context.CancelFunc
-	cronScheduler    *cron.Cron
 	scheduledJobs    map[string][]cron.EntryID
-
 	// Graceful handler for orchestration, audit, and event emission
 	handler *graceful.Handler
 }
@@ -272,8 +251,6 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 
 	log.Info("Updating campaign")
 
-	wasActive := isCampaignActive(existing.Metadata)
-
 	// Update fields
 	existing.Title = req.Campaign.Title
 	existing.Description = req.Campaign.Description
@@ -293,12 +270,6 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 		return nil, graceful.ToStatusError(gErr)
 	}
 	// If campaign is now inactive or window ended, stop jobs and broadcasts
-	isActive := isCampaignActive(existing.Metadata)
-
-	if (!isActive && wasActive) || (!existing.EndDate.IsZero() && existing.EndDate.Before(time.Now())) {
-		s.stopJobs(ctx, existing.Slug, existing)
-		s.stopBroadcast(ctx, existing.Slug, existing)
-	}
 
 	// Manually construct response to avoid nested orchestration from calling GetCampaign.
 	id32, err := SafeInt32(existing.ID)
@@ -357,12 +328,6 @@ func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCamp
 		zap.Int32("id", req.Id))
 
 	log.Info("Deleting campaign")
-
-	// Get campaign first to get the slug for cache invalidation and to stop jobs/broadcasts
-	if campaign != nil {
-		s.stopJobs(ctx, campaign.Slug, campaign)
-		s.stopBroadcast(ctx, campaign.Slug, campaign)
-	}
 
 	if err := s.repo.Delete(ctx, int64(req.Id)); err != nil {
 		gErr := graceful.MapAndWrapErr(ctx, err, "failed to delete campaign", codes.Internal)

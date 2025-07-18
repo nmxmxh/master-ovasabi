@@ -8,10 +8,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -75,8 +78,43 @@ var (
 		WriteBufferSize: 1024,
 		CheckOrigin:     checkOrigin,
 	}
-	log logger.Logger // Global logger instance
+	log             logger.Logger    // Global logger instance
+	defaultCampaign *DefaultCampaign // Loaded from JSON at startup
 )
+
+// --- Default Campaign Model ---
+type DefaultCampaign struct {
+	CampaignID  int64                  `json:"campaign_id"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Onboarding  map[string]interface{} `json:"onboarding"`
+	Dialogue    map[string]interface{} `json:"dialogue"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
+// Loads the default campaign from start/default_campaign.json
+func loadDefaultCampaign() *DefaultCampaign {
+	jsonPath := filepath.Join("start", "default_campaign.json")
+	file, err := os.Open(jsonPath)
+	if err != nil {
+		log.Warn("Could not open default_campaign.json", zap.Error(err), zap.String("path", jsonPath))
+		return nil
+	}
+	defer file.Close()
+	var campaign DefaultCampaign
+	dec := json.NewDecoder(file)
+	if err := dec.Decode(&campaign); err != nil {
+		log.Warn("Could not decode default_campaign.json", zap.Error(err), zap.String("path", jsonPath))
+		return nil
+	}
+	log.Info("Loaded default campaign JSON", zap.String("name", campaign.Name), zap.Int64("campaign_id", campaign.CampaignID))
+	return &campaign
+}
+
+// Returns the loaded default campaign (for system-wide broadcasts, onboarding, etc.)
+func getDefaultCampaign() *DefaultCampaign {
+	return defaultCampaign
+}
 
 // --- Main Application ---
 
@@ -120,6 +158,9 @@ func main() {
 	defer conn.Close()
 	nexusClient = nexuspb.NewNexusServiceClient(conn)
 	log.Info("Connected to Nexus gRPC server", zap.String("address", nexusAddr))
+
+	// --- Load Default Campaign JSON ---
+	defaultCampaign = loadDefaultCampaign()
 
 	// --- Start Nexus Subscriber ---
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -176,7 +217,8 @@ func main() {
 
 func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ws/"), "/")
-	campaignID := "ovasabi_website" // Default campaign
+	// Use default campaign if not provided
+	campaignID := "ovasabi_website"
 	if len(parts) > 0 && parts[0] != "" {
 		campaignID = parts[0]
 	}
@@ -322,32 +364,132 @@ func (c *WSClient) readPump() {
 			zap.String("user_id", c.userID),
 			zap.Any("payload", payloadMap),
 		)
-		// Always include a correlation_id and user_id in metadata for canonical compliance
-		correlationID := uuid.NewString()
-		meta := clientMsg.Metadata
-		if meta == nil {
-			meta = &commonpb.Metadata{}
+		// Canonical metadata merge: preserve all client fields, inject/override global fields
+		var correlationID string
+		var clientMeta *commonpb.Metadata = clientMsg.Metadata
+		// If clientMeta is nil or empty, try to parse raw metadata from the client message
+		if clientMeta == nil || (clientMeta.ServiceSpecific == nil || len(clientMeta.ServiceSpecific.Fields) == 0) {
+			// Parse raw message to extract metadata field as map
+			var rawMsg map[string]interface{}
+			if err := json.Unmarshal(msgBytes, &rawMsg); err == nil {
+				if metaRaw, ok := rawMsg["metadata"]; ok {
+					if metaMap, ok := metaRaw.(map[string]interface{}); ok {
+						// Build ServiceSpecific struct from each top-level key
+						fields := map[string]*structpb.Value{}
+						for k, v := range metaMap {
+							// If value is a map, convert to structpb.Struct
+							if m, ok := v.(map[string]interface{}); ok {
+								if s, err := structpb.NewStruct(m); err == nil {
+									fields[k] = structpb.NewStructValue(s)
+								}
+							} else {
+								// Otherwise, store as structpb.Value
+								if val, err := structpb.NewValue(v); err == nil {
+									fields[k] = val
+								}
+							}
+						}
+						clientMeta = &commonpb.Metadata{
+							ServiceSpecific: &structpb.Struct{Fields: fields},
+						}
+					}
+				}
+			}
+			if clientMeta == nil {
+				clientMeta = &commonpb.Metadata{}
+			}
 		}
-		if meta.ServiceSpecific == nil {
-			meta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+
+		// Extract correlation_id from client metadata (global namespace or top-level)
+		if clientMeta.ServiceSpecific != nil {
+			if globalVal, ok := clientMeta.ServiceSpecific.Fields["global"]; ok {
+				if globalStruct := globalVal.GetStructValue(); globalStruct != nil {
+					if cid, ok := globalStruct.AsMap()["correlation_id"].(string); ok && cid != "" {
+						correlationID = cid
+					}
+				}
+			}
+			// If not found in global, check top-level
+			if correlationID == "" {
+				if cidVal, ok := clientMeta.ServiceSpecific.Fields["correlation_id"]; ok {
+					if cid := cidVal.GetStringValue(); cid != "" {
+						correlationID = cid
+					}
+				}
+			}
 		}
-		if meta.ServiceSpecific.Fields == nil {
-			meta.ServiceSpecific.Fields = map[string]*structpb.Value{}
+		if correlationID == "" {
+			correlationID = uuid.NewString()
 		}
-		meta.ServiceSpecific.Fields["correlation_id"] = structpb.NewStringValue(correlationID)
-		meta.ServiceSpecific.Fields["user_id"] = structpb.NewStringValue(c.userID)
+		// Build global fields
+		userID := c.userID
+		// Try to extract session.authenticated from client metadata
+		if clientMeta.ServiceSpecific != nil {
+			if sessionVal, ok := clientMeta.ServiceSpecific.Fields["session"]; ok {
+				if sessionStruct := sessionVal.GetStructValue(); sessionStruct != nil {
+					sessionMap := sessionStruct.AsMap()
+					if authVal, ok := sessionMap["authenticated"]; ok {
+						if b, ok := authVal.(bool); ok && b {
+							// authenticated user, keep userID as is
+						} else {
+							// not authenticated, use guestId if present
+							if guestIdVal, ok := sessionMap["guestId"]; ok {
+								if guestIdStr, ok := guestIdVal.(string); ok && guestIdStr != "" {
+									userID = guestIdStr
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		globalFields := map[string]string{
+			"correlation_id": correlationID,
+			"user_id":        userID,
+			"campaign_id":    c.campaignID,
+		}
+		// Merge all client metadata fields into event envelope
+		mergedMeta := &commonpb.Metadata{}
+		if clientMeta.ServiceSpecific != nil {
+			mergedMeta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+			for k, v := range clientMeta.ServiceSpecific.Fields {
+				mergedMeta.ServiceSpecific.Fields[k] = v
+			}
+		} else {
+			mergedMeta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+		}
+		// Overwrite or add 'global' namespace with canonical globalFields
+		globalMap := map[string]interface{}{}
+		for k, v := range globalFields {
+			globalMap[k] = v
+		}
+		s, err := structpb.NewStruct(globalMap)
+		if err == nil {
+			mergedMeta.ServiceSpecific.Fields["global"] = structpb.NewStructValue(s)
+		}
+		meta := mergedMeta
 
 		structPayload, err := structpb.NewStruct(payloadMap)
 		if err != nil {
 			log.Error("Error creating structpb.Struct for Nexus payload", zap.Error(err), zap.Any("payloadMap", payloadMap))
 			continue
 		}
-		// Always use 0 for CampaignId in outgoing Nexus event
+		// Set campaign_id from globalFields (metadata/global), fallback to 0 if not parseable
+		campaignIDStr := globalFields["campaign_id"]
+		var campaignIDInt int64 = 0
+		if campaignIDStr != "" {
+			if v, err := strconv.ParseInt(campaignIDStr, 10, 64); err == nil {
+				campaignIDInt = v
+			} else {
+				log.Warn("campaign_id is not a valid int64, defaulting to 0", zap.String("campaign_id", campaignIDStr))
+			}
+		}
 		nexusEventRequest := &nexuspb.EventRequest{
 			EventId:    correlationID,
 			EventType:  canonicalType,
-			EntityId:   c.userID,
-			CampaignId: 0,
+			EntityId:   userID,
+			CampaignId: campaignIDInt,
 			Payload:    &commonpb.Payload{Data: structPayload},
 			Metadata:   meta,
 		}
@@ -419,6 +561,15 @@ func (c *WSClient) writePump() {
 }
 
 // --- Nexus Subscriber & Broadcasting ---
+// Helper to generate event_id based on correlation_id and state
+func generateEventID(correlationID, eventType, state string) string {
+	// Extract action from eventType (everything before last colon)
+	action := eventType
+	if idx := strings.LastIndex(eventType, ":"); idx != -1 {
+		action = eventType[:idx]
+	}
+	return correlationID + ":" + action + ":" + state
+}
 
 func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 	backoff := NewExponentialBackoff(1*time.Second, 30*time.Second, 2.0, 0.2)
@@ -452,6 +603,20 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 				// Determine broadcast scope
 				userID, campaignID, isSystem := getBroadcastScope(event)
 
+				log.Info("[NexusSubscriber] Received event from Nexus",
+					zap.String("event_type", event.EventType),
+					zap.String("event_id", event.EventId),
+					zap.String("user_id", userID),
+					zap.String("campaign_id", campaignID),
+					zap.Any("metadata", event.Metadata),
+					zap.Any("payload", event.Payload),
+				)
+				// Log current client map state for diagnostics
+				wsClientMap.Range(func(campID, userID string, client *WSClient) bool {
+					log.Debug("[NexusSubscriber] ClientMap entry", zap.String("campaign_id", campID), zap.String("user_id", userID))
+					return true
+				})
+
 				// Marshal payload for WebSocket clients
 				wsEvent := WebSocketEvent{
 					Type:    event.EventType,
@@ -463,20 +628,30 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 					continue
 				}
 
-				// Broadcast
+				// Broadcast with detailed logging and diagnostics
+				var broadcasted bool
 				if isSystem {
+					log.Info("[NexusSubscriber] Broadcasting system event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
+					// Optionally enrich system events with default campaign info
+					if getDefaultCampaign() != nil {
+						log.Debug("System event: default campaign available", zap.String("name", getDefaultCampaign().Name))
+					}
 					broadcastSystem(payloadBytes)
+					broadcasted = true
 				} else if campaignID != "" && userID != "" {
-					// This is a targeted user event
+					log.Info("[NexusSubscriber] Broadcasting user event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.String("user_id", userID), zap.String("campaign_id", campaignID))
 					broadcastUser(userID, payloadBytes)
+					broadcasted = true
 				} else if campaignID != "" {
-					// This is a campaign-wide event
+					log.Info("[NexusSubscriber] Broadcasting campaign event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.String("campaign_id", campaignID))
 					broadcastCampaign(campaignID, payloadBytes)
+					broadcasted = true
 				} else {
-					// Fallback to system broadcast if scope is unclear
-					log.Warn("Broadcasting event with unclear scope to system", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
+					log.Warn("[NexusSubscriber] Broadcasting event with unclear scope to system", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
 					broadcastSystem(payloadBytes)
+					broadcasted = true
 				}
+				log.Info("[NexusSubscriber] Broadcast result", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Bool("broadcasted", broadcasted))
 
 				// After broadcasting success, emit the completed event
 				if strings.HasSuffix(event.EventType, ":success") {
@@ -502,17 +677,20 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 						correlationID = event.EventId
 					}
 
+					completedEventID := generateEventID(correlationID, completedEventType, "completed")
+
 					log.Info("Transitioning event to completed state",
 						zap.String("from", event.EventType),
 						zap.String("to", completedEventType),
-						zap.String("event_id", correlationID), // Use the correlationID
+						zap.String("event_id", completedEventID),
+						zap.String("correlation_id", correlationID),
 					)
 
 					// Create a new request for the completed event
 					completedEventRequest := &nexuspb.EventRequest{
-						EventId:   correlationID, // Use the original correlationID
+						EventId:   completedEventID,
 						EventType: completedEventType,
-						EntityId:  userID, // Use the userID from the broadcast scope
+						EntityId:  userID,
 						Payload:   event.Payload,
 						Metadata:  event.Metadata,
 					}
@@ -523,13 +701,15 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 					if err != nil {
 						log.Error("Error emitting completed event to Nexus",
 							zap.String("event_type", completedEventType),
-							zap.String("event_id", correlationID),
+							zap.String("event_id", completedEventID),
+							zap.String("correlation_id", correlationID),
 							zap.Error(err),
 						)
 					} else {
 						log.Info("Successfully emitted completed event to Nexus",
 							zap.String("event_type", completedEventType),
-							zap.String("event_id", correlationID),
+							zap.String("event_id", completedEventID),
+							zap.String("correlation_id", correlationID),
 						)
 					}
 					cancel()
@@ -547,9 +727,30 @@ func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string,
 	}
 	payloadMap := payload.GetData().AsMap()
 
-	// Extract user_id and campaign_id from payload
+	// Extract user_id and campaign_id from payload (top-level)
 	userID, _ = payloadMap["user_id"].(string)
 	campaignID, _ = payloadMap["campaign_id"].(string)
+
+	// If missing, try to extract from metadata.service_specific.global
+	if (userID == "" || campaignID == "") && event.Metadata != nil {
+		if ss := event.Metadata.GetServiceSpecific(); ss != nil {
+			if globalVal, ok := ss.Fields["global"]; ok {
+				if globalStruct := globalVal.GetStructValue(); globalStruct != nil {
+					globalMap := globalStruct.AsMap()
+					if userID == "" {
+						if uid, ok := globalMap["user_id"].(string); ok {
+							userID = uid
+						}
+					}
+					if campaignID == "" {
+						if cid, ok := globalMap["campaign_id"].(string); ok {
+							campaignID = cid
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// Determine if this is a system event based on event type or content
 	isSystem = event.EventType == "system" || strings.HasPrefix(event.EventType, "system:")

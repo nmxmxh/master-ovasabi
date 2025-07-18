@@ -7,7 +7,6 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
-	metadatautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -55,11 +54,6 @@ func NewRepository(db *sql.DB, log *zap.Logger, master repository.MasterReposito
 
 // Create inserts a new referral record.
 func (r *Repository) Create(referral *Referral) error {
-	err := metadatautil.ValidateMetadata(referral.Metadata)
-	if err != nil {
-		return err
-	}
-
 	query := `
 		INSERT INTO service_referral_main (referrer_master_id, referrer_master_uuid, referred_master_id, referred_master_uuid, campaign_id, device_hash, referral_code, successful, created_at, updated_at, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)

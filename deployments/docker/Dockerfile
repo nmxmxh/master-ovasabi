@@ -23,10 +23,12 @@ LABEL org.opencontainers.image.authors="hello@ovasabi.studio"
 # Install basic tools
 RUN apk add --no-cache curl
 
-# Copy built binary and config file
+
+# Copy built binary, config, and start directory
 COPY --from=builder /app/master-ovasabi /
 COPY --from=builder /app/config/config.yaml /config/
 COPY --from=builder /app/config/service_registration.json /config/
+COPY --from=builder /app/start /start/
 
 # Copy the pre-downloaded health probe tool
 COPY --from=builder /app/tools/grpc_health_probe /usr/local/bin/grpc_health_probe

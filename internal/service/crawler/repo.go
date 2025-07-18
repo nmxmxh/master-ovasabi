@@ -62,9 +62,6 @@ func (r *Repository) CreateCrawlTask(ctx context.Context, task *crawlerpb.CrawlT
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to marshal metadata")
 	}
-	if err := metadata.ValidateMetadata(task.Metadata); err != nil {
-		return nil, errors.Wrap(err, "invalid metadata")
-	}
 
 	query := `
 		INSERT INTO service_crawler_tasks (uuid, master_id, master_uuid, task_type, target, depth, filters, status, metadata, created_at, updated_at)
@@ -119,9 +116,6 @@ func (r *Repository) UpdateCrawlTask(ctx context.Context, task *crawlerpb.CrawlT
 	meta, err := metadata.MarshalCanonical(task.Metadata)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to marshal metadata")
-	}
-	if err := metadata.ValidateMetadata(task.Metadata); err != nil {
-		return nil, errors.Wrap(err, "invalid metadata")
 	}
 
 	query := `

@@ -32,10 +32,6 @@ func (r *Repository) CreateContent(ctx context.Context, c *contentpb.Content) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
-	err = metadatautil.ValidateMetadata(c.Metadata)
-	if err != nil {
-		return nil, err
-	}
 	tags := strings.Join(c.Tags, ",")
 	media := strings.Join(c.MediaUrls, ",")
 	var id string
@@ -59,10 +55,6 @@ func (r *Repository) UpdateContent(ctx context.Context, c *contentpb.Content) (*
 	meta, err := metadatautil.MarshalCanonical(c.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
-	}
-	err = metadatautil.ValidateMetadata(c.Metadata)
-	if err != nil {
-		return nil, err
 	}
 	tags := strings.Join(c.Tags, ",")
 	media := strings.Join(c.MediaUrls, ",")
@@ -330,10 +322,6 @@ func (r *Repository) AddComment(ctx context.Context, contentID, authorID, body s
 	meta, err := metadatautil.MarshalCanonical(metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
-	}
-	err = metadatautil.ValidateMetadata(metadata)
-	if err != nil {
-		return nil, err
 	}
 	var id string
 	err = r.db.QueryRowContext(ctx, `

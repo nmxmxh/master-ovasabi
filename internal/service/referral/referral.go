@@ -48,10 +48,6 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 // CreateReferral creates a new referral code following the Master-Client-Service-Event pattern.
 func (s *Service) CreateReferral(ctx context.Context, req *referralpb.CreateReferralRequest) (*referralpb.CreateReferralResponse, error) {
 	metadata.MigrateMetadata(req.Metadata)
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		s.handler.Error(ctx, "create_referral", codes.InvalidArgument, "invalid metadata", err, req.Metadata, "")
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.InvalidArgument))
-	}
 	referralCode := generateReferralCode()
 	referrerMasterID, err := strconv.ParseInt(req.ReferrerMasterId, 10, 64)
 	if err != nil {
@@ -128,10 +124,6 @@ func (s *Service) GetReferral(ctx context.Context, req *referralpb.GetReferralRe
 // RegisterReferral registers a new referral and emits an event.
 func (s *Service) RegisterReferral(ctx context.Context, req *referralpb.RegisterReferralRequest) (*referralpb.RegisterReferralResponse, error) {
 	metadata.MigrateMetadata(req.Metadata)
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		s.handler.Error(ctx, "register_referral", codes.InvalidArgument, "invalid metadata", err, req.Metadata, "")
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument))
-	}
 	referrerMasterID, err := strconv.ParseInt(req.ReferrerMasterId, 10, 64)
 	if err != nil {
 		s.handler.Error(ctx, "register_referral", codes.InvalidArgument, "invalid referrer_master_id", err, req.Metadata, "")
@@ -164,10 +156,6 @@ func (s *Service) RegisterReferral(ctx context.Context, req *referralpb.Register
 // RewardReferral rewards a referral and emits an event.
 func (s *Service) RewardReferral(ctx context.Context, req *referralpb.RewardReferralRequest) (*referralpb.RewardReferralResponse, error) {
 	metadata.MigrateMetadata(req.Metadata)
-	if err := metadata.ValidateMetadata(req.Metadata); err != nil {
-		s.handler.Error(ctx, "reward_referral", codes.InvalidArgument, "invalid metadata", err, req.Metadata, "")
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument))
-	}
 	referral, err := s.repo.GetByCode(req.ReferralCode)
 	if err != nil {
 		s.handler.Error(ctx, "reward_referral", codes.NotFound, "referral not found", err, nil, req.ReferralCode)

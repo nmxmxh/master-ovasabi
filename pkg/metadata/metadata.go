@@ -111,6 +111,38 @@ type WebAuthnCredential struct {
 // MetadataHandler is the canonical handler for all metadata operations (creation, chaining, idempotency, calculation, search).
 type Handler struct{}
 
+// EnrichMetadata sets global fields and service-specific fields in a commonpb.Metadata.
+// globalFields: map of global key/value pairs (e.g., correlation_id, user_id)
+// serviceName: namespace for service-specific fields (e.g., "gateway", "search")
+// serviceFields: map of service-specific key/value pairs
+func (Handler) EnrichMetadata(meta *commonpb.Metadata, globalFields map[string]string, serviceName string, serviceFields map[string]interface{}) *commonpb.Metadata {
+	if meta == nil {
+		meta = &commonpb.Metadata{}
+	}
+	if meta.ServiceSpecific == nil {
+		meta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+	}
+	// Set global fields under 'global' namespace
+	if globalFields != nil {
+		globalMap := map[string]interface{}{}
+		for k, v := range globalFields {
+			globalMap[k] = v
+		}
+		s, err := structpb.NewStruct(globalMap)
+		if err == nil {
+			meta.ServiceSpecific.Fields["global"] = structpb.NewStructValue(s)
+		}
+	}
+	// Set service-specific fields in ServiceSpecific namespace
+	if serviceName != "" && serviceFields != nil {
+		s, err := structpb.NewStruct(serviceFields)
+		if err == nil {
+			meta.ServiceSpecific.Fields[serviceName] = structpb.NewStructValue(s)
+		}
+	}
+	return meta
+}
+
 // DefaultMetadata returns a canonical metadata map with all required fields initialized.
 func (Handler) DefaultMetadata() map[string]interface{} {
 	now := time.Now().UTC().Format(time.RFC3339)

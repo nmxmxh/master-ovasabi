@@ -1,0 +1,247 @@
+{
+  "slug": "ovasabi_website",
+  "name": "Default System Campaign",
+  "features": [
+    "broadcast",
+    "waitlist",
+    "referral",
+    "leaderboard",
+    "site_onboarding",
+    "lead_capture",
+    "user_journey"
+  ],
+  "i18n_keys": [
+    "welcome_banner",
+    "signup_cta",
+    "lead_form",
+    "referral_cta",
+    "site_intro",
+    "user_dashboard"
+  ],
+  "broadcast_enabled": true,
+  "waitlist": true,
+  "referral": true,
+  "leaderboard": true,
+  "custom_field": "",
+  "ws_frequency": "5s",
+  "sched_start": "2025-07-17T00:00:00Z",
+  "sched_end": "",
+  "service_specific": {
+    "campaign": {
+      "campaign_id": "0",
+      "slug": "ovasabi_website",
+      "broadcast_enabled": true,
+      "channels": ["ovasabi_website", "0"],
+      "features": [
+        "broadcast",
+        "waitlist",
+        "referral",
+        "leaderboard",
+        "site_onboarding",
+        "lead_capture",
+        "user_journey"
+      ],
+      "i18n_keys": [
+        "welcome_banner",
+        "signup_cta",
+        "lead_form",
+        "referral_cta",
+        "site_intro",
+        "user_dashboard"
+      ],
+      "ui_content": {
+        "banner": "Welcome to OVASABI Studios!",
+        "cta": "Join the creative revolution.",
+        "lead_form": {
+          "fields": ["name", "email", "referral_code"],
+          "submit_text": "Get Started"
+        },
+        "dashboard": {
+          "welcome": "Your creative journey starts here.",
+          "actions": ["View Campaigns", "Invite Friends", "Track Progress"]
+        }
+      },
+      "scripts": {
+        "site_onboarding": {
+          "path": "/onboarding",
+          "main_text": "Welcome to OVASABI! Let's get you started.",
+          "steps": [
+            { "step": 1, "text": "Tell us about yourself.", "fields": ["name", "email"] },
+            {
+              "step": 2,
+              "text": "Choose your interests.",
+              "options": ["Design", "Development", "Consulting", "Talent"]
+            },
+            { "step": 3, "text": "Invite friends for early access.", "action": "invite" }
+          ]
+        },
+        "waitlist": {
+          "path": "/waitlist",
+          "main_text": "You're on the waitlist!",
+          "options_title": "What would you like to do next?",
+          "questions": [
+            {
+              "question": "Invite friends for early access?",
+              "options": ["Yes", "No"],
+              "action": "invite"
+            }
+          ]
+        },
+        "lead_capture": {
+          "path": "/lead",
+          "main_text": "Request a quote or express interest.",
+          "options_title": "Choose your service:",
+          "questions": [
+            {
+              "question": "Which service are you interested in?",
+              "options": ["Design", "Development", "Consulting"],
+              "action": "select_service"
+            }
+          ]
+        },
+        "referral": {
+          "path": "/referral",
+          "main_text": "Enter your referral code.",
+          "options_title": "Referral Options",
+          "questions": [
+            {
+              "question": "Do you have a referral code?",
+              "options": ["Yes", "No"],
+              "action": "enter_code"
+            }
+          ]
+        },
+        "leaderboard": {
+          "path": "/leaderboard",
+          "main_text": "See how you rank among other creatives!",
+          "options_title": "Leaderboard Actions",
+          "actions": ["View Top Referrers", "Share Your Progress", "Invite More Friends"]
+        },
+        "user_dashboard": {
+          "path": "/dashboard",
+          "main_text": "Track your campaign progress and creative journey.",
+          "sections": [
+            { "title": "My Campaigns", "description": "View and manage your active campaigns." },
+            { "title": "Invitations", "description": "Invite friends and earn rewards." },
+            { "title": "Progress", "description": "See your waitlist position and referral stats." }
+          ]
+        },
+        "site_intro": {
+          "path": "/",
+          "main_text": "Welcome to OVASABI Studios, the home of creative innovation.",
+          "description": "Discover campaigns, join the waitlist, and connect with top talent."
+        },
+        "localization": {
+          "path": "/localization",
+          "main_text": "Translate banners, CTAs, and onboarding flows for all supported locales.",
+          "supported_locales": ["en", "fr", "es", "de", "zh", "ar"],
+          "translation_requests": [
+            {
+              "context": "banner",
+              "source_string": "Welcome to OVASABI Studios!",
+              "target_locales": ["fr", "es", "de", "zh", "ar"],
+              "api": "/api/translate",
+              "payload": {
+                "string": "Welcome to OVASABI Studios!",
+                "context": "banner",
+                "locale": "target_locale"
+              }
+            },
+            {
+              "context": "cta",
+              "source_string": "Join the creative revolution.",
+              "target_locales": ["fr", "es", "de", "zh", "ar"],
+              "api": "/api/translate",
+              "payload": {
+                "string": "Join the creative revolution.",
+                "context": "cta",
+                "locale": "target_locale"
+              }
+            },
+            {
+              "context": "lead_form",
+              "source_string": "Get Started",
+              "target_locales": ["fr", "es", "de", "zh", "ar"],
+              "api": "/api/translate",
+              "payload": {
+                "string": "Get Started",
+                "context": "lead_form",
+                "locale": "target_locale"
+              }
+            },
+            {
+              "context": "onboarding_step_1",
+              "source_string": "Tell us about yourself.",
+              "target_locales": ["fr", "es", "de", "zh", "ar"],
+              "api": "/api/translate",
+              "payload": {
+                "string": "Tell us about yourself.",
+                "context": "onboarding_step_1",
+                "locale": "target_locale"
+              }
+            },
+            {
+              "context": "dashboard_welcome",
+              "source_string": "Your creative journey starts here.",
+              "target_locales": ["fr", "es", "de", "zh", "ar"],
+              "api": "/api/translate",
+              "payload": {
+                "string": "Your creative journey starts here.",
+                "context": "dashboard_welcome",
+                "locale": "target_locale"
+              }
+            }
+          ],
+          "flow": [
+            {
+              "step": 1,
+              "description": "Frontend requests translation for all UI strings at page load or user locale change.",
+              "endpoint": "/api/translate",
+              "payload": {
+                "strings": ["banner", "cta", "lead_form", "onboarding_step_1", "dashboard_welcome"],
+                "context": "ui_content",
+                "locale": "target_locale"
+              }
+            },
+            {
+              "step": 2,
+              "description": "Backend calls LibreTranslate or Azure Container App for translation, returns translated strings.",
+              "service": "LibreTranslate",
+              "response": {
+                "translated_strings": {
+                  "banner": "Bienvenue chez OVASABI Studios!",
+                  "cta": "Rejoignez la révolution créative.",
+                  "lead_form": "Commencer",
+                  "onboarding_step_1": "Parlez-nous de vous.",
+                  "dashboard_welcome": "Votre parcours créatif commence ici."
+                }
+              }
+            },
+            {
+              "step": 3,
+              "description": "Frontend updates UI with translated strings for the selected locale.",
+              "action": "update_ui"
+            }
+          ]
+        }
+      }
+    },
+    "global": {
+      "campaign_id": "ovasabi_website",
+      "user_id": "",
+      "correlation_id": ""
+    }
+  },
+  "scheduling": {
+    "start": "2025-07-17T00:00:00Z",
+    "broadcast_frequency": "5s"
+  },
+  "versioning": {
+    "version": "2025-07-17",
+    "environment": "dev"
+  },
+  "audit": {
+    "created_by": "system",
+    "created_at": "2025-07-17T00:00:00Z"
+  }
+}

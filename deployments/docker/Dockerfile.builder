@@ -28,12 +28,14 @@ RUN export PATH="$PATH:$(go env GOPATH)/bin" && make proto
 
 # Copy the rest of the source code last, as it changes most frequently.
 # A change here will not cause re-running of the steps above.
+
 COPY pkg/ ./pkg/
 COPY config/ ./config/
 COPY database/ ./database/
 COPY amadeus/ ./amadeus/
 COPY internal/ ./internal/
 COPY cmd/ ./cmd/
+COPY start/ ./start/
 
 # The final stage of this file is the builder image itself.
 # We can give it a more explicit name, though it's aliased as go-builder.

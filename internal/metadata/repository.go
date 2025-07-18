@@ -36,7 +36,6 @@ func NewMetadataRepository(db *sql.DB) *Repository {
 func (r *Repository) CreateMetadata(ctx context.Context, parentID, masterID, entityID, createdBy *uuid.UUID, category, environment string, data map[string]interface{}) (*Record, error) {
 	// Enrich and hash metadata before persisting
 	meta := metadata.MapToProto(data)
-	metadata.EnrichAndHashMetadata(meta, "repository.create")
 	data = metadata.ProtoToMap(meta)
 	id := uuid.New()
 	version := 1
@@ -86,7 +85,6 @@ func (r *Repository) GetLatestMetadata(ctx context.Context, masterID, entityID *
 func (r *Repository) UpdateMetadata(ctx context.Context, parentID, masterID, entityID, createdBy *uuid.UUID, category, environment string, data map[string]interface{}) (*Record, error) {
 	// Enrich and hash metadata before updating
 	meta := metadata.MapToProto(data)
-	metadata.EnrichAndHashMetadata(meta, "repository.update")
 	data = metadata.ProtoToMap(meta)
 	return r.CreateMetadata(ctx, parentID, masterID, entityID, createdBy, category, environment, data)
 }

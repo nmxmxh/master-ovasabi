@@ -386,11 +386,6 @@ func (s *Service) UpdateUser(ctx context.Context, req *userpb.UpdateUserRequest)
 			repoUser.Roles = req.User.Roles
 		}
 		if req.User.Metadata != nil {
-			if err := metadata.ValidateMetadata(req.User.Metadata); err != nil {
-				gErr := graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument)
-				s.handler.Error(ctx, action, codes.InvalidArgument, "invalid metadata", gErr, req.User.Metadata, req.UserId)
-				return nil, graceful.ToStatusError(gErr)
-			}
 			repoUser.Metadata = req.User.Metadata
 		}
 		repoUser.Status = int32(req.User.Status)
@@ -672,13 +667,8 @@ func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRe
 
 // Replace all direct metadata access/update points with migration and hooks.
 func (s *Service) updateUserMetadata(ctx context.Context, user *User, newMeta *commonpb.Metadata) error {
-	oldMeta := user.Metadata
 	metadata.MigrateMetadata(newMeta)
-	if err := metadata.RunPreUpdateHooks(ctx, oldMeta, newMeta); err != nil {
-		return err
-	}
 	user.Metadata = newMeta
-	metadata.RunPostUpdateHooks(ctx, newMeta)
 	return nil
 }
 

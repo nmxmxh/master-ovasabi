@@ -24,10 +24,6 @@ func NewRepository(db *sql.DB, log *zap.Logger) *Repository {
 }
 
 func (r *Repository) TrackEvent(ctx context.Context, event *analyticspb.Event) error {
-	if err := metadatautil.ValidateMetadata(event.Metadata); err != nil {
-		return err
-	}
-
 	var metadataJSON interface{}
 	if event.Metadata != nil {
 		b, err := metadatautil.MarshalCanonical(event.Metadata)

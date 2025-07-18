@@ -63,12 +63,6 @@ func (r *Repository) UpdateEntityMetadataFromEvent(ctx context.Context, uuidOrID
 		}
 	}
 
-	// 3. Run pre-update hooks
-	if err := RunPreUpdateHooks(ctx, oldMeta, newMeta); err != nil {
-		log.Error("Pre-update hook failed", zap.Error(err))
-		return err
-	}
-
 	// 4. Update metadata in DB
 	metaJSON, err := MarshalProtoToJSON(newMeta)
 	if err != nil {
@@ -82,9 +76,6 @@ func (r *Repository) UpdateEntityMetadataFromEvent(ctx context.Context, uuidOrID
 		return err
 	}
 	log.Info("Updated entity metadata in DB", zap.String("table", table), zap.String("entity_id", entityID))
-
-	// 5. Run post-update hooks
-	RunPostUpdateHooks(ctx, newMeta)
 
 	// 6. Audit (append audit entry)
 	Handler{}.AppendAudit(ProtoToMap(newMeta), map[string]interface{}{

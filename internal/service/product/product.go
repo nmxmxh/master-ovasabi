@@ -48,10 +48,7 @@ func (s *Service) CreateProduct(ctx context.Context, req *productpb.CreateProduc
 	}
 	req.Product.OwnerId = authUserID
 	metadata.MigrateMetadata(req.Product.Metadata)
-	if err := metadata.ValidateMetadata(req.Product.Metadata); err != nil {
-		s.handler.Error(ctx, "create_product", codes.InvalidArgument, "invalid metadata", err, nil, "")
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument))
-	}
+
 	if req.Product.CampaignId == 0 {
 		req.Product.CampaignId = 0
 	}
@@ -87,10 +84,6 @@ func (s *Service) UpdateProduct(ctx context.Context, req *productpb.UpdateProduc
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, nil, "Product is required", codes.InvalidArgument))
 	}
 	metadata.MigrateMetadata(req.Product.Metadata)
-	if err := metadata.ValidateMetadata(req.Product.Metadata); err != nil {
-		s.handler.Error(ctx, "update_product", codes.InvalidArgument, "invalid metadata", err, nil, req.Product.Id)
-		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "invalid metadata", codes.InvalidArgument))
-	}
 	if req.Product.CampaignId == 0 {
 		req.Product.CampaignId = 0
 	}

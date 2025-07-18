@@ -4,7 +4,7 @@
 // - protoc             v5.29.3
 // source: media/v1/media.proto
 
-package mediav1
+package v1
 
 import (
 	context "context"
