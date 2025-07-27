@@ -7,6 +7,24 @@ import {
   useGlobalStore
 } from './store/global';
 
+// Hook to poll window.__WASM_GLOBAL_METADATA
+function useWasmGlobalMetadata(pollInterval = 1000) {
+  const [wasmMetadata, setWasmMetadata] = useState<any>(null);
+  useEffect(() => {
+    function poll() {
+      if (typeof window !== 'undefined' && window.__WASM_GLOBAL_METADATA) {
+        setWasmMetadata(window.__WASM_GLOBAL_METADATA);
+      }
+    }
+    poll();
+    const interval = setInterval(poll, pollInterval);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [pollInterval]);
+  return wasmMetadata;
+}
+
 // Utility to generate a UUID (RFC4122 v4)
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -42,6 +60,48 @@ function App() {
       <SearchInterface />
       <EventHistory />
       <MetadataDisplay />
+      <LiveWasmMetadataDisplay />
+    </div>
+  );
+}
+// Component to display live WASM global metadata
+function LiveWasmMetadataDisplay() {
+  const wasmMetadata = useWasmGlobalMetadata(1000);
+  return (
+    <div style={{ marginTop: '30px' }}>
+      <h3>Live WASM Metadata (window.__WASM_GLOBAL_METADATA)</h3>
+      <details
+        style={{
+          border: '1px solid #ddd',
+          borderRadius: '6px',
+          padding: '10px',
+          backgroundColor: '#fafafa'
+        }}
+      >
+        <summary
+          style={{
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            padding: '5px 0'
+          }}
+        >
+          Click to view live WASM metadata
+        </summary>
+        <pre
+          style={{
+            marginTop: '10px',
+            backgroundColor: '#fff',
+            padding: '15px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            overflow: 'auto',
+            maxHeight: '300px',
+            border: '1px solid #eee'
+          }}
+        >
+          {wasmMetadata ? JSON.stringify(wasmMetadata, null, 2) : 'No WASM metadata available'}
+        </pre>
+      </details>
     </div>
   );
 }
@@ -143,7 +203,7 @@ function SearchInterface() {
   const globalStore = useGlobalStore();
 
   // Listen for search responses
-  const searchEvents = useEventHistory('search:search:v1:completed', 10);
+  const searchEvents = useEventHistory('search:search:v1:success', 10);
   const searchFailedEvents = useEventHistory('search:search:v1:failed', 5);
 
   // Handle search responses

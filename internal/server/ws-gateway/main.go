@@ -8,13 +8,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
-
-	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -78,9 +75,111 @@ var (
 		WriteBufferSize: 1024,
 		CheckOrigin:     checkOrigin,
 	}
-	log             logger.Logger    // Global logger instance
-	defaultCampaign *DefaultCampaign // Loaded from JSON at startup
+	log logger.Logger // Global logger instance
+
+	pendingRequests = newPendingRequestsMap()
 )
+
+// Track relevant event types for dynamic subscription
+var relevantEventTypesMu sync.RWMutex
+var relevantEventTypes = make(map[string]struct{})
+
+// --- Canonical Event Type Pre-population ---
+// At startup, parse service_registration.json and pre-populate all :success event types
+func prepopulateCanonicalSuccessEventTypes(path string, log logger.Logger) {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Warn("Could not open service_registration.json for canonical event pre-population", zap.Error(err))
+		return
+	}
+	defer f.Close()
+	bytes, err := io.ReadAll(f)
+	if err != nil {
+		log.Warn("Could not read service_registration.json for canonical event pre-population", zap.Error(err))
+		return
+	}
+	var services []map[string]interface{}
+	if err := json.Unmarshal(bytes, &services); err != nil {
+		log.Warn("Could not parse service_registration.json for canonical event pre-population", zap.Error(err))
+		return
+	}
+	states := []string{"success"}
+	for _, svc := range services {
+		service, _ := svc["name"].(string)
+		version, _ := svc["version"].(string)
+		endpoints, ok := svc["endpoints"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, ep := range endpoints {
+			epMap, ok := ep.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			actions, ok := epMap["actions"].([]interface{})
+			if !ok {
+				continue
+			}
+			for _, action := range actions {
+				actionStr, ok := action.(string)
+				if !ok {
+					continue
+				}
+				for _, state := range states {
+					et := service + ":" + actionStr + ":" + version + ":" + state
+					AddRelevantEventType(et)
+				}
+			}
+		}
+	}
+	log.Info("Pre-populated canonical :success event types", zap.Int("count", len(GetRelevantEventTypes())))
+}
+
+// AddRelevantEventType registers an event type as relevant for subscription
+func AddRelevantEventType(eventType string) {
+	relevantEventTypesMu.Lock()
+	defer relevantEventTypesMu.Unlock()
+	relevantEventTypes[eventType] = struct{}{}
+}
+
+// GetRelevantEventTypes returns a slice of currently relevant event types
+func GetRelevantEventTypes() []string {
+	relevantEventTypesMu.RLock()
+	defer relevantEventTypesMu.RUnlock()
+	types := make([]string, 0, len(relevantEventTypes))
+	for t := range relevantEventTypes {
+		types = append(types, t)
+	}
+	return types
+}
+
+// --- Robust request/response pattern ---
+type pendingRequestEntry struct {
+	expectedEventType string
+	client            *WSClient
+}
+type pendingRequestsMap struct {
+	mu   sync.RWMutex
+	data map[string]pendingRequestEntry // eventId -> entry
+}
+
+func newPendingRequestsMap() *pendingRequestsMap {
+	return &pendingRequestsMap{data: make(map[string]pendingRequestEntry)}
+}
+func (m *pendingRequestsMap) Store(eventId string, entry pendingRequestEntry) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.data[eventId] = entry
+}
+func (m *pendingRequestsMap) LoadAndDelete(eventId string) (pendingRequestEntry, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, ok := m.data[eventId]
+	if ok {
+		delete(m.data, eventId)
+	}
+	return entry, ok
+}
 
 // --- Default Campaign Model ---
 type DefaultCampaign struct {
@@ -90,30 +189,6 @@ type DefaultCampaign struct {
 	Onboarding  map[string]interface{} `json:"onboarding"`
 	Dialogue    map[string]interface{} `json:"dialogue"`
 	Metadata    map[string]interface{} `json:"metadata"`
-}
-
-// Loads the default campaign from start/default_campaign.json
-func loadDefaultCampaign() *DefaultCampaign {
-	jsonPath := filepath.Join("start", "default_campaign.json")
-	file, err := os.Open(jsonPath)
-	if err != nil {
-		log.Warn("Could not open default_campaign.json", zap.Error(err), zap.String("path", jsonPath))
-		return nil
-	}
-	defer file.Close()
-	var campaign DefaultCampaign
-	dec := json.NewDecoder(file)
-	if err := dec.Decode(&campaign); err != nil {
-		log.Warn("Could not decode default_campaign.json", zap.Error(err), zap.String("path", jsonPath))
-		return nil
-	}
-	log.Info("Loaded default campaign JSON", zap.String("name", campaign.Name), zap.Int64("campaign_id", campaign.CampaignID))
-	return &campaign
-}
-
-// Returns the loaded default campaign (for system-wide broadcasts, onboarding, etc.)
-func getDefaultCampaign() *DefaultCampaign {
-	return defaultCampaign
 }
 
 // --- Main Application ---
@@ -148,6 +223,9 @@ func main() {
 	}
 
 	// --- Initialization ---
+	// Pre-populate all canonical :success event types before starting Nexus subscriber
+	prepopulateCanonicalSuccessEventTypes("config/service_registration.json", log)
+
 	// Connect to the Nexus gRPC server
 	// In production, use TLS credentials.
 	conn, err := grpc.NewClient(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -158,9 +236,6 @@ func main() {
 	defer conn.Close()
 	nexusClient = nexuspb.NewNexusServiceClient(conn)
 	log.Info("Connected to Nexus gRPC server", zap.String("address", nexusAddr))
-
-	// --- Load Default Campaign JSON ---
-	defaultCampaign = loadDefaultCampaign()
 
 	// --- Start Nexus Subscriber ---
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -218,7 +293,7 @@ func main() {
 func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ws/"), "/")
 	// Use default campaign if not provided
-	campaignID := "ovasabi_website"
+	campaignID := "0"
 	if len(parts) > 0 && parts[0] != "" {
 		campaignID = parts[0]
 	}
@@ -246,6 +321,32 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	go client.writePump()
 	go client.readPump()
+
+	// --- Emit campaign:state:request to Nexus on new connection (handshake) ---
+	globalFields := map[string]interface{}{
+		"user_id":     userID,
+		"campaign_id": campaignID,
+	}
+	metaStruct, _ := structpb.NewStruct(map[string]interface{}{"global": globalFields})
+	meta := &commonpb.Metadata{ServiceSpecific: metaStruct}
+	correlationID := uuid.NewString()
+	stateRequest := &nexuspb.EventRequest{
+		EventId:    correlationID,
+		EventType:  "campaign:state:request",
+		EntityId:   userID,
+		CampaignId: 0, // Always 0 for now, or parse as needed
+		Metadata:   meta,
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := nexusClient.EmitEvent(ctx, stateRequest)
+		if err != nil {
+			log.Warn("Failed to emit campaign:state:request on handshake", zap.Error(err), zap.String("user_id", userID), zap.String("campaign_id", campaignID))
+		} else {
+			log.Info("Emitted campaign:state:request on handshake", zap.String("user_id", userID), zap.String("campaign_id", campaignID))
+		}
+	}()
 }
 
 // readPump pumps messages from the WebSocket connection to the Nexus event bus.
@@ -292,19 +393,42 @@ func (c *WSClient) readPump() {
 			continue
 		}
 
-		// Forward to Nexus using the canonical event type
+		// --- Robust request/response: store pending request info ---
+		// Generate correlationId (eventId) if not present in metadata
+		var correlationID string
+		var clientMeta *commonpb.Metadata = clientMsg.Metadata
+		if clientMeta != nil && clientMeta.ServiceSpecific != nil {
+			if global, ok := clientMeta.ServiceSpecific.Fields["global"]; ok {
+				if globalStruct, ok := global.GetStructValue().AsMap()["correlation_id"]; ok {
+					if s, ok := globalStruct.(string); ok && s != "" {
+						correlationID = s
+					}
+				}
+			}
+		}
+		if correlationID == "" {
+			correlationID = uuid.NewString()
+		}
+		// Compute expected success event type (replace :request with :success)
+		expectedSuccessType := canonicalType
+		if strings.HasSuffix(canonicalType, ":request") {
+			expectedSuccessType = strings.TrimSuffix(canonicalType, ":request") + ":success"
+		}
+		pendingRequests.Store(correlationID, pendingRequestEntry{
+			expectedEventType: expectedSuccessType,
+			client:            c,
+		})
+		// Register both request and expected response event types as relevant
+		AddRelevantEventType(canonicalType)
+		AddRelevantEventType(expectedSuccessType)
+		// --- Existing logic for forwarding to Nexus ---
 		var payloadMap map[string]interface{}
 		payloadRaw := string(clientMsg.Payload)
-
-		// If the event is an 'echo' and the payload is empty, just ignore it.
-		// This could be a keep-alive or a misconfigured client.
 		if (len(payloadRaw) == 0 || payloadRaw == "null") && canonicalType == "echo" {
 			log.Debug("Ignoring empty echo event", zap.String("user_id", c.userID))
 			continue
 		}
-
 		if len(payloadRaw) == 0 || payloadRaw == "null" {
-			// Instead of skipping, emit an empty payload object
 			payloadMap = make(map[string]interface{})
 			log.Warn("Client payload is empty or null, emitting empty payload object",
 				zap.String("user_id", c.userID),
@@ -316,7 +440,6 @@ func (c *WSClient) readPump() {
 				log.Error("Error unmarshaling client payload", zap.Error(err), zap.String("payload_raw", payloadRaw))
 				continue
 			}
-			// Check for empty payload after unmarshal
 			if len(payloadMap) == 0 {
 				log.Warn("Client payload is empty after unmarshal, emitting empty payload object",
 					zap.String("user_id", c.userID),
@@ -326,22 +449,16 @@ func (c *WSClient) readPump() {
 				payloadMap = make(map[string]interface{})
 			}
 		}
-		// Loop protection: skip if already emitted by gateway
 		if emitted, ok := payloadMap["emitted_by_gateway"]; ok {
 			if b, ok := emitted.(bool); ok && b {
 				log.Info("Skipping event re-emission to Nexus (loop protection)", zap.Any("payload", payloadMap))
 				continue
 			}
 		}
-		// Always inject campaign_id, canonical type, and loop marker
-		// user_id should go in metadata, not payload, to avoid protobuf unmarshal errors
-
-		// --- campaign_id type normalization: always emit 0 for now ---
-		payloadMap["campaign_id"] = int64(0)
+		normalizedCampaignID := c.campaignID
+		payloadMap["campaign_id"] = normalizedCampaignID
 		payloadMap["type"] = canonicalType
 		payloadMap["emitted_by_gateway"] = true
-
-		// Remove any nil, empty string, or empty object fields from payloadMap (except required fields)
 		for k, v := range payloadMap {
 			if k == "campaign_id" || k == "type" {
 				continue
@@ -354,178 +471,71 @@ func (c *WSClient) readPump() {
 				delete(payloadMap, k)
 			}
 		}
-
-		// Remove internal loop-protection marker before emitting to Nexus
 		delete(payloadMap, "emitted_by_gateway")
-		// Remove 'type' field before emitting to Nexus to avoid proto unmarshal errors
 		delete(payloadMap, "type")
-
 		log.Info("Parsed client payload (cleaned)",
 			zap.String("user_id", c.userID),
 			zap.Any("payload", payloadMap),
 		)
-		// Canonical metadata merge: preserve all client fields, inject/override global fields
-		var correlationID string
-		var clientMeta *commonpb.Metadata = clientMsg.Metadata
-		// If clientMeta is nil or empty, try to parse raw metadata from the client message
-		if clientMeta == nil || (clientMeta.ServiceSpecific == nil || len(clientMeta.ServiceSpecific.Fields) == 0) {
-			// Parse raw message to extract metadata field as map
-			var rawMsg map[string]interface{}
-			if err := json.Unmarshal(msgBytes, &rawMsg); err == nil {
-				if metaRaw, ok := rawMsg["metadata"]; ok {
-					if metaMap, ok := metaRaw.(map[string]interface{}); ok {
-						// Build ServiceSpecific struct from each top-level key
-						fields := map[string]*structpb.Value{}
-						for k, v := range metaMap {
-							// If value is a map, convert to structpb.Struct
-							if m, ok := v.(map[string]interface{}); ok {
-								if s, err := structpb.NewStruct(m); err == nil {
-									fields[k] = structpb.NewStructValue(s)
-								}
-							} else {
-								// Otherwise, store as structpb.Value
-								if val, err := structpb.NewValue(v); err == nil {
-									fields[k] = val
-								}
-							}
-						}
-						clientMeta = &commonpb.Metadata{
-							ServiceSpecific: &structpb.Struct{Fields: fields},
-						}
-					}
-				}
-			}
-			if clientMeta == nil {
-				clientMeta = &commonpb.Metadata{}
-			}
-		}
 
-		// Extract correlation_id from client metadata (global namespace or top-level)
-		if clientMeta.ServiceSpecific != nil {
-			if globalVal, ok := clientMeta.ServiceSpecific.Fields["global"]; ok {
-				if globalStruct := globalVal.GetStructValue(); globalStruct != nil {
-					if cid, ok := globalStruct.AsMap()["correlation_id"].(string); ok && cid != "" {
-						correlationID = cid
-					}
+		// --- Canonical metadata merge: preserve all client fields, inject/override global fields ---
+		// Merge global fields into metadata
+		globalFields := map[string]interface{}{
+			"user_id":     c.userID,
+			"campaign_id": c.campaignID,
+		}
+		var mergedMeta *commonpb.Metadata
+		if clientMsg.Metadata != nil && clientMsg.Metadata.ServiceSpecific != nil {
+			// Merge/override global fields
+			metaMap := clientMsg.Metadata.ServiceSpecific.AsMap()
+			if g, ok := metaMap["global"].(map[string]interface{}); ok {
+				for k, v := range globalFields {
+					g[k] = v
 				}
+				metaMap["global"] = g
+			} else {
+				metaMap["global"] = globalFields
 			}
-			// If not found in global, check top-level
-			if correlationID == "" {
-				if cidVal, ok := clientMeta.ServiceSpecific.Fields["correlation_id"]; ok {
-					if cid := cidVal.GetStringValue(); cid != "" {
-						correlationID = cid
-					}
-				}
-			}
-		}
-		if correlationID == "" {
-			correlationID = uuid.NewString()
-		}
-		// Build global fields
-		userID := c.userID
-		// Try to extract session.authenticated from client metadata
-		if clientMeta.ServiceSpecific != nil {
-			if sessionVal, ok := clientMeta.ServiceSpecific.Fields["session"]; ok {
-				if sessionStruct := sessionVal.GetStructValue(); sessionStruct != nil {
-					sessionMap := sessionStruct.AsMap()
-					if authVal, ok := sessionMap["authenticated"]; ok {
-						if b, ok := authVal.(bool); ok && b {
-							// authenticated user, keep userID as is
-						} else {
-							// not authenticated, use guestId if present
-							if guestIdVal, ok := sessionMap["guestId"]; ok {
-								if guestIdStr, ok := guestIdVal.(string); ok && guestIdStr != "" {
-									userID = guestIdStr
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		globalFields := map[string]string{
-			"correlation_id": correlationID,
-			"user_id":        userID,
-			"campaign_id":    c.campaignID,
-		}
-		// Merge all client metadata fields into event envelope
-		mergedMeta := &commonpb.Metadata{}
-		if clientMeta.ServiceSpecific != nil {
-			mergedMeta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
-			for k, v := range clientMeta.ServiceSpecific.Fields {
-				mergedMeta.ServiceSpecific.Fields[k] = v
-			}
+			structVal, _ := structpb.NewStruct(metaMap)
+			mergedMeta = &commonpb.Metadata{ServiceSpecific: structVal}
 		} else {
-			mergedMeta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+			structVal, _ := structpb.NewStruct(map[string]interface{}{"global": globalFields})
+			mergedMeta = &commonpb.Metadata{ServiceSpecific: structVal}
 		}
-		// Overwrite or add 'global' namespace with canonical globalFields
-		globalMap := map[string]interface{}{}
-		for k, v := range globalFields {
-			globalMap[k] = v
-		}
-		s, err := structpb.NewStruct(globalMap)
-		if err == nil {
-			mergedMeta.ServiceSpecific.Fields["global"] = structpb.NewStructValue(s)
-		}
-		meta := mergedMeta
 
-		structPayload, err := structpb.NewStruct(payloadMap)
+		// Marshal cleaned payload
+		payloadBytes, err := json.Marshal(payloadMap)
 		if err != nil {
-			log.Error("Error creating structpb.Struct for Nexus payload", zap.Error(err), zap.Any("payloadMap", payloadMap))
+			log.Error("Failed to marshal cleaned payload for Nexus emission", zap.Error(err), zap.Any("payloadMap", payloadMap))
 			continue
 		}
-		// Set campaign_id from globalFields (metadata/global), fallback to 0 if not parseable
-		campaignIDStr := globalFields["campaign_id"]
-		var campaignIDInt int64 = 0
-		if campaignIDStr != "" {
-			if v, err := strconv.ParseInt(campaignIDStr, 10, 64); err == nil {
-				campaignIDInt = v
-			} else {
-				log.Warn("campaign_id is not a valid int64, defaulting to 0", zap.String("campaign_id", campaignIDStr))
-			}
-		}
-		nexusEventRequest := &nexuspb.EventRequest{
+
+		// Emit to Nexus
+		eventReq := &nexuspb.EventRequest{
 			EventId:    correlationID,
 			EventType:  canonicalType,
-			EntityId:   userID,
-			CampaignId: campaignIDInt,
-			Payload:    &commonpb.Payload{Data: structPayload},
-			Metadata:   meta,
+			EntityId:   c.userID,
+			CampaignId: 0, // Use 0 or parse as needed
+			Metadata:   mergedMeta,
+			Payload:    &commonpb.Payload{Data: &structpb.Struct{}},
 		}
-		// Log emission with canonical field names
-		log.Info("Emitting event to Nexus",
-			zap.String("event_type", canonicalType),
-			zap.String("event_id", correlationID),
-			zap.String("user_id", c.userID),
-			zap.String("campaign_id", c.campaignID),
-			zap.String("trace_id", correlationID),
-			zap.Any("payload", payloadMap),
-			zap.Any("metadata", meta),
-		)
-		// Use a timeout for the gRPC call
-		emitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		resp, err := nexusClient.EmitEvent(emitCtx, nexusEventRequest)
-		if err != nil {
-			log.Error("Error emitting event to Nexus",
-				zap.String("event_type", canonicalType),
-				zap.String("event_id", correlationID),
-				zap.String("user_id", c.userID),
-				zap.String("campaign_id", c.campaignID),
-				zap.String("trace_id", correlationID),
-				zap.Error(err),
-			)
-		} else {
-			log.Info("Received response from Nexus",
-				zap.String("event_type", canonicalType),
-				zap.String("event_id", correlationID),
-				zap.String("user_id", c.userID),
-				zap.String("campaign_id", c.campaignID),
-				zap.String("trace_id", correlationID),
-				zap.Any("response", resp),
-			)
+		// Unmarshal payloadBytes into structpb.Struct and wrap in commonpb.Payload
+		var payloadStruct map[string]interface{}
+		if err := json.Unmarshal(payloadBytes, &payloadStruct); err == nil {
+			structVal, _ := structpb.NewStruct(payloadStruct)
+			eventReq.Payload = &commonpb.Payload{Data: structVal}
 		}
-		cancel()
+
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, err := nexusClient.EmitEvent(ctx, eventReq)
+			if err != nil {
+				log.Warn("Failed to emit client event to Nexus", zap.Error(err), zap.String("user_id", c.userID), zap.String("event_type", canonicalType))
+			} else {
+				log.Info("Emitted client event to Nexus", zap.String("user_id", c.userID), zap.String("event_type", canonicalType))
+			}
+		}()
 	}
 }
 
@@ -560,17 +570,6 @@ func (c *WSClient) writePump() {
 	}
 }
 
-// --- Nexus Subscriber & Broadcasting ---
-// Helper to generate event_id based on correlation_id and state
-func generateEventID(correlationID, eventType, state string) string {
-	// Extract action from eventType (everything before last colon)
-	action := eventType
-	if idx := strings.LastIndex(eventType, ":"); idx != -1 {
-		action = eventType[:idx]
-	}
-	return correlationID + ":" + action + ":" + state
-}
-
 func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 	backoff := NewExponentialBackoff(1*time.Second, 30*time.Second, 2.0, 0.2)
 	for {
@@ -579,8 +578,21 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 			log.Info("Nexus subscriber shutting down.")
 			return
 		default:
-			// Subscribe to all events to find the success ones
-			stream, err := client.SubscribeEvents(ctx, &nexuspb.SubscribeRequest{})
+			// Subscribe only to relevant event types (dynamic filtering)
+			eventTypes := GetRelevantEventTypes()
+			// If none, fallback to all events (initial startup)
+			var stream nexuspb.NexusService_SubscribeEventsClient
+			var err error
+			if len(eventTypes) > 0 {
+				// Use event_types filter if supported by Nexus
+				stream, err = client.SubscribeEvents(ctx, &nexuspb.SubscribeRequest{
+					EventTypes: eventTypes,
+				})
+				log.Info("Subscribing to filtered Nexus event stream", zap.Strings("event_types", eventTypes))
+			} else {
+				stream, err = client.SubscribeEvents(ctx, &nexuspb.SubscribeRequest{})
+				log.Info("Subscribing to all Nexus events (no filter set)")
+			}
 			if err != nil {
 				log.Error("Failed to subscribe to Nexus events", zap.Error(err))
 				time.Sleep(backoff.NextInterval())
@@ -597,27 +609,116 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 					} else {
 						log.Error("Error receiving event from Nexus", zap.Error(err))
 					}
-					break // Re-enter the outer loop to reconnect
+					break
 				}
 
-				// Determine broadcast scope
+				// --- Robust request/response: check for pending request match ---
+				eventId := event.EventId
+				eventType := event.EventType
+				if entry, ok := pendingRequests.LoadAndDelete(eventId); ok {
+					if eventType == entry.expectedEventType {
+						wsEvent := WebSocketEvent{
+							Type:    eventType,
+							Payload: event.Payload.GetData().AsMap(),
+						}
+						payloadBytes, err := json.Marshal(wsEvent)
+						if err == nil {
+							select {
+							case entry.client.send <- payloadBytes:
+								log.Info("[REQ/RESP] Forwarded response to client", zap.String("eventId", eventId), zap.String("eventType", eventType), zap.String("user_id", entry.client.userID))
+							default:
+								log.Warn("[REQ/RESP] WebSocket send buffer full", zap.String("user_id", entry.client.userID), zap.String("event_type", eventType))
+							}
+						}
+						continue // Don't broadcast further
+					}
+				}
+				// --- Existing event routing and broadcast logic ---
+				log.Debug("[WS-GATEWAY] Received event from Nexus", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+				// Forward all canonical event types (service:action:v1:state) to the correct client
+				parts := strings.Split(event.EventType, ":")
+				isCanonical := false
+				if len(parts) == 4 {
+					service, action, version, state := parts[0], parts[1], parts[2], parts[3]
+					if service != "" && action != "" && strings.HasPrefix(version, "v") && len(version) > 1 {
+						allowedStates := map[string]struct{}{"requested": {}, "started": {}, "success": {}, "failed": {}, "completed": {}}
+						if _, ok := allowedStates[state]; ok {
+							isCanonical = true
+						}
+					}
+				}
+				if isCanonical {
+					userID, campaignID, _ := getBroadcastScope(event)
+					payloadMap := event.Payload.GetData().AsMap()
+					log.Debug("[WS-GATEWAY] Canonical event routing info", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payloadMap", payloadMap))
+					wsEvent := WebSocketEvent{
+						Type:    event.EventType,
+						Payload: payloadMap,
+					}
+					payloadBytes, err := json.Marshal(wsEvent)
+					if err != nil {
+						log.Error("Failed to marshal canonical event for client", zap.Error(err), zap.String("event_type", event.EventType))
+						continue
+					}
+					log.Info("[CANONICAL_EVENT] Forwarding event", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payload", payloadMap))
+					sent := false
+					wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
+						log.Debug("[WS-GATEWAY] Checking client for event delivery", zap.String("client_campaign_id", cid), zap.String("client_user_id", uid), zap.String("event_type", event.EventType))
+						if uid == userID && cid == campaignID {
+							select {
+							case client.send <- payloadBytes:
+								sent = true
+								log.Info("[CANONICAL_EVENT] Forwarded event to client", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
+							default:
+								log.Warn("[CANONICAL_EVENT] WebSocket send buffer full", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
+							}
+							return false
+						}
+						return true
+					})
+					if !sent {
+						log.Warn("[CANONICAL_EVENT] No matching WebSocket client", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("event_type", event.EventType))
+					}
+					continue // Don't broadcast to all for canonical events
+				}
+				// Fallback: Forward campaign:state events for campaign state sync (legacy/compat)
+				if strings.HasPrefix(event.EventType, "campaign:state:v1:") {
+					userID, campaignID, _ := getBroadcastScope(event)
+					payloadMap := event.Payload.GetData().AsMap()
+					log.Debug("[WS-GATEWAY] Campaign state event routing info", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payloadMap", payloadMap))
+					wsEvent := WebSocketEvent{
+						Type:    event.EventType,
+						Payload: payloadMap,
+					}
+					payloadBytes, err := json.Marshal(wsEvent)
+					if err != nil {
+						log.Error("Failed to marshal campaign state event for client", zap.Error(err), zap.String("event_type", event.EventType))
+						continue
+					}
+					log.Info("[CAMPAIGN_STATE] Forwarding event (legacy)", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payload", payloadMap))
+					sent := false
+					wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
+						log.Debug("[WS-GATEWAY] Checking client for campaign state delivery", zap.String("client_campaign_id", cid), zap.String("client_user_id", uid), zap.String("event_type", event.EventType))
+						if uid == userID && cid == campaignID {
+							select {
+							case client.send <- payloadBytes:
+								sent = true
+								log.Info("[CAMPAIGN_STATE] Forwarded event to client (legacy)", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
+							default:
+								log.Warn("[CAMPAIGN_STATE] WebSocket send buffer full (legacy)", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
+							}
+							return false
+						}
+						return true
+					})
+					if !sent {
+						log.Warn("[CAMPAIGN_STATE] No matching WebSocket client (legacy)", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("event_type", event.EventType))
+					}
+					continue // Don't broadcast to all for campaign state events
+				}
+				// Fallback: Existing broadcast logic for other events
 				userID, campaignID, isSystem := getBroadcastScope(event)
-
-				log.Info("[NexusSubscriber] Received event from Nexus",
-					zap.String("event_type", event.EventType),
-					zap.String("event_id", event.EventId),
-					zap.String("user_id", userID),
-					zap.String("campaign_id", campaignID),
-					zap.Any("metadata", event.Metadata),
-					zap.Any("payload", event.Payload),
-				)
-				// Log current client map state for diagnostics
-				wsClientMap.Range(func(campID, userID string, client *WSClient) bool {
-					log.Debug("[NexusSubscriber] ClientMap entry", zap.String("campaign_id", campID), zap.String("user_id", userID))
-					return true
-				})
-
-				// Marshal payload for WebSocket clients
+				log.Debug("[WS-GATEWAY] Fallback event routing info", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Bool("is_system", isSystem))
 				wsEvent := WebSocketEvent{
 					Type:    event.EventType,
 					Payload: event.Payload,
@@ -627,92 +728,18 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 					log.Error("Failed to marshal event payload for client", zap.Error(err), zap.String("event_type", event.EventType))
 					continue
 				}
-
-				// Broadcast with detailed logging and diagnostics
-				var broadcasted bool
 				if isSystem {
-					log.Info("[NexusSubscriber] Broadcasting system event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
-					// Optionally enrich system events with default campaign info
-					if getDefaultCampaign() != nil {
-						log.Debug("System event: default campaign available", zap.String("name", getDefaultCampaign().Name))
-					}
+					log.Info("[WS-GATEWAY] Broadcasting system event to all clients", zap.String("event_type", event.EventType))
 					broadcastSystem(payloadBytes)
-					broadcasted = true
 				} else if campaignID != "" && userID != "" {
-					log.Info("[NexusSubscriber] Broadcasting user event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.String("user_id", userID), zap.String("campaign_id", campaignID))
+					log.Info("[WS-GATEWAY] Broadcasting event to user", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("event_type", event.EventType))
 					broadcastUser(userID, payloadBytes)
-					broadcasted = true
 				} else if campaignID != "" {
-					log.Info("[NexusSubscriber] Broadcasting campaign event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.String("campaign_id", campaignID))
+					log.Info("[WS-GATEWAY] Broadcasting event to campaign", zap.String("campaign_id", campaignID), zap.String("event_type", event.EventType))
 					broadcastCampaign(campaignID, payloadBytes)
-					broadcasted = true
 				} else {
-					log.Warn("[NexusSubscriber] Broadcasting event with unclear scope to system", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
+					log.Warn("[WS-GATEWAY] Event has no routing info; broadcasting as system event", zap.String("event_id", event.EventId), zap.String("event_type", event.EventType))
 					broadcastSystem(payloadBytes)
-					broadcasted = true
-				}
-				log.Info("[NexusSubscriber] Broadcast result", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Bool("broadcasted", broadcasted))
-
-				// After broadcasting success, emit the completed event
-				if strings.HasSuffix(event.EventType, ":success") {
-					completedEventType := strings.TrimSuffix(event.EventType, ":success") + ":completed"
-
-					// Extract correlation_id from metadata to use as the event ID
-					var correlationID string
-					if meta := event.GetMetadata(); meta != nil {
-						if serviceSpecific := meta.GetServiceSpecific(); serviceSpecific != nil {
-							s := serviceSpecific.AsMap()
-							if id, ok := s["correlation_id"].(string); ok {
-								correlationID = id
-							}
-						}
-					}
-
-					// Fallback to the received event's ID if correlation_id is not found
-					if correlationID == "" {
-						log.Warn("Could not find correlation_id in metadata, falling back to event_id for completed event",
-							zap.String("event_type", event.EventType),
-							zap.String("fallback_event_id", event.EventId),
-						)
-						correlationID = event.EventId
-					}
-
-					completedEventID := generateEventID(correlationID, completedEventType, "completed")
-
-					log.Info("Transitioning event to completed state",
-						zap.String("from", event.EventType),
-						zap.String("to", completedEventType),
-						zap.String("event_id", completedEventID),
-						zap.String("correlation_id", correlationID),
-					)
-
-					// Create a new request for the completed event
-					completedEventRequest := &nexuspb.EventRequest{
-						EventId:   completedEventID,
-						EventType: completedEventType,
-						EntityId:  userID,
-						Payload:   event.Payload,
-						Metadata:  event.Metadata,
-					}
-
-					// Emit the new 'completed' event
-					emitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					_, err := nexusClient.EmitEvent(emitCtx, completedEventRequest)
-					if err != nil {
-						log.Error("Error emitting completed event to Nexus",
-							zap.String("event_type", completedEventType),
-							zap.String("event_id", completedEventID),
-							zap.String("correlation_id", correlationID),
-							zap.Error(err),
-						)
-					} else {
-						log.Info("Successfully emitted completed event to Nexus",
-							zap.String("event_type", completedEventType),
-							zap.String("event_id", completedEventID),
-							zap.String("correlation_id", correlationID),
-						)
-					}
-					cancel()
 				}
 			}
 		}
@@ -723,6 +750,7 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string, isSystem bool) {
 	payload := event.GetPayload()
 	if payload == nil {
+		log.Warn("[getBroadcastScope] Event has nil payload", zap.String("event_id", event.EventId), zap.String("event_type", event.EventType))
 		return "", "", true // Default to system if no payload
 	}
 	payloadMap := payload.GetData().AsMap()
@@ -730,6 +758,7 @@ func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string,
 	// Extract user_id and campaign_id from payload (top-level)
 	userID, _ = payloadMap["user_id"].(string)
 	campaignID, _ = payloadMap["campaign_id"].(string)
+	log.Debug("[getBroadcastScope] Extracted from payload", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payloadMap", payloadMap))
 
 	// If missing, try to extract from metadata.service_specific.global
 	if (userID == "" || campaignID == "") && event.Metadata != nil {
@@ -747,6 +776,7 @@ func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string,
 							campaignID = cid
 						}
 					}
+					log.Debug("[getBroadcastScope] Extracted from metadata.global", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("globalMap", globalMap))
 				}
 			}
 		}
@@ -754,6 +784,7 @@ func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string,
 
 	// Determine if this is a system event based on event type or content
 	isSystem = event.EventType == "system" || strings.HasPrefix(event.EventType, "system:")
+	log.Debug("[getBroadcastScope] isSystem determination", zap.Bool("is_system", isSystem), zap.String("event_type", event.EventType))
 	return
 }
 

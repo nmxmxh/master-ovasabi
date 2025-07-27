@@ -29,6 +29,10 @@ declare global {
      * Returns a shared ArrayBuffer from WASM for JS/React to consume (if available)
      */
     getSharedBuffer?: () => ArrayBuffer;
+    /**
+     * Exposes the latest global metadata from WASM for live frontend access
+     */
+    __WASM_GLOBAL_METADATA?: any;
   }
 }
 

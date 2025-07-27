@@ -18,8 +18,10 @@ WORKDIR /nexus
 # Copy the pre-downloaded health probe tool
 COPY --from=builder /app/tools/grpc_health_probe /bin/grpc_health_probe
 
+
 COPY --from=builder /app/nexus .
 COPY --from=builder /app/config/service_registration.json /nexus/config/
+COPY --from=builder /app/start/default_campaign.json /nexus/start/default_campaign.json
 
 USER nonroot:nonroot
 

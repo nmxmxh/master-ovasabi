@@ -40,7 +40,28 @@ async function loadGoWasm(wasmUrl: string) {
 // --- Main Execution ---
 (async () => {
   try {
+    // Extra debug: check SharedArrayBuffer and COOP/COEP
+    const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
+    if (!hasSharedArrayBuffer) {
+      console.warn('[WASM] SharedArrayBuffer is NOT available. Threads will not be supported.');
+    } else {
+      console.log('[WASM] SharedArrayBuffer is available.');
+    }
+    // Check for COOP/COEP headers (required for threads)
+    if (hasSharedArrayBuffer && !crossOriginIsolated) {
+      console.warn(
+        '[WASM] crossOriginIsolated is FALSE. COOP/COEP headers are likely missing. Threads will not be supported.'
+      );
+    } else if (hasSharedArrayBuffer && crossOriginIsolated) {
+      console.log('[WASM] crossOriginIsolated is TRUE. COOP/COEP headers are set.');
+    }
+    // Feature detect threads
     const supportsThreads = await threads();
+    if (supportsThreads) {
+      console.log('[WASM] WebAssembly threads are SUPPORTED.');
+    } else {
+      console.warn('[WASM] WebAssembly threads are NOT supported. Will load single-threaded WASM.');
+    }
     const wasmUrl = supportsThreads ? '/main.threads.wasm' : '/main.wasm';
     // Set global variable for Go WASM to log
     (window as any).__WASM_VERSION = wasmUrl;

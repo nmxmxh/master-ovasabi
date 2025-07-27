@@ -21,13 +21,13 @@ import (
 
 // Repository handles pattern registration, orchestration, mining, and feedback.
 type Repository struct {
-	db         *sql.DB
-	masterRepo repository.MasterRepository
+	DB         *sql.DB
+	MasterRepo repository.MasterRepository
 }
 
 // NewRepository creates a new Nexus repository instance.
 func NewRepository(db *sql.DB, masterRepo repository.MasterRepository) *Repository {
-	return &Repository{db: db, masterRepo: masterRepo}
+	return &Repository{DB: db, MasterRepo: masterRepo}
 }
 
 // RegisterPattern inserts or updates a pattern in the database, with provenance.
@@ -50,7 +50,7 @@ func (r *Repository) RegisterPattern(ctx context.Context, req *nexusv1.RegisterP
 
 	// Always create or look up a master record for this pattern
 	entityType := "pattern" // or a more specific type if required by your standard
-	masterID, _, err := r.masterRepo.CreateMasterRecord(ctx, entityType, patternName)
+	masterID, _, err := r.MasterRepo.CreateMasterRecord(ctx, entityType, patternName)
 	if err != nil {
 		return fmt.Errorf("failed to create or lookup master record: %w", err)
 	}
@@ -58,7 +58,7 @@ func (r *Repository) RegisterPattern(ctx context.Context, req *nexusv1.RegisterP
 	// Compute definition_hash for deduplication
 	definitionHash := fmt.Sprintf("%x", md5Sum(def))
 
-	_, err = r.db.ExecContext(ctx, `
+	_, err = r.DB.ExecContext(ctx, `
 	INSERT INTO service_nexus_pattern (pattern_id, pattern_type, version, origin, definition, metadata, created_by, campaign_id, definition_hash, type)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	ON CONFLICT (pattern_id, campaign_id) DO UPDATE SET
@@ -91,7 +91,7 @@ func (r *Repository) ListPatterns(ctx context.Context, patternType string, campa
 		q += " AND pattern_type = $2"
 		args = append(args, patternType)
 	}
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := r.DB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (r *Repository) ListPatterns(ctx context.Context, patternType string, campa
 
 // GetPatternRequirements extracts requirements from a pattern's definition.
 func (r *Repository) GetPatternRequirements(ctx context.Context, patternID string) ([]string, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT definition FROM service_nexus_pattern WHERE pattern_id = $1`, patternID)
+	row := r.DB.QueryRowContext(ctx, `SELECT definition FROM service_nexus_pattern WHERE pattern_id = $1`, patternID)
 	var defBytes []byte
 	if err := row.Scan(&defBytes); err != nil {
 		return nil, err
@@ -168,7 +168,7 @@ func (r *Repository) ValidatePattern(ctx context.Context, patternID string, inpu
 
 // Orchestrate executes a pattern and records the orchestration, with rollback on failure.
 func (r *Repository) Orchestrate(ctx context.Context, req *nexusv1.OrchestrateRequest, createdBy string, _ int64) (string, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return "", err
 	}
@@ -271,7 +271,7 @@ func (r *Repository) logOrchestrationEvent(ctx context.Context, tx *sql.Tx, orch
 
 // TracePattern returns the trace for a given orchestration.
 func (r *Repository) TracePattern(ctx context.Context, orchestrationID string) ([]*nexusv1.TraceStep, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.DB.QueryContext(ctx, `
 		SELECT service, action, timestamp, details
 		FROM service_nexus_trace
 		WHERE orchestration_id = $1
@@ -308,7 +308,7 @@ func (r *Repository) TracePattern(ctx context.Context, orchestrationID string) (
 // MineAndStorePatterns analyzes trace data to discover frequent (service, action) patterns and stores them.
 func (r *Repository) MineAndStorePatterns(ctx context.Context) error {
 	// Find the most frequent (service, action) pairs in trace data
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.DB.QueryContext(ctx, `
 		SELECT service, action, COUNT(*) as support_count
 		FROM service_nexus_trace
 		GROUP BY service, action
@@ -339,7 +339,7 @@ func (r *Repository) MineAndStorePatterns(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal mined pattern metadata: %w", err)
 		}
-		_, err = r.db.ExecContext(ctx, `
+		_, err = r.DB.ExecContext(ctx, `
 			INSERT INTO service_nexus_mined_pattern (pattern_type, definition, support_count, confidence, metadata)
 			VALUES ($1, $2, $3, $4, $5)
 		`, patternType, defBytes, supportCount, confidence, metaBytes)
@@ -355,7 +355,7 @@ func (r *Repository) MineAndStorePatterns(ctx context.Context) error {
 
 // ListMinedPatterns returns all mined patterns.
 func (r *Repository) ListMinedPatterns(ctx context.Context) ([]map[string]interface{}, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.DB.QueryContext(ctx, `
 		SELECT mined_pattern_id, pattern_type, definition, support_count, confidence, mined_at, metadata
 		FROM service_nexus_mined_pattern
 		ORDER BY mined_at DESC
@@ -405,7 +405,7 @@ func (r *Repository) MinePatterns(ctx context.Context, source string) ([]*nexusv
 	// Assuming the intent was to parse a string to int64 if needed elsewhere,
 	// but for this function, it's not directly relevant.
 	if source == "mined" {
-		rows, err := r.db.QueryContext(ctx, `
+		rows, err := r.DB.QueryContext(ctx, `
 			SELECT mined_pattern_id, pattern_type, definition, support_count, confidence, mined_at, metadata
 			FROM service_nexus_mined_pattern
 			ORDER BY mined_at DESC
@@ -446,7 +446,7 @@ func (r *Repository) MinePatterns(ctx context.Context, source string) ([]*nexusv
 		return patterns, nil
 	}
 	// Fallback: query by origin
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.DB.QueryContext(ctx, `
 		SELECT pattern_id, pattern_type, version, origin, definition, usage_count, last_used, metadata
 		FROM service_nexus_pattern
 		WHERE origin = $1
@@ -495,7 +495,7 @@ func (r *Repository) Feedback(ctx context.Context, req *nexusv1.FeedbackRequest)
 	if err != nil {
 		return fmt.Errorf("failed to marshal feedback metadata: %w", err)
 	}
-	_, err = r.db.ExecContext(ctx, `
+	_, err = r.DB.ExecContext(ctx, `
 		INSERT INTO service_nexus_feedback (pattern_id, score, comments, metadata, created_at)
 		VALUES ($1, $2, $3, $4, NOW())
 	`, req.PatternId, req.Score, req.Comments, meta)
@@ -526,7 +526,7 @@ func (r *Repository) SearchPatternsByMetadata(ctx context.Context, keyPath []str
 	default:
 		return nil, fmt.Errorf("unsupported key path depth")
 	}
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := r.DB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -580,7 +580,7 @@ func (r *Repository) SearchOrchestrationsByMetadata(ctx context.Context, keyPath
 	default:
 		return nil, fmt.Errorf("unsupported key path depth")
 	}
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := r.DB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -637,7 +637,7 @@ func (r *Repository) AddTraceStep(ctx context.Context, tx *sql.Tx, orchestration
 
 // SearchPatternsByJSONPath supports arbitrary-depth metadata search using JSONPath (Postgres 12+).
 func (r *Repository) SearchPatternsByJSONPath(ctx context.Context, jsonPath, value string) ([]*nexusv1.Pattern, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.DB.QueryContext(ctx, `
 		SELECT pattern_id, pattern_type, version, origin, definition, usage_count, last_used, metadata
 		FROM service_nexus_pattern
 		WHERE jsonb_path_exists(metadata, $1, '{"val": "' || $2 || '"}')
@@ -682,7 +682,7 @@ func (r *Repository) SearchPatternsByJSONPath(ctx context.Context, jsonPath, val
 
 // FacetPatternTags returns a count of patterns per tag for faceted search.
 func (r *Repository) FacetPatternTags(ctx context.Context) (map[string]int, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.DB.QueryContext(ctx, `
 		SELECT tag, COUNT(*) FROM (
 			SELECT jsonb_array_elements_text(metadata->'tags') AS tag FROM service_nexus_pattern
 		) t
@@ -754,7 +754,7 @@ func (r *Repository) InsertEvent(ctx context.Context, eventType, entityID string
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `
+	_, err = r.DB.ExecContext(ctx, `
 		INSERT INTO service_nexus_event (event_type, entity_id, metadata)
 		VALUES ($1, $2, $3)
 	`, eventType, entityID, metaJSON)

@@ -5,21 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- PWA Configuration -->
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#6366f1" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="OVASABI" />
+    <!-- PWA Configuration (disabled) -->
+    <!-- <link rel="manifest" href="/manifest.json" /> -->
+    <!-- <meta name="theme-color" content="#6366f1" /> -->
+    <!-- <meta name="mobile-web-app-capable" content="yes" /> -->
+    <!-- <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" /> -->
+    <!-- <meta name="apple-mobile-web-app-title" content="OVASABI" /> -->
 
-    <!-- iOS Icons -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
-    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png" />
+    <!-- iOS Icons (disabled) -->
+    <!-- <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" /> -->
+    <!-- <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" /> -->
+    <!-- <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png" /> -->
 
-    <!-- Microsoft Tiles -->
-    <meta name="msapplication-TileColor" content="#6366f1" />
-    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
+    <!-- Microsoft Tiles (disabled) -->
+    <!-- <meta name="msapplication-TileColor" content="#6366f1" /> -->
+    <!-- <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" /> -->
 
     <title>OVASABI Studios</title>
     <style>
@@ -36,7 +36,19 @@
     <script src="/wasm_exec.js"></script>
     <script type="module" src="/src/main.tsx"></script>
 
-    <!-- PWA Service Worker Registration -->
+    <!-- Unregister any existing service workers to ensure PWA is fully disabled -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          for (let registration of registrations) {
+            registration.unregister();
+          }
+        });
+      }
+    </script>
+
+    <!-- PWA Service Worker Registration (disabled) -->
+    <!--
     <script>
       // Register service worker for PWA functionality
       if ('serviceWorker' in navigator) {
@@ -109,5 +121,6 @@
         }, 10000);
       });
     </script>
+    -->
   </body>
 </html>

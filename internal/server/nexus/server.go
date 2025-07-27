@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	nexusrepo "github.com/nmxmxh/master-ovasabi/internal/service/nexus"
 	"github.com/nmxmxh/master-ovasabi/pkg/contextx"
 	pkgredis "github.com/nmxmxh/master-ovasabi/pkg/redis"
@@ -163,6 +164,7 @@ type Server struct {
 	repo             *nexusrepo.Repository
 	cache            *pkgredis.Cache
 	payloadValidator *registration.PayloadValidator
+	campaignStateMgr *CampaignStateManager // Use correct type
 }
 
 // NewNexusServer creates a new Nexus gRPC server with Redis event streaming.
@@ -181,13 +183,28 @@ func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repo
 		payloadValidator = nil // Continue without payload validation
 	}
 
+	eventBus := NewRedisEventBus(cache.GetClient(), log, "nexus:events")
+	// Use campaign.Repository for campaign state manager
+	// Instantiate campaign repository using the shared DB and logger from the Nexus repo
+	var campaignRepo *campaignrepo.Repository
+	if repo != nil {
+		campaignRepo = campaignrepo.NewRepository(repo.DB, log, repo.MasterRepo)
+	} else {
+		campaignRepo = nil
+	}
+	campaignStateMgr := NewCampaignStateManager(log, func(event *nexusv1.EventResponse) {
+		// Feedback bus: publish campaign state events to the event bus
+		eventBus.Publish(event)
+	}, campaignRepo)
+
 	return &Server{
 		log:              log,
-		eventBus:         NewRedisEventBus(cache.GetClient(), log, "nexus:events"),
+		eventBus:         eventBus,
 		registry:         registry,
 		repo:             repo,
 		cache:            cache,
 		payloadValidator: payloadValidator,
+		campaignStateMgr: campaignStateMgr,
 	}
 }
 
@@ -246,11 +263,29 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 	defer s.eventBus.Unsubscribe(ch)
 	ctx := stream.Context()
 
-	// Build a set for fast event type filtering
+	// --- Backend-side filtering ---
+	// Build filter sets from SubscribeRequest
 	eventTypeSet := make(map[string]struct{})
 	for _, et := range req.EventTypes {
 		eventTypeSet[et] = struct{}{}
 	}
+
+	// Extract user_id and campaign_id from req.Metadata.ServiceSpecific.Global (if present)
+	var filterUserID, filterCampaignID string
+	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+		if globalVal, ok := req.Metadata.ServiceSpecific.Fields["global"]; ok {
+			if globalStruct := globalVal.GetStructValue(); globalStruct != nil {
+				globalMap := globalStruct.AsMap()
+				if uid, ok := globalMap["user_id"].(string); ok {
+					filterUserID = uid
+				}
+				if cid, ok := globalMap["campaign_id"].(string); ok {
+					filterCampaignID = cid
+				}
+			}
+		}
+	}
+
 	// If no specific event types are requested, subscribe to a default set including 'success'
 	if len(eventTypeSet) == 0 {
 		eventTypeSet["success"] = struct{}{}
@@ -261,15 +296,79 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 		case <-ctx.Done():
 			return nil
 		case event := <-ch:
-			// Only send if event type matches subscription (or no filter)
-			if len(eventTypeSet) == 0 || event.Message == "" || hasEventType(eventTypeSet, event.Message) {
-				if err := stream.Send(event); err != nil {
-					s.log.Error("Failed to send event", zap.Error(err))
-					return err
+			// 1. Event type filter
+			if len(eventTypeSet) > 0 && !hasEventType(eventTypeSet, event.EventType) {
+				continue
+			}
+
+			// 2. user_id filter (if set)
+			if filterUserID != "" {
+				eventUserID := extractUserID(event)
+				if eventUserID != filterUserID {
+					continue
+				}
+			}
+
+			// 3. campaign_id filter (if set)
+			if filterCampaignID != "" {
+				eventCampaignID := extractCampaignID(event)
+				if eventCampaignID != filterCampaignID {
+					continue
+				}
+			}
+
+			if err := stream.Send(event); err != nil {
+				s.log.Error("Failed to send event", zap.Error(err))
+				return err
+			}
+		}
+	}
+}
+
+// --- Helper functions for backend event filtering ---
+func hasString(set map[string]struct{}, val string) bool {
+	_, ok := set[val]
+	return ok
+}
+
+func extractUserID(event *nexusv1.EventResponse) string {
+	if event == nil || event.Payload == nil || event.Payload.Data == nil {
+		return ""
+	}
+	if v, ok := event.Payload.Data.Fields["user_id"]; ok {
+		return v.GetStringValue()
+	}
+	// Try metadata.service_specific.global.user_id
+	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
+		if global, ok := event.Metadata.ServiceSpecific.Fields["global"]; ok {
+			if globalStruct := global.GetStructValue(); globalStruct != nil {
+				if v, ok := globalStruct.Fields["user_id"]; ok {
+					return v.GetStringValue()
 				}
 			}
 		}
 	}
+	return ""
+}
+
+func extractCampaignID(event *nexusv1.EventResponse) string {
+	if event == nil || event.Payload == nil || event.Payload.Data == nil {
+		return ""
+	}
+	if v, ok := event.Payload.Data.Fields["campaign_id"]; ok {
+		return v.GetStringValue()
+	}
+	// Try metadata.service_specific.global.campaign_id
+	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
+		if global, ok := event.Metadata.ServiceSpecific.Fields["global"]; ok {
+			if globalStruct := global.GetStructValue(); globalStruct != nil {
+				if v, ok := globalStruct.Fields["campaign_id"]; ok {
+					return v.GetStringValue()
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // hasEventType checks if the event type is in the set.
@@ -295,6 +394,21 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		s.log.Info("[EmitEvent] Generated new EventID", zap.String("event_id", eventID))
 	}
 
+	// Append state/action to eventID for uniqueness per action, but ensure only one state suffix
+	// Only if eventType is canonical (format: service:action:version:state)
+	parts := strings.Split(req.EventType, ":")
+	if len(parts) == 4 {
+		state := parts[3]
+		// Remove any existing state suffix (e.g., :requested, :started, :success, :failed, :completed)
+		for _, sfx := range []string{":requested", ":started", ":success", ":failed", ":completed"} {
+			if strings.HasSuffix(eventID, sfx) {
+				eventID = strings.TrimSuffix(eventID, sfx)
+				break
+			}
+		}
+		eventID = eventID + ":" + state
+	}
+
 	// Extract context for envelope
 	var traceID, userID, campaignID string
 	if span := trace.SpanFromContext(ctx); span != nil && span.SpanContext().IsValid() {
@@ -304,16 +418,6 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	if authCtx := contextx.Auth(ctx); authCtx != nil && authCtx.UserID != "" {
 		userID = authCtx.UserID
 		s.log.Debug("[EmitEvent] Extracted userID from context", zap.String("user_id", userID))
-	}
-	if req.Payload != nil && req.Payload.Data != nil && req.Payload.Data.Fields != nil {
-		if _, ok := req.Payload.Data.Fields["campaign_id"]; ok {
-			campaignID = "0" // Normalize campaign_id
-			s.log.Debug("[EmitEvent] Found campaign_id in payload, normalized", zap.String("campaign_id", campaignID))
-		}
-		if v, ok := req.Payload.Data.Fields["user_id"]; ok {
-			userID = v.GetStringValue()
-			s.log.Debug("[EmitEvent] Found user_id in payload", zap.String("user_id", userID))
-		}
 	}
 
 	// Use metadata package helper if available, else build flat metadata
@@ -361,6 +465,16 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		}
 	}
 
+	if cleanedPayload != nil && cleanedPayload.Data != nil {
+		payloadMap := cleanedPayload.Data.Fields
+		if _, ok := payloadMap["user_id"]; !ok && userID != "" {
+			payloadMap["user_id"] = structpb.NewStringValue(userID)
+		}
+		if _, ok := payloadMap["campaign_id"]; !ok && campaignID != "" {
+			payloadMap["campaign_id"] = structpb.NewStringValue(campaignID)
+		}
+	}
+
 	// Build canonical event envelope
 	envelope := &nexusv1.EventResponse{
 		Success:   true,
@@ -387,6 +501,12 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		s.log.Info("[EmitEvent] Event already published by another instance, skipping", zap.String("event_id", eventID))
 	}
 
+	// Handle campaign:state:request events with campaignStateMgr
+	if req.EventType == "campaign:state:request" && s.campaignStateMgr != nil {
+		s.campaignStateMgr.HandleEvent(req)
+		return &nexusv1.EventResponse{Success: true, Message: "Campaign state emitted", Metadata: req.Metadata}, nil
+	}
+
 	s.log.Info("[EmitEvent] Returning response to caller", zap.String("event_id", eventID), zap.Any("response", envelope))
 	return &nexusv1.EventResponse{Success: true, Message: "Event broadcasted", Metadata: envelope.Metadata}, nil
 }
@@ -395,6 +515,10 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 func isCanonicalEventType(eventType string) bool {
 	// Allow the special echo event type for hello world/testing
 	if eventType == "echo" {
+		return true
+	}
+	// Allow all campaign events to pass through
+	if strings.HasPrefix(eventType, "campaign:") {
 		return true
 	}
 	parts := strings.Split(eventType, ":")

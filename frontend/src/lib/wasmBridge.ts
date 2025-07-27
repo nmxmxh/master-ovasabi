@@ -45,6 +45,63 @@ function wasmMessageToTypescript(wasmMsg: any): WasmBridgeMessage {
 // Expose the listener manager to the window for WASM to call
 if (typeof window !== 'undefined') {
   (window as any).onWasmMessage = notifyListeners;
+
+  // --- WebRTC Signaling Hooks ---
+  // Media signal listeners (for WebRTC signaling)
+  const mediaSignalListeners: ((msg: any) => void)[] = [];
+
+  // Called by WASM when a signaling message arrives from backend
+  (window as any).onMediaSignal = function (msg: any) {
+    mediaSignalListeners.forEach(cb => cb(msg));
+  };
+
+  // Called by JS/React/WebRTC to send a signaling message to backend via WASM/WebSocket
+  (window as any).sendMediaSignal = function (msg: any) {
+    // You may want to wrap/namespace the message if needed
+    if (typeof window.sendWasmMessage === 'function') {
+      // Use a reserved type for signaling, e.g., 'rtc-signal'
+      window.sendWasmMessage({ type: 'rtc-signal', payload: msg });
+    } else {
+      console.warn('sendWasmMessage not available, cannot send media signal');
+    }
+  };
+
+  // Expose subscribe/unsubscribe for media signals
+  (window as any).subscribeToMediaSignals = function (cb: (msg: any) => void) {
+    mediaSignalListeners.push(cb);
+    return () => {
+      const idx = mediaSignalListeners.indexOf(cb);
+      if (idx > -1) mediaSignalListeners.splice(idx, 1);
+    };
+  };
+}
+/**
+ * Subscribe to WebRTC signaling messages from WASM/backend.
+ * @param cb The callback to invoke with each signaling message.
+ * @returns An unsubscribe function.
+ */
+export function subscribeToMediaSignals(cb: (msg: any) => void): () => void {
+  if (
+    typeof window !== 'undefined' &&
+    typeof (window as any).subscribeToMediaSignals === 'function'
+  ) {
+    return (window as any).subscribeToMediaSignals(cb);
+  } else {
+    // Fallback: no-op unsubscribe
+    return () => {};
+  }
+}
+
+/**
+ * Send a WebRTC signaling message to the backend via WASM/WebSocket.
+ * @param msg - The signaling message (SDP, ICE, etc)
+ */
+export function sendMediaSignal(msg: any) {
+  if (typeof window !== 'undefined' && typeof (window as any).sendMediaSignal === 'function') {
+    (window as any).sendMediaSignal(msg);
+  } else {
+    console.warn('sendMediaSignal not available');
+  }
 }
 
 /**

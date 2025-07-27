@@ -5,8 +5,11 @@ package graceful
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"google.golang.org/protobuf/types/known/structpb"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
@@ -77,35 +80,40 @@ func (h *Handler) Success(ctx context.Context, action string, code codes.Code, m
 	if h.EventEnabled && h.EventEmitter != nil {
 		eventType := fmt.Sprintf("%s:%s:%s:%s", h.Service, action, h.Version, "success")
 		eventID := entityID
-		timestamp := sCtx.Timestamp.Format(time.RFC3339)
-		payloadMap := map[string]interface{}{
-			"code":           code.String(),
-			"message":        msg,
-			"result":         result,
-			"yin_yang":       "yang",
-			"correlation_id": utils.GetStringFromContext(ctx, "correlation_id"),
-			"service":        h.Service,
-			"actor_id":       utils.GetStringFromContext(ctx, "actor_id"),
-			"request_id":     utils.GetStringFromContext(ctx, "request_id"),
-			"timestamp":      timestamp,
+		var payload *commonpb.Payload
+		if result != nil {
+			var payloadStruct *structpb.Struct
+			switch v := result.(type) {
+			case *structpb.Struct:
+				payloadStruct = v
+			case map[string]interface{}:
+				payloadStruct = metadata.NewStructFromMap(v, nil)
+			default:
+				b, err := json.Marshal(result)
+				if err == nil {
+					var m map[string]interface{}
+					if err := json.Unmarshal(b, &m); err == nil {
+						payloadStruct = metadata.NewStructFromMap(m, nil)
+					}
+				}
+			}
+			if payloadStruct != nil {
+				payload = &commonpb.Payload{Data: payloadStruct}
+			} else {
+				payload = &commonpb.Payload{}
+			}
+		} else {
+			payload = &commonpb.Payload{}
 		}
-		// Convert payload to *structpb.Struct
-		payloadStruct := metadata.NewStructFromMap(payloadMap, nil)
 		var meta *commonpb.Metadata
 		if m, ok := metaVal.(*commonpb.Metadata); ok {
 			meta = m
 		}
-		var ts int64
-		t, err := time.Parse(time.RFC3339, timestamp)
-		if err == nil {
-			ts = t.Unix()
-		} else {
-			ts = time.Now().Unix()
-		}
+		ts := sCtx.Timestamp.Unix()
 		envelope := &events.EventEnvelope{
 			ID:        eventID,
 			Type:      eventType,
-			Payload:   &commonpb.Payload{Data: payloadStruct},
+			Payload:   payload,
 			Metadata:  meta,
 			Timestamp: ts,
 		}

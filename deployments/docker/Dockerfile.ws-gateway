@@ -14,6 +14,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/ws-gateway ./inte
 FROM alpine:3.19
 WORKDIR /ws
 COPY --from=builder /app/ws-gateway /ws/ws-gateway
+COPY --from=builder /app/config/service_registration.json /ws/config/service_registration.json
 # Copy start directory for default_campaign.json access, preserving /ws structure
 COPY --from=builder /app/start /ws/start/
 CMD ["/ws/ws-gateway"]

@@ -202,19 +202,30 @@ const createInitialMetadata = (): Metadata => {
 };
 
 // --- Store Interface ---
+interface PendingRequestEntry {
+  expectedEventType: string;
+  resolve: (event: EventEnvelope) => void;
+  reject?: (reason?: any) => void;
+}
+
 interface GlobalState {
   // Core state
   metadata: Metadata;
   events: EventEnvelope[];
   eventStates: Record<string, string>; // eventType -> current state
+  eventPayloads: Record<string, any>; // eventType -> payload for proactive state
   queuedMessages: EventEnvelope[];
   connection: ConnectionState;
   serviceStates: ServiceStates; // Generic state for different services/features
+  pendingRequests: Record<string, PendingRequestEntry>;
 
   // Actions
   setMetadata: (meta: Partial<Metadata>) => void;
   updateMetadata: (updater: (current: Metadata) => Metadata) => void;
-  emitEvent: (event: Omit<EventEnvelope, 'timestamp' | 'correlationId'>) => void;
+  emitEvent: (
+    event: Omit<EventEnvelope, 'timestamp' | 'correlationId'>,
+    onResponse?: (event: EventEnvelope) => void
+  ) => void;
   updateEventState: (eventType: string, state: string) => void;
   setConnectionState: (state: Partial<ConnectionState>) => void;
   handleWasmMessage: (msg: any) => void;
@@ -262,6 +273,8 @@ export const useGlobalStore = create<GlobalState>()(
           events: [],
           eventStates: {},
           queuedMessages: [],
+          campaignState: null, // Dedicated field for latest campaign state (legacy, see eventPayloads)
+          eventPayloads: {}, // Map of eventType -> payload for proactive state
           connection: {
             connected: false,
             connecting: false,
@@ -272,6 +285,7 @@ export const useGlobalStore = create<GlobalState>()(
             wasmReady: false
           },
           serviceStates: {}, // Generic state for all services
+          pendingRequests: {},
 
           // Actions
           setMetadata: meta => {
@@ -289,14 +303,33 @@ export const useGlobalStore = create<GlobalState>()(
               'updateMetadata'
             ),
 
-          emitEvent: event => {
+          emitEvent: (event, onResponse) => {
             const state = get();
+            const correlationId = generateId();
+            // Compute expected success event type
+            let expectedEventType = event.type;
+            if (event.type.endsWith(':request')) {
+              expectedEventType = event.type.replace(/:request$/, ':success');
+            }
             const fullEvent: EventEnvelope = {
               ...event,
               timestamp: getTimezoneAwareTimestamp(),
-              correlationId: generateId(),
+              correlationId,
               metadata: merge(cloneDeep(state.metadata), event.metadata)
             };
+
+            // Store pending request if callback provided
+            if (onResponse) {
+              set(current => ({
+                pendingRequests: {
+                  ...current.pendingRequests,
+                  [correlationId]: {
+                    expectedEventType,
+                    resolve: onResponse
+                  }
+                }
+              }));
+            }
 
             // Extract state from event type (follows communication standards)
             const eventState = event.type.split(':').pop() || 'unknown';
@@ -383,6 +416,26 @@ export const useGlobalStore = create<GlobalState>()(
               correlationId: event.correlationId
             });
 
+            // --- Robust request/response: check for pending request match ---
+            const state = get();
+            if (
+              event.correlationId &&
+              state.pendingRequests[event.correlationId] &&
+              state.pendingRequests[event.correlationId].expectedEventType === event.type
+            ) {
+              // Call the resolve callback and remove from pending
+              state.pendingRequests[event.correlationId].resolve(event);
+              set(current => {
+                // Defensive: ensure correlationId is string
+                const pending = { ...current.pendingRequests };
+                if (event.correlationId && typeof event.correlationId === 'string') {
+                  delete pending[event.correlationId];
+                }
+                return { pendingRequests: pending };
+              });
+              return;
+            }
+
             // Handle echo events for connection heartbeat (with metadata payload)
             if (event.type === 'echo') {
               console.log('[Global Store] Received echo heartbeat:', event.payload);
@@ -422,17 +475,32 @@ export const useGlobalStore = create<GlobalState>()(
             const eventState = event.type.split(':').pop() || 'unknown';
 
             set(
-              current => ({
-                events: [...current.events, event],
-                eventStates: {
-                  ...current.eventStates,
-                  [event.type]: eventState
-                },
-                metadata: merge(cloneDeep(current.metadata), event.metadata)
-              }),
+              current => {
+                const update: any = {
+                  events: [...current.events, event],
+                  eventStates: {
+                    ...current.eventStates,
+                    [event.type]: eventState
+                  },
+                  metadata: merge(cloneDeep(current.metadata), event.metadata)
+                };
+                // Proactively update eventPayloads for any *:v1:success event
+                if (event.type && event.type.endsWith(':v1:success')) {
+                  update.eventPayloads = {
+                    ...current.eventPayloads,
+                    [event.type]: event.payload
+                  };
+                }
+                // For backward compatibility, keep campaignState updated
+                if (event.type === 'campaign:state:v1:success') {
+                  update.campaignState = event.payload;
+                }
+                return update;
+              },
               false,
               'handleWasmMessage'
             );
+            // --- Convenience selectors for generic eventPayloads ---
           },
 
           processQueuedMessages: () => {

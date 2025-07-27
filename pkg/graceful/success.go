@@ -2,6 +2,7 @@ package graceful
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -9,11 +10,12 @@ import (
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	schedulerpb "github.com/nmxmxh/master-ovasabi/api/protos/scheduler/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
-	metautil "github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // HandleSuccess is a single-line helper for success wrapping, logging, and orchestration.
@@ -25,21 +27,20 @@ func HandleSuccess(ctx context.Context, log *zap.Logger, code codes.Code, msg st
 }
 
 // HandleServiceSuccess uses a ServiceHandlerConfig to simplify success handling calls.
-func HandleServiceSuccess(ctx context.Context, cfg ServiceHandlerConfig, code codes.Code, msg string, result interface{}, eventID string, metadata *commonpb.Metadata, fields ...zap.Field) (*SuccessContext, []error) {
+func HandleServiceSuccess(ctx context.Context, cfg ServiceHandlerConfig, code codes.Code, msg string, result interface{}, eventID string, metaIn *commonpb.Metadata, fields ...zap.Field) (*SuccessContext, []error) {
 	// Extract context fields if missing
 	ctxUserID := utils.GetStringFromContext(ctx, "user_id")
 	ctxCampaignID := utils.GetStringFromContext(ctx, "campaign_id")
 	ctxTraceID := utils.GetStringFromContext(ctx, "trace_id")
 	ctxCorrelationID := utils.GetStringFromContext(ctx, "correlation_id")
-	meta := metadata
 	if eventID == "" {
 		eventID = ctxCorrelationID
 	}
-	if meta == nil {
-		meta = &commonpb.Metadata{}
+	if metaIn == nil {
+		metaIn = &commonpb.Metadata{}
 	}
 	// Enrich metadata with missing context fields if needed
-	metaMap := metautil.ProtoToMap(meta)
+	metaMap := metadata.ProtoToMap(metaIn)
 	if ctxUserID != "" {
 		metaMap["user_id"] = ctxUserID
 	}
@@ -52,22 +53,22 @@ func HandleServiceSuccess(ctx context.Context, cfg ServiceHandlerConfig, code co
 	if ctxCorrelationID != "" {
 		metaMap["correlation_id"] = ctxCorrelationID
 	}
-	meta = metautil.MapToProto(metaMap)
+	metaOut := metadata.MapToProto(metaMap)
 	// Add debug logging for all context fields
 	if cfg.Log != nil {
-		cfg.Log.Info("[HandleServiceSuccess] Called", zap.String("eventID", eventID), zap.Any("metadata", meta), zap.Any("result", result),
+		cfg.Log.Info("[HandleServiceSuccess] Called", zap.String("eventID", eventID), zap.Any("metadata", metaOut), zap.Any("result", result),
 			zap.String("user_id", ctxUserID), zap.String("campaign_id", ctxCampaignID), zap.String("trace_id", ctxTraceID), zap.String("correlation_id", ctxCorrelationID))
 	}
 	return HandleSuccess(ctx, cfg.Log, code, msg, result, nil, SuccessOrchestrationConfig{
 		Log:                  cfg.Log,
-		Metadata:             meta,
+		Metadata:             metaOut,
 		EventEmitter:         cfg.EventEmitter,
 		EventEnabled:         cfg.EventEnabled,
-		EventType:            cfg.PatternType + ":completed",
+		EventType:            cfg.PatternType + ":success",
 		EventID:              eventID,
 		PatternType:          cfg.PatternType,
 		PatternID:            eventID,
-		PatternMeta:          meta,
+		PatternMeta:          metaOut,
 		OrchestrationEnabled: false, // Default to false - services must explicitly enable orchestration
 	}, fields...)
 }
@@ -206,9 +207,9 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 			prevID := cfg.PatternID + ":prev"
 			nextID := cfg.PatternID + ":next"
 			relatedIDs := []string{}
-			metaMap := metautil.ProtoToMap(cfg.Metadata)
-			normMap := metautil.Handler{}.NormalizeAndCalculate(metaMap, prevID, nextID, relatedIDs, "success", s.Message)
-			normMeta = metautil.MapToProto(normMap)
+			metaMap := metadata.ProtoToMap(cfg.Metadata)
+			normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, prevID, nextID, relatedIDs, "success", s.Message)
+			normMeta = metadata.MapToProto(normMap)
 		}
 		if err != nil {
 			if cfg.Log != nil {
@@ -311,10 +312,37 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 			}
 		}
 	} else if cfg.EventEmitter != nil && cfg.EventEnabled && cfg.EventType != "" && cfg.EventID != "" {
+		// Marshal the result (if present) into a structpb.Struct for the payload using metadata.NewStructFromMap
+		var payload *commonpb.Payload
+		if s.Result != nil {
+			var payloadStruct *structpb.Struct
+			switch v := s.Result.(type) {
+			case *structpb.Struct:
+				payloadStruct = v
+			case map[string]interface{}:
+				payloadStruct = metadata.NewStructFromMap(v, nil)
+			default:
+				// Fallback: marshal to JSON then to map[string]interface{}
+				b, err := json.Marshal(s.Result)
+				if err == nil {
+					var m map[string]interface{}
+					if err := json.Unmarshal(b, &m); err == nil {
+						payloadStruct = metadata.NewStructFromMap(m, nil)
+					}
+				}
+			}
+			if payloadStruct != nil {
+				payload = &commonpb.Payload{Data: payloadStruct}
+			} else {
+				payload = &commonpb.Payload{}
+			}
+		} else {
+			payload = &commonpb.Payload{}
+		}
 		envelope := &events.EventEnvelope{
 			ID:        cfg.PatternID,
 			Type:      cfg.EventType,
-			Payload:   &commonpb.Payload{}, // Optionally fill with structured payload
+			Payload:   payload,
 			Metadata:  cfg.Metadata,
 			Timestamp: time.Now().Unix(),
 		}
