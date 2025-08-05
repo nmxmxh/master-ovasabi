@@ -30,6 +30,7 @@
     "campaign": {
       "campaign_id": "0",
       "slug": "ovasabi_website",
+      "status": "active",
       "broadcast_enabled": true,
       "channels": ["ovasabi_website", "0"],
       "features": [

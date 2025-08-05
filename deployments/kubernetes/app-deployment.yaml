@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    app: app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+      - name: app
+        image: ovasabi/master-ovasabi:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 50051
+          name: grpc
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: APP_ENV
+          value: "development"
+        - name: APP_NAME
+          value: "master-ovasabi"
+        - name: ENVIRONMENT
+          value: "development"
+        - name: LOG_LEVEL
+          value: "debug"
+        - name: CONFIG_PATH
+          value: "/app/config/config.yaml"
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "postgres"
+        - name: DB_NAME
+          value: "master_ovasabi"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: ADMIN_USER
+          value: "nmxmxh"
+        - name: ADMIN_PASSWORD
+          value: "<admin-password>"
+        - name: NEXUS_GRPC_ADDR
+          value: "nexus:50052"
+        - name: HTTP_PORT
+          value: "8081"
+        - name: GRPC_PORT
+          value: "8082"
+        - name: METRICS_PORT
+          value: "9090"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        - name: knowledge-graph
+          mountPath: /app/amadeus/knowledge_graph.json
+        - name: backups
+          mountPath: /app/amadeus/backups
+      volumes:
+      - name: config-volume
+        hostPath:
+          path: /config
+      - name: knowledge-graph
+        hostPath:
+          path: /amadeus/knowledge_graph.json
+      - name: backups
+        hostPath:
+          path: /amadeus/backups

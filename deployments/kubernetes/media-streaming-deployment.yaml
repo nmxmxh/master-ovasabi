@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-streaming
+  labels:
+    app: media-streaming
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-streaming
+  template:
+    metadata:
+      labels:
+        app: media-streaming
+    spec:
+      containers:
+      - name: media-streaming
+        image: ovasabi/media-streaming:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8085
+          name: http
+        env:
+        - name: APP_ENV
+          value: "development"
+        - name: LOG_LEVEL
+          value: "debug"
+        - name: SERVICE_NAME
+          value: "media-streaming"
+        - name: NEXUS_GRPC_ADDR
+          value: "nexus:50052"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "postgres"
+        - name: DB_NAME
+          value: "master_ovasabi"
+        - name: CAMPAIGN_ID
+          value: "0"

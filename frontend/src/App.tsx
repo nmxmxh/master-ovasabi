@@ -6,6 +6,7 @@ import {
   useMetadata,
   useGlobalStore
 } from './store/global';
+import { LeadFormWithStream } from './components/LeadFormWithStream';
 
 // Hook to poll window.__WASM_GLOBAL_METADATA
 function useWasmGlobalMetadata(pollInterval = 1000) {
@@ -53,6 +54,38 @@ function App() {
     return cleanup;
   }, []);
 
+  // Fetch campaigns from default_campaign.json and optionally from backend API (seeded DB)
+  const [campaigns, setCampaigns] = useState([
+    { id: 0, slug: 'ovasabi_website', name: 'Ovasabi Website' }
+  ]);
+  useEffect(() => {
+    fetch('/api/campaigns')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          // Defensive: ensure id, slug, name are present and fallback if missing
+          setCampaigns(
+            data
+              .map((c, idx) => ({
+                id: typeof c.id === 'number' ? c.id : idx,
+                slug: c.slug || `campaign_${idx}`,
+                name: c.title || c.name || c.slug || `Campaign ${idx + 1}`
+              }))
+              .sort((a, b) => a.id - b.id)
+          );
+        }
+      })
+      .catch(() => {
+        setCampaigns([{ id: 0, slug: 'ovasabi_website', name: 'Ovasabi Website' }]);
+      });
+  }, []);
+
+  const { metadata } = useMetadata();
+  // Defensive: only use switchCampaign if present in store
+  const switchCampaign = useGlobalStore(state =>
+    typeof state.switchCampaign === 'function' ? state.switchCampaign : undefined
+  );
+
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h1>OVASABI Search Platform</h1>
@@ -61,12 +94,69 @@ function App() {
       <EventHistory />
       <MetadataDisplay />
       <LiveWasmMetadataDisplay />
+      <LeadFormWithStream />
+      {/* Active Campaign List */}
+      <div style={{ marginTop: '40px', borderTop: '1px solid #eee', paddingTop: '20px' }}>
+        <h3>Active Campaigns</h3>
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+          {campaigns.map(c => (
+            <button
+              key={c.id}
+              onClick={() => switchCampaign && switchCampaign(c.id, c.slug)}
+              style={{
+                padding: '10px 18px',
+                borderRadius: '6px',
+                border:
+                  metadata.campaign?.campaignId === c.id ? '2px solid #007bff' : '1px solid #ccc',
+                background: metadata.campaign?.campaignId === c.id ? '#e3f2fd' : '#fff',
+                color: '#333',
+                fontWeight: metadata.campaign?.campaignId === c.id ? 'bold' : 'normal',
+                cursor: switchCampaign ? 'pointer' : 'not-allowed',
+                marginBottom: '8px',
+                opacity: switchCampaign ? 1 : 0.5,
+                minWidth: '180px',
+                textAlign: 'left',
+                boxShadow: metadata.campaign?.campaignId === c.id ? '0 2px 8px #007bff22' : 'none',
+                transition: 'border 0.2s, background 0.2s'
+              }}
+              disabled={!switchCampaign}
+            >
+              <span
+                style={{
+                  fontSize: '16px',
+                  fontWeight: metadata.campaign?.campaignId === c.id ? 'bold' : 'normal'
+                }}
+              >
+                {c.name}
+              </span>
+              {metadata.campaign?.campaignId === c.id && (
+                <span style={{ color: '#007bff', marginLeft: '8px' }}>(Active)</span>
+              )}
+              <br />
+              <span style={{ fontSize: '12px', color: '#888' }}>{c.slug}</span>
+            </button>
+          ))}
+        </div>
+        {!switchCampaign && (
+          <div style={{ color: '#dc3545', marginTop: '12px' }}>
+            Campaign switching is not available (store missing switchCampaign).
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 // Component to display live WASM global metadata
 function LiveWasmMetadataDisplay() {
   const wasmMetadata = useWasmGlobalMetadata(1000);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log(
+        '[LiveWasmMetadataDisplay] window.__WASM_GLOBAL_METADATA:',
+        window.__WASM_GLOBAL_METADATA
+      );
+    }
+  }, [wasmMetadata]);
   return (
     <div style={{ marginTop: '30px' }}>
       <h3>Live WASM Metadata (window.__WASM_GLOBAL_METADATA)</h3>
@@ -196,7 +286,8 @@ function SearchInterface() {
     loading: false,
     results: [],
     error: null,
-    currentQuery: ''
+    currentQuery: '',
+    stopped: false
   });
 
   const { metadata } = useMetadata();
@@ -216,17 +307,30 @@ function SearchInterface() {
       setSearchState(prev => ({
         ...prev,
         loading: false,
-        results: latestCompleted.payload?.results || [],
+        results: (latestCompleted.payload?.results || []).sort((a: any, b: any) => {
+          // Sort by most recent (assume result.timestamp or fallback to index)
+          const ta = new Date(a.timestamp || 0).getTime();
+          const tb = new Date(b.timestamp || 0).getTime();
+          return tb - ta;
+        }),
         error: null,
-        currentQuery: latestCompleted.payload?.query || prev.currentQuery
+        currentQuery: latestCompleted.payload?.query || prev.currentQuery,
+        query: '', // Clear input
+        stopped: false
       }));
+      // Actually clear the input field by resetting value in the DOM
+      setTimeout(() => {
+        const inputEl = document.querySelector('input[type="text"]');
+        if (inputEl) (inputEl as HTMLInputElement).value = '';
+      }, 0);
     } else if (latestFailed) {
       logStatus('Search failed', latestFailed.payload);
       setSearchState(prev => ({
         ...prev,
         loading: false,
         error: latestFailed.payload?.error || 'Search failed',
-        results: []
+        results: [],
+        stopped: false
       }));
     }
   }, [searchEvents, searchFailedEvents]);
@@ -243,7 +347,8 @@ function SearchInterface() {
         loading: true,
         error: null,
         results: [],
-        currentQuery: query.trim()
+        currentQuery: query.trim(),
+        stopped: false
       }));
 
       const correlationId = generateUUID();
@@ -275,6 +380,11 @@ function SearchInterface() {
     },
     [metadata, globalStore]
   );
+
+  // Stop search handler
+  const handleStopSearch = useCallback(() => {
+    setSearchState(prev => ({ ...prev, loading: false, stopped: true }));
+  }, []);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -325,13 +435,36 @@ function SearchInterface() {
           >
             {searchState.loading ? 'Searching...' : 'Search'}
           </button>
+          {searchState.loading && (
+            <button
+              type="button"
+              onClick={handleStopSearch}
+              style={{
+                padding: '12px 18px',
+                fontSize: '16px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              Stop
+            </button>
+          )}
         </div>
       </form>
 
       {/* Status and Results */}
-      {searchState.loading && (
+      {searchState.loading && !searchState.stopped && (
         <div style={{ color: '#007bff', fontWeight: 'bold', marginBottom: '15px' }}>
           🔍 Searching for "{searchState.currentQuery}"...
+        </div>
+      )}
+      {searchState.stopped && (
+        <div style={{ color: '#dc3545', fontWeight: 'bold', marginBottom: '15px' }}>
+          ⏹️ Search stopped.
         </div>
       )}
 
@@ -350,7 +483,7 @@ function SearchInterface() {
         </div>
       )}
 
-      {searchState.currentQuery && !searchState.loading && (
+      {searchState.currentQuery && !searchState.loading && !searchState.stopped && (
         <SearchResults query={searchState.currentQuery} results={searchState.results} />
       )}
     </div>
@@ -382,15 +515,38 @@ function SearchResults({ query, results }: { query: string; results: any[] }) {
                 backgroundColor: 'white'
               }}
             >
-              <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '5px', fontSize: '18px' }}>
                 {result.title || `Result ${index + 1}`}
               </div>
-              <div style={{ color: '#666', fontSize: '14px' }}>
+              <div style={{ color: '#666', fontSize: '14px', marginBottom: '8px' }}>
                 {result.description || result.content || 'No description available'}
               </div>
+              {/* Detailed fields display */}
+              {result.fields && (
+                <details style={{ marginBottom: '8px' }}>
+                  <summary style={{ fontWeight: 'bold', cursor: 'pointer' }}>Details</summary>
+                  <div style={{ fontSize: '13px', color: '#444', marginTop: '6px' }}>
+                    {Object.entries(result.fields).map(([key, value]) => (
+                      <div key={key} style={{ marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 'bold' }}>{key}:</span>{' '}
+                        {Array.isArray(value)
+                          ? value.join(', ')
+                          : typeof value === 'object'
+                            ? JSON.stringify(value)
+                            : String(value)}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
               {result.score && (
                 <div style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
                   Relevance Score: {result.score.toFixed(3)}
+                </div>
+              )}
+              {result.timestamp && (
+                <div style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
+                  Timestamp: {new Date(result.timestamp).toLocaleString()}
                 </div>
               )}
             </div>
@@ -415,6 +571,12 @@ function SearchResults({ query, results }: { query: string; results: any[] }) {
 // Component to display recent events
 function EventHistory() {
   const events = useEventHistory(undefined, 8);
+  // Sort events by latest first
+  const sortedEvents = [...events].sort((a: any, b: any) => {
+    const ta = new Date(a.timestamp || 0).getTime();
+    const tb = new Date(b.timestamp || 0).getTime();
+    return tb - ta;
+  });
 
   return (
     <div style={{ marginBottom: '30px' }}>
@@ -428,13 +590,13 @@ function EventHistory() {
           backgroundColor: '#fafafa'
         }}
       >
-        {events.length > 0 ? (
-          events.map((event, index) => (
+        {sortedEvents.length > 0 ? (
+          sortedEvents.map((event, index) => (
             <div
               key={index}
               style={{
                 padding: '12px',
-                borderBottom: index < events.length - 1 ? '1px solid #eee' : 'none'
+                borderBottom: index < sortedEvents.length - 1 ? '1px solid #eee' : 'none'
               }}
             >
               <div

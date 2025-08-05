@@ -34,6 +34,11 @@ declare global {
      */
     __WASM_GLOBAL_METADATA?: any;
   }
+
+  interface GlobalState {
+    switchCampaign: (campaignId: number, slug?: string, onResponse?: (event: any) => void) => void;
+    // ...existing properties...
+  }
 }
 
 export {}; // Ensures this file is treated as a module

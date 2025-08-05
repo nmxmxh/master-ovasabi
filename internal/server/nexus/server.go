@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	nexusrepo "github.com/nmxmxh/master-ovasabi/internal/service/nexus"
@@ -20,7 +20,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const eventLockKey = "nexus:event_lock:"
@@ -68,26 +67,80 @@ func LoadServiceRegistry(path string) (*ServiceRegistry, error) {
 
 // RedisEventBus is a multi-instance event bus using Redis Pub/Sub.
 type RedisEventBus struct {
-	client  *redis.Client
-	log     *zap.Logger
-	channel string
-	subs    map[chan *nexusv1.EventResponse]struct{} // all subscribers
-	mu      sync.RWMutex
-	ctx     context.Context
-	cancel  context.CancelFunc
+	client      *redis.Client
+	log         *zap.Logger
+	channel     string
+	subs        map[chan *nexusv1.EventResponse]struct{} // all subscribers
+	mu          sync.RWMutex
+	ctx         context.Context
+	cancel      context.CancelFunc
+	deliverQ    chan *nexusv1.EventResponse
+	workerCount int
+}
+
+// deliverEvent delivers an event to all subscribers concurrently, not blocking on slow ones.
+func (b *RedisEventBus) deliverEvent(event *nexusv1.EventResponse) {
+	b.mu.RLock()
+	for ch := range b.subs {
+		select {
+		case ch <- event:
+		default:
+			// Channel full, notify client by sending a dropped event
+			dropped := &nexusv1.EventResponse{
+				EventId:   event.EventId,
+				EventType: event.EventType,
+				Message:   "event_dropped",
+				Success:   false,
+				Metadata:  event.Metadata,
+				Payload:   event.Payload,
+			}
+			select {
+			case ch <- dropped:
+			default:
+			}
+			b.log.Warn("[RedisEventBus] Dropped event for slow subscriber", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
+		}
+	}
+	b.mu.RUnlock()
 }
 
 func NewRedisEventBus(client *redis.Client, log *zap.Logger, channel string) *RedisEventBus {
 	ctx, cancel := context.WithCancel(context.Background())
 	bus := &RedisEventBus{
-		client:  client,
-		log:     log,
-		channel: channel,
-		subs:    make(map[chan *nexusv1.EventResponse]struct{}),
-		ctx:     ctx,
-		cancel:  cancel,
+		client:      client,
+		log:         log,
+		channel:     channel,
+		subs:        make(map[chan *nexusv1.EventResponse]struct{}),
+		ctx:         ctx,
+		cancel:      cancel,
+		deliverQ:    make(chan *nexusv1.EventResponse, 256), // delivery queue for workers
+		workerCount: 8,                                      // configurable, default 8 workers
 	}
-	go bus.listen()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("RedisEventBus.listen panic recovered", zap.Any("error", r))
+			}
+		}()
+		bus.listen()
+	}()
+	for i := 0; i < bus.workerCount; i++ {
+		go func(workerID int) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error("RedisEventBus.deliverWorker panic recovered", zap.Int("worker", workerID), zap.Any("error", r))
+				}
+			}()
+			for {
+				select {
+				case <-bus.ctx.Done():
+					return
+				case event := <-bus.deliverQ:
+					bus.deliverEvent(event)
+				}
+			}
+		}(i)
+	}
 	return bus
 }
 
@@ -109,24 +162,17 @@ func (b *RedisEventBus) listen() {
 			continue
 		}
 		b.log.Info("[RedisEventBus] Received event from Redis", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
-		b.mu.RLock()
-		delivered := 0
-		for ch := range b.subs {
-			select {
-			case ch <- &event:
-				delivered++
-			default:
-			}
+		// Enqueue event for delivery by worker pool
+		select {
+		case b.deliverQ <- &event:
+		default:
+			b.log.Warn("[RedisEventBus] Delivery queue full, dropping event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
 		}
-		if delivered > 0 {
-			b.log.Info("[RedisEventBus] Delivered event to subscribers", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Int("subscriber_count", delivered))
-		}
-		b.mu.RUnlock()
 	}
 }
 
 func (b *RedisEventBus) Subscribe() chan *nexusv1.EventResponse {
-	ch := make(chan *nexusv1.EventResponse, 16)
+	ch := make(chan *nexusv1.EventResponse, 64) // larger buffer
 	b.mu.Lock()
 	b.subs[ch] = struct{}{}
 	b.mu.Unlock()
@@ -159,7 +205,8 @@ func (b *RedisEventBus) Close() {
 type Server struct {
 	nexusv1.UnimplementedNexusServiceServer
 	log              *zap.Logger
-	eventBus         *RedisEventBus
+	eventBus         *RedisEventBus            // default bus
+	eventBuses       map[string]*RedisEventBus // key: service:action
 	registry         *ServiceRegistry
 	repo             *nexusrepo.Repository
 	cache            *pkgredis.Cache
@@ -184,8 +231,21 @@ func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repo
 	}
 
 	eventBus := NewRedisEventBus(cache.GetClient(), log, "nexus:events")
+	eventBuses := make(map[string]*RedisEventBus)
+	// Create event buses for each service:action
+	if registry != nil {
+		for svcName, svc := range registry.Services {
+			for _, ep := range svc.Endpoints {
+				for _, action := range ep.Actions {
+					key := svcName + ":" + action
+					channel := "nexus:events:" + key
+					eventBuses[key] = NewRedisEventBus(cache.GetClient(), log, channel)
+				}
+			}
+		}
+	}
+
 	// Use campaign.Repository for campaign state manager
-	// Instantiate campaign repository using the shared DB and logger from the Nexus repo
 	var campaignRepo *campaignrepo.Repository
 	if repo != nil {
 		campaignRepo = campaignrepo.NewRepository(repo.DB, log, repo.MasterRepo)
@@ -200,6 +260,7 @@ func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repo
 	return &Server{
 		log:              log,
 		eventBus:         eventBus,
+		eventBuses:       eventBuses,
 		registry:         registry,
 		repo:             repo,
 		cache:            cache,
@@ -211,7 +272,13 @@ func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repo
 // PublishEvent allows other parts of the system to publish events to all subscribers.
 func (s *Server) PublishEvent(event *nexusv1.EventResponse) {
 	s.log.Info("[Nexus] PublishEvent", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
-	s.eventBus.Publish(event)
+	service, action := parseServiceAction(event.EventType)
+	key := service + ":" + action
+	if bus, ok := s.eventBuses[key]; ok {
+		bus.Publish(event)
+	} else {
+		s.eventBus.Publish(event) // fallback to default
+	}
 }
 
 // RegisterPattern persists a pattern to the DB and optionally caches in Redis.
@@ -228,25 +295,42 @@ func (s *Server) RegisterPattern(ctx context.Context, req *nexusv1.RegisterPatte
 	// Extract campaignID from request (proto field)
 	campaignID := req.GetCampaignId()
 
-	// Persist pattern in DB
-	err := s.repo.RegisterPattern(ctx, req, userID, campaignID)
-	if err != nil {
-		s.log.Error("Failed to register pattern in DB", zap.Error(err))
-		return &nexusv1.RegisterPatternResponse{
-			Success:  false,
-			Error:    err.Error(),
-			Metadata: req.GetMetadata(),
-		}, err
-	}
+	// Persist pattern in DB and cache in Redis asynchronously to avoid blocking
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.log.Error("RegisterPattern async panic recovered", zap.Any("error", r))
+			}
+		}()
 
-	// Cache pattern in Redis for fast lookup (optional, but recommended for orchestration)
-	patternKey := s.cache.KB().Build(pkgredis.NamespacePattern, req.GetPatternId())
-	// Use TTLPattern from redis/constants.go (24h)
-	errCache := s.cache.Set(ctx, patternKey, "", req, pkgredis.TTLPattern)
-	if errCache != nil {
-		s.log.Warn("Failed to cache pattern in Redis", zap.Error(errCache), zap.String("key", patternKey))
-	}
+		backoff := 100 * time.Millisecond
+		for attempt := range [5]int{} {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			err := s.repo.RegisterPattern(ctx, req, userID, campaignID)
+			if err != nil {
+				s.log.Error("Failed to register pattern in DB", zap.Error(err), zap.Int("attempt", attempt+1))
+				time.Sleep(backoff)
+				backoff *= 2
+				continue
+			}
+			patternKey := s.cache.KB().Build(pkgredis.NamespacePattern, req.GetPatternId())
+			errCache := s.cache.Set(ctx, patternKey, "", req, pkgredis.TTLPattern)
+			if errCache != nil {
+				s.log.Warn("Failed to cache pattern in Redis", zap.Error(errCache), zap.String("key", patternKey), zap.Int("attempt", attempt+1))
+				time.Sleep(backoff)
+				backoff *= 2
+				continue
+			}
+			// Success, break out of retry loop
+			break
+		}
+	}()
 
+	// Return success to client once queued, not after DB/Redis ack
 	return &nexusv1.RegisterPatternResponse{
 		Success:  true,
 		Metadata: req.GetMetadata(),
@@ -259,12 +343,37 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 		zap.String("event_types", strings.Join(req.EventTypes, ",")),
 		zap.String("code", "nexus/server.go:SubscribeEvents"),
 	)
-	ch := s.eventBus.Subscribe()
-	defer s.eventBus.Unsubscribe(ch)
+	// Multi-action subscription: subscribe to all relevant buses
+	var channels []chan *nexusv1.EventResponse
+	var unsubFuncs []func()
+	if len(req.EventTypes) > 0 {
+		for _, et := range req.EventTypes {
+			service, action := parseServiceAction(et)
+			key := service + ":" + action
+			if bus, ok := s.eventBuses[key]; ok {
+				ch := bus.Subscribe()
+				channels = append(channels, ch)
+				unsubFuncs = append(unsubFuncs, func() { bus.Unsubscribe(ch) })
+			} else {
+				ch := s.eventBus.Subscribe()
+				channels = append(channels, ch)
+				unsubFuncs = append(unsubFuncs, func() { s.eventBus.Unsubscribe(ch) })
+			}
+		}
+	} else {
+		ch := s.eventBus.Subscribe()
+		channels = append(channels, ch)
+		unsubFuncs = append(unsubFuncs, func() { s.eventBus.Unsubscribe(ch) })
+	}
+	// Ensure all channels are unsubscribed on exit
+	defer func() {
+		for _, unsub := range unsubFuncs {
+			unsub()
+		}
+	}()
 	ctx := stream.Context()
 
 	// --- Backend-side filtering ---
-	// Build filter sets from SubscribeRequest
 	eventTypeSet := make(map[string]struct{})
 	for _, et := range req.EventTypes {
 		eventTypeSet[et] = struct{}{}
@@ -286,49 +395,59 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 		}
 	}
 
-	// If no specific event types are requested, subscribe to a default set including 'success'
 	if len(eventTypeSet) == 0 {
 		eventTypeSet["success"] = struct{}{}
 	}
 
+	// Multiplex events from all channels
+	cases := make([]reflect.SelectCase, len(channels)+1)
+	for i, ch := range channels {
+		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
+	}
+	cases[len(channels)] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Done())}
+
 	for {
-		select {
-		case <-ctx.Done():
+		chosen, recv, ok := reflect.Select(cases)
+		if chosen == len(channels) {
+			// ctx.Done()
 			return nil
-		case event := <-ch:
-			// 1. Event type filter
-			if len(eventTypeSet) > 0 && !hasEventType(eventTypeSet, event.EventType) {
+		}
+		if !ok {
+			continue
+		}
+		event, _ := recv.Interface().(*nexusv1.EventResponse)
+		if event == nil {
+			continue
+		}
+		if len(eventTypeSet) > 0 && !hasEventType(eventTypeSet, event.EventType) {
+			continue
+		}
+		if filterUserID != "" {
+			eventUserID := extractUserID(event)
+			if eventUserID != filterUserID {
 				continue
 			}
-
-			// 2. user_id filter (if set)
-			if filterUserID != "" {
-				eventUserID := extractUserID(event)
-				if eventUserID != filterUserID {
-					continue
-				}
+		}
+		if filterCampaignID != "" {
+			eventCampaignID := extractCampaignID(event)
+			if eventCampaignID != filterCampaignID {
+				continue
 			}
-
-			// 3. campaign_id filter (if set)
-			if filterCampaignID != "" {
-				eventCampaignID := extractCampaignID(event)
-				if eventCampaignID != filterCampaignID {
-					continue
-				}
-			}
-
-			if err := stream.Send(event); err != nil {
-				s.log.Error("Failed to send event", zap.Error(err))
-				return err
-			}
+		}
+		if err := stream.Send(event); err != nil {
+			s.log.Error("Failed to send event", zap.Error(err))
+			return err
 		}
 	}
 }
 
-// --- Helper functions for backend event filtering ---
-func hasString(set map[string]struct{}, val string) bool {
-	_, ok := set[val]
-	return ok
+// parseServiceAction extracts service and action from event type string "service:action:vX:state"
+func parseServiceAction(eventType string) (string, string) {
+	parts := strings.Split(eventType, ":")
+	if len(parts) >= 2 {
+		return parts[0], parts[1]
+	}
+	return "", ""
 }
 
 func extractUserID(event *nexusv1.EventResponse) string {
@@ -420,69 +539,14 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		s.log.Debug("[EmitEvent] Extracted userID from context", zap.String("user_id", userID))
 	}
 
-	// Use metadata package helper if available, else build flat metadata
-	meta := req.Metadata
-	if meta == nil {
-		meta = &commonpb.Metadata{}
-		s.log.Debug("[EmitEvent] Created empty metadata object")
-	}
-	if meta.ServiceSpecific == nil {
-		meta.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
-		s.log.Debug("[EmitEvent] Created empty ServiceSpecific struct")
-	}
-	ss := meta.ServiceSpecific
-	if ss.Fields == nil {
-		ss.Fields = map[string]*structpb.Value{}
-		s.log.Debug("[EmitEvent] Initialized ServiceSpecific fields map")
-	}
-	// Set envelope context fields
-	if traceID != "" {
-		ss.Fields["trace_id"] = structpb.NewStringValue(traceID)
-		s.log.Debug("[EmitEvent] Set trace_id in metadata", zap.String("trace_id", traceID))
-	}
-	if userID != "" {
-		ss.Fields["user_id"] = structpb.NewStringValue(userID)
-		s.log.Debug("[EmitEvent] Set user_id in metadata", zap.String("user_id", userID))
-	}
-	if campaignID != "" {
-		ss.Fields["campaign_id"] = structpb.NewStringValue(campaignID)
-		s.log.Debug("[EmitEvent] Set campaign_id in metadata", zap.String("campaign_id", campaignID))
-	}
-
-	// Clean payload for envelope
-	cleanedPayload := req.Payload
-	if eventType != "echo" && s.payloadValidator != nil && req.Payload != nil && req.Payload.Data != nil {
-		s.log.Debug("[EmitEvent] Validating and cleaning payload", zap.String("event_type", eventType))
-		if cleaned, err := s.payloadValidator.ValidateAndCleanPayload(eventType, req.Payload.Data); err == nil {
-			cleanedPayload = &commonpb.Payload{Data: cleaned}
-			cleanedFieldNames := make([]string, 0, len(cleaned.Fields))
-			for fieldName := range cleaned.Fields {
-				cleanedFieldNames = append(cleanedFieldNames, fieldName)
-			}
-			s.log.Debug("[EmitEvent] Cleaned payload fields", zap.Strings("fields", cleanedFieldNames))
-		} else {
-			s.log.Warn("[EmitEvent] Failed to clean payload, using original", zap.Error(err))
-		}
-	}
-
-	if cleanedPayload != nil && cleanedPayload.Data != nil {
-		payloadMap := cleanedPayload.Data.Fields
-		if _, ok := payloadMap["user_id"]; !ok && userID != "" {
-			payloadMap["user_id"] = structpb.NewStringValue(userID)
-		}
-		if _, ok := payloadMap["campaign_id"]; !ok && campaignID != "" {
-			payloadMap["campaign_id"] = structpb.NewStringValue(campaignID)
-		}
-	}
-
 	// Build canonical event envelope
 	envelope := &nexusv1.EventResponse{
 		Success:   true,
 		EventId:   eventID,
 		EventType: eventType,
 		Message:   eventType,
-		Metadata:  meta,
-		Payload:   cleanedPayload,
+		Metadata:  req.Metadata,
+		Payload:   req.Payload,
 	}
 
 	s.log.Info("[EmitEvent] Built event envelope", zap.String("event_type", eventType), zap.String("event_id", eventID), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("trace_id", traceID), zap.Any("envelope", envelope))
@@ -490,7 +554,7 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	// Distributed lock for deduplication
 	lockKey := eventLockKey + eventID
 	s.log.Debug("[EmitEvent] Attempting to acquire event lock", zap.String("lock_key", lockKey))
-	lockAcquired, err := s.cache.GetClient().SetNX(ctx, lockKey, "1", 10*time.Second).Result()
+	lockAcquired, err := s.cache.GetClient().SetNX(ctx, lockKey, "1", 3*time.Second).Result()
 	if err != nil {
 		s.log.Error("[EmitEvent] Failed to acquire event lock", zap.Error(err), zap.String("event_id", eventID))
 	}

@@ -2,13 +2,14 @@
 .PHONY: setup build test test-unit test-integration test-bench coverage benchmark clean proto docker-* k8s-* docs backup lint-fix docs-format docs-check-format docs-check-links docs-validate restore js-setup docs-all docs-site-setup docs-site docs-serve docs-deploy-github docs-prepare-hosting lint-focused docs-fix-links openapi-gen openapi-validate openapi-diff sync-openapi update-doc-dates validate-doc-dates openapi-json-diff docs-generate-tests wasm-build frontend-build frontend-dev wasm-dev docker-wasm-build docker-wasm-up docker-wasm-down wasm-threaded serve-wasm helm-install helm-upgrade helm-uninstall helm-status helm-dry-run
 
 # Variables
-BINARY_NAME=master-ovasabi
-DOCKER_IMAGE=ovasabi/$(BINARY_NAME)
-VERSION=$(shell git describe --tags --always --dirty)
-DOCKER_COMPOSE=COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 COMPOSE_BAKE=true docker-compose -f deployments/docker/docker-compose.yml
-KUBECTL=kubectl
-K8S_NAMESPACE=ovasabi
-K8S_CONTEXT=docker-desktop
+ BINARY_NAME=master-ovasabi
+ DOCKER_IMAGE=ovasabi/$(BINARY_NAME)
+ VERSION=$(shell git describe --tags --always --dirty)
+ DOCKER_COMPOSE=COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 COMPOSE_BAKE=true docker-compose -f deployments/docker/docker-compose.yml
+ KUBECTL=kubectl
+ K8S_NAMESPACE=ovasabi
+ K8S_CONTEXT=arn:aws:eks:$(AWS_REGION):$(AWS_ACCOUNT_ID):cluster/$(K8S_NAMESPACE)
+ K8S_KUBERNETES_PATH=deployments/kubernetes
 
 -include .env
 export $(shell sed 's/=.*//' .env)
@@ -211,27 +212,6 @@ docker-cleanup-all: check-service-registration
 	@docker system df
 	@echo "✅ Docker cleanup complete!"
 
-# Scan Docker image with Trivy
-trivy-scan:
-	@echo "Scanning Docker images with Trivy..."
-	@$(DOCKER_COMPOSE) images -q | xargs -I {} trivy image {}
-
-# Scan Docker image with Trivy and fail on critical vulnerabilities
-trivy-scan-ci:
-	@echo "Scanning Docker images with Trivy (CI mode)..."
-	@$(DOCKER_COMPOSE) images -q | xargs -I {} trivy image --exit-code 1 --severity CRITICAL {}
-
-
-docker-build-scan: proto docker-build trivy-scan
-
-docker-build-scan-ci: proto docker-build trivy-scan-ci
-
-# Generate protobuf code using protoc
-# This command generates Go code only for the latest version (v*) directory in each service directory under api/protos.
-# This avoids generating code for old/unused proto versions and keeps generated code up-to-date.
-# For each service, only the latest version's .proto files are processed.
-# Always run this from the repo root.
-
 # Generate Go protobuf code only (no Python)
 proto:
 	@echo "Generating Go protobuf code for latest proto versions only..."
@@ -253,10 +233,6 @@ proto:
 	@echo "Go protobuf code generation complete"
 # This ensures generated Go files are placed alongside their proto files (in-place)
 
-# Generate swagger documentation
-swagger:
-	swagger generate spec -o ./api/swagger/swagger.json
-
 # Install dependencies
 deps: install-tools
 	$(GOGET) -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
@@ -276,46 +252,6 @@ py-proto:
 	@echo "Ensuring __init__.py files for Python proto importability..."
 	@find $(PY_PROTO_OUT) -type d \( -path '*/ai*' -o -path '*/common*' -o -path '*/nexus*' \) -exec touch {}/__init__.py \;
 	@echo "Python protobuf generation complete. Output in $(PY_PROTO_OUT)"
-
-# Kubernetes Commands
-k8s-create-namespace:
-	$(KUBECTL) create namespace $(K8S_NAMESPACE) --dry-run=client -o yaml | $(KUBECTL) apply -f -
-
-k8s-set-context:
-	$(KUBECTL) config use-context $(K8S_CONTEXT)
-
-k8s-deploy: k8s-create-namespace
-	$(KUBECTL) apply -f deployments/kubernetes/configmap.yaml -n $(K8S_NAMESPACE)
-	$(KUBECTL) apply -f deployments/kubernetes/secret.yaml -n $(K8S_NAMESPACE)
-	$(KUBECTL) apply -f deployments/kubernetes/deployment.yaml -n $(K8S_NAMESPACE)
-	$(KUBECTL) apply -f deployments/kubernetes/service.yaml -n $(K8S_NAMESPACE)
-	$(KUBECTL) apply -f deployments/kubernetes/ingress.yaml -n $(K8S_NAMESPACE)
-
-k8s-deploy-monitoring:
-	$(KUBECTL) apply -f deployments/kubernetes/monitoring/ -n $(K8S_NAMESPACE)
-
-k8s-delete:
-	$(KUBECTL) delete -f deployments/kubernetes/ -n $(K8S_NAMESPACE)
-
-k8s-status:
-	$(KUBECTL) get all -n $(K8S_NAMESPACE)
-
-k8s-logs:
-	$(KUBECTL) logs -f deployment/$(BINARY_NAME) -n $(K8S_NAMESPACE)
-
-k8s-port-forward:
-	$(KUBECTL) port-forward service/$(BINARY_NAME) 50051:50051 -n $(K8S_NAMESPACE)
-
-k8s-dashboard:
-	$(KUBECTL) apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
-	$(KUBECTL) create serviceaccount -n kubernetes-dashboard admin-user
-	$(KUBECTL) create clusterrolebinding -n kubernetes-dashboard admin-user --clusterrole cluster-admin --serviceaccount=kubernetes-dashboard:admin-user
-	@echo "Access token:"
-	@$(KUBECTL) -n kubernetes-dashboard create token admin-user
-	$(KUBECTL) proxy
-
-# Development with Docker Desktop Kubernetes
-dev-k8s: docker-build k8s-set-context k8s-deploy
 
 # Amadeus Backup Commands
 backup:
@@ -542,94 +478,37 @@ docs-prepare-hosting: docs-format
 	@echo "  - Netlify"
 	@echo "  - Vercel"
 	@echo "  - AWS S3 + CloudFront"
-	@echo "  - Google Cloud Storage"
-	@echo "  - Azure Static Web Apps"
-	@echo "  - DigitalOcean App Platform"
 	@tar -czf docs-site.tar.gz -C site .
-
-# Fix documentation links
 docs-fix-links:
-	@echo "Creating necessary directories for documentation assets..."
-	@mkdir -p docs/diagrams
-	@mkdir -p docs/assets/images
-	@echo "Creating placeholder files for missing assets..."
-	@touch docs/diagrams/amadeus_architecture.mmd
-	@touch docs/diagrams/knowledge_graph_structure.mmd
 	@touch docs/assets/images/logo.svg
-	@touch docs/assets/images/favicon.svg
-	@echo "Checking links in documentation..."
 	@find docs -name "*.md" -exec yarn markdown-link-check {} \; || echo "Link issues found."
-	@echo "Link check and fix complete."
-
 # Amadeus Knowledge Graph Evolution Analysis
-kg-evolution:
-	@echo "Analyzing Amadeus Knowledge Graph Evolution..."
 	@echo "=========================================================="
-	@echo "1. Available Knowledge Graph Backups:"
-	@ls -lth amadeus/backups/ | grep -v "^total" | head -10
 	@echo ""
-	@echo "2. Knowledge Graph Size Evolution:"
-	@echo "Backup Date           Size"
 	@echo "-----------------------------"
-	@ls -l amadeus/backups/*/knowledge_graph.json | awk '{print $$9, $$5}' | sed 's/amadeus\/backups\/\([0-9]*\)\/knowledge_graph.json/\1    &/' | sort | awk '{print $$1, $$3}'
-	@echo ""
-	@echo "3. Latest Knowledge Graph Structure:"
-	@jq -r 'keys' amadeus/knowledge_graph.json | head -10
-	@echo ""
-	@echo "4. Latest Backup Info:"
-	@cat amadeus/backups/$$(ls -t amadeus/backups/ | grep -v "knowledge_graph_" | head -1)/backup_info.txt
-	@echo ""
-	@echo "5. Integration Points:"
+
 	@jq -r '.amadeus_integration.integration_points | keys[]' amadeus/knowledge_graph.json
 	@echo ""
+
 	@echo "6. Changes Analysis:"
 	@if [ $$(ls -t amadeus/backups/ | grep -v "knowledge_graph_" | wc -l) -gt 1 ]; then \
+
 		LATEST=$$(ls -t amadeus/backups/ | grep -v "knowledge_graph_" | head -1); \
 		PREVIOUS=$$(ls -t amadeus/backups/ | grep -v "knowledge_graph_" | head -2 | tail -1); \
 		echo "Comparing $${PREVIOUS} to $${LATEST}:"; \
 		diff -q amadeus/backups/$${PREVIOUS}/knowledge_graph.json amadeus/backups/$${LATEST}/knowledge_graph.json || echo "Knowledge graph has changed"; \
 		echo ""; \
 		echo "File differences:"; \
+
 		diff -r amadeus/backups/$${PREVIOUS}/ amadeus/backups/$${LATEST}/ | grep -v "Only in" | head -10; \
 	else \
+
 		echo "Need at least two backups for comparison"; \
 	fi
+
 	@echo "=========================================================="
 	@echo "Knowledge Graph Evolution Analysis Complete"
 
-# OpenAPI schema generation and validation
-openapi-gen: update-doc-dates
-	@echo "Generating OpenAPI schema from metadata.proto..."
-	@go run tools/protoc/main.go metadata.proto api/protos/common/v1 docs/generated/openapi --openapi
-
-openapi-validate:
-	@echo "Validating OpenAPI schemas..."
-	@npx swagger-cli validate docs/generated/openapi/metadata.swagger.json
-	@npx swagger-cli validate docs/services/metadata_openapi.json
-
-# Usage:
-#   make openapi-gen      # Generate OpenAPI schema from proto
-#   make openapi-validate # Validate OpenAPI schemas (requires swagger-cli)
-
-openapi-diff:
-	@echo "Diffing generated and canonical OpenAPI schemas..."
-	@diff -u docs/generated/openapi/metadata.swagger.json docs/services/metadata_openapi.yaml || echo "Schemas differ (expected if updating standards)"
-
-sync-openapi:
-	# Convert JSON to YAML to avoid schema/linter errors (do not copy JSON as YAML)
-	@yq -P eval '.' docs/generated/openapi/metadata.swagger.json > docs/services/metadata_openapi.yaml
-	@echo "Canonical OpenAPI schema updated from generated output and converted to YAML. (2024-06-14)"
-
-update-doc-dates:
-	@./scripts/update-doc-dates.sh
-
-validate-doc-dates:
-	@echo "(TODO) Validate doc dates for recency and context block."
-
-# Diff the generated OpenAPI JSON and the canonical metadata_openapi.json for review
-openapi-json-diff:
-	@echo "Diffing generated and canonical OpenAPI JSON schemas..."
-	@diff -u docs/generated/openapi/metadata.swagger.json docs/services/metadata_openapi.json || echo "Schemas differ (expected if updating standards)"
 
 # rest-point: Safely update all documentation, OpenAPI specs, lint code/docs, and back up the knowledge graph.
 rest-point: docs-all
@@ -640,11 +519,6 @@ rest-point: docs-all
 vet:
 	go vet ./...
 
-api-docs:
-	swag init -g internal/server/handlers/docs.go -o docs/api
-
-# --- WASM/Frontend Build (Vite-centric, progressive threads) ---
-
 wasm-build:
 	@./scripts/build-wasm.sh
 
@@ -654,24 +528,6 @@ wasm-threaded: wasm-build
 vite-wasm:
 	cd frontend && yarn dev
 	@echo "[NOTE] If using WASM threads, ensure Vite is configured to set COOP/COEP headers. See vite.config.js example in docs."
-
-# Remove old serve-wasm (python http.server) target, as Vite is used for serving
-
-# Helm Chart Commands
-helm-install:
-	helm install ovasabi deployments/kubernetes
-
-helm-upgrade:
-	helm upgrade ovasabi deployments/kubernetes
-
-helm-uninstall:
-	helm uninstall ovasabi
-
-helm-status:
-	helm status ovasabi
-
-helm-dry-run:
-	helm install ovasabi deployments/kubernetes --dry-run --debug
 
 # Knowledge Graph CLI Commands
 .PHONY: kg-backup kg-list-backups kg-restore kg-clean kg-validate kg-sync-backup
@@ -732,3 +588,46 @@ check-service-registration:
 	  echo "ERROR: config/service_registration.json must be a file, not a directory!"; \
 	  exit 1; \
 	fi
+
+eks-create-cluster:
+	eksctl create cluster --name $(K8S_NAMESPACE) --region $(AWS_REGION) --nodes 2 --node-type t3.medium
+
+eks-delete-cluster:
+	eksctl delete cluster --name $(K8S_NAMESPACE) --region $(AWS_REGION)
+
+# Update kubeconfig for EKS
+eks-update-kubeconfig:
+	aws eks update-kubeconfig --region $(AWS_REGION) --name $(K8S_NAMESPACE)
+
+# Get EKS cluster info
+eks-info:
+	aws eks describe-cluster --name $(K8S_NAMESPACE) --region $(AWS_REGION) --query "cluster.{name:name,endpoint:endpoint,status:status}"
+
+# List EKS clusters
+eks-list:
+	aws eks list-clusters --region $(AWS_REGION)
+
+# Get EKS nodes
+eks-nodes:
+	kubectl get nodes
+
+# Set context to EKS
+k8s-set-context-eks: eks-update-kubeconfig
+	kubectl config use-context arn:aws:eks:$(AWS_REGION):$(AWS_ACCOUNT_ID):cluster/$(K8S_NAMESPACE)
+
+# Create a new EKS nodegroup (edit parameters as needed)
+eks-create-nodegroup:
+	eksctl create nodegroup --cluster $(K8S_NAMESPACE) --region $(AWS_REGION) --name $(K8S_NAMESPACE) --node-type t3.medium --nodes 2 --nodes-min 1 --nodes-max 3
+
+# Deploy to EKS (use correct namespace and context)
+k8s-deploy-eks: k8s-create-namespace k8s-set-context-eks
+	kubectl apply -f kubernetes/ -n $(K8S_NAMESPACE)
+
+k8s-status-eks:
+	kubectl get all -n $(K8S_NAMESPACE)
+
+k8s-logs-eks:
+	kubectl logs -f deployment/$(BINARY_NAME) -n $(K8S_NAMESPACE)
+
+k8s-port-forward-eks:
+	kubectl port-forward service/$(BINARY_NAME) 50051:50051 -n $(K8S_NAMESPACE)

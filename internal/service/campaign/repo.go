@@ -31,6 +31,7 @@ type Repository struct {
 	// master is the MasterRepository, which is a dependency for creating master entries.
 	// It's part of the internal/repository package.
 	master repository.MasterRepository
+	// End of metadata block, do not close function here
 }
 
 // SaveBroadcastEvent persists a broadcast event for audit/recovery, including media links.
@@ -162,6 +163,21 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 
 	var metadataJSON []byte
 	if campaign.Metadata != nil {
+		// Ensure status is present in service_specific.campaign
+		if campaign.Metadata.ServiceSpecific == nil {
+			campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+		}
+		// Add status to service_specific.campaign if not present
+		if campaign.Metadata.ServiceSpecific.Fields["campaign"] == nil {
+			campaign.Metadata.ServiceSpecific.Fields["campaign"] = structpb.NewStructValue(&structpb.Struct{Fields: make(map[string]*structpb.Value)})
+		}
+		campaignStruct := campaign.Metadata.ServiceSpecific.Fields["campaign"].GetStructValue()
+		if campaignStruct != nil {
+			if _, ok := campaignStruct.Fields["status"]; !ok {
+				// Default to active if not set
+				campaignStruct.Fields["status"] = structpb.NewStringValue("active")
+			}
+		}
 		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
 		if err != nil {
 			return nil, err
@@ -171,6 +187,7 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 			return nil, err
 		}
 	}
+
 	query := `
 		INSERT INTO service_campaign_main (
 			master_id, master_uuid, slug, title, description,

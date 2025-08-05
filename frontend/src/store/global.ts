@@ -218,6 +218,7 @@ interface GlobalState {
   connection: ConnectionState;
   serviceStates: ServiceStates; // Generic state for different services/features
   pendingRequests: Record<string, PendingRequestEntry>;
+  campaignState?: any; // Added for campaign state integration
 
   // Actions
   setMetadata: (meta: Partial<Metadata>) => void;
@@ -233,6 +234,11 @@ interface GlobalState {
   reconnect: () => void;
   clearHistory: () => void;
   reset: () => void;
+  switchCampaign: (
+    campaignId: number,
+    slug?: string,
+    onResponse?: (event: EventEnvelope) => void
+  ) => void;
 
   // Generic service state actions
   setServiceState: (serviceName: string, state: Partial<FeatureState>) => void;
@@ -302,6 +308,43 @@ export const useGlobalStore = create<GlobalState>()(
               false,
               'updateMetadata'
             ),
+          // Switch active campaign and emit state request
+          switchCampaign: (
+            campaignId: number,
+            slug?: string,
+            onResponse?: (event: EventEnvelope) => void
+          ) => {
+            const state = get();
+            set(
+              current => ({
+                metadata: {
+                  ...current.metadata,
+                  campaign: {
+                    ...current.metadata.campaign,
+                    campaignId,
+                    slug: slug || current.metadata.campaign.slug
+                  }
+                }
+              }),
+              false,
+              'switchCampaign'
+            );
+            state.emitEvent(
+              {
+                type: 'campaign:state:request',
+                payload: {},
+                metadata: {
+                  ...state.metadata,
+                  campaign: {
+                    ...state.metadata.campaign,
+                    campaignId,
+                    slug: slug || state.metadata.campaign.slug
+                  }
+                }
+              },
+              onResponse
+            );
+          },
 
           emitEvent: (event, onResponse) => {
             const state = get();
@@ -698,6 +741,19 @@ if (typeof window !== 'undefined') {
   };
 
   window.onWasmMessage = (msg: any) => {
+    // Integration: update campaign state from WASM/WebSocket events
+    if (msg.type === 'campaign:state:v1:success' || msg.type === 'campaign:state:v1:completed') {
+      // Update campaignState and metadata.campaign in Zustand store
+      useGlobalStore.getState().updateMetadata(current => ({
+        ...current,
+        campaign: {
+          ...current.campaign,
+          ...msg.payload
+        }
+      }));
+      useGlobalStore.setState({ campaignState: msg.payload });
+    }
+    // Existing logic: keep pending messages for initialization
     console.log('[Global State] WASM Message (before store init)', msg);
     pendingMessages.push(msg);
   };

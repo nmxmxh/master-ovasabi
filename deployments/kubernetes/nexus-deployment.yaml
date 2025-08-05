@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus
+  labels:
+    app: nexus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexus
+  template:
+    metadata:
+      labels:
+        app: nexus
+    spec:
+      containers:
+      - name: nexus
+        image: ovasabi/nexus:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50052
+          name: grpc
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: APP_ENV
+          value: "development"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: SERVICE_NAME
+          value: "nexus"
+        - name: NEXUS_GRPC_ADDR
+          value: "nexus:50052"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: REDIS_PASSWORD
+          value: "<redis-password>"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: POSTGRES_DB
+          value: "master_ovasabi"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "postgres"
+        - name: DB_NAME
+          value: "master_ovasabi"
+        volumeMounts:
+        - name: nexus-config
+          mountPath: /nexus/config
+        - name: nexus-api
+          mountPath: /nexus/api
+      volumes:
+      - name: nexus-config
+        hostPath:
+          path: /config
+      - name: nexus-api
+        hostPath:
+          path: /api

@@ -214,6 +214,12 @@ func parseOpenLibraryResults(body []byte) ([]*Result, error) {
 			Key              string   `json:"key"`
 			AuthorName       []string `json:"author_name"`
 			FirstPublishYear int      `json:"first_publish_year"`
+			CoverID          int      `json:"cover_i"`
+			EditionCount     int      `json:"edition_count"`
+			Subject          []string `json:"subject"`
+			Language         []string `json:"language"`
+			PublishDate      []string `json:"publish_date"`
+			Description      string   `json:"description"`
 		} `json:"docs"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -222,11 +228,27 @@ func parseOpenLibraryResults(body []byte) ([]*Result, error) {
 	results := []*Result{}
 	for _, d := range resp.Docs {
 		bookURL := "https://openlibrary.org" + d.Key
+		coverImage := ""
+		if d.CoverID > 0 {
+			coverImage = "https://covers.openlibrary.org/b/id/" + fmt.Sprint(d.CoverID) + "-L.jpg"
+		}
+		fields := map[string]interface{}{
+			"title":         d.Title,
+			"url":           bookURL,
+			"authors":       d.AuthorName,
+			"year":          d.FirstPublishYear,
+			"cover_image":   coverImage,
+			"edition_count": d.EditionCount,
+			"subjects":      d.Subject,
+			"languages":     d.Language,
+			"publish_dates": d.PublishDate,
+			"description":   d.Description,
+		}
 		results = append(results, &Result{
 			ID:       bookURL,
 			Type:     "openlibrary",
 			Score:    1.0,
-			Fields:   map[string]interface{}{"title": d.Title, "url": bookURL, "authors": d.AuthorName, "year": d.FirstPublishYear},
+			Fields:   fields,
 			Source:   "openlibrary",
 			Metadata: &commonpb.Metadata{},
 		})

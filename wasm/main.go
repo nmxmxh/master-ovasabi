@@ -94,6 +94,9 @@ func updateGlobalMetadata(metadata json.RawMessage) {
 	var metaObj interface{}
 	if err := json.Unmarshal(metadata, &metaObj); err == nil {
 		js.Global().Set("__WASM_GLOBAL_METADATA", goValueToJSValue(metaObj))
+		js.Global().Get("console").Call("log", "[WASM] Set window.__WASM_GLOBAL_METADATA:", js.Global().Get("__WASM_GLOBAL_METADATA"))
+	} else {
+		js.Global().Get("console").Call("log", "[WASM] Failed to unmarshal metadata for __WASM_GLOBAL_METADATA:", err)
 	}
 }
 
@@ -566,9 +569,8 @@ func getMediaStreamingURL() string {
 	}
 	host := location.Get("host").String()
 	// Default port for media-streaming is 8085 (see docker-compose)
-	// If running behind nginx, may need to expose via /media or similar
-	// For now, assume direct connection
-	return protocol + "//" + host + "/media/ws"
+	// For local dev, use /ws to match backend endpoint
+	return protocol + "//" + host + "/ws"
 }
 
 // NewMediaStreamingClient creates and initializes the client
@@ -1072,19 +1074,30 @@ func handleStateUpdate(event EventEnvelope) {
 func genericEventHandler(event EventEnvelope) {
 	log("[WASM][", event.Type, "] State: received", string(event.Payload))
 
+	// --- Campaign update: update WASM global metadata ---
+	if event.Type == "campaign:update:v1:success" || event.Type == "campaign:update:v1:completed" {
+		// Try to extract campaign metadata from event.Payload
+		var payloadObj map[string]interface{}
+		if err := json.Unmarshal(event.Payload, &payloadObj); err == nil {
+			if campaignMeta, ok := payloadObj["campaign"].(map[string]interface{}); ok {
+				// Merge with existing metadata if needed
+				metaBytes, err := json.Marshal(map[string]interface{}{"campaign": campaignMeta})
+				if err == nil {
+					updateGlobalMetadata(metaBytes)
+				}
+			}
+		}
+	}
+
 	// --- Robust request/response: check for pending request match ---
-	// Try to extract correlationId from event.Metadata or event.CorrelationId
 	var correlationId string
-	// Try metadata first (as in frontend)
 	var metaMap map[string]interface{}
 	if err := json.Unmarshal(event.Metadata, &metaMap); err == nil {
 		if cid, ok := metaMap["correlation_id"].(string); ok && cid != "" {
 			correlationId = cid
 		}
 	}
-	// Fallback to event.CorrelationID (Go style: capital I, D)
 	if correlationId == "" {
-		// Try to get from struct tag (if present)
 		type correlationIDCarrier interface {
 			GetCorrelationID() string
 		}
@@ -1097,9 +1110,7 @@ func genericEventHandler(event EventEnvelope) {
 
 	if correlationId != "" {
 		if cbVal, ok := pendingRequests.Load(correlationId); ok {
-			// Remove from pending
 			pendingRequests.Delete(correlationId)
-			// Call the JS callback with the event (converted to JS value)
 			if cb, ok := cbVal.(js.Value); ok && cb.Type() == js.TypeFunction {
 				jsEvent := goEventToJSValue(event)
 				go func() {

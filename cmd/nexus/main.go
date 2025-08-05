@@ -78,9 +78,6 @@ func main() {
 	}
 
 	// --- Service Registry Seeding ---
-	// Seed the service_registry table from config/service_registration.json if empty
-	// Only run if not already seeded, and improve logging
-	// Use the correct DB_HOST based on the actual database service name in Docker Compose
 	dbService := os.Getenv("DB_HOST")
 	if dbService == "" {
 		dbService = "postgres" // matches the service name in docker-compose.yml
@@ -90,11 +87,18 @@ func main() {
 	if seedErr != nil {
 		log.Error("Service registry seeding failed", zap.Error(seedErr), zap.String("db_host", dbService))
 	} else if seeded {
-		log.Info("Service registry seeded from config/service_registration.json", zap.String("db_host", dbService))
-	} else {
-		log.Info("Service registry already seeded, skipping JSON import.", zap.String("db_host", dbService))
+		log.Info("Service registry seeded/updated from config/service_registration.json", zap.String("db_host", dbService))
 	}
 	// --- End Service Registry Seeding ---
+
+	// --- Campaign Seeding ---
+	campaignSeeded, campaignSeedErr := scripts.SeedCampaign()
+	if campaignSeedErr != nil {
+		log.Error("Campaign seeding failed", zap.Error(campaignSeedErr), zap.String("db_host", dbService))
+	} else if campaignSeeded {
+		log.Info("Campaign table seeded/updated from config/campaign.json", zap.String("db_host", dbService))
+	}
+	// --- End Campaign Seeding ---
 
 	// Create master repository
 	masterRepo := repository.NewMasterRepository(db, log)

@@ -1,0 +1,213 @@
+[
+  {
+    "slug": "ovasabi_website",
+    "title": "Ovasabi Studios Website Launch",
+    "description": "Official launch campaign for Ovasabi Studios, featuring onboarding, waitlist, referral, leaderboard, and broadcast features.",
+    "ranking_formula": "score + referrals * 10",
+    "owner_id": "admin",
+    "start_date": "2025-08-01T00:00:00Z",
+    "end_date": "9999-12-31T23:59:59Z",
+    "metadata": {
+      "features": [
+        "waitlist",
+        "referral",
+        "leaderboard",
+        "broadcast",
+        "site_onboarding",
+        "lead_capture",
+        "user_journey"
+      ],
+      "service_specific": {
+        "campaign": {
+          "status": "active",
+          "broadcast_enabled": true,
+          "channels": ["ovasabi_website", "all_users"],
+          "i18n_keys": [
+            "welcome_banner",
+            "signup_cta",
+            "waitlist_success",
+            "referral_invite",
+            "leaderboard_title"
+          ],
+          "ui_content": {
+            "banner": "Welcome to Ovasabi Studios!",
+            "cta": "Join now for exclusive rewards!",
+            "lead_form": {
+              "fields": ["name", "email", "referral_code"],
+              "submit_text": "Get Started"
+            }
+          },
+          "about": {
+            "order": [
+              {
+                "type": "content",
+                "subtitle": "COMMUNITY MEETS ARCHITECTURE",
+                "p": "Ovasabi Studios is building a new kind of company, part creative network, part software powerhouse, and part economic ecosystem. We bring together high-agency talent and intelligent systems to deliver powerful, scalable solutions, without the bloated costs or brittle hierarchies of legacy firms. At the core is a living community empowered by INOS: our intelligent network operating system that automates orchestration, makes systems self-aware, and turns talent, logic, and outcomes into programmable infrastructure. Ovasabi isn’t just a platform or a service. It’s a blueprint for a new economic organism, designed to grow, adapt, and scale value through community."
+              },
+              {
+                "type": "list",
+                "title": "Our Model",
+                "list": [
+                  "Talent Network: A tiered, chemistry-matched community of designers, engineers, strategists, and creatives. Transparent, sovereign, and self-organising.",
+                  "Technological Core (INOS): Our internal architecture automates delivery, coordination, and scale—reducing complexity and accelerating results.",
+                  "Market Interface: From micro-businesses to governments, we deliver full-stack, outcome-focused solutions through subscription models and innovation partnerships."
+                ]
+              },
+              {
+                "type": "list",
+                "title": "Why We Matter",
+                "list": [
+                  "For Clients: Access coordinated, resilient teams, not fragmented freelancers.",
+                  "For Talent: Work in a transparent, upwardly mobile system, not a gig economy.",
+                  "For Institutions: Build sovereign, auditable digital systems, not cloud-dependent silos.",
+                  "For the World: Prove that scalable, sustainable innovation doesn’t require exploitation."
+                ]
+              },
+              {
+                "type": "list",
+                "title": "How We Grow",
+                "list": [
+                  "Tier-based revenue streams: From N750K to N7.5M/month per client ($2.5K–$25K).",
+                  "Referral incentives: 5–10% lifetime commissions for community-led growth.",
+                  "Low overhead: Self-organizing teams and intelligent coordination replace middle management.",
+                  "Technical leverage: INOS reduces delivery time by 40–60%, cuts costs, and increases resilience."
+                ]
+              },
+              {
+                "type": "list",
+                "title": "What We Unlock",
+                "list": [
+                  "People can create meaningful work in systems built to elevate, not extract.",
+                  "Communities can build local economies through collaboration, ownership, and equity.",
+                  "Businesses can innovate at speed, launching products, teams, and systems in days.",
+                  "Governments can digitize services with control, clarity, and compliance."
+                ]
+              },
+              {
+                "type": "list",
+                "title": "What Makes Us Different",
+                "list": [
+                  "A technology-enhanced creative studio with a self-aware operating system.",
+                  "A global community of builders who own their outcomes and grow together.",
+                  "A sustainable business engine fueled by participation, not pressure."
+                ]
+              },
+              {
+                "type": "content",
+                "title": "TL;DR",
+                "p": "Ovasabi Studios is a systemically sound, creator-led company where intelligent infrastructure meets high-agency community, redefining how value, talent, and innovation scale. This isn’t just a company. It’s a movement. Let’s build the future, together."
+              }
+            ]
+          }
+        },
+        "localization": {
+          "scripts": {
+            "lead_form": {
+              "fields": ["name", "email", "referral_code"],
+              "submit_text": "Get Started"
+            },
+            "site_onboarding": {
+              "path": "/onboarding",
+              "main_text": "Welcome to OVASABI! Let's get you started.",
+              "steps": [
+                { "step": 1, "text": "Tell us about yourself.", "fields": ["name", "email"] },
+                {
+                  "step": 2,
+                  "text": "Choose your interests.",
+                  "options": ["Design", "Development", "Consulting", "Talent"]
+                },
+                { "step": 3, "text": "Invite friends for early access.", "action": "invite" }
+              ]
+            }
+          }
+        }
+      },
+      "scheduling": {
+        "start": "2025-08-01T00:00:00Z",
+        "end": "2025-12-31T23:59:59Z",
+        "ws_frequency": "5m"
+      },
+      "versioning": {
+        "version": "1.0.0",
+        "created_at": "2025-08-01T00:00:00Z",
+        "updated_at": "2025-08-01T00:00:00Z"
+      },
+      "audit": {
+        "last_modified": "2025-08-01T00:00:00Z",
+        "history": ["2025-08-01T00:00:00Z: Campaign created"]
+      }
+    }
+  },
+  {
+    "slug": "ovasabi_architecture",
+    "title": "Ovasabi Studios Architecture Campaign",
+    "description": "Showcase of Ovasabi Studios' technical architecture, orchestration, and network operating system (INOS).",
+    "ranking_formula": "score + contributions * 5",
+    "owner_id": "admin",
+    "start_date": "2025-08-01T00:00:00Z",
+    "end_date": "9999-12-31T23:59:59Z",
+    "metadata": {
+      "features": ["architecture", "network_os", "community", "ecosystem"],
+      "service_specific": {
+        "campaign": {
+          "status": "active",
+          "focus": "architecture",
+          "inos_enabled": true,
+          "ui_content": {
+            "banner": "Explore Ovasabi's intelligent architecture!",
+            "cta": "See how INOS powers the future.",
+            "architecture_overview": {
+              "sections": ["Talent Network", "INOS Core", "Market Interface"],
+              "description": "INOS automates orchestration, makes systems self-aware, and turns talent, logic, and outcomes into programmable infrastructure."
+            }
+          },
+          "about": {
+            "order": [
+              {
+                "type": "content",
+                "title": "INOS: The Intelligent Network Operating System",
+                "p": "INOS is the backbone of Ovasabi Studios, enabling automation, resilience, and scale. It coordinates talent, logic, and outcomes across the ecosystem."
+              },
+              {
+                "type": "list",
+                "title": "Architecture Pillars",
+                "list": [
+                  "Self-aware orchestration",
+                  "Programmable infrastructure",
+                  "Community-driven innovation"
+                ]
+              },
+              {
+                "type": "content",
+                "title": "Why Architecture Matters",
+                "p": "Ovasabi's architecture is designed for adaptability, transparency, and growth. It empowers creators and clients alike."
+              }
+            ]
+          }
+        },
+        "localization": {
+          "scripts": {
+            "architecture_overview": {
+              "sections": ["Talent Network", "INOS Core", "Market Interface"],
+              "description": "INOS automates orchestration, makes systems self-aware, and turns talent, logic, and outcomes into programmable infrastructure."
+            }
+          }
+        }
+      },
+      "scheduling": {
+        "start": "2025-08-01T00:00:00Z",
+        "end": "2025-12-31T23:59:59Z",
+        "ws_frequency": "10m"
+      },
+      "versioning": {
+        "version": "1.0.0",
+        "created_at": "2025-08-01T00:00:00Z",
+        "updated_at": "2025-08-01T00:00:00Z"
+      },
+      "audit": {
+        "last_modified": "2025-08-01T00:00:00Z",
+        "history": ["2025-08-01T00:00:00Z: Architecture campaign created"]
+      }
+    }
+  }
+]

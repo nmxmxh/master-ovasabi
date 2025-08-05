@@ -1,18 +1,53 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: master-ovasabi
+  name: ovasabi-ingress
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
 spec:
   rules:
-  - host: api.ovasabi.local
+  - host: ovasabi.local
     http:
       paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: app
+            port:
+              name: http
+      - path: /nexus
+        pathType: Prefix
+        backend:
+          service:
+            name: nexus
+            port:
+              name: grpc
+      - path: /media
+        pathType: Prefix
+        backend:
+          service:
+            name: media-streaming
+            port:
+              name: http
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: ws-gateway
+            port:
+              name: http
+      - path: /translate
+        pathType: Prefix
+        backend:
+          service:
+            name: libretranslate
+            port:
+              name: http
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: master-ovasabi
+            name: nginx
             port:
-              name: grpc 
+              name: http

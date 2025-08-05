@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -216,10 +217,17 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 		// Removed results logging for inspection clarity
 		protos := make([]*searchpb.SearchResult, 0, len(results))
 		for _, r := range results {
+			fields := make(map[string]interface{})
+			for k, v := range r.Fields {
+				fields[k] = v
+			}
+			// Add Source field for full adapter detail
+			fields["source"] = r.Source
 			protos = append(protos, &searchpb.SearchResult{
 				Id:         r.ID,
 				EntityType: r.Type,
 				Score:      float32(r.Score),
+				Fields:     metadata.NewStructFromMap(fields, nil),
 				Metadata:   r.Metadata,
 			})
 		}
@@ -1323,7 +1331,18 @@ func (a *AIEnrichmentEventEmitter) EmitEventWithLogging(ctx context.Context, emi
 // FederatedSearch performs a federated search across multiple sources.
 func (s *Service) FederatedSearch(ctx context.Context, req *Request) ([]*Result, error) {
 	errMsgs := make([]string, 0, len(s.adapters))
-	results := make([]*Result, 0, len(s.adapters)*10)
+	// Track adapter order for sorting
+	adapterOrder := make(map[string]int)
+	idx := 0
+	for name := range s.adapters {
+		adapterOrder[name] = idx
+		idx++
+	}
+	type resultWithAdapterIdx struct {
+		*Result
+		adapterIdx int
+	}
+	allResults := make([]resultWithAdapterIdx, 0, len(s.adapters)*10)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
@@ -1343,17 +1362,14 @@ func (s *Service) FederatedSearch(ctx context.Context, req *Request) ([]*Result,
 		wg.Add(1)
 		go func(adapter Adapter) {
 			defer wg.Done()
-			// Each adapter can have up to 10 workers
 			var adapterWg sync.WaitGroup
 			adapterResultsCh := make(chan []*Result, 10)
 			errCh := make(chan error, 10)
-
-			for i := 0; i < 10; i++ {
+			for _, workerID := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 				adapterWg.Add(1)
 				go func(workerID int) {
 					defer adapterWg.Done()
-					workerReq := *req // shallow copy
-					// Add context to query for each worker
+					workerReq := *req
 					switch workerID {
 					case 0:
 						workerReq.Query = req.Query + " definition"
@@ -1383,22 +1399,23 @@ func (s *Service) FederatedSearch(ctx context.Context, req *Request) ([]*Result,
 						return
 					}
 					adapterResultsCh <- res
-				}(i)
+				}(workerID)
 			}
 			adapterWg.Wait()
 			close(adapterResultsCh)
 			close(errCh)
-
 			mu.Lock()
 			for res := range adapterResultsCh {
 				if len(res) > 0 {
 					s.log.Info("[FederatedSearch] Adapter results", zap.String("adapter", adapter.Name()), zap.Int("result_count", len(res)), zap.Any("results", res))
-					results = append(results, res...)
+					idx := adapterOrder[adapter.Name()]
+					for _, r := range res {
+						allResults = append(allResults, resultWithAdapterIdx{Result: r, adapterIdx: idx})
+					}
 				}
 			}
 			for err := range errCh {
 				s.log.Warn("[FederatedSearch] Adapter error", zap.String("adapter", adapter.Name()), zap.Error(err))
-				// Abbreviate the error message to just the adapter name for concise reporting.
 				errMsgs = append(errMsgs, adapter.Name())
 			}
 			mu.Unlock()
@@ -1406,9 +1423,25 @@ func (s *Service) FederatedSearch(ctx context.Context, req *Request) ([]*Result,
 	}
 	wg.Wait()
 
-	s.log.Info("[FederatedSearch] Aggregated results", zap.Int("total_results", len(results)), zap.Strings("errors", errMsgs))
+	// Sort allResults by a weighted composite score: mix of adapterIdx (priority) and Score
+	// Higher score and higher priority (lower adapterIdx) rank higher
+	scoreWeight := 0.7
+	priorityWeight := 0.3
+	maxAdapterIdx := 0
+	for _, rw := range allResults {
+		if rw.adapterIdx > maxAdapterIdx {
+			maxAdapterIdx = rw.adapterIdx
+		}
+	}
+	sort.SliceStable(allResults, func(i, j int) bool {
+		// Composite score: scoreWeight * Score + priorityWeight * (maxAdapterIdx - adapterIdx)
+		compositeI := scoreWeight*allResults[i].Score + priorityWeight*float64(maxAdapterIdx-allResults[i].adapterIdx)
+		compositeJ := scoreWeight*allResults[j].Score + priorityWeight*float64(maxAdapterIdx-allResults[j].adapterIdx)
+		return compositeI > compositeJ
+	})
 
-	// Always return partial results and error details
+	s.log.Info("[FederatedSearch] Aggregated results", zap.Int("total_results", len(allResults)), zap.Strings("errors", errMsgs))
+
 	pageNumber := 1
 	pageSize := 100
 	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
@@ -1425,16 +1458,36 @@ func (s *Service) FederatedSearch(ctx context.Context, req *Request) ([]*Result,
 	}
 	start := (pageNumber - 1) * pageSize
 	end := start + pageSize
-	if start > len(results) {
+	if start > len(allResults) {
 		return []*Result{}, fmt.Errorf("adapter errors: %s", strings.Join(errMsgs, "; "))
 	}
-	if end > len(results) {
-		end = len(results)
+	if end > len(allResults) {
+		end = len(allResults)
 	}
-	pagedResults := results[start:end]
+
+	// Deduplicate results by ID before paging
+	deduped := make([]*Result, 0, len(allResults))
+	seen := make(map[string]struct{})
+	for _, rw := range allResults {
+		if rw.Result == nil || rw.Result.ID == "" {
+			continue
+		}
+		if _, exists := seen[rw.Result.ID]; !exists {
+			seen[rw.Result.ID] = struct{}{}
+			deduped = append(deduped, rw.Result)
+		}
+	}
+
+	// Apply paging after deduplication
+	pagedResults := make([]*Result, 0, end-start)
+	if start < len(deduped) {
+		if end > len(deduped) {
+			end = len(deduped)
+		}
+		pagedResults = deduped[start:end]
+	}
 
 	if len(errMsgs) > 0 {
-		// Return results and a simplified list of failing adapters.
 		return pagedResults, fmt.Errorf("adapter errors: %s", strings.Join(errMsgs, ", "))
 	}
 	return pagedResults, nil

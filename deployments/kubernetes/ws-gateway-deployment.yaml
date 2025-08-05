@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ws-gateway
+  labels:
+    app: ws-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ws-gateway
+  template:
+    metadata:
+      labels:
+        app: ws-gateway
+    spec:
+      containers:
+      - name: ws-gateway
+        image: ovasabi/ws-gateway:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8090
+          name: http
+        env:
+        - name: NEXUS_GRPC_ADDR
+          value: "nexus:50052"
+        - name: LOG_LEVEL
+          value: "debug"
+        - name: WS_ALLOWED_ORIGINS
+          value: "*"
