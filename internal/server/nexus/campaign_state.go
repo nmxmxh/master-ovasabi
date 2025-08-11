@@ -13,6 +13,7 @@ import (
 	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	meta "github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // CampaignState holds the state for a single campaign ("app").
@@ -89,6 +90,18 @@ func (m *CampaignStateManager) HandleEvent(event *nexusv1.EventRequest) {
 			// campaignID = strconv.FormatInt(event.CampaignId, 10)
 		}
 		m.EmitCampaignState(campaignID, userID, event.Metadata)
+
+	case "campaign:list:v1:requested":
+		m.handleCampaignList(event)
+
+	case "campaign:update:v1:requested":
+		m.handleCampaignUpdate(event)
+
+	case "campaign:feature:v1:requested":
+		m.handleFeatureUpdate(event)
+
+	case "campaign:config:v1:requested":
+		m.handleConfigUpdate(event)
 	}
 }
 
@@ -297,4 +310,494 @@ func (m *CampaignStateManager) GetState(campaignID string) map[string]any {
 		copy[k] = v
 	}
 	return copy
+}
+
+// handleCampaignList processes campaign list requests and returns all available campaigns
+func (m *CampaignStateManager) handleCampaignList(event *nexusv1.EventRequest) {
+	_, userID := m.extractCampaignAndUserID(event)
+
+	// Log the type and structure of incoming metadata for debugging
+	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
+		for k, v := range event.Metadata.ServiceSpecific.Fields {
+			switch v.Kind.(type) {
+			case *structpb.Value_StringValue:
+				m.log.Warn("CampaignList: Metadata field is string", zap.String("field", k), zap.String("value", v.GetStringValue()))
+			case *structpb.Value_StructValue:
+				m.log.Info("CampaignList: Metadata field is struct", zap.String("field", k))
+			case *structpb.Value_NumberValue:
+				m.log.Info("CampaignList: Metadata field is number", zap.String("field", k), zap.Float64("value", v.GetNumberValue()))
+			case *structpb.Value_BoolValue:
+				m.log.Info("CampaignList: Metadata field is bool", zap.String("field", k), zap.Bool("value", v.GetBoolValue()))
+			default:
+				m.log.Info("CampaignList: Metadata field is other type", zap.String("field", k))
+			}
+		}
+	} else {
+		m.log.Warn("CampaignList: Metadata or ServiceSpecific is nil")
+	}
+
+	var payload struct {
+		Limit  int `json:"limit"`
+		Offset int `json:"offset"`
+	}
+
+	// Extract pagination parameters from payload
+	if event.Payload != nil && event.Payload.Data != nil {
+		payloadMap := event.Payload.Data.AsMap()
+		if limit, ok := payloadMap["limit"].(float64); ok {
+			payload.Limit = int(limit)
+		}
+		if offset, ok := payloadMap["offset"].(float64); ok {
+			payload.Offset = int(offset)
+		}
+	}
+
+	// Set default pagination if not provided
+	if payload.Limit <= 0 {
+		payload.Limit = 50
+	}
+
+	m.log.Info("Processing campaign list request",
+		zap.String("user_id", userID),
+		zap.Int("limit", payload.Limit),
+		zap.Int("offset", payload.Offset))
+
+	var campaigns []map[string]any
+
+	// If repository is available, fetch from database
+	if m.repo != nil {
+		if dbCampaigns, err := m.repo.List(context.Background(), payload.Limit, payload.Offset); err == nil {
+			for _, c := range dbCampaigns {
+				campaignData := map[string]any{
+					"id":    c.ID,
+					"slug":  c.Slug,
+					"title": c.Title,
+					"name":  c.Title, // Alias for frontend compatibility
+				}
+
+				// Add metadata if available
+				if c.Metadata != nil {
+					if features := c.Metadata.GetFeatures(); features != nil {
+						campaignData["features"] = features
+					}
+					if tags := c.Metadata.GetTags(); tags != nil {
+						campaignData["tags"] = tags
+					}
+					// Add service-specific campaign data
+					if ss := c.Metadata.GetServiceSpecific(); ss != nil && ss.Fields != nil {
+						if campaignField, ok := ss.Fields["campaign"]; ok && campaignField != nil {
+							if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
+								for k, v := range campaignStruct.AsMap() {
+									campaignData[k] = v
+								}
+							}
+						}
+					}
+				}
+
+				campaigns = append(campaigns, campaignData)
+			}
+		} else {
+			m.log.Error("Failed to fetch campaigns from database", zap.Error(err))
+		}
+	}
+
+	// Fallback: add campaigns from memory state if database failed or is unavailable
+	if len(campaigns) == 0 {
+		m.campaigns.Range(func(key, value interface{}) bool {
+			campaignID := key.(string)
+			cs := value.(*CampaignState)
+
+			campaignData := map[string]any{
+				"id":   campaignID,
+				"slug": campaignID,
+				"name": campaignID,
+			}
+
+			// Add state data
+			for k, v := range cs.State {
+				campaignData[k] = v
+			}
+
+			campaigns = append(campaigns, campaignData)
+			return true
+		})
+	}
+
+	// Always ensure at least the default campaign exists
+	if len(campaigns) == 0 {
+		campaigns = append(campaigns, map[string]any{
+			"id":       0,
+			"slug":     "ovasabi_website",
+			"name":     "Ovasabi Website",
+			"title":    "Ovasabi Website",
+			"features": []string{},
+		})
+	}
+
+	// Extract correlationId from metadata or payload
+	var correlationId string
+	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil && event.Metadata.ServiceSpecific.Fields != nil {
+		if v, ok := event.Metadata.ServiceSpecific.Fields["correlation_id"]; ok && v != nil {
+			correlationId = v.GetStringValue()
+		}
+	}
+	if correlationId == "" && event.Payload != nil && event.Payload.Data != nil {
+		if v, ok := event.Payload.Data.Fields["correlationId"]; ok && v != nil {
+			correlationId = v.GetStringValue()
+		}
+	}
+
+	// Create response
+	responsePayload := map[string]any{
+		"campaigns":     campaigns,
+		"total":         len(campaigns),
+		"limit":         payload.Limit,
+		"offset":        payload.Offset,
+		"user_id":       userID,
+		"correlationId": correlationId,
+	}
+
+	structData := meta.NewStructFromMap(responsePayload, nil)
+	response := &nexusv1.EventResponse{
+		Success:   true,
+		EventId:   "campaign_list:" + userID,
+		EventType: "campaign:list:v1:success",
+		Message:   "campaign_list_retrieved",
+		Metadata:  event.Metadata,
+		Payload: &commonpb.Payload{
+			Data: structData,
+		},
+	}
+
+	m.log.Info("Sending campaign list response",
+		zap.String("user_id", userID),
+		zap.Int("campaign_count", len(campaigns)))
+
+	m.feedbackBus(response)
+}
+
+// handleCampaignUpdate processes direct campaign update requests
+func (m *CampaignStateManager) handleCampaignUpdate(event *nexusv1.EventRequest) {
+	var payload struct {
+		CampaignID string         `json:"campaignId"`
+		Updates    map[string]any `json:"updates"`
+	}
+
+	// Extract campaign ID and user ID from metadata
+	campaignID, userID := m.extractCampaignAndUserID(event)
+
+	// Try to unmarshal from payload first
+	if event.Payload != nil && event.Payload.Data != nil {
+		payloadMap := event.Payload.Data.AsMap()
+		if cid, ok := payloadMap["campaignId"].(string); ok && cid != "" {
+			payload.CampaignID = cid
+		}
+		if updates, ok := payloadMap["updates"].(map[string]any); ok {
+			payload.Updates = updates
+		}
+	}
+
+	// Fallback to metadata-derived campaign ID
+	if payload.CampaignID == "" {
+		payload.CampaignID = campaignID
+	}
+
+	if payload.CampaignID == "" {
+		m.log.Error("Campaign update: missing campaign ID")
+		return
+	}
+
+	if payload.Updates == nil {
+		m.log.Error("Campaign update: missing updates")
+		return
+	}
+
+	m.log.Info("Processing campaign update",
+		zap.String("campaign_id", payload.CampaignID),
+		zap.String("user_id", userID),
+		zap.Any("updates", payload.Updates))
+
+	// Update state directly
+	m.UpdateState(payload.CampaignID, userID, payload.Updates, event.Metadata)
+
+	// Optionally persist to database asynchronously
+	if m.repo != nil {
+		m.safeGo(func() {
+			m.persistToDB(payload.CampaignID, payload.Updates)
+		})
+	}
+}
+
+// handleFeatureUpdate processes feature-specific updates
+func (m *CampaignStateManager) handleFeatureUpdate(event *nexusv1.EventRequest) {
+	var payload struct {
+		CampaignID string   `json:"campaignId"`
+		Features   []string `json:"features"`
+		Action     string   `json:"action"` // "add", "remove", "set"
+	}
+
+	campaignID, userID := m.extractCampaignAndUserID(event)
+
+	if event.Payload != nil && event.Payload.Data != nil {
+		payloadMap := event.Payload.Data.AsMap()
+		if cid, ok := payloadMap["campaignId"].(string); ok && cid != "" {
+			payload.CampaignID = cid
+		}
+		if features, ok := payloadMap["features"].([]any); ok {
+			for _, f := range features {
+				if s, ok := f.(string); ok {
+					payload.Features = append(payload.Features, s)
+				}
+			}
+		}
+		if action, ok := payloadMap["action"].(string); ok {
+			payload.Action = action
+		}
+	}
+
+	if payload.CampaignID == "" {
+		payload.CampaignID = campaignID
+	}
+
+	if payload.CampaignID == "" || len(payload.Features) == 0 {
+		m.log.Error("Feature update: missing campaign ID or features")
+		return
+	}
+
+	cs := m.GetOrCreateState(payload.CampaignID)
+	currentFeatures := []string{}
+
+	// Get current features
+	if existing, ok := cs.State["features"].([]string); ok {
+		currentFeatures = existing
+	} else if existing, ok := cs.State["features"].([]any); ok {
+		for _, f := range existing {
+			if s, ok := f.(string); ok {
+				currentFeatures = append(currentFeatures, s)
+			}
+		}
+	}
+
+	// Apply feature changes
+	switch payload.Action {
+	case "add":
+		for _, newFeature := range payload.Features {
+			found := false
+			for _, existing := range currentFeatures {
+				if existing == newFeature {
+					found = true
+					break
+				}
+			}
+			if !found {
+				currentFeatures = append(currentFeatures, newFeature)
+			}
+		}
+	case "remove":
+		filtered := []string{}
+		for _, existing := range currentFeatures {
+			shouldKeep := true
+			for _, toRemove := range payload.Features {
+				if existing == toRemove {
+					shouldKeep = false
+					break
+				}
+			}
+			if shouldKeep {
+				filtered = append(filtered, existing)
+			}
+		}
+		currentFeatures = filtered
+	case "set":
+		currentFeatures = payload.Features
+	default:
+		m.log.Error("Feature update: invalid action", zap.String("action", payload.Action))
+		return
+	}
+
+	updates := map[string]any{
+		"features": currentFeatures,
+	}
+
+	m.log.Info("Processing feature update",
+		zap.String("campaign_id", payload.CampaignID),
+		zap.String("action", payload.Action),
+		zap.Strings("features", payload.Features))
+
+	m.UpdateState(payload.CampaignID, userID, updates, event.Metadata)
+}
+
+// handleConfigUpdate processes configuration updates (UI content, scripts, etc.)
+func (m *CampaignStateManager) handleConfigUpdate(event *nexusv1.EventRequest) {
+	var payload struct {
+		CampaignID string         `json:"campaignId"`
+		ConfigType string         `json:"configType"` // "ui_content", "scripts", "communication"
+		Config     map[string]any `json:"config"`
+	}
+
+	campaignID, userID := m.extractCampaignAndUserID(event)
+
+	if event.Payload != nil && event.Payload.Data != nil {
+		payloadMap := event.Payload.Data.AsMap()
+		if cid, ok := payloadMap["campaignId"].(string); ok && cid != "" {
+			payload.CampaignID = cid
+		}
+		if configType, ok := payloadMap["configType"].(string); ok {
+			payload.ConfigType = configType
+		}
+		if config, ok := payloadMap["config"].(map[string]any); ok {
+			payload.Config = config
+		}
+	}
+
+	if payload.CampaignID == "" {
+		payload.CampaignID = campaignID
+	}
+
+	if payload.CampaignID == "" || payload.ConfigType == "" || payload.Config == nil {
+		m.log.Error("Config update: missing required fields")
+		return
+	}
+
+	updates := map[string]any{
+		payload.ConfigType: payload.Config,
+	}
+
+	m.log.Info("Processing config update",
+		zap.String("campaign_id", payload.CampaignID),
+		zap.String("config_type", payload.ConfigType))
+
+	m.UpdateState(payload.CampaignID, userID, updates, event.Metadata)
+}
+
+// extractCampaignAndUserID extracts campaign and user IDs from event metadata
+func (m *CampaignStateManager) extractCampaignAndUserID(event *nexusv1.EventRequest) (string, string) {
+	var campaignID, userID string
+
+	if event.Metadata != nil {
+		// Try to get from global metadata
+		if global, ok := event.Metadata.ServiceSpecific.Fields["global"]; ok && global != nil {
+			if globalStruct := global.GetStructValue(); globalStruct != nil {
+				globalMap := globalStruct.AsMap()
+				if v, ok := globalMap["campaign_id"].(string); ok {
+					campaignID = v
+				}
+				if v, ok := globalMap["user_id"].(string); ok {
+					userID = v
+				}
+			}
+		}
+
+		// Try to get from campaign-specific metadata
+		if campaign, ok := event.Metadata.ServiceSpecific.Fields["campaign"]; ok && campaign != nil {
+			if campaignStruct := campaign.GetStructValue(); campaignStruct != nil {
+				campaignMap := campaignStruct.AsMap()
+				if v, ok := campaignMap["campaign_id"].(string); ok && campaignID == "" {
+					campaignID = v
+				}
+				if v, ok := campaignMap["slug"].(string); ok && campaignID == "" {
+					campaignID = v
+				}
+			}
+		}
+	}
+
+	// Fallback: try top-level campaign ID
+	if campaignID == "" && event.CampaignId != 0 {
+		campaignID = "0" // Default for system campaign
+	}
+
+	return campaignID, userID
+}
+
+// persistToDB asynchronously persists campaign state changes to the database
+func (m *CampaignStateManager) persistToDB(campaignID string, updates map[string]any) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get campaign from DB
+	campaign, err := m.repo.GetBySlug(ctx, campaignID)
+	if err != nil {
+		m.log.Error("Failed to get campaign for persistence",
+			zap.String("campaign_id", campaignID),
+			zap.Error(err))
+		return
+	}
+
+	// Get current campaign state
+	cs := m.GetOrCreateState(campaignID)
+	// Merge updates into campaign state before persisting
+	if updates != nil {
+		maps.Copy(cs.State, updates)
+	}
+
+	// Update metadata with state changes
+	if campaign.Metadata != nil && campaign.Metadata.ServiceSpecific != nil {
+		// Merge current state into campaign metadata
+		if campaignField, ok := campaign.Metadata.ServiceSpecific.Fields["campaign"]; ok && campaignField != nil {
+			if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
+				// Merge state into existing campaign metadata
+				existingMap := campaignStruct.AsMap()
+				maps.Copy(existingMap, cs.State)
+				structData := meta.NewStructFromMap(existingMap, nil)
+				campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
+					Kind: &structpb.Value_StructValue{StructValue: structData},
+				}
+			}
+		} else {
+			// Create new campaign metadata
+			structData := meta.NewStructFromMap(cs.State, nil)
+			campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
+				Kind: &structpb.Value_StructValue{StructValue: structData},
+			}
+		}
+	}
+
+	// Update in database
+	if err := m.repo.Update(ctx, campaign); err != nil {
+		m.log.Error("Failed to persist campaign state to database",
+			zap.String("campaign_id", campaignID),
+			zap.Error(err))
+		return
+	}
+
+	m.log.Info("Successfully persisted campaign state to database",
+		zap.String("campaign_id", campaignID))
+}
+
+// GetCampaignArchitectureSummary returns a summary of campaign architecture and health for dashboards.
+func (m *CampaignStateManager) GetCampaignArchitectureSummary() map[string]any {
+	summary := map[string]any{}
+	campaigns := []map[string]any{}
+	totalSubscribers := 0
+	totalCampaigns := 0
+
+	m.campaigns.Range(func(key, value interface{}) bool {
+		cs := value.(*CampaignState)
+		campaignInfo := map[string]any{
+			"campaign_id":  cs.CampaignID,
+			"last_updated": cs.LastUpdated,
+			"state_keys":   len(cs.State),
+			"features":     cs.State["features"],
+			"tags":         cs.State["tags"],
+		}
+		// Count subscribers
+		subscribers := 0
+		cs.Subscribers.Range(func(_, _ interface{}) bool {
+			subscribers++
+			return true
+		})
+		campaignInfo["subscribers"] = subscribers
+		totalSubscribers += subscribers
+		campaigns = append(campaigns, campaignInfo)
+		totalCampaigns++
+		return true
+	})
+
+	summary["total_campaigns"] = totalCampaigns
+	summary["total_subscribers"] = totalSubscribers
+	summary["campaigns"] = campaigns
+
+	return summary
 }

@@ -32,7 +32,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -59,6 +61,14 @@ func Register(
 		log.With(zap.String("service", "media")).Warn("Failed to get media cache", zap.Error(err), zap.String("cache", "media"), zap.String("context", ctxValue(ctx)))
 	}
 	mediaService := NewService(log, repo, cache, eventEmitter, eventEnabled)
+
+	// Register cleanup for media streaming and upload processes
+	lifecycle.RegisterCleanup(container, "media", func() error {
+		log.Info("Stopping media service and cleaning up streaming connections")
+		// Media service will handle cleanup of active uploads,
+		// streaming connections, and temporary file processing
+		return nil
+	})
 
 	// Register canonical action handlers for event-driven orchestration
 	RegisterActionHandler("upload_light_media", handleUploadLightMedia)
@@ -100,6 +110,13 @@ func Register(
 				}
 			}
 		}()
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "media", healthDeps)
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "media")
 	}
 	_ = masterRepo // used for signature consistency and future extensibility

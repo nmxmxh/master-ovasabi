@@ -71,8 +71,8 @@ var (
 	nexusClient    nexuspb.NexusServiceClient
 	allowedOrigins = getAllowedOrigins() // Keep for CORS checks
 	upgrader       = websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
+		ReadBufferSize:  2097152, // 2MB read buffer for large WASM GPU compute data
+		WriteBufferSize: 2097152, // 2MB write buffer for large responses
 		CheckOrigin:     checkOrigin,
 	}
 	log logger.Logger // Global logger instance
@@ -312,7 +312,7 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	client := &WSClient{
 		conn:       conn,
-		send:       make(chan []byte, 512), // Increased buffer size
+		send:       make(chan []byte, 2048), // 2048 message buffer for high-frequency GPU compute streaming
 		campaignID: campaignID,
 		userID:     userID,
 	}
@@ -356,7 +356,7 @@ func (c *WSClient) readPump() {
 		c.conn.Close()
 		log.Info("Client disconnected", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 	}()
-	c.conn.SetReadLimit(1024) // Set a reasonable read limit
+	c.conn.SetReadLimit(2097152) // 2MB read limit for large WASM GPU compute buffers (was 1024 bytes)
 	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(60 * time.Second)); return nil })
 
@@ -377,7 +377,16 @@ func (c *WSClient) readPump() {
 			zap.String("campaign_id", c.campaignID),
 			zap.String("raw", string(msgBytes)),
 		)
+
 		if err := json.Unmarshal(msgBytes, &clientMsg); err != nil {
+			// Defensive: check if metadata is a string and log a clear warning
+			var rawMap map[string]interface{}
+			if json.Unmarshal(msgBytes, &rawMap) == nil {
+				if meta, ok := rawMap["metadata"].(string); ok {
+					log.Warn("Client sent metadata as string; expected object. Skipping message.", zap.String("raw_metadata", meta), zap.String("raw", string(msgBytes)))
+					continue
+				}
+			}
 			log.Warn("Error unmarshaling client message", zap.Error(err), zap.String("raw", string(msgBytes)))
 			continue
 		}

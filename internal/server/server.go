@@ -68,6 +68,17 @@ var (
 	healthCheckCount   int64
 )
 
+// maskPassword returns a masked version of a password for logging
+func maskPassword(password string) string {
+	if password == "" {
+		return "(empty)"
+	}
+	if len(password) <= 4 {
+		return "****"
+	}
+	return password[:2] + "****" + password[len(password)-2:]
+}
+
 func recordSecurityAudit() {
 	atomic.AddInt64(&securityAuditCount, 1)
 }
@@ -418,6 +429,11 @@ func Run() {
 		MinIdleConns: cfg.RedisMinIdleConns,
 		MaxRetries:   cfg.RedisMaxRetries,
 	}
+	log.Info("App service Redis config",
+		zap.String("host", redisConfig.Host),
+		zap.String("port", redisConfig.Port),
+		zap.String("password_masked", maskPassword(redisConfig.Password)),
+		zap.Int("db", redisConfig.DB))
 	redisProvider, redisClient, err := service.NewRedisProvider(log, *redisConfig)
 	if err != nil {
 		log.Error("Failed to initialize Redis provider", zap.Error(err))
@@ -451,6 +467,10 @@ func Run() {
 		log.Error("Failed to register services", zap.Error(err))
 		return
 	}
+
+	// Enable lifecycle management for graceful shutdown
+	EnableLifecycleManagement(bootstrapper, log)
+	defer GracefulShutdown()
 
 	server := NewServer(container, log, httpAddr)
 

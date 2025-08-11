@@ -12,6 +12,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
@@ -56,7 +57,7 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, nex
 	// Create context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &Provider{
+	provider := &Provider{
 		Log:           log,
 		DB:            db,
 		RedisProvider: redisProvider,
@@ -68,7 +69,16 @@ func NewProvider(log *zap.Logger, db *sql.DB, redisProvider *redis.Provider, nex
 		cancel:        cancel,
 		services:      make(map[string]interface{}),
 		eventHandlers: make(map[string]func(context.Context, interface{}) error),
-	}, nil
+	}
+
+	// Register provider cleanup with lifecycle management if available
+	lifecycle.RegisterCleanup(container, "service-provider", func() error {
+		log.Info("Shutting down service provider")
+		provider.Shutdown()
+		return nil
+	})
+
+	return provider, nil
 }
 
 // Helper function to safely get request ID from context.

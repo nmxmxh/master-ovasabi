@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 
@@ -53,19 +54,29 @@ func main() {
 	}
 	grpcServer := grpc.NewServer()
 
-	// Initialize Redis cache
-	cache, err := redis.NewCache(context.Background(), nil, log)
-	if err != nil {
-		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to initialize Redis cache", err).
-			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
-		return
-	}
-
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		log.Error("Failed to load config", zap.Error(err))
 		panic("Failed to load config: " + err.Error())
+	}
+
+	// Initialize Redis cache with proper config
+	redisOptions := &redis.Options{
+		Addr:         fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort),
+		Password:     cfg.RedisPassword,
+		DB:           cfg.RedisDB,
+		PoolSize:     cfg.RedisPoolSize,
+		MinIdleConns: cfg.RedisMinIdleConns,
+		MaxRetries:   cfg.RedisMaxRetries,
+		Namespace:    "nexus",
+		Context:      "events",
+	}
+	cache, err := redis.NewCache(context.Background(), redisOptions, log)
+	if err != nil {
+		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to initialize Redis cache", err).
+			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
+		return
 	}
 	// ...existing code...
 

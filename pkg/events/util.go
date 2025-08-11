@@ -2,11 +2,22 @@ package events
 
 import (
 	"context"
+	"strings"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
+
+// ShouldProcessEvent returns true if the eventType ends with any allowed suffix (e.g., ":requested").
+func ShouldProcessEvent(eventType string, allowedSuffixes []string) bool {
+	for _, suffix := range allowedSuffixes {
+		if strings.HasSuffix(eventType, suffix) {
+			return true
+		}
+	}
+	return false
+}
 
 // Event represents a platform event with metadata.
 type Event struct {

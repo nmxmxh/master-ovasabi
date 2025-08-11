@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
+    "@react-three/drei": "^10.6.1",
+    "@react-three/fiber": "^9.3.0",
     "@rive-app/react-canvas": "^4.21.1",
     "@types/three": "^0.176.0",
     "deepmerge": "^4.3.1",

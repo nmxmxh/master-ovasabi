@@ -2,24 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- PWA Configuration (disabled) -->
-    <!-- <link rel="manifest" href="/manifest.json" /> -->
-    <!-- <meta name="theme-color" content="#6366f1" /> -->
-    <!-- <meta name="mobile-web-app-capable" content="yes" /> -->
-    <!-- <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" /> -->
-    <!-- <meta name="apple-mobile-web-app-title" content="OVASABI" /> -->
+    <!-- PWA Configuration (enabled for performance) -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#6366f1" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="OVASABI" />
 
-    <!-- iOS Icons (disabled) -->
-    <!-- <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" /> -->
-    <!-- <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" /> -->
-    <!-- <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png" /> -->
+    <!-- iOS Icons (enabled) -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/android-chrome-192x192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/android-chrome-512x512.png" />
 
-    <!-- Microsoft Tiles (disabled) -->
-    <!-- <meta name="msapplication-TileColor" content="#6366f1" /> -->
-    <!-- <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" /> -->
+    <!-- Microsoft Tiles (enabled) -->
+    <meta name="msapplication-TileColor" content="#6366f1" />
+    <meta name="msapplication-TileImage" content="/android-chrome-192x192.png" />
 
     <title>OVASABI Studios</title>
     <style>
@@ -36,21 +36,9 @@
     <script src="/wasm_exec.js"></script>
     <script type="module" src="/src/main.tsx"></script>
 
-    <!-- Unregister any existing service workers to ensure PWA is fully disabled -->
+    <!-- PWA Service Worker Registration (enabled for performance) -->
     <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function (registrations) {
-          for (let registration of registrations) {
-            registration.unregister();
-          }
-        });
-      }
-    </script>
-
-    <!-- PWA Service Worker Registration (disabled) -->
-    <!--
-    <script>
-      // Register service worker for PWA functionality
+      // Register service worker for PWA functionality and WASM caching
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker
@@ -61,15 +49,17 @@
               // Check for updates
               registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New version available
-                    console.log('New version available');
-                    if (confirm('New version available! Reload to update?')) {
-                      window.location.reload();
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      // New version available
+                      console.log('New version available');
+                      if (confirm('New version available! Reload to update?')) {
+                        window.location.reload();
+                      }
                     }
-                  }
-                });
+                  });
+                }
               });
             })
             .catch(registrationError => {
@@ -99,6 +89,7 @@
           border-radius: 8px;
           cursor: pointer;
           font-weight: 600;
+          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
         `;
 
         installBtn.addEventListener('click', async () => {
@@ -121,6 +112,5 @@
         }, 10000);
       });
     </script>
-    -->
   </body>
 </html>

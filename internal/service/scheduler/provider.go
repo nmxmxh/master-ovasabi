@@ -32,7 +32,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -62,6 +64,14 @@ func Register(
 	}
 	schedulerService := NewService(ctx, log, repo, cache, eventEmitter, eventEnabled, svcProvider)
 
+	// Register cleanup functions for graceful shutdown
+	lifecycle.RegisterCleanup(container, "scheduler", func() error {
+		log.Info("Stopping scheduler service")
+		schedulerService.StopCleaner()
+		schedulerService.StopAdvancedScheduler()
+		return nil
+	})
+
 	// Log canonical event types at registration (for observability and validation)
 	eventTypes := loadSchedulerEvents()
 	log.Info("Canonical event types for scheduler service", zap.Strings("eventTypes", eventTypes))
@@ -83,6 +93,14 @@ func Register(
 
 	// Start event subscribers for event-driven scheduler orchestration.
 	StartEventSubscribers(ctx, schedulerService)
+
+	// Start health monitoring (following hello package pattern)
+	healthDeps := &health.ServiceDependencies{
+		Database: db,
+		Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+	}
+	health.StartHealthSubscriber(ctx, svcProvider, log, "scheduler", healthDeps)
+
 	hello.StartHelloWorldLoop(ctx, svcProvider, log, "scheduler")
 	return nil
 }

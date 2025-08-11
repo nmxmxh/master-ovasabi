@@ -1,0 +1,107 @@
+name: master-ovasabi
+
+services:
+  app:
+    image: ${ECR_REGISTRY}/master-ovasabi:latest
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      cache_from:
+        - ${ECR_REGISTRY}/master-ovasabi:latest
+    environment:
+      APP_ENV: '${APP_ENV:-production}'
+      APP_NAME: '${APP_NAME:-master-ovasabi}'
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+      CONFIG_PATH: /app/config/config.yaml
+      DB_HOST: '${DB_HOST:-postgres}'
+      DB_PORT: '${DB_PORT:-5432}'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+      REDIS_PORT: '${REDIS_PORT:-6379}'
+      REDIS_PASSWORD: '${REDIS_PASSWORD}'
+      ADMIN_USER: '${ADMIN_USER:-nmxmxh}'
+      ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
+      NEXUS_GRPC_ADDR: 'nexus:50052'
+      HTTP_PORT: '${HTTP_PORT:-8081}'
+      GRPC_PORT: '${GRPC_PORT:-8082}'
+      METRICS_PORT: ':9090'
+    ports:
+      - '8080:8080'
+      - '50051:50051'
+      - '8081:8081'
+      - '8082:8082'
+
+  nexus:
+    image: ${ECR_REGISTRY}/nexus:latest
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.nexus
+    environment:
+      APP_ENV: '${APP_ENV:-production}'
+      LOG_LEVEL: info
+      SERVICE_NAME: nexus
+      NEXUS_GRPC_ADDR: 'nexus:50052'
+      METRICS_PORT: ':9090'
+      REDIS_PASSWORD: '${REDIS_PASSWORD}'
+      POSTGRES_USER: '${POSTGRES_USER:-postgres}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
+      POSTGRES_DB: '${POSTGRES_DB:-master_ovasabi}'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
+      DB_HOST: '${DB_HOST:-postgres}'
+      DB_PORT: '${DB_PORT:-5432}'
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+      REDIS_PORT: '${REDIS_PORT:-6379}'
+    ports:
+      - '50052:50052'
+      - '9090:9090'
+
+  media-streaming:
+    image: ${ECR_REGISTRY}/media-streaming:latest
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.media-streaming
+    environment:
+      APP_ENV: '${APP_ENV:-production}'
+      LOG_LEVEL: info
+      SERVICE_NAME: media-streaming
+      NEXUS_GRPC_ADDR: 'nexus:50052'
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+      REDIS_PORT: '${REDIS_PORT:-6379}'
+      REDIS_PASSWORD: '${REDIS_PASSWORD}'
+      DB_HOST: '${DB_HOST:-postgres}'
+      DB_PORT: '${DB_PORT:-5432}'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
+      CAMPAIGN_ID: '${CAMPAIGN_ID:-0}'
+    ports:
+      - '8085:8085'
+
+  ws-gateway:
+    image: ${ECR_REGISTRY}/ws-gateway:latest
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.ws-gateway
+    environment:
+      NEXUS_GRPC_ADDR: 'nexus:50052'
+      LOG_LEVEL: info
+      WS_ALLOWED_ORIGINS: '${WS_ALLOWED_ORIGINS:-*}'
+    ports:
+      - '8090:8090'
+
+  nginx:
+    image: ${ECR_REGISTRY}/nginx:latest
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.wasm
+      target: prod
+    ports:
+      - '80:80'
+      - '443:443'

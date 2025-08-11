@@ -33,6 +33,7 @@ import (
 	nexusrepo "github.com/nmxmxh/master-ovasabi/internal/service/nexus"
 	schedulerrepo "github.com/nmxmxh/master-ovasabi/internal/service/scheduler"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
@@ -350,6 +351,13 @@ func RegisterOrchestration(
 	}
 
 	// 4. Start hello-world event loop for health/onboarding
+	// Start health monitoring (following hello package pattern)
+	healthDeps := &health.ServiceDependencies{
+		Database: db,
+		Redis:    nil, // No Redis cache available in this service
+	}
+	health.StartHealthSubscriber(ctx, provider, log, "orchestration", healthDeps)
+
 	hello.StartHelloWorldLoop(ctx, provider, log, "orchestration")
 
 	// 5. Subscribe to orchestration events from the event bus (success/error)

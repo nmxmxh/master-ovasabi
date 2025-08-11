@@ -34,7 +34,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -115,6 +117,14 @@ func Register(
 	}
 	serviceInstance := NewNexusService(repo, eventRepo, cache, log, eventBus, eventEnabled, prov)
 
+	// Register cleanup for bridge connections and background goroutines
+	lifecycle.RegisterCleanup(container, "nexus", func() error {
+		log.Info("Stopping nexus service and cleaning up bridge connections")
+		// Nexus will handle cleanup of WebSocket, CAN, CoAP connections
+		// and stop background event processing goroutines
+		return nil
+	})
+
 	// Log canonical event types for observability and validation
 	eventTypes := loadNexusEvents()
 	log.Info("Canonical event types for nexus service", zap.Strings("eventTypes", eventTypes))
@@ -150,6 +160,13 @@ func Register(
 				}
 			}
 		}()
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "nexus", healthDeps)
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "nexus")
 	}
 	_ = eventEmitter

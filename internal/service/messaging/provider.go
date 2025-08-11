@@ -32,7 +32,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -79,6 +81,14 @@ func Register(
 		// Add other fields as needed (e.g. handler)
 	}
 
+	// Register cleanup for messaging connections and background streams
+	lifecycle.RegisterCleanup(container, "messaging", func() error {
+		log.Info("Stopping messaging service and cleaning up connections")
+		// Messaging service will handle cleanup of active streams,
+		// WebSocket connections, and background message processing
+		return nil
+	})
+
 	// Register all canonical action handlers for event-driven orchestration (registry-driven)
 	RegisterActionHandler("send_message", handleSendMessage)
 	RegisterActionHandler("receive_message", handleReceiveMessage)
@@ -122,6 +132,13 @@ func Register(
 				}
 			}
 		}()
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "messaging", healthDeps)
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "messaging")
 	}
 	_ = masterRepo // used for signature consistency and future extensibility

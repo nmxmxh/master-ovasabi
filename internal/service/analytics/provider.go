@@ -31,7 +31,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -57,6 +59,14 @@ func Register(
 
 	serviceInstance := NewService(log, repo, cache, eventEmitter, eventEnabled)
 
+	// Register cleanup for analytics data processing and background tasks
+	lifecycle.RegisterCleanup(container, "analytics", func() error {
+		log.Info("Stopping analytics service and cleaning up data processing")
+		// Analytics service will handle cleanup of background aggregation tasks,
+		// data collection streams, and metric calculation processes
+		return nil
+	})
+
 	// Register canonical action handlers for supported actions
 	RegisterActionHandler("event", eventActionHandler)
 	RegisterActionHandler("report", reportActionHandler)
@@ -75,6 +85,13 @@ func Register(
 		if svc, ok := serviceInstance.(*Service); ok {
 			StartEventSubscribers(ctx, svc, prov, log)
 		}
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "analytics", healthDeps)
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "analytics")
 	}
 	return nil

@@ -35,7 +35,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -59,6 +61,14 @@ func Register(
 		log.With(zap.String("service", "notification")).Warn("Failed to get notification cache", zap.Error(err), zap.String("cache", "notification"), zap.String("context", ctxValue(ctx)))
 	}
 	serviceInstance := NewService(log, repository, cache, eventEmitter, eventEnabled)
+
+	// Register cleanup for notification delivery and background processing
+	lifecycle.RegisterCleanup(container, "notification", func() error {
+		log.Info("Stopping notification service and cleaning up delivery queues")
+		// Notification service will handle cleanup of pending notifications,
+		// delivery queues, and push notification connections
+		return nil
+	})
 	// Register gRPC server interface
 	if err := container.Register((*notificationpb.NotificationServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return serviceInstance, nil
@@ -76,6 +86,13 @@ func Register(
 	// Register the hello-world event loop for service health and orchestration
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "notification", healthDeps)
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "notification")
 	}
 	return nil

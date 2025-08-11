@@ -7,6 +7,7 @@ import (
 
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service/content"
 	"github.com/nmxmxh/master-ovasabi/internal/service/contentmoderation"
 	"github.com/nmxmxh/master-ovasabi/internal/service/crawler"
+	healthservice "github.com/nmxmxh/master-ovasabi/internal/service/health"
 	"github.com/nmxmxh/master-ovasabi/internal/service/localization"
 	"github.com/nmxmxh/master-ovasabi/internal/service/media"
 	"github.com/nmxmxh/master-ovasabi/internal/service/messaging"
@@ -49,7 +51,8 @@ type ServiceBootstrapper struct {
 	EventEmitter  events.EventEmitter
 	Logger        *zap.Logger
 	EventEnabled  bool
-	Provider      *service.Provider // Canonical provider for DI and event orchestration
+	Provider      *service.Provider                 // Canonical provider for DI and event orchestration
+	Lifecycle     *lifecycle.SimpleLifecycleManager // Minimal lifecycle management
 }
 
 // registerFunc defines the common signature for all service registration functions.
@@ -75,33 +78,40 @@ func createRegisterAdapter(fn registerFunc) registration.ServiceRegisterFunc {
 func (b *ServiceBootstrapper) RegisterAll() error {
 	ctx := context.Background()
 
+	// Initialize minimal lifecycle management if not already set
+	if b.Lifecycle == nil {
+		b.Lifecycle = lifecycle.NewSimpleLifecycleManager(b.Container, b.Logger)
+		b.Lifecycle.AddToContainer() // Register in DI container for services to access
+	}
+
 	// Map service names to their registration functions.
 	// The adapter handles the necessary type assertions, keeping this map clean.
 	registerFuncs := map[string]registration.ServiceRegisterFunc{
-		"user":              createRegisterAdapter(user.Register),
-		"notification":      createRegisterAdapter(notification.Register),
-		"referral":          createRegisterAdapter(referral.Register),
-		"commerce":          createRegisterAdapter(commerce.Register),
-		"media":             createRegisterAdapter(media.Register),
-		"product":           createRegisterAdapter(product.Register),
-		"talent":            createRegisterAdapter(talent.Register),
-		"scheduler":         createRegisterAdapter(scheduler.Register),
-		"analytics":         createRegisterAdapter(analytics.Register),
-		"admin":             createRegisterAdapter(admin.Register),
-		"content":           createRegisterAdapter(content.Register),
-		"contentmoderation": createRegisterAdapter(contentmoderation.Register),
-		"security":          createRegisterAdapter(security.Register),
-		"messaging":         createRegisterAdapter(messaging.Register),
-		"nexus":             createRegisterAdapter(nexus.Register),
-		"campaign":          createRegisterAdapter(campaign.Register),
-		"localization":      createRegisterAdapter(localization.Register),
-		"search":            createRegisterAdapter(search.Register),
-		"crawler":           createRegisterAdapter(crawler.Register),
-		"waitlist":          createRegisterAdapter(waitlist.Register),
-		"ai":                createRegisterAdapter(ai.Register),
+		"user":               createRegisterAdapter(user.Register),
+		"notification":       createRegisterAdapter(notification.Register),
+		"referral":           createRegisterAdapter(referral.Register),
+		"commerce":           createRegisterAdapter(commerce.Register),
+		"media":              createRegisterAdapter(media.Register),
+		"product":            createRegisterAdapter(product.Register),
+		"talent":             createRegisterAdapter(talent.Register),
+		"scheduler":          createRegisterAdapter(scheduler.Register),
+		"analytics":          createRegisterAdapter(analytics.Register),
+		"admin":              createRegisterAdapter(admin.Register),
+		"content":            createRegisterAdapter(content.Register),
+		"contentmoderation":  createRegisterAdapter(contentmoderation.Register),
+		"security":           createRegisterAdapter(security.Register),
+		"messaging":          createRegisterAdapter(messaging.Register),
+		"nexus":              createRegisterAdapter(nexus.Register),
+		"campaign":           createRegisterAdapter(campaign.Register),
+		"localization":       createRegisterAdapter(localization.Register),
+		"search":             createRegisterAdapter(search.Register),
+		"crawler":            createRegisterAdapter(crawler.Register),
+		"waitlist":           createRegisterAdapter(waitlist.Register),
+		"ai":                 createRegisterAdapter(ai.Register),
+		"centralized-health": createRegisterAdapter(healthservice.Register),
 	}
 	// Use the JSON-driven registration from the shared registration package.
-	return registration.RegisterAllFromJSON(
+	err := registration.RegisterAllFromJSON(
 		ctx,
 		b.Container,
 		b.EventEmitter,
@@ -114,4 +124,15 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 		"config/service_registration.json",
 		registerFuncs,
 	)
+
+	// Add automatic cleanup registration
+	if err == nil {
+		b.Lifecycle.AddCleanup(func() error {
+			b.Logger.Info("Cleaning up all registered services")
+			// Services can register their own cleanup by resolving SimpleLifecycleManager from DI
+			return nil
+		})
+	}
+
+	return err
 }

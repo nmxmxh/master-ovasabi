@@ -28,6 +28,17 @@ type Client struct {
 
 // NewClient creates a new Redis client.
 func NewClient(cfg Config, log *zap.Logger) (*Client, error) {
+	// Debug log the Redis configuration (mask password for security)
+	passwordMask := ""
+	if cfg.Password != "" {
+		passwordMask = "***" + cfg.Password[len(cfg.Password)-3:]
+	}
+	log.Debug("Creating Redis client",
+		zap.String("addr", fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)),
+		zap.String("password_masked", passwordMask),
+		zap.Int("db", cfg.DB),
+	)
+
 	client := redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
 		Password:     cfg.Password,

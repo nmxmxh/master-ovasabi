@@ -26,14 +26,13 @@ fi
 # Navigate to wasm directory to build
 cd "$(dirname "$0")/../wasm"
 
-# Build the main WASM binary
-echo "Building main.wasm..."
-GOOS=js GOARCH=wasm go build -o ../frontend/public/main.wasm
+# Build the main WASM binary (single-threaded fallback)
+echo "Building main.wasm (single-threaded)..."
+GOOS=js GOARCH=wasm go build -ldflags="-X main.enableThreading=false" -o ../frontend/public/main.wasm
 
-# The frontend expects a .threads.wasm file for threaded environments.
-# With Go, the same binary supports both, so we just copy it.
-echo "Creating main.threads.wasm for threaded environments..."
-cp ../frontend/public/main.wasm ../frontend/public/main.threads.wasm
+# Build the threaded WASM binary with proper threading optimizations
+echo "Building main.threads.wasm (multi-threaded)..."
+GOOS=js GOARCH=wasm go build -ldflags="-X main.enableThreading=true" -tags=threads -o ../frontend/public/main.threads.wasm
 
 # Copy the required JS support file
 echo "Copying $WASM_EXEC_PATH to ../frontend/public/"

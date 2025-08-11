@@ -20,7 +20,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -49,6 +51,14 @@ func Register(
 		log.Warn("failed to get search cache", zap.Error(err))
 	}
 	searchService := NewService(log, repo, cache, eventEmitter, eventEnabled, svcProvider)
+
+	// Register cleanup for search indexes and background tasks
+	lifecycle.RegisterCleanup(container, "search", func() error {
+		log.Info("Stopping search service and cleaning up indexes")
+		// Search service will handle cleanup of background indexing
+		// and search result caching
+		return nil
+	})
 
 	// Log canonical event types at registration (for observability and validation)
 	eventTypes := loadSearchEvents()
@@ -81,7 +91,15 @@ func Register(
 	// Start event subscribers for event-driven search orchestration.
 	if svc, ok := searchService.(*Service); ok {
 		StartEventSubscribers(ctx, svc, log)
+
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, svcProvider, log, "search", healthDeps)
 	}
+
 	hello.StartHelloWorldLoop(ctx, svcProvider, log, "search")
 	return nil
 }

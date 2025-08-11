@@ -17,12 +17,13 @@ services:
       CONFIG_PATH: /app/config/config.yaml
       DB_HOST: postgres
       DB_PORT: '${DB_PORT:-5432}'
-      DB_USER: 'postgres'
-      DB_PASSWORD: 'postgres'
-      DB_NAME: 'master_ovasabi'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
       REDIS_HOST: '${REDIS_HOST:-redis}'
       REDIS_PORT: '${REDIS_PORT:-6379}'
-      ADMIN_USER: 'nmxmxh'
+      REDIS_PASSWORD: '${REDIS_PASSWORD}'
+      ADMIN_USER: '${ADMIN_USER:-nmxmxh}'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
       NEXUS_GRPC_ADDR: 'nexus:50052'
       HTTP_PORT: '${HTTP_PORT:-8081}'
@@ -69,7 +70,7 @@ services:
     command:
       ['redis-server', '/usr/local/etc/redis/redis.conf', '--requirepass', '${REDIS_PASSWORD}']
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -87,10 +88,10 @@ services:
       POSTGRES_USER: '${POSTGRES_USER:-postgres}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
       POSTGRES_DB: '${POSTGRES_DB:-master_ovasabi}'
-      DB_USER: 'postgres'
-      DB_PASSWORD: 'postgres'
-      DB_NAME: 'master_ovasabi'
-      ADMIN_USER: 'nmxmxh'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
+      ADMIN_USER: '${ADMIN_USER:-nmxmxh}'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -117,11 +118,19 @@ services:
     env_file:
       - ../../.env
     environment:
-      DB_USER: 'postgres'
-      DB_PASSWORD: 'postgres'
-      DB_NAME: 'master_ovasabi'
-      ADMIN_USER: 'nmxmxh'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
+      ADMIN_USER: '${ADMIN_USER:-nmxmxh}'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
+    command:
+      [
+        '-path',
+        '/migrations',
+        '-database',
+        'postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-master_ovasabi}?sslmode=disable',
+        'up'
+      ]
     depends_on:
       postgres:
         condition: service_healthy
@@ -179,6 +188,8 @@ services:
       POSTGRES_USER: '${POSTGRES_USER:-postgres}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-postgres}'
       POSTGRES_DB: '${POSTGRES_DB:-master_ovasabi}'
+      DB_HOST: postgres
+      DB_PORT: '${DB_PORT:-5432}'
       DB_USER: '${DB_USER:-postgres}'
       DB_PASSWORD: '${DB_PASSWORD:-postgres}'
       DB_NAME: '${DB_NAME:-master_ovasabi}'
@@ -221,9 +232,9 @@ services:
       REDIS_PORT: '${REDIS_PORT:-6379}'
       DB_HOST: postgres
       DB_PORT: '${DB_PORT:-5432}'
-      DB_USER: 'postgres'
-      DB_PASSWORD: 'postgres'
-      DB_NAME: 'master_ovasabi'
+      DB_USER: '${DB_USER:-postgres}'
+      DB_PASSWORD: '${DB_PASSWORD:-postgres}'
+      DB_NAME: '${DB_NAME:-master_ovasabi}'
       CAMPAIGN_ID: '${CAMPAIGN_ID:-0}'
     depends_on:
       nexus:

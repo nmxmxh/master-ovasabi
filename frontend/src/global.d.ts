@@ -25,14 +25,10 @@ declare global {
     onWasmReady?: () => void;
     __WASM_EVENT_QUEUE?: any[];
     __WASM_VERSION?: string;
-    /**
-     * Returns a shared ArrayBuffer from WASM for JS/React to consume (if available)
-     */
     getSharedBuffer?: () => ArrayBuffer;
-    /**
-     * Exposes the latest global metadata from WASM for live frontend access
-     */
     __WASM_GLOBAL_METADATA?: any;
+    userID?: string;
+    wasmReady?: boolean;
   }
 
   interface GlobalState {

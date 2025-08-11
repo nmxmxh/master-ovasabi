@@ -1,32 +1,32 @@
 server:
-  host: "localhost"
+  host: 'localhost'
   port: 8080
   debug: true
 
 database:
-  host: "postgres"
-  port: 5432
-  name: "ovasabi_dev"
-  user: "dev_user"
-  password: "${DB_PASSWORD}"  # Use environment variable for sensitive data
+  host: '${DB_HOST:-postgres}'
+  port: ${DB_PORT:-5432}
+  name: '${DB_NAME:-master_ovasabi}'
+  user: '${DB_USER:-postgres}'
+  password: '${DB_PASSWORD}' # Use environment variable for sensitive data
 
 logging:
-  level: "debug"
-  format: "json"
+  level: 'debug'
+  format: 'json'
 
 auth:
-  jwt_secret: "${JWT_SECRET}"
-  token_expiry: "24h"
+  jwt_secret: '${JWT_SECRET}'
+  token_expiry: '24h'
 
 api:
   rate_limit: 1000
-  timeout: "30s"
+  timeout: '30s'
 
 feature_flags:
   enable_new_features: true
   maintenance_mode: false
 
 redis:
-  host: "redis"
-  port: 6379
-  password: "${REDIS_PASSWORD}"  # Use environment variable for sensitive data 
+  host: '${REDIS_HOST:-redis}'
+  port: ${REDIS_PORT:-6379}
+  password: '${REDIS_PASSWORD}' # Use environment variable for sensitive data

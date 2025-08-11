@@ -34,7 +34,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -75,6 +77,14 @@ func Register(
 	}
 	ctx = context.Background()
 	svc := NewService(ctx, log, repository, cache, eventEmitter, eventEnabled)
+
+	// Register cleanup for user session management
+	lifecycle.RegisterCleanup(container, "user", func() error {
+		log.Info("Stopping user service and cleaning up sessions")
+		// User service will handle cleanup of active sessions,
+		// authentication tokens, and user activity tracking
+		return nil
+	})
 	// Register gRPC interface
 	if err := container.Register((*userpb.UserServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return svc, nil
@@ -119,6 +129,15 @@ func Register(
 				}
 			}
 		}()
+
+		// Start health monitoring (following hello package pattern)
+		// Reuse the cache that was already retrieved above
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "user", healthDeps)
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "user")
 	}
 	return nil

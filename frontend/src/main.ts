@@ -3,18 +3,27 @@ import { threads } from 'wasm-feature-detect';
 
 // This file contains the low-level "glue" code for loading the Go WASM module
 // and establishing the global functions for communication.
+// Now enhanced with frontend lifecycle management integration.
+
+// Import lifecycle manager for WASM coordination
+import { frontendLifecycleManager } from './lib/lifecycleManager';
 
 // --- Global Bridge Functions ---
 // These functions are defined here so the application can use them,
 // but they will be replaced by the actual functions exposed by the Go WASM module.
 // The Zustand store will handle queueing messages until `onWasmReady` is called.
 
-window.onWasmReady = () => {
-  console.log('[WASM] onWasmReady called, but no store listener is attached yet.');
-};
+// Override default handlers to use pendingWasmReady logic
+let pendingMessages: any[] = [];
 
-window.onWasmMessage = msg => {
-  console.warn('[WASM] onWasmMessage called, but no store listener is attached yet.', msg);
+window.onWasmMessage = (msg: any) => {
+  // Integration: update campaign state from WASM/WebSocket events
+  if (msg.type === 'campaign:state:v1:success' || msg.type === 'campaign:state:v1:completed') {
+    // Store update logic will be handled in global.ts after store init
+  }
+  // Existing logic: keep pending messages for initialization
+  console.log('[Global State] WASM Message (before store init)', msg);
+  pendingMessages.push(msg);
 };
 
 // Helper to load Go WASM and wire up the JS <-> WASM bridge
@@ -30,8 +39,25 @@ async function loadGoWasm(wasmUrl: string) {
   const go = new window.Go();
   try {
     const result = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);
+
+    // Register WASM instance cleanup with lifecycle manager
+    frontendLifecycleManager.registerCleanup(
+      'wasm-go-instance',
+      () => {
+        console.log('[WASM] Lifecycle cleanup: Go WASM instance');
+        // WASM instances are automatically cleaned up when the page unloads
+        // but we can perform any additional cleanup here
+      },
+      850 // High priority
+    );
+
+    console.log('[WASM] WASM instance registered with lifecycle manager');
+
     // Run the Go WASM instance. This is a blocking call, so it should be last.
     go.run(result.instance);
+
+    // Note: The unregisterWasmCleanup is not called here because the WASM instance
+    // should remain active until page cleanup
   } catch (error) {
     console.error(`[WASM] Error instantiating WASM from ${wasmUrl}:`, error);
   }

@@ -37,7 +37,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/lifecycle"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -86,6 +88,13 @@ func Register(
 	}
 
 	svc := NewService(log, repository, cache, eventEmitter, eventEnabled)
+
+	// Register cleanup for waitlist processing
+	lifecycle.RegisterCleanup(container, "waitlist", func() error {
+		log.Info("Stopping waitlist service")
+		// Waitlist service cleanup (if any background processing)
+		return nil
+	})
 
 	// Register gRPC interface for waitlist service
 	if err := container.Register((*waitlistpb.WaitlistServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
@@ -140,6 +149,13 @@ func Register(
 		if err != nil {
 			log.With(zap.String("service", "waitlist")).Error("Failed to subscribe to waitlist events", zap.Error(err))
 		}
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "waitlist", healthDeps)
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "waitlist")
 	}
 

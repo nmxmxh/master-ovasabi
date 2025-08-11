@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OVASABI Performance Analytics Demo</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+        color: #333;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .header p {
+        font-size: 1.2rem;
+        opacity: 0.9;
+      }
+
+      .content {
+        padding: 30px;
+      }
+
+      .demo-section {
+        margin-bottom: 40px;
+        padding: 25px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+      }
+
+      .demo-section h2 {
+        color: #495057;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.5rem;
+      }
+
+      .controls {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 25px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 12px 20px;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+      }
+
+      .btn-success {
+        background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+        color: white;
+      }
+
+      .btn-warning {
+        background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+        color: #212529;
+      }
+
+      .btn-danger {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none !important;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      .status.online {
+        background: rgba(40, 167, 69, 0.1);
+        color: #28a745;
+        border: 1px solid #28a745;
+      }
+
+      .status.offline {
+        background: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+        border: 1px solid #dc3545;
+      }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .metric-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e9ecef;
+        transition: all 0.3s ease;
+      }
+
+      .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      }
+
+      .metric-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+
+      .metric-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .log-container {
+        background: #1e1e1e;
+        color: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #495057;
+      }
+
+      .log-entry {
+        margin-bottom: 8px;
+        padding: 4px 0;
+      }
+
+      .log-entry.success {
+        color: #28a745;
+      }
+
+      .log-entry.error {
+        color: #dc3545;
+      }
+
+      .log-entry.info {
+        color: #17a2b8;
+      }
+
+      .log-entry.warning {
+        color: #ffc107;
+      }
+
+      .timestamp {
+        color: #6c757d;
+        font-size: 11px;
+      }
+
+      .canvas-container {
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 20px;
+        position: relative;
+        height: 300px;
+      }
+
+      .canvas-overlay {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: monospace;
+      }
+
+      .footer {
+        background: #2c3e50;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+
+      .api-status {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .api-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 15px;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+      }
+
+      .api-available {
+        color: #28a745;
+        font-weight: bold;
+      }
+
+      .api-unavailable {
+        color: #dc3545;
+        font-weight: bold;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      .loading {
+        animation: pulse 2s infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🚀 OVASABI Performance Analytics</h1>
+        <p>Advanced time-based performance monitoring with WebGPU + WASM optimization</p>
+      </div>
+
+      <div class="content">
+        <!-- WASM Status Section -->
+        <div class="demo-section">
+          <h2>🔧 WASM Module Status</h2>
+          <div class="api-status" id="apiStatus">
+            <div class="api-item">
+              <span>WASM Module</span>
+              <span id="wasmStatus" class="api-unavailable">❌ Not Loaded</span>
+            </div>
+            <div class="api-item">
+              <span>WebGPU Support</span>
+              <span id="webgpuStatus" class="api-unavailable">❌ Not Available</span>
+            </div>
+            <div class="api-item">
+              <span>Performance API</span>
+              <span id="perfApiStatus" class="api-unavailable">❌ Not Available</span>
+            </div>
+            <div class="api-item">
+              <span>Analytics API</span>
+              <span id="analyticsApiStatus" class="api-unavailable">❌ Not Available</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance Dashboard -->
+        <div class="demo-section">
+          <h2>📊 Performance Dashboard</h2>
+          <div class="controls">
+            <button class="btn btn-primary" id="startMonitoring">▶️ Start Monitoring</button>
+            <button class="btn btn-warning" id="refreshData">🔄 Refresh Data</button>
+            <button class="btn btn-success" id="generateReport">📋 Generate Report</button>
+            <button class="btn btn-danger" id="resetCounters">🗑️ Reset Counters</button>
+            <div class="status offline" id="monitoringStatus">🔴 Monitoring Stopped</div>
+          </div>
+
+          <div class="metrics-grid" id="metricsGrid">
+            <div class="metric-card">
+              <div class="metric-value" style="color: #007bff" id="opsPerSec">0.0</div>
+              <div class="metric-label">⚡ Operations/Second</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" style="color: #28a745" id="totalOps">0</div>
+              <div class="metric-label">🔢 Total Operations</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" style="color: #fd7e14" id="totalParticles">0</div>
+              <div class="metric-label">🎯 Total Particles</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" style="color: #6f42c1" id="avgParticles">0</div>
+              <div class="metric-label">📈 Avg Particles/Op</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Time Aggregates -->
+        <div class="demo-section">
+          <h2>📈 Time-Based Aggregates</h2>
+          <div class="controls">
+            <button class="btn btn-primary period-btn active" data-period="minute">
+              ⏱️ Minute
+            </button>
+            <button class="btn btn-primary period-btn" data-period="hour">🕐 Hour</button>
+            <button class="btn btn-primary period-btn" data-period="day">📅 Day</button>
+            <button class="btn btn-primary period-btn" data-period="week">📆 Week</button>
+            <button class="btn btn-primary period-btn" data-period="month">🗓️ Month</button>
+            <button class="btn btn-primary period-btn" data-period="year">📊 Year</button>
+          </div>
+          <div class="metrics-grid" id="aggregatesGrid">
+            <div class="metric-card">
+              <div class="metric-value" style="color: #007bff" id="aggOps">0</div>
+              <div class="metric-label">📊 Operations</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" style="color: #28a745" id="aggParticles">0</div>
+              <div class="metric-label">🎯 Particles</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" style="color: #dc3545" id="aggPeakOps">0.0</div>
+              <div class="metric-label">🔥 Peak Ops/Sec</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" style="color: #fd7e14" id="aggAvgOps">0.0</div>
+              <div class="metric-label">📈 Avg Ops/Sec</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance Trends -->
+        <div class="demo-section">
+          <h2>📉 Performance Trends</h2>
+          <div id="trendsContainer">
+            <p style="text-align: center; color: #6c757d; padding: 20px">
+              No trend data available yet. Start monitoring to collect historical data.
+            </p>
+          </div>
+        </div>
+
+        <!-- Live Logs -->
+        <div class="demo-section">
+          <h2>📜 Live Performance Logs</h2>
+          <div class="log-container" id="logContainer">
+            <div class="log-entry info">
+              <span class="timestamp">[SYSTEM]</span> Performance Analytics Demo initialized
+            </div>
+            <div class="log-entry info">
+              <span class="timestamp">[SYSTEM]</span> Waiting for WASM module to load...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>🚀 OVASABI Studios - Advanced Performance Analytics with WebGPU + WASM</p>
+        <p style="font-size: 0.9rem; opacity: 0.8; margin-top: 10px">
+          Real-time monitoring • Time-based aggregation • Trend analysis • Comprehensive reporting
+        </p>
+      </div>
+    </div>
+
+    <!-- Load WASM -->
+    <script src="wasm_exec.js"></script>
+    <script>
+      // Performance Analytics Demo
+      class PerformanceAnalyticsDemo {
+        constructor() {
+          this.isMonitoring = false;
+          this.selectedPeriod = 'minute';
+          this.logs = [];
+          this.monitoringInterval = null;
+
+          this.initializeElements();
+          this.checkWASMStatus();
+          this.loadWASM();
+        }
+
+        initializeElements() {
+          // Button event listeners
+          document
+            .getElementById('startMonitoring')
+            .addEventListener('click', () => this.toggleMonitoring());
+          document
+            .getElementById('refreshData')
+            .addEventListener('click', () => this.refreshData());
+          document
+            .getElementById('generateReport')
+            .addEventListener('click', () => this.generateReport());
+          document
+            .getElementById('resetCounters')
+            .addEventListener('click', () => this.resetCounters());
+
+          // Period button listeners
+          document.querySelectorAll('.period-btn').forEach(btn => {
+            btn.addEventListener('click', e => this.selectPeriod(e.target.dataset.period));
+          });
+        }
+
+        async loadWASM() {
+          try {
+            this.log('info', 'Loading WASM module...');
+
+            const go = new Go();
+            const result = await WebAssembly.instantiateStreaming(
+              fetch('main.wasm'),
+              go.importObject
+            );
+            go.run(result.instance);
+
+            this.log('success', 'WASM module loaded successfully');
+
+            // Wait for WASM to initialize
+            setTimeout(() => {
+              this.checkWASMStatus();
+            }, 1000);
+          } catch (error) {
+            this.log('error', `Failed to load WASM: ${error.message}`);
+          }
+        }
+
+        checkWASMStatus() {
+          // Check WASM module
+          const wasmLoaded = typeof window.getPerformanceSummary === 'function';
+          document.getElementById('wasmStatus').textContent = wasmLoaded
+            ? '✅ Loaded'
+            : '❌ Not Loaded';
+          document.getElementById('wasmStatus').className = wasmLoaded
+            ? 'api-available'
+            : 'api-unavailable';
+
+          // Check WebGPU
+          const webgpuAvailable = 'gpu' in navigator;
+          document.getElementById('webgpuStatus').textContent = webgpuAvailable
+            ? '✅ Available'
+            : '❌ Not Available';
+          document.getElementById('webgpuStatus').className = webgpuAvailable
+            ? 'api-available'
+            : 'api-unavailable';
+
+          // Check Performance API
+          const perfApiAvailable = typeof window.getPerformanceSummary === 'function';
+          document.getElementById('perfApiStatus').textContent = perfApiAvailable
+            ? '✅ Available'
+            : '❌ Not Available';
+          document.getElementById('perfApiStatus').className = perfApiAvailable
+            ? 'api-available'
+            : 'api-unavailable';
+
+          // Check Analytics API
+          const analyticsAvailable = typeof window.getPerformanceAggregates === 'function';
+          document.getElementById('analyticsApiStatus').textContent = analyticsAvailable
+            ? '✅ Available'
+            : '❌ Not Available';
+          document.getElementById('analyticsApiStatus').className = analyticsAvailable
+            ? 'api-available'
+            : 'api-unavailable';
+
+          if (wasmLoaded && perfApiAvailable) {
+            this.log('success', 'All performance APIs are available');
+            this.refreshData();
+          }
+        }
+
+        toggleMonitoring() {
+          if (this.isMonitoring) {
+            this.stopMonitoring();
+          } else {
+            this.startMonitoring();
+          }
+        }
+
+        startMonitoring() {
+          this.isMonitoring = true;
+          document.getElementById('startMonitoring').innerHTML = '⏸️ Stop Monitoring';
+          document.getElementById('monitoringStatus').textContent = '🟢 Monitoring Active';
+          document.getElementById('monitoringStatus').className = 'status online';
+
+          this.log('success', 'Performance monitoring started');
+
+          this.refreshData();
+          this.monitoringInterval = setInterval(() => {
+            this.refreshData();
+          }, 3000);
+        }
+
+        stopMonitoring() {
+          this.isMonitoring = false;
+          document.getElementById('startMonitoring').innerHTML = '▶️ Start Monitoring';
+          document.getElementById('monitoringStatus').textContent = '🔴 Monitoring Stopped';
+          document.getElementById('monitoringStatus').className = 'status offline';
+
+          if (this.monitoringInterval) {
+            clearInterval(this.monitoringInterval);
+            this.monitoringInterval = null;
+          }
+
+          this.log('warning', 'Performance monitoring stopped');
+        }
+
+        refreshData() {
+          try {
+            // Get performance summary
+            if (typeof window.getPerformanceSummary === 'function') {
+              const summary = window.getPerformanceSummary();
+              this.updateSummaryDisplay(summary);
+            }
+
+            // Get aggregates
+            if (typeof window.getPerformanceAggregates === 'function') {
+              const aggregates = window.getPerformanceAggregates();
+              this.updateAggregatesDisplay(aggregates);
+            }
+
+            // Get trends
+            if (typeof window.getPerformanceTrends === 'function') {
+              const trends = window.getPerformanceTrends();
+              this.updateTrendsDisplay(trends);
+            }
+
+            this.log('info', 'Performance data refreshed');
+          } catch (error) {
+            this.log('error', `Failed to refresh data: ${error.message}`);
+          }
+        }
+
+        updateSummaryDisplay(summary) {
+          if (summary && !summary.error) {
+            document.getElementById('opsPerSec').textContent = (summary.opsPerSecond || 0).toFixed(
+              1
+            );
+            document.getElementById('totalOps').textContent = this.formatNumber(
+              summary.totalOperations || 0
+            );
+            document.getElementById('totalParticles').textContent = this.formatNumber(
+              summary.totalParticles || 0
+            );
+            document.getElementById('avgParticles').textContent = (
+              summary.avgParticlesPerOp || 0
+            ).toFixed(0);
+          }
+        }
+
+        updateAggregatesDisplay(aggregates) {
+          if (aggregates && !aggregates.error && aggregates[this.selectedPeriod]) {
+            const data = aggregates[this.selectedPeriod];
+            document.getElementById('aggOps').textContent = this.formatNumber(data.operations || 0);
+            document.getElementById('aggParticles').textContent = this.formatNumber(
+              data.particles || 0
+            );
+            document.getElementById('aggPeakOps').textContent = (data.peakOpsPerSec || 0).toFixed(
+              1
+            );
+            document.getElementById('aggAvgOps').textContent = (data.avgOpsPerSec || 0).toFixed(1);
+          } else {
+            // Clear display if no data
+            document.getElementById('aggOps').textContent = '0';
+            document.getElementById('aggParticles').textContent = '0';
+            document.getElementById('aggPeakOps').textContent = '0.0';
+            document.getElementById('aggAvgOps').textContent = '0.0';
+          }
+        }
+
+        updateTrendsDisplay(trends) {
+          const container = document.getElementById('trendsContainer');
+
+          if (trends && !trends.error && (trends.hourOverHour || trends.dayOverDay)) {
+            let html = '<div class="metrics-grid">';
+
+            if (trends.hourOverHour) {
+              const opsChange = trends.hourOverHour.operationsChange;
+              const particlesChange = trends.hourOverHour.particlesChange;
+
+              html += `
+                            <div class="metric-card">
+                                <div class="metric-value" style="color: ${opsChange >= 0 ? '#28a745' : '#dc3545'};">
+                                    ${opsChange >= 0 ? '+' : ''}${opsChange.toFixed(1)}%
+                                </div>
+                                <div class="metric-label">⏰ Hour-over-Hour Ops</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value" style="color: ${particlesChange >= 0 ? '#28a745' : '#dc3545'};">
+                                    ${particlesChange >= 0 ? '+' : ''}${particlesChange.toFixed(1)}%
+                                </div>
+                                <div class="metric-label">⏰ Hour-over-Hour Particles</div>
+                            </div>
+                        `;
+            }
+
+            if (trends.dayOverDay) {
+              const opsChange = trends.dayOverDay.operationsChange;
+              const particlesChange = trends.dayOverDay.particlesChange;
+
+              html += `
+                            <div class="metric-card">
+                                <div class="metric-value" style="color: ${opsChange >= 0 ? '#28a745' : '#dc3545'};">
+                                    ${opsChange >= 0 ? '+' : ''}${opsChange.toFixed(1)}%
+                                </div>
+                                <div class="metric-label">📅 Day-over-Day Ops</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value" style="color: ${particlesChange >= 0 ? '#28a745' : '#dc3545'};">
+                                    ${particlesChange >= 0 ? '+' : ''}${particlesChange.toFixed(1)}%
+                                </div>
+                                <div class="metric-label">📅 Day-over-Day Particles</div>
+                            </div>
+                        `;
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+          } else {
+            container.innerHTML = `
+                        <p style="text-align: center; color: #6c757d; padding: 20px;">
+                            No trend data available yet. Start monitoring to collect historical data.
+                        </p>
+                    `;
+          }
+        }
+
+        selectPeriod(period) {
+          this.selectedPeriod = period;
+
+          // Update button states
+          document.querySelectorAll('.period-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.period === period) {
+              btn.classList.add('active');
+            }
+          });
+
+          this.refreshData();
+          this.log('info', `Selected time period: ${period}`);
+        }
+
+        generateReport() {
+          try {
+            const summary =
+              typeof window.getPerformanceSummary === 'function'
+                ? window.getPerformanceSummary()
+                : {};
+            const aggregates =
+              typeof window.getPerformanceAggregates === 'function'
+                ? window.getPerformanceAggregates()
+                : {};
+            const trends =
+              typeof window.getPerformanceTrends === 'function'
+                ? window.getPerformanceTrends()
+                : {};
+
+            const report = {
+              timestamp: new Date().toISOString(),
+              summary,
+              aggregates,
+              trends,
+              metadata: {
+                selectedPeriod: this.selectedPeriod,
+                monitoringActive: this.isMonitoring,
+                logEntries: this.logs.slice(-50) // Last 50 log entries
+              }
+            };
+
+            // Download report
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `performance-report-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            this.log('success', 'Performance report generated and downloaded');
+          } catch (error) {
+            this.log('error', `Failed to generate report: ${error.message}`);
+          }
+        }
+
+        resetCounters() {
+          try {
+            if (typeof window.resetPerformanceCounters === 'function') {
+              const result = window.resetPerformanceCounters();
+              this.log('success', 'Performance counters reset');
+              this.refreshData();
+            } else {
+              this.log('error', 'Reset function not available');
+            }
+          } catch (error) {
+            this.log('error', `Failed to reset counters: ${error.message}`);
+          }
+        }
+
+        formatNumber(num) {
+          if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+          if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+          return num.toString();
+        }
+
+        log(type, message) {
+          const timestamp = new Date().toLocaleTimeString();
+          const logEntry = {
+            timestamp,
+            type,
+            message
+          };
+
+          this.logs.push(logEntry);
+
+          // Add to DOM
+          const container = document.getElementById('logContainer');
+          const div = document.createElement('div');
+          div.className = `log-entry ${type}`;
+          div.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+
+          container.appendChild(div);
+          container.scrollTop = container.scrollHeight;
+
+          // Keep only last 100 entries
+          while (container.children.length > 100) {
+            container.removeChild(container.firstChild);
+          }
+
+          if (this.logs.length > 200) {
+            this.logs = this.logs.slice(-100);
+          }
+        }
+      }
+
+      // Initialize demo when page loads
+      window.addEventListener('load', () => {
+        window.performanceDemo = new PerformanceAnalyticsDemo();
+      });
+    </script>
+  </body>
+</html>

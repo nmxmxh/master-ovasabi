@@ -99,7 +99,7 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 // handleSearchAction is the generic business logic handler for the "search" action, used by the generic event handler.
 func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	// Only process canonical 'requested' events, ignore 'started', 'completed', 'failed', etc.
-	if !strings.HasSuffix(event.GetEventType(), ":requested") {
+	if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
 		s.log.Debug("[handleSearchAction] Ignoring non-requested event (only handling 'requested')", zap.String("event_type", event.GetEventType()), zap.String("event_id", event.EventId))
 		return
 	}

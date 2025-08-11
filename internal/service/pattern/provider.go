@@ -17,6 +17,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
@@ -267,6 +268,13 @@ func (p *Provider) UpdateStateMachine(meta *commonpb.Metadata, svc, current stri
 func (p *Provider) Register(ctx context.Context, log *zap.Logger, provider interface{}) {
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: nil, // No database available in this service
+			Redis:    nil, // No Redis cache available in this service
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "pattern", healthDeps)
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "pattern")
 	}
 }

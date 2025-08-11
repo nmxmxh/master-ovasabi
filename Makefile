@@ -1,5 +1,5 @@
 
-.PHONY: setup build test test-unit test-integration test-bench coverage benchmark clean proto docker-* k8s-* docs backup lint-fix docs-format docs-check-format docs-check-links docs-validate restore js-setup docs-all docs-site-setup docs-site docs-serve docs-deploy-github docs-prepare-hosting lint-focused docs-fix-links openapi-gen openapi-validate openapi-diff sync-openapi update-doc-dates validate-doc-dates openapi-json-diff docs-generate-tests wasm-build frontend-build frontend-dev wasm-dev docker-wasm-build docker-wasm-up docker-wasm-down wasm-threaded serve-wasm helm-install helm-upgrade helm-uninstall helm-status helm-dry-run
+.PHONY: setup build test test-unit test-integration test-bench coverage benchmark clean proto docker-* k8s-* docs backup lint-fix docs-format docs-check-format docs-check-links docs-validate restore js-setup docs-all docs-site-setup docs-site docs-serve docs-deploy-github docs-prepare-hosting lint-focused docs-fix-links openapi-gen openapi-validate openapi-diff sync-openapi update-doc-dates validate-doc-dates openapi-json-diff docs-generate-tests wasm-build frontend-build frontend-dev wasm-dev docker-wasm-build docker-wasm-up docker-wasm-down wasm-threaded serve-wasm helm-install helm-upgrade helm-uninstall helm-status helm-dry-run aws-validate aws-deploy aws-infrastructure aws-images aws-status aws-logs aws-scale aws-cleanup aws-info
 
 # Variables
  BINARY_NAME=master-ovasabi
@@ -284,76 +284,41 @@ lint-fix:
 
 # Help
 help:
-	@echo "Available commands:"
-	@echo "Amadeus Commands:"
-	@echo "  backup              - Create a comprehensive backup of the Amadeus Knowledge Graph system"
-	@echo "  restore             - Restore the Amadeus Knowledge Graph system from a backup"
-	@echo "  kg-evolution        - Analyze Knowledge Graph evolution through historical backups"
-	@echo "Documentation & OpenAPI Commands:"
-	@echo "  docs-all           - Update dates, generate all docs and OpenAPI schemas, validate everything (2025-05-14)"
-	@echo "  update-doc-dates   - Update all docs/specs with current date and context block"
-	@echo "  validate-doc-dates - Validate doc/spec recency and context block (TODO)"
-	@echo "  docs               - Generate Markdown docs from code comments"
-	@echo "  openapi-gen        - Generate OpenAPI schema from proto"
-	@echo "  openapi-validate   - Validate OpenAPI schemas"
-	@echo "  openapi-diff       - Diff generated and canonical OpenAPI schemas"
-	@echo "  sync-openapi       - Sync generated OpenAPI schema to canonical location"
-	@echo "  docs-format        - Format all Markdown documentation files with Prettier"
-	@echo "  docs-check-format  - Check Markdown files formatting without making changes"
-	@echo "  docs-check-links   - Check for broken links in documentation files"
-	@echo "  docs-validate      - Run all documentation validation checks"
-	@echo "  docs-all           - Generate, format and validate all documentation"
-	@echo "  docs-site-setup    - Set up MkDocs for documentation site"
-	@echo "  docs-site          - Generate documentation site"
-	@echo "  docs-serve         - Serve documentation site locally"
-	@echo "  docs-deploy-github - Deploy documentation to GitHub Pages"
-	@echo "  docs-prepare-hosting - Prepare documentation for hosting"
-	@echo "  docs-fix-links     - Fix documentation links"
-	@echo "Linting Commands:"
-	@echo "  lint               - Check Go code with golangci-lint and Markdown with Prettier (no fixes)"
-	@echo "  lint-focused       - Same as lint but excludes backup files"
-	@echo "  lint-fix           - Apply fixes to Go code and format Markdown documentation"
-	@echo "  js-setup           - Install JavaScript dependencies with Yarn"
+	@echo "Master Ovasabi Build System"
+	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Docker Compose Commands:"
-	@echo "  docker-build      - Build Docker images"
-	@echo "  docker-up         - Start all services"
-	@echo "  docker-down       - Stop all services"
-	@echo "  docker-logs       - View service logs"
-	@echo "  docker-ps         - List running services"
-	@echo "  docker-restart    - Restart all services"
-	@echo "  docker-restart-app - Restart only the app service"
-	@echo "  docker-clean      - Clean up all containers and volumes"
-	@echo "  docker-prune      - Remove all unused Docker resources"
+	@echo "Development:"
+	@echo "  setup              - Set up development environment"
+	@echo "  build              - Build the application"
+	@echo "  dev                - Run in development mode"
+	@echo "  test               - Run all tests"
+	@echo "  lint               - Run linters"
 	@echo ""
-	@echo "Kubernetes Commands:"
-	@echo "  k8s-create-namespace  - Create Kubernetes namespace"
-	@echo "  k8s-set-context      - Set Kubernetes context to docker-desktop"
-	@echo "  k8s-deploy           - Deploy application to Kubernetes"
-	@echo "  k8s-deploy-monitoring - Deploy monitoring stack to Kubernetes"
-	@echo "  k8s-delete           - Delete application from Kubernetes"
-	@echo "  k8s-status           - Show status of Kubernetes resources"
-	@echo "  k8s-logs             - View application logs"
-	@echo "  k8s-port-forward     - Forward application ports"
-	@echo "  k8s-dashboard        - Deploy and access Kubernetes dashboard"
-	@echo "  dev-k8s              - Build and deploy to local Kubernetes"
+	@echo "Docker:"
+	@echo "  docker-build       - Build Docker images"
+	@echo "  docker-up          - Start Docker containers"
+	@echo "  docker-down        - Stop Docker containers"
 	@echo ""
-	@echo "Development Commands:"
-	@echo "  setup               - Setup development environment"
-	@echo "  install-tools       - Install required tools"
-	@echo "  build               - Build the binary"
-	@echo "  test                - Run tests"
-	@echo "  test-unit           - Run unit tests"
-	@echo "  test-integration    - Run integration tests"
-	@echo "  test-bench          - Run benchmark tests"
-	@echo "  coverage            - Generate test coverage report"
-	@echo "  benchmark           - Run benchmarks"
-	@echo "  clean               - Clean build files"
-	@echo "  dev                 - Run in development mode"
-	@echo "  proto               - Generate Go protobuf code (latest versions only)"
-	@echo "  py-proto            - Generate Python protobufs for AI and common contracts (internal/ai/protos)"
-	@echo "  swagger             - Generate swagger documentation"
-	@echo "  deps                - Install dependencies"
+	@echo "Environment:"
+	@echo "  validate-env       - Validate environment variables"
+	@echo "  cleanup-config     - Clean up configuration files"
+	@echo ""
+	@echo "AWS Deployment:"
+	@echo "  aws-ecr-deploy     - Build and push images to ECR"
+	@echo ""
+	@echo "Documentation:"
+	@echo "  docs               - Generate documentation"
+
+# Environment validation and cleanup
+validate-env:
+	@./scripts/validate-env.sh
+
+cleanup-config:
+	@./scripts/cleanup-config.sh
+
+# AWS ECR deployment
+aws-ecr-deploy:
+	@./deployments/aws/deploy-ecr.sh
 
 # Generate new service
 new-service:
@@ -631,3 +596,104 @@ k8s-logs-eks:
 
 k8s-port-forward-eks:
 	kubectl port-forward service/$(BINARY_NAME) 50051:50051 -n $(K8S_NAMESPACE)
+
+# ======================
+# AWS ECS Deployment
+# ======================
+
+# Validate environment before AWS deployment
+aws-validate:
+	@echo "🔍 Validating AWS deployment prerequisites..."
+	@./scripts/validate-env.sh
+	@echo "✅ Environment validation complete"
+
+# Deploy to AWS ECS (one-command deployment)
+aws-deploy: aws-validate
+	@echo "🚀 Starting AWS ECS deployment..."
+	@./deployments/aws/deploy-full.sh
+	@echo "✅ AWS deployment complete!"
+
+# Deploy just the infrastructure
+aws-infrastructure:
+	@echo "🏗️ Deploying AWS infrastructure..."
+	@aws cloudformation deploy \
+		--template-file deployments/aws/infrastructure.yaml \
+		--stack-name master-ovasabi-infrastructure \
+		--parameter-overrides Environment=production \
+		--capabilities CAPABILITY_IAM \
+		--region $(AWS_REGION)
+
+# Build and push images to ECR
+aws-images:
+	@echo "🐳 Building and pushing images to ECR..."
+	@./deployments/aws/deploy-ecr.sh
+
+# Check AWS deployment status
+aws-status:
+	@echo "📊 AWS Deployment Status:"
+	@echo "========================="
+	@echo "Stack Status:"
+	@aws cloudformation describe-stacks \
+		--stack-name master-ovasabi-infrastructure \
+		--query 'Stacks[0].StackStatus' \
+		--output text --region $(AWS_REGION) 2>/dev/null || echo "Stack not found"
+	@echo ""
+	@echo "ECS Service Status:"
+	@aws ecs describe-services \
+		--cluster master-ovasabi-cluster \
+		--services master-ovasabi-service \
+		--query 'services[0].{Status:status,RunningCount:runningCount,DesiredCount:desiredCount}' \
+		--output table --region $(AWS_REGION) 2>/dev/null || echo "Service not found"
+	@echo ""
+	@echo "Application URL:"
+	@aws cloudformation describe-stacks \
+		--stack-name master-ovasabi-infrastructure \
+		--query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' \
+		--output text --region $(AWS_REGION) 2>/dev/null | sed 's/^/http:\/\//' || echo "Load balancer not found"
+
+# View AWS logs
+aws-logs:
+	@echo "📋 Viewing AWS CloudWatch logs..."
+	@aws logs tail /ecs/master-ovasabi --follow --region $(AWS_REGION)
+
+# Scale AWS service
+aws-scale:
+	@read -p "Enter desired task count (current: $$(aws ecs describe-services --cluster master-ovasabi-cluster --services master-ovasabi-service --query 'services[0].desiredCount' --output text --region $(AWS_REGION) 2>/dev/null || echo '0')): " count; \
+	aws ecs update-service \
+		--cluster master-ovasabi-cluster \
+		--service master-ovasabi-service \
+		--desired-count $$count \
+		--region $(AWS_REGION)
+
+# Clean up AWS resources
+aws-cleanup:
+	@echo "🗑️ Cleaning up AWS resources..."
+	@echo "⚠️  This will delete ALL AWS infrastructure!"
+	@read -p "Are you sure? Type 'DELETE' to confirm: " confirm; \
+	if [ "$$confirm" = "DELETE" ]; then \
+		aws cloudformation delete-stack \
+			--stack-name master-ovasabi-infrastructure \
+			--region $(AWS_REGION); \
+		echo "🗑️ Deletion initiated. Stack will be removed in a few minutes."; \
+	else \
+		echo "❌ Deletion cancelled."; \
+	fi
+
+# Show AWS deployment info
+aws-info:
+	@echo "📋 AWS Deployment Information:"
+	@echo "=============================="
+	@echo "Region: $(AWS_REGION)"
+	@echo "Account ID: $(AWS_ACCOUNT_ID)"
+	@echo "Stack Name: master-ovasabi-infrastructure"
+	@echo ""
+	@echo "Quick Commands:"
+	@echo "  Deploy:     make aws-deploy"
+	@echo "  Status:     make aws-status"
+	@echo "  Logs:       make aws-logs"
+	@echo "  Scale:      make aws-scale"
+	@echo "  Cleanup:    make aws-cleanup"
+	@echo ""
+	@echo "Documentation:"
+	@echo "  Quick Start: deployments/aws/QUICK-START.md"
+	@echo "  Full Guide:  deployments/aws/SETUP-GUIDE.md"

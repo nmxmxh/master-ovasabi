@@ -32,6 +32,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/hello"
+	"github.com/nmxmxh/master-ovasabi/pkg/health"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -68,6 +69,13 @@ func Register(
 	// Inos: Register the hello-world event loop for service health and orchestration
 	prov, ok := provider.(*service.Provider)
 	if ok && prov != nil {
+		// Start health monitoring (following hello package pattern)
+		healthDeps := &health.ServiceDependencies{
+			Database: db,
+			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
+		}
+		health.StartHealthSubscriber(ctx, prov, log, "contentmoderation", healthDeps)
+		
 		hello.StartHelloWorldLoop(ctx, prov, log, "contentmoderation")
 	}
 	return nil

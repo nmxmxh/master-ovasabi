@@ -3,6 +3,18 @@ import { persist, subscribeWithSelector, devtools } from 'zustand/middleware';
 import { subscribeToWasmMessages, wasmSendMessage } from '../lib/wasmBridge';
 import { merge, cloneDeep, isEmpty, debounce } from 'lodash';
 import { useMemo, useCallback } from 'react';
+// --- WASM Readiness and Message Queue Globals ---
+// These are used for WASM readiness and message queuing before Zustand store is initialized
+
+// --- Centralized User ID Initialization ---
+if (typeof window !== 'undefined') {
+  let id = sessionStorage.getItem('auth_id') || sessionStorage.getItem('guest_id');
+  if (!id) {
+    id = 'guest_' + Math.random().toString(36).substring(2, 10);
+    sessionStorage.setItem('guest_id', id);
+  }
+  window.userID = id;
+}
 
 // --- Type Definitions (Communication Standards Compliant) ---
 export interface EventEnvelope {
@@ -84,6 +96,16 @@ export interface DeviceMetadata {
   consentGiven: boolean;
   gdprConsentTimestamp?: string; // ISO string with timezone
   gdprConsentRequired?: boolean;
+  // GPU and performance information
+  gpuCapabilities?: any; // Will be populated by WASM GPU Bridge
+  wasmGPUBridge?: {
+    initialized: boolean;
+    backend: string;
+    workerCount: number;
+    version: string;
+  };
+  gpuDetectedAt?: string;
+  [key: string]: any; // Allow additional device properties
 }
 
 export interface SessionMetadata {
@@ -111,6 +133,15 @@ interface FeatureState {
 // Generic state manager for different features/services
 interface ServiceStates {
   [serviceName: string]: FeatureState;
+}
+
+// --- Media Streaming State ---
+export interface MediaStreamingState {
+  connected: boolean;
+  peerId: string;
+  streamInfo?: any;
+  error?: string;
+  lastConnectAttempt?: string;
 }
 
 // --- Utility Functions ---
@@ -209,6 +240,11 @@ interface PendingRequestEntry {
 }
 
 interface GlobalState {
+  // Selectors for UI integration
+  userId?: string;
+  campaignId?: string | number;
+  lastEvent?: EventEnvelope;
+  messageLog?: string[];
   // Core state
   metadata: Metadata;
   events: EventEnvelope[];
@@ -219,6 +255,7 @@ interface GlobalState {
   serviceStates: ServiceStates; // Generic state for different services/features
   pendingRequests: Record<string, PendingRequestEntry>;
   campaignState?: any; // Added for campaign state integration
+  mediaStreaming?: MediaStreamingState;
 
   // Actions
   setMetadata: (meta: Partial<Metadata>) => void;
@@ -240,6 +277,22 @@ interface GlobalState {
     onResponse?: (event: EventEnvelope) => void
   ) => void;
 
+  // Campaign update actions
+  updateCampaign: (
+    updates: Record<string, any>,
+    onResponse?: (event: EventEnvelope) => void
+  ) => void;
+  updateCampaignFeatures: (
+    features: string[],
+    action?: 'add' | 'remove' | 'set',
+    onResponse?: (event: EventEnvelope) => void
+  ) => void;
+  updateCampaignConfig: (
+    configType: 'ui_content' | 'scripts' | 'communication',
+    config: Record<string, any>,
+    onResponse?: (event: EventEnvelope) => void
+  ) => void;
+
   // Generic service state actions
   setServiceState: (serviceName: string, state: Partial<FeatureState>) => void;
   updateServiceState: (
@@ -247,6 +300,10 @@ interface GlobalState {
     updater: (current: FeatureState) => FeatureState
   ) => void;
   clearServiceState: (serviceName: string) => void;
+
+  // Media streaming actions
+  setMediaStreamingState: (state: Partial<MediaStreamingState>) => void;
+  clearMediaStreamingState: () => void;
 
   // Getters
   getEventsByType: (eventType: string) => EventEnvelope[];
@@ -274,6 +331,31 @@ export const useGlobalStore = create<GlobalState>()(
     subscribeWithSelector(
       persist(
         (set, get) => ({
+          // Selectors for UI integration
+          get userId(): string {
+            return (
+              (this.metadata?.user?.userId as string) ||
+              (this.metadata?.session?.guestId as string) ||
+              ''
+            );
+          },
+          get campaignId(): string | number {
+            return (
+              (this.metadata?.campaign?.slug as string) ||
+              (this.metadata?.campaign?.campaignId as number) ||
+              ''
+            );
+          },
+          get lastEvent(): EventEnvelope | undefined {
+            const events = this.events as EventEnvelope[];
+            return events.length > 0 ? events[events.length - 1] : undefined;
+          },
+          get messageLog(): string[] {
+            const events = this.events as EventEnvelope[];
+            return events
+              .slice(-50)
+              .map(e => `[${e.timestamp}] ${e.type} ${e.payload ? JSON.stringify(e.payload) : ''}`);
+          },
           // Initial state
           metadata: createInitialMetadata(),
           events: [],
@@ -292,6 +374,13 @@ export const useGlobalStore = create<GlobalState>()(
           },
           serviceStates: {}, // Generic state for all services
           pendingRequests: {},
+          mediaStreaming: {
+            connected: false,
+            peerId: '',
+            streamInfo: null,
+            error: undefined,
+            lastConnectAttempt: ''
+          },
 
           // Actions
           setMetadata: meta => {
@@ -329,6 +418,18 @@ export const useGlobalStore = create<GlobalState>()(
               false,
               'switchCampaign'
             );
+
+            // Trigger WebSocket reconnection with new campaign ID
+            if (
+              typeof window !== 'undefined' &&
+              typeof (window as any).reconnectWebSocket === 'function'
+            ) {
+              console.log(
+                `[Global Store] Triggering WebSocket reconnection for campaign ${campaignId}`
+              );
+              (window as any).reconnectWebSocket();
+            }
+
             state.emitEvent(
               {
                 type: 'campaign:state:request',
@@ -341,6 +442,76 @@ export const useGlobalStore = create<GlobalState>()(
                     slug: slug || state.metadata.campaign.slug
                   }
                 }
+              },
+              onResponse
+            );
+          },
+
+          // Direct campaign update function
+          updateCampaign: (
+            updates: Record<string, any>,
+            onResponse?: (event: EventEnvelope) => void
+          ) => {
+            const state = get();
+            const campaignId =
+              state.metadata.campaign.slug || state.metadata.campaign.campaignId.toString();
+
+            state.emitEvent(
+              {
+                type: 'campaign:update:v1:requested',
+                payload: {
+                  campaignId,
+                  updates
+                },
+                metadata: state.metadata
+              },
+              onResponse
+            );
+          },
+
+          // Update campaign features
+          updateCampaignFeatures: (
+            features: string[],
+            action: 'add' | 'remove' | 'set' = 'set',
+            onResponse?: (event: EventEnvelope) => void
+          ) => {
+            const state = get();
+            const campaignId =
+              state.metadata.campaign.slug || state.metadata.campaign.campaignId.toString();
+
+            state.emitEvent(
+              {
+                type: 'campaign:feature:v1:requested',
+                payload: {
+                  campaignId,
+                  features,
+                  action
+                },
+                metadata: state.metadata
+              },
+              onResponse
+            );
+          },
+
+          // Update campaign configuration (UI content, scripts, etc.)
+          updateCampaignConfig: (
+            configType: 'ui_content' | 'scripts' | 'communication',
+            config: Record<string, any>,
+            onResponse?: (event: EventEnvelope) => void
+          ) => {
+            const state = get();
+            const campaignId =
+              state.metadata.campaign.slug || state.metadata.campaign.campaignId.toString();
+
+            state.emitEvent(
+              {
+                type: 'campaign:config:v1:requested',
+                payload: {
+                  campaignId,
+                  configType,
+                  config
+                },
+                metadata: state.metadata
               },
               onResponse
             );
@@ -514,6 +685,50 @@ export const useGlobalStore = create<GlobalState>()(
               return;
             }
 
+            // Handle health events for service status updates
+            if (event.type.includes(':health:v1:')) {
+              console.log('[Global Store] Processing health event:', event.type, event.payload);
+
+              // Extract service name from health event type (format: service:health:v1:state)
+              const serviceName = event.type.split(':')[0];
+              const healthState = event.type.split(':').pop() || 'unknown';
+
+              if (event.payload && serviceName) {
+                // Update service state with health information
+                const currentServiceState = get().serviceStates[serviceName] || {};
+                const healthData = {
+                  ...currentServiceState,
+                  health: {
+                    status:
+                      event.payload.status ||
+                      (healthState === 'success'
+                        ? 'healthy'
+                        : healthState === 'failed'
+                          ? 'down'
+                          : 'unknown'),
+                    responseTime: event.payload.response_time || 0,
+                    lastCheck: event.payload.checked_at || Date.now(),
+                    dependencies: event.payload.dependencies || {},
+                    metrics: event.payload.metrics || {},
+                    errorMessage: event.payload.error_message
+                  }
+                };
+
+                set(
+                  current => ({
+                    serviceStates: {
+                      ...current.serviceStates,
+                      [serviceName]: healthData
+                    }
+                  }),
+                  false,
+                  'healthUpdate'
+                );
+
+                console.log(`[Global Store] Updated health for ${serviceName}:`, healthData.health);
+              }
+            }
+
             // Add event to history and update state
             const eventState = event.type.split(':').pop() || 'unknown';
 
@@ -527,6 +742,7 @@ export const useGlobalStore = create<GlobalState>()(
                   },
                   metadata: merge(cloneDeep(current.metadata), event.metadata)
                 };
+
                 // Proactively update eventPayloads for any *:v1:success event
                 if (event.type && event.type.endsWith(':v1:success')) {
                   update.eventPayloads = {
@@ -534,10 +750,49 @@ export const useGlobalStore = create<GlobalState>()(
                     [event.type]: event.payload
                   };
                 }
-                // For backward compatibility, keep campaignState updated
-                if (event.type === 'campaign:state:v1:success') {
+
+                // Enhanced campaign state handling
+                if (
+                  event.type === 'campaign:state:v1:success' ||
+                  event.type === 'campaign:update:v1:success' ||
+                  event.type === 'campaign:feature:v1:success' ||
+                  event.type === 'campaign:config:v1:success'
+                ) {
+                  // Update campaignState for backward compatibility
                   update.campaignState = event.payload;
+
+                  // Update campaign service state
+                  const currentCampaignState = current.serviceStates.campaign || {};
+                  update.serviceStates = {
+                    ...current.serviceStates,
+                    campaign: merge(cloneDeep(currentCampaignState), event.payload || {})
+                  };
+
+                  // Update metadata.campaign.serviceSpecific if payload contains campaign data
+                  if (event.payload && typeof event.payload === 'object') {
+                    const updatedMetadata = cloneDeep(update.metadata);
+                    if (!updatedMetadata.campaign.serviceSpecific) {
+                      updatedMetadata.campaign.serviceSpecific = {};
+                    }
+                    if (!updatedMetadata.campaign.serviceSpecific.campaign) {
+                      updatedMetadata.campaign.serviceSpecific.campaign = {};
+                    }
+
+                    // Merge campaign state into metadata
+                    updatedMetadata.campaign.serviceSpecific.campaign = merge(
+                      updatedMetadata.campaign.serviceSpecific.campaign,
+                      event.payload
+                    );
+
+                    // Update features array if present in payload
+                    if (event.payload.features && Array.isArray(event.payload.features)) {
+                      updatedMetadata.campaign.features = event.payload.features;
+                    }
+
+                    update.metadata = updatedMetadata;
+                  }
                 }
+
                 return update;
               },
               false,
@@ -668,6 +923,48 @@ export const useGlobalStore = create<GlobalState>()(
             return state.serviceStates[serviceName] || {};
           },
 
+          // --- Media Streaming Actions ---
+          setMediaStreamingState: (state: Partial<MediaStreamingState>) =>
+            set(
+              current => {
+                const prev = current.mediaStreaming || {
+                  connected: false,
+                  peerId: '',
+                  streamInfo: null,
+                  error: undefined,
+                  lastConnectAttempt: ''
+                };
+                return {
+                  mediaStreaming: {
+                    connected: state.connected !== undefined ? state.connected : prev.connected,
+                    peerId: state.peerId !== undefined ? state.peerId : prev.peerId,
+                    streamInfo: state.streamInfo !== undefined ? state.streamInfo : prev.streamInfo,
+                    error: state.error !== undefined ? state.error : prev.error,
+                    lastConnectAttempt:
+                      state.lastConnectAttempt !== undefined
+                        ? state.lastConnectAttempt
+                        : prev.lastConnectAttempt
+                  }
+                };
+              },
+              false,
+              'setMediaStreamingState'
+            ),
+          clearMediaStreamingState: () =>
+            set(
+              {
+                mediaStreaming: {
+                  connected: false,
+                  peerId: '',
+                  streamInfo: null,
+                  error: undefined,
+                  lastConnectAttempt: ''
+                }
+              },
+              false,
+              'clearMediaStreamingState'
+            ),
+
           reset: () =>
             set(
               {
@@ -684,6 +981,13 @@ export const useGlobalStore = create<GlobalState>()(
                   maxReconnectAttempts: 5,
                   reconnectDelay: 1000,
                   wasmReady: false
+                },
+                mediaStreaming: {
+                  connected: false,
+                  peerId: '',
+                  streamInfo: null,
+                  error: undefined,
+                  lastConnectAttempt: ''
                 }
               },
               false,
@@ -717,7 +1021,8 @@ export const useGlobalStore = create<GlobalState>()(
           partialize: state => ({
             metadata: state.metadata,
             events: state.events.slice(-50), // Keep last 50 events
-            eventStates: state.eventStates
+            eventStates: state.eventStates,
+            mediaStreaming: state.mediaStreaming
           })
         }
       )
@@ -848,6 +1153,12 @@ export function initializeGlobalState() {
   let reconnectionTimeout: NodeJS.Timeout | null = null;
 
   const scheduleReconnection = (reason: string) => {
+    // Block reconnection if shutdown is in progress
+    if (typeof window !== 'undefined' && (window as any).isShuttingDown) {
+      console.log('[Global State] Shutdown in progress, blocking reconnection attempt');
+      return;
+    }
+
     const state = useGlobalStore.getState();
 
     // Don't schedule if already connected or already scheduled
@@ -857,19 +1168,25 @@ export function initializeGlobalState() {
 
     // Don't reconnect if we've exceeded max attempts
     if (state.connection.reconnectAttempts >= state.connection.maxReconnectAttempts) {
-      console.log('[Global State] Max reconnection attempts reached, not scheduling reconnection');
+      console.log('[Global Store] Max reconnection attempts reached, not scheduling reconnection');
       return;
     }
 
-    console.log(`[Global State] Scheduling reconnection due to: ${reason}`);
+    console.log(`[Global Store] Scheduling reconnection due to: ${reason}`);
 
     reconnectionTimeout = setTimeout(() => {
+      // Block reconnection if shutdown is in progress
+      if (typeof window !== 'undefined' && (window as any).isShuttingDown) {
+        console.log('[Global State] Shutdown in progress, blocking scheduled reconnection');
+        reconnectionTimeout = null;
+        return;
+      }
       reconnectionTimeout = null;
       const currentState = useGlobalStore.getState();
 
       // Double-check we're still disconnected before attempting reconnection
       if (!currentState.connection.connected || !currentState.connection.wasmReady) {
-        console.log(`[Global State] Executing scheduled reconnection for: ${reason}`);
+        console.log(`[Global Store] Executing scheduled reconnection for: ${reason}`);
         currentState.reconnect();
       }
     }, 2000); // 2 second delay to prevent rapid reconnection attempts
@@ -877,17 +1194,29 @@ export function initializeGlobalState() {
 
   const handleVisibilityChange = () => {
     if (!document.hidden) {
+      if (typeof window !== 'undefined' && (window as any).isShuttingDown) {
+        console.log('[Global State] Shutdown in progress, ignoring visibility change event');
+        return;
+      }
       console.log('[Global State] Window became visible, checking connection...');
       scheduleReconnection('visibility change');
     }
   };
 
   const handleWindowFocus = () => {
+    if (typeof window !== 'undefined' && (window as any).isShuttingDown) {
+      console.log('[Global State] Shutdown in progress, ignoring window focus event');
+      return;
+    }
     console.log('[Global State] Window gained focus, checking connection...');
     scheduleReconnection('window focus');
   };
 
   const handleOnline = () => {
+    if (typeof window !== 'undefined' && (window as any).isShuttingDown) {
+      console.log('[Global State] Shutdown in progress, ignoring network online event');
+      return;
+    }
     console.log('[Global State] Network came online, checking connection...');
     scheduleReconnection('network online');
   };
@@ -905,6 +1234,17 @@ export function initializeGlobalState() {
   // Cleanup function
   return () => {
     console.log('[Global State] Cleaning up global state...');
+
+    // Notify frontend lifecycle manager about global state cleanup
+    try {
+      if (typeof window !== 'undefined' && (window as any).frontendLifecycleManager) {
+        console.log('[Global State] Coordinating with frontend lifecycle manager...');
+        (window as any).frontendLifecycleManager.shutdown();
+      }
+    } catch (error) {
+      console.warn('[Global State] Failed to coordinate with frontend lifecycle manager:', error);
+    }
+
     initializationLock = false; // Allow re-initialization
 
     if (wasmUnsubscribe) {
@@ -984,6 +1324,24 @@ export function useEmitEvent() {
   return useGlobalStore(state => state.emitEvent);
 }
 
+// Campaign update hooks
+export function useCampaignUpdates() {
+  const updateCampaign = useGlobalStore(state => state.updateCampaign);
+  const updateCampaignFeatures = useGlobalStore(state => state.updateCampaignFeatures);
+  const updateCampaignConfig = useGlobalStore(state => state.updateCampaignConfig);
+  const switchCampaign = useGlobalStore(state => state.switchCampaign);
+
+  return useMemo(
+    () => ({
+      updateCampaign,
+      updateCampaignFeatures,
+      updateCampaignConfig,
+      switchCampaign
+    }),
+    [updateCampaign, updateCampaignFeatures, updateCampaignConfig, switchCampaign]
+  );
+}
+
 // --- Generic Service State Hooks ---
 export function useServiceState<T extends FeatureState = FeatureState>(serviceName: string) {
   // Use a simple, stable selector
@@ -1024,13 +1382,186 @@ export function useSearchState() {
   }>('search');
 }
 
+// Health state hook for monitoring service health
+export function useHealthState() {
+  const serviceStates = useGlobalStore(state => state.serviceStates);
+  const emitEvent = useGlobalStore(state => state.emitEvent);
+
+  // Extract health information from all services
+  const healthStates = useMemo(() => {
+    const health: Record<string, any> = {};
+
+    Object.keys(serviceStates).forEach(serviceName => {
+      const serviceState = serviceStates[serviceName];
+      if (serviceState?.health) {
+        health[serviceName] = serviceState.health;
+      } else {
+        // Default state if no health data available
+        health[serviceName] = {
+          status: 'down',
+          responseTime: 0,
+          lastCheck: 0,
+          dependencies: {},
+          metrics: {}
+        };
+      }
+    });
+
+    return health;
+  }, [serviceStates]);
+
+  // Function to request health check for a specific service
+  const requestHealthCheck = useCallback(
+    (serviceName: string) => {
+      emitEvent({
+        type: `${serviceName}:health:v1:requested`,
+        payload: {},
+        metadata: {} as any
+      });
+    },
+    [emitEvent]
+  );
+
+  // Function to request health check for all services
+  const requestAllHealthChecks = useCallback(() => {
+    const serviceNames = [
+      'admin',
+      'analytics',
+      'campaign',
+      'commerce',
+      'content',
+      'search',
+      'media',
+      'messaging',
+      'notification',
+      'security',
+      'nexus',
+      'user'
+    ];
+
+    serviceNames.forEach(serviceName => {
+      requestHealthCheck(serviceName);
+    });
+  }, [requestHealthCheck]);
+
+  return {
+    healthStates,
+    requestHealthCheck,
+    requestAllHealthChecks
+  };
+}
+
 export function useNexusState() {
   return useServiceState('nexus');
 }
 
 export function useCampaignState() {
-  return useServiceState('campaign');
+  const campaignServiceState = useServiceState('campaign');
+  const campaignState = useGlobalStore(state => state.campaignState);
+  const metadata = useGlobalStore(state => state.metadata.campaign);
+  const { updateCampaign, updateCampaignFeatures, updateCampaignConfig } = useCampaignUpdates();
+
+  // Get the most current campaign state from multiple sources
+  const currentState = useMemo(() => {
+    // Priority: service state > legacy campaignState > metadata
+    const state = campaignServiceState.state || campaignState || {};
+
+    // Merge in metadata for completeness
+    return {
+      ...state,
+      campaignId: metadata.campaignId,
+      slug: metadata.slug,
+      features: state.features || metadata.features || [],
+      serviceSpecific: metadata.serviceSpecific || state.serviceSpecific || {}
+    };
+  }, [campaignServiceState.state, campaignState, metadata]);
+
+  return useMemo(
+    () => ({
+      state: currentState,
+      metadata,
+      setState: campaignServiceState.setState,
+      updateState: campaignServiceState.updateState,
+      clearState: campaignServiceState.clearState,
+      // Campaign-specific update functions
+      updateCampaign,
+      updateFeatures: updateCampaignFeatures,
+      updateConfig: updateCampaignConfig
+    }),
+    [
+      currentState,
+      metadata,
+      campaignServiceState.setState,
+      campaignServiceState.updateState,
+      campaignServiceState.clearState,
+      updateCampaign,
+      updateCampaignFeatures,
+      updateCampaignConfig
+    ]
+  );
 }
 
 // --- Type exports ---
 export type { GlobalState, FeatureState, ServiceStates };
+
+// GPU capabilities hook for easy access to GPU information in components
+export function useGPUCapabilities() {
+  const deviceMetadata = useGlobalStore(state => state.metadata.device);
+
+  const gpuCapabilities = useMemo(() => {
+    return deviceMetadata.gpuCapabilities || null;
+  }, [deviceMetadata.gpuCapabilities]);
+
+  const wasmGPUBridge = useMemo(() => {
+    return deviceMetadata.wasmGPUBridge || null;
+  }, [deviceMetadata.wasmGPUBridge]);
+
+  const refreshGPUCapabilities = useCallback(async () => {
+    try {
+      // Dynamically import WASM GPU bridge to avoid circular dependencies
+      const { wasmGPU } = await import('../lib/wasmBridge.js');
+      await wasmGPU.updateMetadataWithGPUInfo();
+    } catch (error) {
+      console.error('[GPU Capabilities Hook] Failed to refresh GPU capabilities:', error);
+    }
+  }, []);
+
+  const isWebGPUAvailable = useMemo(() => {
+    return gpuCapabilities?.webgpu?.available || false;
+  }, [gpuCapabilities]);
+
+  const isWebGLAvailable = useMemo(() => {
+    return gpuCapabilities?.webgl?.available || false;
+  }, [gpuCapabilities]);
+
+  const recommendedRenderer = useMemo(() => {
+    return gpuCapabilities?.three?.recommendedRenderer || 'webgl';
+  }, [gpuCapabilities]);
+
+  const performanceScore = useMemo(() => {
+    return gpuCapabilities?.performance?.score || 0;
+  }, [gpuCapabilities]);
+
+  return {
+    gpuCapabilities,
+    wasmGPUBridge,
+    refreshGPUCapabilities,
+    isWebGPUAvailable,
+    isWebGLAvailable,
+    recommendedRenderer,
+    performanceScore,
+    detectedAt: deviceMetadata.gpuDetectedAt
+  };
+}
+
+// --- Media Streaming Hook ---
+export function useMediaStreamingState() {
+  const mediaStreaming = useGlobalStore(state => state.mediaStreaming);
+  const setMediaStreamingState = useGlobalStore(state => state.setMediaStreamingState);
+  const clearMediaStreamingState = useGlobalStore(state => state.clearMediaStreamingState);
+  return {
+    mediaStreaming,
+    setMediaStreamingState,
+    clearMediaStreamingState
+  };
+}

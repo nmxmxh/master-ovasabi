@@ -501,7 +501,7 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	// --- Canonical Event Type Validation ---
 	eventType := req.EventType
 	s.log.Info("[EmitEvent] Received request", zap.String("event_type", eventType), zap.Any("payload", req.Payload), zap.Any("metadata", req.Metadata))
-	if !isCanonicalEventType(eventType) && eventType != "echo" {
+	if !isCanonicalEventType(eventType) && eventType != "echo" && !isHealthEventType(eventType) {
 		s.log.Warn("[EmitEvent] Non-canonical event type rejected", zap.String("event_type", eventType))
 		return &nexusv1.EventResponse{Success: false, Message: "Non-canonical event type", Metadata: req.Metadata}, nil
 	}
@@ -565,10 +565,22 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		s.log.Info("[EmitEvent] Event already published by another instance, skipping", zap.String("event_id", eventID))
 	}
 
-	// Handle campaign:state:request events with campaignStateMgr
-	if req.EventType == "campaign:state:request" && s.campaignStateMgr != nil {
-		s.campaignStateMgr.HandleEvent(req)
-		return &nexusv1.EventResponse{Success: true, Message: "Campaign state emitted", Metadata: req.Metadata}, nil
+	// Handle campaign events with campaignStateMgr
+	if s.campaignStateMgr != nil && strings.HasPrefix(req.EventType, "campaign:") {
+		switch req.EventType {
+		case "campaign:state:request":
+			s.campaignStateMgr.HandleEvent(req)
+			return &nexusv1.EventResponse{Success: true, Message: "Campaign state emitted", Metadata: req.Metadata}, nil
+		case "campaign:update:v1:requested":
+			s.campaignStateMgr.HandleEvent(req)
+			return &nexusv1.EventResponse{Success: true, Message: "Campaign update processed", Metadata: req.Metadata}, nil
+		case "campaign:feature:v1:requested":
+			s.campaignStateMgr.HandleEvent(req)
+			return &nexusv1.EventResponse{Success: true, Message: "Campaign features updated", Metadata: req.Metadata}, nil
+		case "campaign:config:v1:requested":
+			s.campaignStateMgr.HandleEvent(req)
+			return &nexusv1.EventResponse{Success: true, Message: "Campaign config updated", Metadata: req.Metadata}, nil
+		}
 	}
 
 	s.log.Info("[EmitEvent] Returning response to caller", zap.String("event_id", eventID), zap.Any("response", envelope))
@@ -599,5 +611,29 @@ func isCanonicalEventType(eventType string) bool {
 	}
 	allowedStates := map[string]struct{}{"requested": {}, "started": {}, "success": {}, "failed": {}, "completed": {}}
 	_, ok := allowedStates[state]
+	return ok
+}
+
+// isHealthEventType validates health event type format: {service}:health:v{version}:{state}
+// Health events are privileged infrastructure events that bypass normal validation
+func isHealthEventType(eventType string) bool {
+	parts := strings.Split(eventType, ":")
+	if len(parts) != 4 {
+		return false
+	}
+	// Format: {service}:health:v{version}:{state}
+	service, action, version, state := parts[0], parts[1], parts[2], parts[3]
+	if service == "" || action != "health" {
+		return false
+	}
+	if !strings.HasPrefix(version, "v") || len(version) < 2 {
+		return false
+	}
+	// Health events allow additional states beyond the standard canonical states
+	healthStates := map[string]struct{}{
+		"requested": {}, "success": {}, "failed": {},
+		"heartbeat": {}, // Health-specific state for periodic heartbeats
+	}
+	_, ok := healthStates[state]
 	return ok
 }

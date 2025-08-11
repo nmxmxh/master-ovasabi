@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { createGlobalStyle } from "styled-components";
-import { scrollBarLook } from "./scroll-bar";
+import { createGlobalStyle } from 'styled-components';
+import { scrollBarLook } from './scroll-bar';
 
 export const GlobalStyles = createGlobalStyle`
 :root {
@@ -27,6 +27,21 @@ export const GlobalStyles = createGlobalStyle`
   -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 
+/* Allow interactions on canvas elements for OrbitControls */
+canvas {
+  user-select: auto;
+  -webkit-user-select: auto;
+  -moz-user-select: auto;
+  -ms-user-select: auto;
+  -webkit-tap-highlight-color: initial;
+  touch-action: none; /* Prevent default touch behaviors for better 3D controls */
+  cursor: grab; /* Default cursor for 3D interaction */
+}
+
+canvas:active {
+  cursor: grabbing; /* Cursor when dragging */
+}
+
 *,
 *:before,
 *:after {
@@ -43,6 +58,7 @@ body {
   padding: 0;
   outline: none;
   transform: translate3d(0, 0, 0);
+  font-family: "Geist";
   
   scroll-behavior: smooth !important;
   /* https://github.com/vercel/next.js/issues/51721 */
@@ -60,14 +76,24 @@ button {
   text-decoration: none;
   outline: none;
   -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  /* Allow button interactions - don't disable user-select for buttons */
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1); /* Subtle tap feedback */
   background-color: transparent;
   font-size: inherit;
   color: inherit;
+  /* Ensure buttons are interactive */
+  pointer-events: auto;
+  touch-action: manipulation; /* Better touch response */
+}
+
+/* Ensure interactive elements in particle system UIs work properly */
+button:hover {
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+}
+
+button:active {
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+  transform: scale(0.98); /* Subtle press feedback */
 }
 
 

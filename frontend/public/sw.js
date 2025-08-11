@@ -1,10 +1,66 @@
 // Service Worker for OVASABI Platform PWA
-// Provides offline capabilities, caching, and background sync
+// Provides offline capabilities, caching, and background sync with enhanced error handling
 
-const CACHE_NAME = 'ovasabi-v1.0.0';
+const CACHE_NAME = 'ovasabi-v1.0.1'; // Increment for cache invalidation
 const STATIC_CACHE = `${CACHE_NAME}-static`;
 const DYNAMIC_CACHE = `${CACHE_NAME}-dynamic`;
 const WASM_CACHE = `${CACHE_NAME}-wasm`;
+
+// Development mode detection
+const isDevelopment =
+  location.hostname === 'localhost' ||
+  location.hostname === '127.0.0.1' ||
+  location.hostname.includes('dev');
+
+// Error recovery tracking
+let errorCount = 0;
+let lastErrorTime = 0;
+const MAX_ERRORS = 10;
+const ERROR_RESET_TIME = 300000; // 5 minutes
+
+// Resource cleanup tracking
+const openCacheHandles = new Set();
+const activeRequests = new Map();
+
+// Enhanced error handling with graceful degradation
+function handleServiceWorkerError(error, context = 'unknown') {
+  const now = Date.now();
+
+  // Reset error count if enough time has passed
+  if (now - lastErrorTime > ERROR_RESET_TIME) {
+    errorCount = 0;
+  }
+
+  errorCount++;
+  lastErrorTime = now;
+
+  console.error(`[SW] Error in ${context} (${errorCount}/${MAX_ERRORS}):`, error);
+
+  // If too many errors, enter degraded mode
+  if (errorCount >= MAX_ERRORS) {
+    console.warn('[SW] Too many errors, entering degraded mode');
+    return false; // Signal degraded mode
+  }
+
+  return true; // Continue normal operation
+}
+
+// Safe cache operations with cleanup
+async function safeOpenCache(cacheName) {
+  try {
+    const cache = await caches.open(cacheName);
+    openCacheHandles.add(cache);
+    return cache;
+  } catch (error) {
+    handleServiceWorkerError(error, 'cache open');
+    throw error;
+  }
+}
+
+// Clean up cache handles
+function cleanupCacheHandles() {
+  openCacheHandles.clear();
+}
 
 // Assets to cache immediately on install
 const STATIC_ASSETS = [
@@ -13,17 +69,28 @@ const STATIC_ASSETS = [
   '/main.wasm',
   '/main.threads.wasm',
   '/wasm_exec.js',
-  '/sounds/notification.mp3',
-  '/sounds/success.mp3',
-  '/sounds/error.mp3'
+  '/workers/compute-worker.js',
+  '/sounds/theme.aac',
+  '/sounds/tick.aac',
+  '/fonts/Geist[wght].woff2',
+  '/fonts/GeistMono[wght].woff2',
+  '/fonts/Gordita-Bold.otf',
+  '/fonts/Gordita-Medium.otf',
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
+  '/apple-touch-icon.png',
+  '/favicon-16x16.png',
+  '/favicon-32x32.png',
+  '/favicon.ico'
 ];
 
 // Cache strategies for different asset types
 const CACHE_STRATEGIES = {
-  wasm: 'cache-first',
-  static: 'stale-while-revalidate',
+  wasm: isDevelopment ? 'network-first' : 'cache-first', // Network first in dev
+  static: isDevelopment ? 'network-first' : 'stale-while-revalidate',
   api: 'network-first',
-  media: 'cache-first'
+  media: 'cache-first',
+  workers: isDevelopment ? 'network-first' : 'cache-first'
 };
 
 // Install event - cache static assets
@@ -90,6 +157,8 @@ self.addEventListener('fetch', event => {
   // Handle different request types with appropriate strategies
   if (isWASMRequest(request)) {
     event.respondWith(handleWASMRequest(request));
+  } else if (isWorkerRequest(request)) {
+    event.respondWith(handleWorkerRequest(request));
   } else if (isAPIRequest(request)) {
     event.respondWith(handleAPIRequest(request));
   } else if (isMediaRequest(request)) {
@@ -101,24 +170,78 @@ self.addEventListener('fetch', event => {
   }
 });
 
-// WASM requests - cache first (WASM files rarely change)
+// WASM requests - cache first (WASM files rarely change) but network first in dev
 async function handleWASMRequest(request) {
   try {
     const cache = await caches.open(WASM_CACHE);
-    const cachedResponse = await cache.match(request);
 
-    if (cachedResponse) {
-      console.log('[SW] Serving WASM from cache:', request.url);
-      return cachedResponse;
-    }
+    if (isDevelopment) {
+      // In development, always try network first to get latest WASM
+      try {
+        const networkResponse = await fetch(request);
+        if (networkResponse.ok) {
+          await cache.put(request, networkResponse.clone());
+          console.log('[SW] Updated WASM cache in development:', request.url);
+        }
+        return networkResponse;
+      } catch (networkError) {
+        console.log('[SW] Network failed for WASM, using cache:', request.url);
+        const cachedResponse = await cache.match(request);
+        if (cachedResponse) return cachedResponse;
+        throw networkError;
+      }
+    } else {
+      // Production: cache first
+      const cachedResponse = await cache.match(request);
+      if (cachedResponse) {
+        console.log('[SW] Serving WASM from cache:', request.url);
+        return cachedResponse;
+      }
 
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
-      await cache.put(request, networkResponse.clone());
+      const networkResponse = await fetch(request);
+      if (networkResponse.ok) {
+        await cache.put(request, networkResponse.clone());
+      }
+      return networkResponse;
     }
-    return networkResponse;
   } catch (error) {
     console.error('[SW] WASM request failed:', error);
+    throw error;
+  }
+}
+
+// Worker requests - handle compute workers and other workers
+async function handleWorkerRequest(request) {
+  try {
+    const cache = await caches.open(STATIC_CACHE);
+
+    if (isDevelopment) {
+      // In development, always get fresh worker code
+      try {
+        const networkResponse = await fetch(request);
+        if (networkResponse.ok) {
+          await cache.put(request, networkResponse.clone());
+          console.log('[SW] Updated worker cache in development:', request.url);
+        }
+        return networkResponse;
+      } catch (networkError) {
+        const cachedResponse = await cache.match(request);
+        if (cachedResponse) return cachedResponse;
+        throw networkError;
+      }
+    } else {
+      // Production: cache first for workers
+      const cachedResponse = await cache.match(request);
+      if (cachedResponse) return cachedResponse;
+
+      const networkResponse = await fetch(request);
+      if (networkResponse.ok) {
+        await cache.put(request, networkResponse.clone());
+      }
+      return networkResponse;
+    }
+  } catch (error) {
+    console.error('[SW] Worker request failed:', error);
     throw error;
   }
 }
@@ -297,6 +420,10 @@ self.addEventListener('notificationclick', event => {
 // Helper functions
 function isWASMRequest(request) {
   return request.url.includes('.wasm') || request.url.includes('wasm_exec.js');
+}
+
+function isWorkerRequest(request) {
+  return request.url.includes('/workers/') || request.url.includes('worker.js');
 }
 
 function isAPIRequest(request) {
