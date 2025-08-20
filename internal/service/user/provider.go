@@ -75,7 +75,7 @@ func Register(
 	if err != nil {
 		log.With(zap.String("service", "user")).Warn("Failed to get user cache", zap.Error(err), zap.String("cache", "user"), zap.String("context", ctxValue(ctx)))
 	}
-	ctx = context.Background()
+	// Use the inherited context; do not overwrite
 	svc := NewService(ctx, log, repository, cache, eventEmitter, eventEnabled)
 
 	// Register cleanup for user session management

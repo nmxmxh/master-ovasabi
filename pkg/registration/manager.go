@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// DynamicRegistrationManager manages dynamic service registration
+// DynamicRegistrationManager manages dynamic service registration.
 type DynamicRegistrationManager struct {
 	logger    *zap.Logger
 	generator *DynamicServiceRegistrationGenerator
@@ -20,7 +20,7 @@ type DynamicRegistrationManager struct {
 	container *di.Container
 }
 
-// NewDynamicRegistrationManager creates a new dynamic registration manager
+// NewDynamicRegistrationManager creates a new dynamic registration manager.
 func NewDynamicRegistrationManager(
 	logger *zap.Logger,
 	container *di.Container,
@@ -38,7 +38,7 @@ func NewDynamicRegistrationManager(
 }
 
 // AutoRegisterServices automatically registers services based on proto definitions
-// This can replace manual service registration in bootstrap
+// This can replace manual service registration in bootstrap.
 func (drm *DynamicRegistrationManager) AutoRegisterServices(ctx context.Context) error {
 	drm.logger.Info("Starting automatic service registration")
 
@@ -71,7 +71,7 @@ func (drm *DynamicRegistrationManager) AutoRegisterServices(ctx context.Context)
 	return nil
 }
 
-// ValidateExistingRegistrations validates existing service registrations
+// ValidateExistingRegistrations validates existing service registrations.
 func (drm *DynamicRegistrationManager) ValidateExistingRegistrations() error {
 	drm.logger.Info("Validating existing service registrations")
 
@@ -113,7 +113,7 @@ func (drm *DynamicRegistrationManager) ValidateExistingRegistrations() error {
 	return nil
 }
 
-// SyncWithProtoFiles synchronizes service registrations with proto file changes
+// SyncWithProtoFiles synchronizes service registrations with proto file changes.
 func (drm *DynamicRegistrationManager) SyncWithProtoFiles(ctx context.Context) error {
 	drm.logger.Info("Synchronizing service registrations with proto files")
 
@@ -148,14 +148,11 @@ func (drm *DynamicRegistrationManager) SyncWithProtoFiles(ctx context.Context) e
 			drm.registerNewService(newConfig)
 			updated++
 			drm.logger.Info("Registered new service", zap.String("service", newConfig.Name))
-		} else {
-			// Existing service - check for changes
-			if drm.hasSignificantChanges(*existingConfig, newConfig) {
-				drm.updateExistingService(*existingConfig, newConfig)
-				updated++
-				drm.logger.Info("Updated service registration",
-					zap.String("service", newConfig.Name))
-			}
+		} else if drm.hasSignificantChanges(*existingConfig, newConfig) {
+			drm.updateExistingService(*existingConfig, newConfig)
+			updated++
+			drm.logger.Info("Updated service registration",
+				zap.String("service", newConfig.Name))
 		}
 	}
 
@@ -163,7 +160,7 @@ func (drm *DynamicRegistrationManager) SyncWithProtoFiles(ctx context.Context) e
 	return nil
 }
 
-// GenerateServiceGraph generates and saves service dependency graph
+// GenerateServiceGraph generates and saves service dependency graph.
 func (drm *DynamicRegistrationManager) GenerateServiceGraph(outputPath string) error {
 	configs, err := drm.loadExistingConfigs()
 	if err != nil {
@@ -178,7 +175,7 @@ func (drm *DynamicRegistrationManager) GenerateServiceGraph(outputPath string) e
 	return nil
 }
 
-// loadExistingConfigs loads existing service configurations
+// loadExistingConfigs loads existing service configurations.
 func (drm *DynamicRegistrationManager) loadExistingConfigs() ([]ServiceRegistrationConfig, error) {
 	// Try generated config first, then fallback to manual config
 	configs, err := drm.loadConfigFile("config/service_registration_generated.json")
@@ -191,7 +188,7 @@ func (drm *DynamicRegistrationManager) loadExistingConfigs() ([]ServiceRegistrat
 	return configs, nil
 }
 
-// loadConfigFile loads configuration from a file
+// loadConfigFile loads configuration from a file.
 func (drm *DynamicRegistrationManager) loadConfigFile(path string) ([]ServiceRegistrationConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -206,7 +203,7 @@ func (drm *DynamicRegistrationManager) loadConfigFile(path string) ([]ServiceReg
 	return configs, nil
 }
 
-// convertMethods converts action configs to registry methods
+// convertMethods converts action configs to registry methods.
 func (drm *DynamicRegistrationManager) convertMethods(config ServiceRegistrationConfig) []registry.ServiceMethod {
 	methods := make([]registry.ServiceMethod, 0, len(config.ActionMap))
 
@@ -221,7 +218,7 @@ func (drm *DynamicRegistrationManager) convertMethods(config ServiceRegistration
 	return methods
 }
 
-// registerNewService registers a new service with the registry
+// registerNewService registers a new service with the registry.
 func (drm *DynamicRegistrationManager) registerNewService(config ServiceRegistrationConfig) {
 	serviceReg := registry.ServiceRegistration{
 		ServiceName:  config.Name,
@@ -235,27 +232,27 @@ func (drm *DynamicRegistrationManager) registerNewService(config ServiceRegistra
 	registry.RegisterService(serviceReg)
 }
 
-// updateExistingService updates an existing service registration
+// updateExistingService updates an existing service registration.
 func (drm *DynamicRegistrationManager) updateExistingService(
-	existing ServiceRegistrationConfig,
-	new ServiceRegistrationConfig,
+	_ ServiceRegistrationConfig,
+	updatedConfig ServiceRegistrationConfig,
 ) {
 	// For now, just re-register the service
 	// In a more sophisticated implementation, you could do incremental updates
-	drm.registerNewService(new)
+	drm.registerNewService(updatedConfig)
 }
 
-// hasSignificantChanges checks if there are significant changes between configs
+// hasSignificantChanges checks if there are significant changes between configs.
 func (drm *DynamicRegistrationManager) hasSignificantChanges(
 	existing ServiceRegistrationConfig,
-	new ServiceRegistrationConfig,
+	updatedConfig ServiceRegistrationConfig,
 ) bool {
 	// Compare key aspects
-	if existing.Version != new.Version {
+	if existing.Version != updatedConfig.Version {
 		return true
 	}
 
-	if len(existing.Schema.Methods) != len(new.Schema.Methods) {
+	if len(existing.Schema.Methods) != len(updatedConfig.Schema.Methods) {
 		return true
 	}
 
@@ -265,7 +262,7 @@ func (drm *DynamicRegistrationManager) hasSignificantChanges(
 		existingMethods[method] = true
 	}
 
-	for _, method := range new.Schema.Methods {
+	for _, method := range updatedConfig.Schema.Methods {
 		if !existingMethods[method] {
 			return true // New method found
 		}
@@ -275,7 +272,7 @@ func (drm *DynamicRegistrationManager) hasSignificantChanges(
 }
 
 // EnableAutoSync enables automatic synchronization with proto files
-// This could be called during development to automatically update registrations
+// This could be called during development to automatically update registrations.
 func (drm *DynamicRegistrationManager) EnableAutoSync(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

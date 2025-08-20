@@ -373,10 +373,11 @@ func (kg *KnowledgeGraph) AddService(category, name string, serviceInfo map[stri
 	if meta, ok := serviceInfo["metadata"].(map[string]interface{}); ok {
 		svc.Metadata = meta
 	}
-	if deps, ok := serviceInfo["dependencies"].([]string); ok {
+	switch deps := serviceInfo["dependencies"].(type) {
+	case []string:
 		svc.Dependencies = deps
-	} else if depsIface, ok := serviceInfo["dependencies"].([]interface{}); ok {
-		for _, d := range depsIface {
+	case []interface{}:
+		for _, d := range deps {
 			if s, ok := d.(string); ok {
 				svc.Dependencies = append(svc.Dependencies, s)
 			}
@@ -749,7 +750,7 @@ func (kg *KnowledgeGraph) saveWithoutLock(filePath string) error {
 	return nil
 }
 
-// incrementVersion increments the patch version (e.g., 1.0.0 -> 1.0.1)
+// incrementVersion increments the patch version (e.g., 1.0.0 -> 1.0.1).
 func (kg *KnowledgeGraph) incrementVersion() {
 	parts := strings.Split(kg.Version, ".")
 	if len(parts) != 3 {
@@ -771,7 +772,7 @@ func (kg *KnowledgeGraph) incrementVersion() {
 	kg.Version = fmt.Sprintf("%s.%s.%d", parts[0], parts[1], patch)
 }
 
-// updateVersionAndTimestamp updates both version and timestamp, then saves to disk
+// updateVersionAndTimestamp updates both version and timestamp, then saves to disk.
 func (kg *KnowledgeGraph) updateVersionAndTimestamp() error {
 	kg.incrementVersion()
 	kg.LastUpdated = time.Now().UTC()

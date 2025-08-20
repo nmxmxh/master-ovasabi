@@ -101,10 +101,10 @@ func ProductOpsHandler(container *di.Container) http.HandlerFunc {
 					httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing product data in request", nil)
 					return
 				}
-				handleProductAction(w, ctx, log, req, &productpb.CreateProductRequest{}, productSvc.CreateProduct)
+				handleProductAction(ctx, w, log, req, &productpb.CreateProductRequest{}, productSvc.CreateProduct)
 			},
 			"get_product": func() {
-				handleProductAction(w, ctx, log, req, &productpb.GetProductRequest{}, productSvc.GetProduct)
+				handleProductAction(ctx, w, log, req, &productpb.GetProductRequest{}, productSvc.GetProduct)
 			},
 			"update_product": func() {
 				if isGuest {
@@ -132,7 +132,7 @@ func ProductOpsHandler(container *di.Container) http.HandlerFunc {
 					httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing product data in request", nil)
 					return
 				}
-				handleProductAction(w, ctx, log, req, &productpb.UpdateProductRequest{}, productSvc.UpdateProduct)
+				handleProductAction(ctx, w, log, req, &productpb.UpdateProductRequest{}, productSvc.UpdateProduct)
 			},
 			"delete_product": func() {
 				if isGuest {
@@ -144,19 +144,19 @@ func ProductOpsHandler(container *di.Container) http.HandlerFunc {
 					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: only owner or admin can delete", nil)
 					return
 				}
-				handleProductAction(w, ctx, log, req, &productpb.DeleteProductRequest{}, productSvc.DeleteProduct)
+				handleProductAction(ctx, w, log, req, &productpb.DeleteProductRequest{}, productSvc.DeleteProduct)
 			},
 			"list_products": func() {
 				if m, ok := req["metadata_filters"].(map[string]interface{}); ok {
 					ctx = context.WithValue(ctx, metadataFiltersKey, m)
 				}
-				handleProductAction(w, ctx, log, req, &productpb.ListProductsRequest{}, productSvc.ListProducts)
+				handleProductAction(ctx, w, log, req, &productpb.ListProductsRequest{}, productSvc.ListProducts)
 			},
 			"search_products": func() {
 				if m, ok := req["metadata_filters"].(map[string]interface{}); ok {
 					ctx = context.WithValue(ctx, metadataFiltersKey, m)
 				}
-				handleProductAction(w, ctx, log, req, &productpb.SearchProductsRequest{}, productSvc.SearchProducts)
+				handleProductAction(ctx, w, log, req, &productpb.SearchProductsRequest{}, productSvc.SearchProducts)
 			},
 		}
 
@@ -171,8 +171,8 @@ func ProductOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleProductAction is a generic helper to reduce boilerplate in ProductOpsHandler.
 func handleProductAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

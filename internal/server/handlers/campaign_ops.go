@@ -131,7 +131,7 @@ func CampaignOpsHandler(container *di.Container) http.HandlerFunc {
 					return
 				}
 
-				handleCampaignAction(w, ctx, log, req, &campaignpb.CreateCampaignRequest{}, campaignSvc.CreateCampaign)
+				handleCampaignAction(ctx, w, log, req, &campaignpb.CreateCampaignRequest{}, campaignSvc.CreateCampaign)
 			},
 			"update_campaign": func() {
 				if isGuest {
@@ -158,15 +158,15 @@ func CampaignOpsHandler(container *di.Container) http.HandlerFunc {
 				}
 				req["campaign"] = campaignData
 
-				handleCampaignAction(w, ctx, log, req, &campaignpb.UpdateCampaignRequest{}, campaignSvc.UpdateCampaign)
+				handleCampaignAction(ctx, w, log, req, &campaignpb.UpdateCampaignRequest{}, campaignSvc.UpdateCampaign)
 			},
 			"list_campaigns": func() {
 				// No specific permission check beyond initial guest check if needed
-				handleCampaignAction(w, ctx, log, req, &campaignpb.ListCampaignsRequest{}, campaignSvc.ListCampaigns)
+				handleCampaignAction(ctx, w, log, req, &campaignpb.ListCampaignsRequest{}, campaignSvc.ListCampaigns)
 			},
 			"get_campaign": func() {
 				// No specific permission check beyond initial guest check if needed
-				handleCampaignAction(w, ctx, log, req, &campaignpb.GetCampaignRequest{}, campaignSvc.GetCampaign)
+				handleCampaignAction(ctx, w, log, req, &campaignpb.GetCampaignRequest{}, campaignSvc.GetCampaign)
 			},
 			"delete_campaign": func() {
 				if isGuest {
@@ -182,7 +182,7 @@ func CampaignOpsHandler(container *di.Container) http.HandlerFunc {
 					httputil.HandleShieldError(w, log, err)
 					return
 				}
-				handleCampaignAction(w, ctx, log, req, &campaignpb.DeleteCampaignRequest{}, campaignSvc.DeleteCampaign)
+				handleCampaignAction(ctx, w, log, req, &campaignpb.DeleteCampaignRequest{}, campaignSvc.DeleteCampaign)
 			},
 		}
 
@@ -196,8 +196,8 @@ func CampaignOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleCampaignAction is a generic helper to reduce boilerplate in CampaignOpsHandler.
 func handleCampaignAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

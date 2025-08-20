@@ -45,38 +45,39 @@ func (w *TorrentWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) 
 		filePath := f.Path()
 		// Download file to memory
 		reader := f.NewReader()
-		defer reader.Close()
-
-		// Extract archive content if applicable
-		if isArchive(filePath) {
-			buf := new(bytes.Buffer)
-			_, err := io.Copy(buf, reader)
-			if err != nil {
-				zap.L().Sugar().Warnf("Error reading archive %s: %v", filePath, err)
-				continue
+		func() {
+			defer reader.Close()
+			// Extract archive content if applicable
+			if isArchive(ctx, filePath) {
+				buf := new(bytes.Buffer)
+				_, err := io.Copy(buf, reader)
+				if err != nil {
+					zap.L().Sugar().Warnf("Error reading archive %s: %v", filePath, err)
+					return
+				}
+				if err := extractAndSanitizeArchive(ctx, buf.Bytes(), security, result); err != nil {
+					zap.L().Sugar().Warnf("Error extracting archive %s: %v", filePath, err)
+				}
+			} else {
+				// Read non-archive content and sanitize
+				buf := new(bytes.Buffer)
+				_, err := io.Copy(buf, reader)
+				if err != nil {
+					zap.L().Sugar().Warnf("Error reading file %s: %v", filePath, err)
+					return
+				}
+				cleaned, err := security.SanitizeContent(ctx, buf.Bytes())
+				if err == nil {
+					result.ExtractedContent = append(result.ExtractedContent, cleaned...)
+				}
 			}
-			if err := extractAndSanitizeArchive(ctx, buf.Bytes(), security, result); err != nil {
-				zap.L().Sugar().Warnf("Error extracting archive %s: %v", filePath, err)
-			}
-		} else {
-			// Read non-archive content and sanitize
-			buf := new(bytes.Buffer)
-			_, err := io.Copy(buf, reader)
-			if err != nil {
-				zap.L().Sugar().Warnf("Error reading file %s: %v", filePath, err)
-				continue
-			}
-			cleaned, err := security.SanitizeContent(ctx, buf.Bytes())
-			if err == nil {
-				result.ExtractedContent = append(result.ExtractedContent, cleaned...)
-			}
-		}
+		}()
 	}
 
 	return result, nil
 }
 
-// Extracts from archive bytes in memory and sanitizes each file
+// Extracts from archive bytes in memory and sanitizes each file.
 func extractAndSanitizeArchive(ctx context.Context, archiveData []byte, security *SecurityWorker, result *crawlerpb.CrawlResult) error {
 	format, input, err := archiver.Identify(ctx, "", bytes.NewReader(archiveData))
 	if err != nil {

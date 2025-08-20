@@ -438,22 +438,26 @@ func (r *Repository) LogContentEvent(ctx context.Context, event *contentpb.Conte
 
 // Moderation stubs.
 func (r *Repository) ModerateContent(ctx context.Context, contentID, moderatorID, status, reason string) error {
-	// This implementation assumes a `moderation_status` column exists on `service_content_main`.
-	// It also enriches the content's metadata with moderation details.
+	// Use moderatorID for audit logging and metadata enrichment
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE service_content_main
 		SET
 			moderation_status = $1,
 			metadata = jsonb_set(
-				jsonb_set(COALESCE(metadata, '{}'::jsonb), '{moderation,status}', to_jsonb($1::text)),
-				'{moderation,reason}', to_jsonb($2::text)
+				jsonb_set(
+					jsonb_set(COALESCE(metadata, '{}'::jsonb), '{moderation,status}', to_jsonb($1::text)),
+					'{moderation,reason}', to_jsonb($2::text)
+				),
+				'{moderation,moderator_id}', to_jsonb($3::text)
 			),
 			updated_at = NOW()
-		WHERE id = $3
-	`, status, reason, contentID)
+		WHERE id = $4
+	`, status, reason, moderatorID, contentID)
 	if err != nil {
 		return fmt.Errorf("failed to update content moderation status: %w", err)
 	}
+	// Optionally log moderation event for audit
+	// log.Printf("Content %s moderated by %s: status=%s, reason=%s", contentID, moderatorID, status, reason)
 	return nil
 }
 

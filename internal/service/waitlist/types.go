@@ -2,7 +2,7 @@ package waitlist
 
 // Metadata structures for waitlist service-specific metadata
 
-// Metadata represents the waitlist service-specific metadata structure
+// Metadata represents the waitlist service-specific metadata structure.
 type Metadata struct {
 	Campaign      string             `json:"campaign,omitempty"`
 	Tier          string             `json:"tier,omitempty"`
@@ -17,7 +17,7 @@ type Metadata struct {
 	Gamified      interface{}        `json:"gamified,omitempty"`
 }
 
-// LocationMetadata represents location-specific metadata
+// LocationMetadata represents location-specific metadata.
 type LocationMetadata struct {
 	Country *string  `json:"country,omitempty"`
 	Region  *string  `json:"region,omitempty"`
@@ -26,7 +26,7 @@ type LocationMetadata struct {
 	Lng     *float64 `json:"lng,omitempty"`
 }
 
-// AnalyticsMetadata represents analytics tracking metadata
+// AnalyticsMetadata represents analytics tracking metadata.
 type AnalyticsMetadata struct {
 	IPAddress   *string `json:"ip_address,omitempty"`
 	UserAgent   *string `json:"user_agent,omitempty"`
@@ -38,7 +38,7 @@ type AnalyticsMetadata struct {
 	UTMContent  *string `json:"utm_content,omitempty"`
 }
 
-// ReferralMetadata represents referral-specific metadata
+// ReferralMetadata represents referral-specific metadata.
 type ReferralMetadata struct {
 	ReferralUsername *string `json:"referral_username,omitempty"`
 	ReferralCode     *string `json:"referral_code,omitempty"`

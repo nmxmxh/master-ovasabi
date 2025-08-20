@@ -21,6 +21,9 @@ type PerformanceLogger struct {
 
 	// Time-based aggregation buckets
 	timeAggregates map[string]*TimeAggregate
+	stopCh         chan struct{}
+	id             string // diagnostics: unique logger id
+	stopped        bool   // diagnostics: track if stopped
 }
 
 // TimeAggregate stores performance data for a specific time period
@@ -61,7 +64,12 @@ func NewPerformanceLogger(interval time.Duration) *PerformanceLogger {
 		timeAggregates:  make(map[string]*TimeAggregate),
 		lastLogTime:     time.Now(),
 		logInterval:     interval,
+		stopCh:          make(chan struct{}),
+		id:              fmt.Sprintf("logger-%d", time.Now().UnixNano()),
+		stopped:         false,
 	}
+
+	wasmLog("[PERF-LOGGER]", logger.id, "NewPerformanceLogger created")
 
 	// Initialize time aggregates for all periods
 	logger.initializeTimeAggregates()
@@ -270,34 +278,66 @@ func (pl *PerformanceLogger) updateTimeAggregates(t time.Time, operation string,
 	}
 }
 
-// startPeriodicLogging runs in background and logs aggregated stats
 func (pl *PerformanceLogger) startPeriodicLogging() {
-	ticker := time.NewTicker(pl.logInterval)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		pl.logAggregatedStats()
-	}
+	wasmLog("[PERF-LOGGER]", pl.id, "startPeriodicLogging called")
+	go func() {
+		for {
+			select {
+			case <-pl.stopCh:
+				wasmLog("[PERF-LOGGER]", pl.id, "Periodic logging stopped and goroutine exiting.")
+				pl.stopped = true
+				return
+			case <-time.After(pl.logInterval):
+				if pl.stopped {
+					wasmLog("[PERF-LOGGER]", pl.id, "Periodic logging tick ignored, logger stopped.")
+					return
+				}
+				wasmLog("[PERF-LOGGER]", pl.id, "Periodic logging tick.")
+				pl.logAggregatedStats()
+			}
+		}
+	}()
 }
 
 // logAggregatedStats logs the accumulated performance statistics
 func (pl *PerformanceLogger) logAggregatedStats() {
+	defer func() {
+		if r := recover(); r != nil {
+			wasmLog("[PERF-LOGGER]", pl.id, "Panic recovered in logAggregatedStats:", r)
+		}
+	}()
 	pl.mutex.Lock()
 	defer pl.mutex.Unlock()
 
+	if pl.stopped {
+		wasmLog("[PERF-LOGGER]", pl.id, "logAggregatedStats called after stop, ignoring.")
+		return
+	}
+
 	if pl.totalOperations == 0 {
-		return // Nothing to log
+		wasmLog("[PERF-LOGGER]", pl.id, "No operations to log.")
+		wasmLog("[PERF-LOGGER]", pl.id, "logAggregatedStats complete.")
+		return
 	}
 
 	currentTime := time.Now()
 	duration := currentTime.Sub(pl.lastLogTime)
+	var avgParticlesPerOp int64 = 0
+	var opsPerSec float64 = 0
+	// Defensive: avoid division by zero
+	if pl.totalOperations > 0 {
+		avgParticlesPerOp = pl.totalParticles / pl.totalOperations
+	}
+	if duration.Seconds() > 0 {
+		opsPerSec = float64(pl.totalOperations) / duration.Seconds()
+	}
 
 	wasmLog("[PERF-SUMMARY]",
 		"Duration:", duration.Round(time.Second),
 		"Total Operations:", pl.totalOperations,
 		"Total Particles:", pl.totalParticles,
-		"Avg Particles/Op:", pl.totalParticles/pl.totalOperations,
-		"Ops/Sec:", float64(pl.totalOperations)/duration.Seconds())
+		"Avg Particles/Op:", avgParticlesPerOp,
+		"Ops/Sec:", opsPerSec)
 
 	// Log operation breakdown
 	for operation, count := range pl.operationCounts {
@@ -312,6 +352,9 @@ func (pl *PerformanceLogger) logAggregatedStats() {
 	pl.totalParticles = 0
 	pl.totalOperations = 0
 	pl.lastLogTime = currentTime
+
+	// Always log completion
+	wasmLog("[PERF-LOGGER] logAggregatedStats complete.")
 }
 
 // logTimeAggregatesSummary logs summaries of time-based aggregations
@@ -380,209 +423,17 @@ func (pl *PerformanceLogger) logHistoricalTrends(currentTime time.Time) {
 	}
 }
 
-// --- Performance Analytics JavaScript API ---
-
-// getPerformanceAggregates returns time-based aggregates as JSON
-func getPerformanceAggregates(this js.Value, args []js.Value) interface{} {
-	if perfLogger == nil {
-		return js.ValueOf(map[string]interface{}{"error": "Performance logger not initialized"})
-	}
-
-	perfLogger.mutex.Lock()
-	defer perfLogger.mutex.Unlock()
-
-	currentTime := time.Now()
-	aggregates := make(map[string]interface{})
-
-	for _, period := range aggregationPeriods {
-		bucketKey := perfLogger.getTimeBucketKey(currentTime, period)
-		if aggregate, exists := perfLogger.timeAggregates[bucketKey]; exists {
-			aggregates[period.Name] = map[string]interface{}{
-				"operations":    aggregate.Operations,
-				"particles":     aggregate.Particles,
-				"peakOpsPerSec": aggregate.PeakOpsPerSec,
-				"avgOpsPerSec":  aggregate.AvgOpsPerSec,
-				"avgParticles":  aggregate.AvgParticles,
-				"startTime":     aggregate.StartTime.Unix(),
-				"endTime":       aggregate.EndTime.Unix(),
-			}
-		}
-	}
-
-	return js.ValueOf(aggregates)
-}
-
-// getPerformanceTrends returns trend analysis data as JSON
-func getPerformanceTrends(this js.Value, args []js.Value) interface{} {
-	if perfLogger == nil {
-		return js.ValueOf(map[string]interface{}{"error": "Performance logger not initialized"})
-	}
-
-	perfLogger.mutex.Lock()
-	defer perfLogger.mutex.Unlock()
-
-	currentTime := time.Now()
-	trends := make(map[string]interface{})
-
-	// Hour-over-hour trend
-	currentHourKey := perfLogger.getTimeBucketKey(currentTime, TimePeriod{"hour", time.Hour, "2006-01-02T15"})
-	previousHourKey := perfLogger.getTimeBucketKey(currentTime.Add(-time.Hour), TimePeriod{"hour", time.Hour, "2006-01-02T15"})
-
-	if currentHour, exists1 := perfLogger.timeAggregates[currentHourKey]; exists1 {
-		if previousHour, exists2 := perfLogger.timeAggregates[previousHourKey]; exists2 && previousHour.Operations > 0 {
-			opsChange := float64(currentHour.Operations-previousHour.Operations) / float64(previousHour.Operations) * 100
-			particlesChange := float64(currentHour.Particles-previousHour.Particles) / float64(previousHour.Particles) * 100
-
-			trends["hourOverHour"] = map[string]interface{}{
-				"operationsChange": opsChange,
-				"particlesChange":  particlesChange,
-			}
-		}
-	}
-
-	// Day-over-day trend
-	currentDayKey := perfLogger.getTimeBucketKey(currentTime, TimePeriod{"day", 24 * time.Hour, "2006-01-02"})
-	previousDayKey := perfLogger.getTimeBucketKey(currentTime.AddDate(0, 0, -1), TimePeriod{"day", 24 * time.Hour, "2006-01-02"})
-
-	if currentDay, exists1 := perfLogger.timeAggregates[currentDayKey]; exists1 {
-		if previousDay, exists2 := perfLogger.timeAggregates[previousDayKey]; exists2 && previousDay.Operations > 0 {
-			opsChange := float64(currentDay.Operations-previousDay.Operations) / float64(previousDay.Operations) * 100
-			particlesChange := float64(currentDay.Particles-previousDay.Particles) / float64(previousDay.Particles) * 100
-
-			trends["dayOverDay"] = map[string]interface{}{
-				"operationsChange": opsChange,
-				"particlesChange":  particlesChange,
-			}
-		}
-	}
-
-	return js.ValueOf(trends)
-}
-
-// getPerformanceSummary returns current performance summary as JSON
-func getPerformanceSummary(this js.Value, args []js.Value) interface{} {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("WASM panic in getPerformanceSummary: %v\n", r)
-		}
-	}()
-
-	if perfLogger == nil {
-		return js.ValueOf(map[string]interface{}{"error": "Performance logger not initialized"})
-	}
-
-	perfLogger.mutex.Lock()
-	defer perfLogger.mutex.Unlock()
-
-	currentTime := time.Now()
-	duration := currentTime.Sub(perfLogger.lastLogTime)
-	if duration < 0 {
-		duration = 0
-	}
-
-	// Safely convert operationCounts with nil check
-	operationCountsJS := make(map[string]float64)
-	if perfLogger.operationCounts != nil {
-		for k, v := range perfLogger.operationCounts {
-			if k != "" { // Ensure key is not empty
-				operationCountsJS[k] = float64(v)
-			}
-		}
-	}
-
-	avgParticlesPerOp := 0.0
-	if perfLogger.totalOperations > 0 {
-		avgParticlesPerOp = float64(perfLogger.totalParticles) / float64(perfLogger.totalOperations)
-	}
-
-	opsPerSecond := 0.0
-	if duration.Seconds() > 0 {
-		opsPerSecond = float64(perfLogger.totalOperations) / duration.Seconds()
-	}
-
-	summary := map[string]interface{}{
-		"totalOperations":   float64(perfLogger.totalOperations),
-		"totalParticles":    float64(perfLogger.totalParticles),
-		"avgParticlesPerOp": avgParticlesPerOp,
-		"opsPerSecond":      opsPerSecond,
-		"duration":          duration.Seconds(),
-		"operationCounts":   operationCountsJS,
-		"lastLogTime":       float64(perfLogger.lastLogTime.Unix()),
-	}
-
-	return js.ValueOf(summary)
-}
-
-// resetPerformanceCounters resets the performance counters
-func resetPerformanceCounters(this js.Value, args []js.Value) interface{} {
-	if perfLogger == nil {
-		return js.ValueOf(map[string]interface{}{"error": "Performance logger not initialized"})
-	}
-
-	perfLogger.mutex.Lock()
-	defer perfLogger.mutex.Unlock()
-
-	perfLogger.operationCounts = make(map[string]int64)
-	perfLogger.totalParticles = 0
-	perfLogger.totalOperations = 0
-	perfLogger.lastLogTime = time.Now()
-
-	return js.ValueOf(map[string]interface{}{"success": true})
-}
-
-// benchmarkConcurrentVsGPU compares performance of concurrent CPU vs GPU processing
-func benchmarkConcurrentVsGPU(this js.Value, args []js.Value) interface{} {
-	particleCount := 50000 // Default benchmark size
-	if len(args) > 0 {
-		particleCount = args[0].Int()
-	}
-
-	// Generate test data
-	testData := make([]float32, particleCount*3)
-	for i := 0; i < len(testData); i += 3 {
-		testData[i] = float32((i/3)%100 - 50)    // X
-		testData[i+1] = float32((i/3)%50 - 25)   // Y
-		testData[i+2] = float32((i/3)%75) - 37.5 // Z
-	}
-
-	deltaTime := 0.016667 // 60 FPS
-	animationMode := 1.0  // Galaxy rotation
-
-	benchmark := map[string]interface{}{
-		"particleCount": particleCount,
-		"testSizes":     []int{particleCount},
-		"results":       make(map[string]interface{}),
-	}
-
-	// Benchmark concurrent CPU processing
-	if particleWorkerPool != nil {
-		cpuStart := time.Now()
-		cpuResult := particleWorkerPool.ProcessParticlesConcurrently(testData, deltaTime, animationMode)
-		cpuTime := float64(time.Since(cpuStart).Nanoseconds()) / 1e6
-
-		benchmark["results"].(map[string]interface{})["concurrent"] = map[string]interface{}{
-			"processingTime": cpuTime,
-			"particlesPerMs": float64(particleCount) / cpuTime,
-			"workers":        particleWorkerPool.workers,
-		}
-
-		// Return memory to pool
-		memoryPools.PutFloat32Buffer(cpuResult)
-	}
-
-	// GPU benchmark would be called separately via existing GPU functions
-	benchmark["results"].(map[string]interface{})["note"] = "GPU benchmark available via runGPUCompute"
-
-	return js.ValueOf(benchmark)
-}
-
 // Only log from main thread (browser JS context)
 func isMainThread() bool {
 	return js.Global().Get("document").Truthy()
 }
 
 func wasmLog(args ...interface{}) {
-	fmt.Println(flattenArgs(args)...)
+	var strArgs []interface{}
+	for _, arg := range args {
+		strArgs = append(strArgs, fmt.Sprintf("%v", arg))
+	}
+	js.Global().Get("console").Call("log", strArgs...)
 }
 
 func flattenArgs(args []interface{}) []interface{} {
@@ -604,4 +455,20 @@ func wasmWarn(args ...interface{}) {
 
 func wasmError(args ...interface{}) {
 	fmt.Println(append([]interface{}{"[ERROR]"}, flattenArgs(args)...)...)
+}
+
+func (pl *PerformanceLogger) Stop() {
+	defer func() {
+		if r := recover(); r != nil {
+			wasmLog("[PERF-LOGGER]", pl.id, "Panic recovered in Stop:", r)
+		}
+	}()
+	if pl.stopCh != nil && !pl.stopped {
+		wasmLog("[PERF-LOGGER]", pl.id, "Stop called, closing stopCh.")
+		close(pl.stopCh)
+		pl.stopCh = nil
+		pl.stopped = true
+	} else {
+		wasmLog("[PERF-LOGGER]", pl.id, "Stop called, but already stopped or stopCh nil.")
+	}
 }

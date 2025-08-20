@@ -19,7 +19,6 @@ func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadLocalizationEvents()
 	for _, evt := range evts {
-		// Example: evt = "localization:translate:v1:completed"; key = "translate:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -40,17 +39,28 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadLocalizationEvents() []string {
 	return events.LoadCanonicalEvents("localization")
 }
 
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 func parseActionAndState(eventType string) (action, state string) {
@@ -61,7 +71,7 @@ func parseActionAndState(eventType string) (action, state string) {
 	return "", ""
 }
 
-// Generic event handler for all localization service actions
+// Generic event handler for all localization service actions.
 func HandleLocalizationServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	eventType := event.GetEventType()
 	action, _ := parseActionAndState(eventType)
@@ -78,7 +88,7 @@ func HandleLocalizationServiceEvent(ctx context.Context, s *Service, event *nexu
 	handler(ctx, s, event)
 }
 
-// Example handler for translate
+// Example handler for translate.
 func handleTranslate(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling translate event", zap.Any("event", event))
 	var req localizationpb.TranslateRequest
@@ -109,7 +119,7 @@ func handleTranslate(ctx context.Context, svc *Service, event *nexusv1.EventResp
 	}
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	InitCanonicalEventTypeRegistry()
 	m := make(map[string]ActionHandlerFunc)

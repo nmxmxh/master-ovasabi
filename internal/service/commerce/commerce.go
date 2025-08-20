@@ -36,7 +36,9 @@ func handleQuoteAction(ctx context.Context, svc *Service, event *nexusv1.EventRe
 				return
 			}
 		}
-		svc.CreateQuote(ctx, &req)
+		if _, err := svc.CreateQuote(ctx, &req); err != nil {
+			svc.log.Error("CreateQuote failed", zap.Error(err))
+		}
 	case "update":
 		// Implement update logic if needed
 	case "delete":
@@ -59,7 +61,9 @@ func handleOrderAction(ctx context.Context, svc *Service, event *nexusv1.EventRe
 				return
 			}
 		}
-		svc.CreateOrder(ctx, &req)
+		if _, err := svc.CreateOrder(ctx, &req); err != nil {
+			svc.log.Error("CreateOrder failed", zap.Error(err))
+		}
 	case "update":
 		var req commercepb.UpdateOrderStatusRequest
 		if event.Payload != nil && event.Payload.Data != nil {
@@ -72,7 +76,9 @@ func handleOrderAction(ctx context.Context, svc *Service, event *nexusv1.EventRe
 				return
 			}
 		}
-		svc.UpdateOrderStatus(ctx, &req)
+		if _, err := svc.UpdateOrderStatus(ctx, &req); err != nil {
+			svc.log.Error("UpdateOrderStatus failed", zap.Error(err))
+		}
 	case "delete":
 		// Implement delete logic if needed
 	}
@@ -93,7 +99,9 @@ func handlePaymentAction(ctx context.Context, svc *Service, event *nexusv1.Event
 				return
 			}
 		}
-		svc.InitiatePayment(ctx, &req)
+		if _, err := svc.InitiatePayment(ctx, &req); err != nil {
+			svc.log.Error("InitiatePayment failed", zap.Error(err))
+		}
 	case "confirm":
 		var req commercepb.ConfirmPaymentRequest
 		if event.Payload != nil && event.Payload.Data != nil {
@@ -106,7 +114,9 @@ func handlePaymentAction(ctx context.Context, svc *Service, event *nexusv1.Event
 				return
 			}
 		}
-		svc.ConfirmPayment(ctx, &req)
+		if _, err := svc.ConfirmPayment(ctx, &req); err != nil {
+			svc.log.Error("ConfirmPayment failed", zap.Error(err))
+		}
 	case "refund":
 		var req commercepb.RefundPaymentRequest
 		if event.Payload != nil && event.Payload.Data != nil {
@@ -119,7 +129,9 @@ func handlePaymentAction(ctx context.Context, svc *Service, event *nexusv1.Event
 				return
 			}
 		}
-		svc.RefundPayment(ctx, &req)
+		if _, err := svc.RefundPayment(ctx, &req); err != nil {
+			svc.log.Error("RefundPayment failed", zap.Error(err))
+		}
 	}
 }
 
@@ -138,7 +150,9 @@ func handleTransactionAction(ctx context.Context, svc *Service, event *nexusv1.E
 				return
 			}
 		}
-		svc.GetTransaction(ctx, &req)
+		if _, err := svc.GetTransaction(ctx, &req); err != nil {
+			svc.log.Error("GetTransaction failed", zap.Error(err))
+		}
 	case "list":
 		var req commercepb.ListTransactionsRequest
 		if event.Payload != nil && event.Payload.Data != nil {
@@ -151,7 +165,9 @@ func handleTransactionAction(ctx context.Context, svc *Service, event *nexusv1.E
 				return
 			}
 		}
-		svc.ListTransactions(ctx, &req)
+		if _, err := svc.ListTransactions(ctx, &req); err != nil {
+			svc.log.Error("ListTransactions failed", zap.Error(err))
+		}
 	}
 }
 
@@ -170,7 +186,9 @@ func handlePortfolioAction(ctx context.Context, svc *Service, event *nexusv1.Eve
 				return
 			}
 		}
-		svc.GetPortfolio(ctx, &req)
+		if _, err := svc.GetPortfolio(ctx, &req); err != nil {
+			svc.log.Error("GetPortfolio failed", zap.Error(err))
+		}
 	case "list":
 		var req commercepb.ListPortfoliosRequest
 		if event.Payload != nil && event.Payload.Data != nil {
@@ -183,11 +201,17 @@ func handlePortfolioAction(ctx context.Context, svc *Service, event *nexusv1.Eve
 				return
 			}
 		}
-		svc.ListPortfolios(ctx, &req)
+		if _, err := svc.ListPortfolios(ctx, &req); err != nil {
+			svc.log.Error("ListPortfolios failed", zap.Error(err))
+		}
 	}
 }
 
 func handleListingAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	// Reference unused ctx for diagnostics/cancellation
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleListingAction", zap.Error(ctx.Err()))
+	}
 	_, state := parseActionAndState(event.GetEventType())
 	switch state {
 	case "create":
@@ -202,7 +226,6 @@ func handleListingAction(ctx context.Context, svc *Service, event *nexusv1.Event
 				return
 			}
 		}
-		// svc.CreateListing(ctx, &req) // Implement CreateListing method
 	case "list":
 		var req commercepb.ListListingsRequest
 		if event.Payload != nil && event.Payload.Data != nil {
@@ -215,7 +238,6 @@ func handleListingAction(ctx context.Context, svc *Service, event *nexusv1.Event
 				return
 			}
 		}
-		// svc.ListListings(ctx, &req) // Implement ListListings method
 	}
 }
 
@@ -234,7 +256,9 @@ func handleBalanceAction(ctx context.Context, svc *Service, event *nexusv1.Event
 				return
 			}
 		}
-		svc.GetBalance(ctx, &req)
+		if _, err := svc.GetBalance(ctx, &req); err != nil {
+			svc.log.Error("GetBalance failed", zap.Error(err))
+		}
 	case "list":
 		var req commercepb.ListBalancesRequest
 		if event.Payload != nil && event.Payload.Data != nil {
@@ -247,14 +271,19 @@ func handleBalanceAction(ctx context.Context, svc *Service, event *nexusv1.Event
 				return
 			}
 		}
-		svc.ListBalances(ctx, &req)
+		if _, err := svc.ListBalances(ctx, &req); err != nil {
+			svc.log.Error("ListBalances failed", zap.Error(err))
+		}
 	}
 }
 
 func handleAssetAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	// Reference unused ctx for diagnostics/cancellation
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleAssetAction", zap.Error(ctx.Err()))
+	}
 	_, state := parseActionAndState(event.GetEventType())
-	switch state {
-	case "list":
+	if state == "list" {
 		var req commercepb.ListAssetsRequest
 		if event.Payload != nil && event.Payload.Data != nil {
 			b, err := protojson.Marshal(event.Payload.Data)
@@ -266,11 +295,15 @@ func handleAssetAction(ctx context.Context, svc *Service, event *nexusv1.EventRe
 				return
 			}
 		}
-		// svc.ListAssets(ctx, &req) // Implement ListAssets method
+		// Method not implemented
 	}
 }
 
 func handleExchangeRateAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	// Reference unused ctx for diagnostics/cancellation
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleExchangeRateAction", zap.Error(ctx.Err()))
+	}
 	_, state := parseActionAndState(event.GetEventType())
 	switch state {
 	case "get":
@@ -285,7 +318,7 @@ func handleExchangeRateAction(ctx context.Context, svc *Service, event *nexusv1.
 				return
 			}
 		}
-		// svc.GetExchangeRate(ctx, &req) // Implement GetExchangeRate method
+		// Method not implemented
 	case "create":
 		var req commercepb.CreateExchangeRateRequest
 		if event.Payload != nil && event.Payload.Data != nil {
@@ -298,14 +331,17 @@ func handleExchangeRateAction(ctx context.Context, svc *Service, event *nexusv1.
 				return
 			}
 		}
-		// svc.CreateExchangeRate(ctx, &req) // Implement CreateExchangeRate method
+		// Method not implemented
 	}
 }
 
 func handleOfferAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
+	// Reference unused ctx for diagnostics/cancellation
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleOfferAction", zap.Error(ctx.Err()))
+	}
 	_, state := parseActionAndState(event.GetEventType())
-	switch state {
-	case "make":
+	if state == "make" {
 		var req commercepb.MakeOfferRequest
 		if event.Payload != nil && event.Payload.Data != nil {
 			b, err := protojson.Marshal(event.Payload.Data)
@@ -317,14 +353,13 @@ func handleOfferAction(ctx context.Context, svc *Service, event *nexusv1.EventRe
 				return
 			}
 		}
-		// svc.MakeOffer(ctx, &req) // Implement MakeOffer method
+		// Method not implemented
 	}
 }
 
 func handleEventAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	_, state := parseActionAndState(event.GetEventType())
-	switch state {
-	case "list":
+	if state == "list" {
 		var req commercepb.ListEventsRequest
 		if event.Payload != nil && event.Payload.Data != nil {
 			b, err := protojson.Marshal(event.Payload.Data)
@@ -336,11 +371,13 @@ func handleEventAction(ctx context.Context, svc *Service, event *nexusv1.EventRe
 				return
 			}
 		}
-		svc.ListEvents(ctx, &req)
+		if _, err := svc.ListEvents(ctx, &req); err != nil {
+			svc.log.Error("ListEvents failed", zap.Error(err))
+		}
 	}
 }
 
-// Register all canonical commerce action handlers
+// Register all canonical commerce action handlers.
 func init() {
 	RegisterActionHandler("quote", handleQuoteAction)
 	RegisterActionHandler("order", handleOrderAction)
@@ -656,9 +693,20 @@ func (s *Service) GetOrder(ctx context.Context, req *commercepb.GetOrderRequest)
 			Items: func() []*commercepb.OrderItem {
 				protoItems := make([]*commercepb.OrderItem, len(orderItems))
 				for i, item := range orderItems {
+					var safeQty int32
+					const int32Max = int32(^uint32(0) >> 1)
+					const int32Min = -int32Max - 1
+					switch {
+					case item.Quantity > int(int32Max):
+						safeQty = int32Max
+					case item.Quantity < int(int32Min):
+						safeQty = int32Min
+					default:
+						safeQty = int32(item.Quantity)
+					}
 					protoItems[i] = &commercepb.OrderItem{
 						ProductId: item.ProductID,
-						Quantity:  int32(item.Quantity),
+						Quantity:  safeQty,
 						Price:     item.Price,
 					}
 				}

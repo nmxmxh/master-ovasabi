@@ -161,6 +161,14 @@ func (s *Server) subscribeToNexusEvents(ctx context.Context, campaignID int64, m
 }
 
 func (s *Server) handleOrchestrationEvent(ctx context.Context, event *nexusv1.EventResponse, campaignID int64) {
+	// Explicitly check for context cancellation before processing
+	select {
+	case <-ctx.Done():
+		s.logger.Warn("Orchestration event handling cancelled", zap.Error(ctx.Err()))
+		return
+	default:
+		// continue
+	}
 	if event.Payload == nil || event.Payload.Data == nil {
 		s.logger.Warn("Received orchestration event with no payload", zap.String("eventType", event.EventType))
 		return
@@ -246,25 +254,25 @@ func (r *Room) disconnectPeer(peerID, reason string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if peer, ok := r.Peers[peerID]; !ok {
+	peer, ok := r.Peers[peerID]
+	if !ok {
 		// Peer not found, nothing to do.
 		return
-	} else {
-		// Send a disconnect message. The writePump will see this message type
-		// and initiate the connection teardown after sending it.
-		// Use a non-blocking send to avoid blocking the orchestration goroutine.
-		select {
-		case peer.Send <- Message{
-			Type:       "force_disconnect",
-			Data:       reason,
-			CampaignID: r.CampaignID,
-			ContextID:  r.ContextID,
-		}: // Message queued for sending. writePump will handle cancellation.
-		default:
-			// If the send channel is full, the peer is likely already
-			// backed up or disconnected. We can just cancel directly.
-			peer.Cancel()
-		}
+	}
+	// Send a disconnect message. The writePump will see this message type
+	// and initiate the connection teardown after sending it.
+	// Use a non-blocking send to avoid blocking the orchestration goroutine.
+	select {
+	case peer.Send <- Message{
+		Type:       "force_disconnect",
+		Data:       reason,
+		CampaignID: r.CampaignID,
+		ContextID:  r.ContextID,
+	}: // Message queued for sending. writePump will handle cancellation.
+	default:
+		// If the send channel is full, the peer is likely already
+		// backed up or disconnected. We can just cancel directly.
+		peer.Cancel()
 	}
 }
 
@@ -556,6 +564,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	// The original logic for handleHealthz goes here.
 	// It was moved from inside main() to this method.
+	// Reference unused parameter 'r' for diagnostics to avoid revive lint warning.
+	_ = r
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("ok")); err != nil {
 		s.logger.Error("Failed to write healthz response", zap.Error(err))

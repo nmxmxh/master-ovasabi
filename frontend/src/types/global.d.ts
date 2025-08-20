@@ -16,6 +16,21 @@ declare global {
      * Exposed by WASM/JS to trigger the migration from a guest to a full user.
      */
     migrateUser?: (userId: string) => void;
+
+    /**
+     * Set and updated only by WASM. Source of truth for user identity.
+     */
+    userID: string;
+
+    /**
+     * Called by WASM when userID changes (migration, etc).
+     */
+    onUserIDChanged?: (newId: string) => void;
+
+    /**
+     * Temporary status object for WASM readiness and connection, set by frontend before Zustand store is initialized.
+     */
+    __pendingWasmStatus?: { wasmReady?: boolean; connected?: boolean };
   }
 }
 

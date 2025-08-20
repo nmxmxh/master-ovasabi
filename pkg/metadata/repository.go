@@ -2,9 +2,8 @@ package metadata
 
 import (
 	"context"
-	"time"
-
 	"database/sql"
+	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"go.uber.org/zap"
@@ -54,12 +53,12 @@ func (r *Repository) UpdateEntityMetadataFromEvent(ctx context.Context, uuidOrID
 	err = r.DB.QueryRowContext(ctx, query, entityID).Scan(&oldMetaJSON)
 	if err != nil {
 		log.Error("Failed to fetch old metadata", zap.Error(err))
-		oldMeta = nil
+		// oldMeta is not used after this point
 	} else {
 		oldMeta = &commonpb.Metadata{}
 		if err := UnmarshalJSONToProto(oldMetaJSON, oldMeta); err != nil {
 			log.Error("Failed to unmarshal old metadata", zap.Error(err))
-			oldMeta = nil
+			// oldMeta is not used after this point
 		}
 	}
 

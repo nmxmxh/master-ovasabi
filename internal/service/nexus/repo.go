@@ -4,7 +4,7 @@ package nexus
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -45,7 +45,7 @@ func (r *Repository) RegisterPattern(ctx context.Context, req *nexusv1.RegisterP
 	patternName := req.PatternId
 	if patternName == "" {
 		// fallback: use hash of definition
-		patternName = fmt.Sprintf("pattern_%x", md5Sum(def))
+		patternName = fmt.Sprintf("pattern_%x", sha256Sum(def))
 	}
 
 	// Always create or look up a master record for this pattern
@@ -56,7 +56,7 @@ func (r *Repository) RegisterPattern(ctx context.Context, req *nexusv1.RegisterP
 	}
 
 	// Compute definition_hash for deduplication
-	definitionHash := fmt.Sprintf("%x", md5Sum(def))
+	definitionHash := fmt.Sprintf("%x", sha256Sum(def))
 
 	_, err = r.DB.ExecContext(ctx, `
 	INSERT INTO service_nexus_pattern (pattern_id, pattern_type, version, origin, definition, metadata, created_by, campaign_id, definition_hash, type)
@@ -77,9 +77,9 @@ func (r *Repository) RegisterPattern(ctx context.Context, req *nexusv1.RegisterP
 	return nil
 }
 
-// md5Sum returns the MD5 hash of the input bytes as a byte slice
-func md5Sum(data []byte) []byte {
-	sum := md5.Sum(data)
+// sha256Sum returns the SHA-256 hash of the input bytes as a byte slice.
+func sha256Sum(data []byte) []byte {
+	sum := sha256.Sum256(data)
 	return sum[:]
 }
 

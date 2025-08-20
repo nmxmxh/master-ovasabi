@@ -53,7 +53,7 @@ func NewHandler(log *zap.Logger, eventEmitter EventEmitter, cache Cache, service
 }
 
 // Success handles a successful operation by logging, caching, and emitting an event.
-func (h *Handler) Success(ctx context.Context, action string, code codes.Code, msg string, result interface{}, metaVal interface{}, entityID string, cacheInfo *CacheInfo) *SuccessContext {
+func (h *Handler) Success(ctx context.Context, action string, code codes.Code, msg string, result, metaVal interface{}, entityID string, cacheInfo *CacheInfo) *SuccessContext {
 	sCtx := &SuccessContext{
 		Code:      code,
 		Message:   msg,
@@ -127,7 +127,7 @@ func (h *Handler) Success(ctx context.Context, action string, code codes.Code, m
 }
 
 // Error handles a failed operation by logging and emitting an event.
-func (h *Handler) Error(ctx context.Context, action string, code codes.Code, msg string, cause error, metaVal interface{}, entityID string) *ContextError {
+func (h *Handler) Error(ctx context.Context, action string, code codes.Code, msg string, cause error, metaVal interface{}, entityID string) {
 	errCtx := &ContextError{
 		Code:    code,
 		Message: msg,
@@ -182,8 +182,6 @@ func (h *Handler) Error(ctx context.Context, action string, code codes.Code, msg
 			h.Log.Warn("Failed to emit error event envelope", zap.String("event_id", eventID), zap.Error(emitErr))
 		}
 	}
-
-	return errCtx
 }
 
 // CacheInfo holds the information needed to cache a value.

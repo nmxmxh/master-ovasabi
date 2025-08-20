@@ -85,7 +85,9 @@ func (r *Repository) Create(ctx context.Context, notification *Notification) (*N
 	}
 	defer func() {
 		if p := recover(); p != nil {
-			_ = tx.Rollback() // Rollback on panic
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.GetLogger().Error("failed to rollback transaction on panic", zap.Error(rbErr))
+			}
 			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 				r.GetLogger().Error("failed to rollback transaction on panic", zap.Error(rbErr))
 			}

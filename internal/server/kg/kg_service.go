@@ -52,7 +52,8 @@ type KGService struct {
 func NewKGService(redisClient *redis.Client, logger *zap.Logger, provider interface {
 	events.EventEmitter
 	SubscribeEvents(ctx context.Context, eventTypes []string, meta *commonpb.Metadata, handler func(context.Context, *nexusv1.EventResponse)) error
-}) *KGService {
+},
+) *KGService {
 	return &KGService{
 		hooks:        NewKGHooks(redisClient, logger, provider),
 		redis:        redisClient,
@@ -271,6 +272,8 @@ func (s *KGService) UpdateRelation(ctx context.Context, serviceID string, relati
 	if err != nil {
 		return graceful.WrapErr(ctx, codes.Internal, fmt.Sprintf("failed to publish relation update for %s", serviceID), err)
 	}
+	// Persist and backup after successful relation update
+	s.persistAndBackup("UpdateRelation: " + serviceID)
 	return nil
 }
 

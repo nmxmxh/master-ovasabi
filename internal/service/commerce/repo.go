@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -378,7 +379,11 @@ func (r *repository) CreateQuote(ctx context.Context, q *Quote) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback() // Ensure rollback on error
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", err)
+		}
+	}()
 
 	masterID, masterUUID, err := r.masterRepo.Create(ctx, tx, repo.EntityType("quote"), q.QuoteID)
 	if err != nil {
@@ -502,7 +507,9 @@ func (r *repository) CreateOrder(ctx context.Context, o *Order, items []OrderIte
 	// 1. Use masterRepo to create the master entity record
 	masterID, masterUUID, err := r.masterRepo.Create(ctx, tx, repo.EntityType("order"), o.OrderID)
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for order: %w", err)
 	}
 	o.MasterID = masterID
@@ -511,7 +518,9 @@ func (r *repository) CreateOrder(ctx context.Context, o *Order, items []OrderIte
 	// 2. Use canonical metadata marshaling
 	metaJSON, err := metadata.MarshalCanonical(o.Metadata)
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal order metadata: %w", err)
 	}
 
@@ -521,7 +530,9 @@ func (r *repository) CreateOrder(ctx context.Context, o *Order, items []OrderIte
 		VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now(), $8)
 	`, o.OrderID, o.MasterID, o.UserID, o.Total, o.Currency, o.Status, metaJSON, o.CampaignID)
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_order: %w", err)
 	}
 
@@ -530,7 +541,9 @@ func (r *repository) CreateOrder(ctx context.Context, o *Order, items []OrderIte
 		// Create master entity for each order item
 		itemMasterID, itemMasterUUID, err := r.masterRepo.Create(ctx, tx, repo.EntityType("order_item"), fmt.Sprintf("%s:%s", o.OrderID, item.ProductID))
 		if err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			return fmt.Errorf("failed to create master entity for order item: %w", err)
 		}
 		item.MasterID = itemMasterID
@@ -538,7 +551,9 @@ func (r *repository) CreateOrder(ctx context.Context, o *Order, items []OrderIte
 
 		itemMetaJSON, err := metadata.MarshalCanonical(item.Metadata)
 		if err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction for order item metadata: %v", rbErr)
+			}
 			return fmt.Errorf("failed to marshal order item metadata: %w", err)
 		}
 		_, err = tx.ExecContext(ctx, `
@@ -547,7 +562,7 @@ func (r *repository) CreateOrder(ctx context.Context, o *Order, items []OrderIte
 	`, o.OrderID, item.MasterID, item.MasterUUID, item.ProductID, item.Quantity, item.Price, itemMetaJSON, o.CampaignID) // Pass campaign_id from the order
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
-				r.log.Error("failed to rollback transaction for order item", zap.Error(rbErr))
+				log.Printf("failed to rollback transaction for order item: %v", rbErr)
 			}
 			return fmt.Errorf("failed to insert order item: %w", err)
 		}
@@ -684,7 +699,9 @@ func (r *repository) CreatePayment(ctx context.Context, p *Payment) error {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction on panic: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
@@ -692,7 +709,9 @@ func (r *repository) CreatePayment(ctx context.Context, p *Payment) error {
 	// 1. Use masterRepo to create the master entity record
 	p.MasterID, p.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("payment"), p.PaymentID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for payment: %w", err)
 	}
 
@@ -704,7 +723,9 @@ func (r *repository) CreatePayment(ctx context.Context, p *Payment) error {
 	// 2. Marshal metadata
 	metaJSON, err := metadata.MarshalCanonical(p.Metadata)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal payment metadata: %w", err)
 	}
 
@@ -714,7 +735,9 @@ func (r *repository) CreatePayment(ctx context.Context, p *Payment) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now(), $11)
 	`, p.PaymentID, p.MasterID, p.MasterUUID, p.OrderID, p.UserID, p.Amount, p.Currency, p.Method, p.Status, metaJSON, p.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_payment: %w", err)
 	}
 
@@ -778,16 +801,20 @@ func (r *repository) CreateTransaction(ctx context.Context, t *Transaction) erro
 		return err
 	}
 	defer func() {
-		if r := recover(); r != nil {
-			_ = tx.Rollback()
-			panic(r) // Re-throw panic
+		if rec := recover(); rec != nil {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction on panic: %v", rbErr)
+			}
+			panic(rec) // Re-throw panic
 		}
 	}()
 
 	// 1. Use masterRepo to create the master entity record
 	t.MasterID, t.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("transaction"), t.TransactionID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for transaction: %w", err)
 	}
 
@@ -799,7 +826,9 @@ func (r *repository) CreateTransaction(ctx context.Context, t *Transaction) erro
 	// 2. Marshal metadata
 	metaJSON, err := metadata.MarshalCanonical(t.Metadata)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal transaction metadata: %w", err)
 	}
 
@@ -809,7 +838,9 @@ func (r *repository) CreateTransaction(ctx context.Context, t *Transaction) erro
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now(), $11)
 	`, t.TransactionID, t.MasterID, t.MasterUUID, t.PaymentID, t.UserID, t.Type, t.Amount, t.Currency, t.Status, metaJSON, t.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_transaction: %w", err)
 	}
 
@@ -1011,23 +1042,31 @@ func (r *repository) CreateInvestmentAccount(ctx context.Context, a *InvestmentA
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	a.MasterID, a.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("investment_account"), a.AccountID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for investment account: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(a.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal investment account metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_investment_account (account_id, master_id, master_uuid, owner_id, type, currency, balance, metadata, created_at, updated_at, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now(), $9)`, a.AccountID, a.MasterID, a.MasterUUID, a.OwnerID, a.Type, a.Currency, a.Balance, metaJSON, a.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_investment_account: %w", err)
 	}
 	return tx.Commit()
@@ -1044,23 +1083,31 @@ func (r *repository) CreateInvestmentOrder(ctx context.Context, o *InvestmentOrd
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	o.MasterID, o.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("investment_order"), o.OrderID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for investment order: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(o.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal investment order metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_investment_order (order_id, master_id, master_uuid, account_id, asset_id, quantity, price, order_type, status, metadata, created_at, updated_at, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now(), $11)`, o.OrderID, o.MasterID, o.MasterUUID, o.AccountID, o.AssetID, o.Quantity, o.Price, o.OrderType, o.Status, metaJSON, o.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_investment_order: %w", err)
 	}
 	return tx.Commit()
@@ -1077,23 +1124,31 @@ func (r *repository) CreatePortfolio(ctx context.Context, p *Portfolio) error {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	p.MasterID, p.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("portfolio"), p.PortfolioID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for portfolio: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(p.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal portfolio metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_portfolio (portfolio_id, master_id, master_uuid, account_id, metadata, created_at, updated_at, campaign_id) VALUES ($1, $2, $3, $4, $5, now(), now(), $6)`, p.PortfolioID, p.MasterID, p.MasterUUID, p.AccountID, metaJSON, p.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_portfolio: %w", err)
 	}
 	return tx.Commit()
@@ -1116,13 +1171,17 @@ func (r *repository) CreateAssetPosition(ctx context.Context, pos *AssetPosition
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	pos.MasterID, pos.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("asset_position"), fmt.Sprintf("%d:%s", pos.PortfolioID, pos.AssetID))
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for asset position: %w", err)
 	}
 	pos.MasterID = masterID
@@ -1151,23 +1210,31 @@ func (r *repository) CreateBankAccount(ctx context.Context, a *BankAccount) erro
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	a.MasterID, a.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("bank_account"), a.AccountID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for bank account: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(a.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal bank account metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_bank_account (account_id, master_id, master_uuid, user_id, iban, bic, currency, balance, metadata, created_at, updated_at, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now(), $10)`, a.AccountID, a.MasterID, a.MasterUUID, a.UserID, a.IBAN, a.BIC, a.Currency, a.Balance, metaJSON, a.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_bank_account: %w", err)
 	}
 	return tx.Commit()
@@ -1184,23 +1251,31 @@ func (r *repository) CreateBankTransfer(ctx context.Context, t *BankTransfer) er
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	t.MasterID, t.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("bank_transfer"), t.TransferID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for bank transfer: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(t.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal bank transfer metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_bank_transfer (transfer_id, master_id, master_uuid, from_account_id, to_account_id, amount, currency, status, metadata, created_at, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), $10)`, t.TransferID, t.MasterID, t.MasterUUID, t.FromAccountID, t.ToAccountID, t.Amount, t.Currency, t.Status, metaJSON, t.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_bank_transfer: %w", err)
 	}
 	return tx.Commit()
@@ -1217,23 +1292,31 @@ func (r *repository) CreateBankStatement(ctx context.Context, s *BankStatement) 
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	s.MasterID, s.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("bank_statement"), fmt.Sprintf("%d", s.StatementID)) // Assuming StatementID is unique enough for name
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for bank statement: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(s.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal bank statement metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_bank_statement (statement_id, master_id, master_uuid, account_id, metadata, created_at, campaign_id) VALUES ($1, $2, $3, $4, $5, now(), $6)`, s.StatementID, s.MasterID, s.MasterUUID, s.AccountID, metaJSON, s.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_bank_statement: %w", err)
 	}
 	return tx.Commit()
@@ -1251,23 +1334,31 @@ func (r *repository) CreateMarketplaceListing(ctx context.Context, l *Marketplac
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	l.MasterID, l.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("marketplace_listing"), l.ListingID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for marketplace listing: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(l.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal marketplace listing metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_marketplace_listing (listing_id, master_id, master_uuid, seller_id, product_id, price, currency, status, metadata, created_at, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), $10)`, l.ListingID, l.MasterID, l.MasterUUID, l.SellerID, l.ProductID, l.Price, l.Currency, l.Status, metaJSON, l.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_marketplace_listing: %w", err)
 	}
 	return tx.Commit()
@@ -1284,23 +1375,31 @@ func (r *repository) CreateMarketplaceOrder(ctx context.Context, o *MarketplaceO
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	o.MasterID, o.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("marketplace_order"), o.OrderID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for marketplace order: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(o.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal marketplace order metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_marketplace_order (order_id, master_id, master_uuid, listing_id, buyer_id, price, currency, status, metadata, created_at, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), $10)`, o.OrderID, o.MasterID, o.MasterUUID, o.ListingID, o.BuyerID, o.Price, o.Currency, o.Status, metaJSON, o.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_marketplace_order: %w", err)
 	}
 	return tx.Commit()
@@ -1317,23 +1416,31 @@ func (r *repository) CreateMarketplaceOffer(ctx context.Context, o *MarketplaceO
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	o.MasterID, o.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("marketplace_offer"), o.OfferID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for marketplace offer: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(o.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal marketplace offer metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_marketplace_offer (offer_id, master_id, master_uuid, listing_id, buyer_id, offer_price, currency, status, metadata, created_at, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), $10)`, o.OfferID, o.MasterID, o.MasterUUID, o.ListingID, o.BuyerID, o.OfferPrice, o.Currency, o.Status, metaJSON, o.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_marketplace_offer: %w", err)
 	}
 	return tx.Commit()
@@ -1351,23 +1458,31 @@ func (r *repository) CreateExchangeOrder(ctx context.Context, o *ExchangeOrder) 
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	o.MasterID, o.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("exchange_order"), o.OrderID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for exchange order: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(o.Metadata) // Added campaign_id to INSERT
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal exchange order metadata: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_exchange_order (order_id, master_id, master_uuid, account_id, pair, amount, price, order_type, status, metadata, created_at, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), $11)`, o.OrderID, o.MasterID, o.MasterUUID, o.AccountID, o.Pair, o.Amount, o.Price, o.OrderType, o.Status, metaJSON, o.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_exchange_order: %w", err)
 	}
 	return tx.Commit()
@@ -1384,25 +1499,33 @@ func (r *repository) CreateExchangePair(ctx context.Context, p *ExchangePair) er
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	p.MasterID, p.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("exchange_pair"), p.PairID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for exchange pair: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(p.Metadata)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal exchange pair metadata: %w", err)
 	}
 
 	// Insert into service_commerce_exchange_pair
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_exchange_pair (pair_id, master_id, master_uuid, base_asset, quote_asset, metadata, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`, p.PairID, p.MasterID, p.MasterUUID, p.BaseAsset, p.QuoteAsset, metaJSON, p.CampaignID) // Added campaign_id
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_exchange_pair: %w", err)
 	}
 	return tx.Commit()
@@ -1418,24 +1541,32 @@ func (r *repository) CreateExchangeRate(ctx context.Context, r8 *ExchangeRate) e
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("failed to rollback transaction: %v", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
 	r8.MasterID, r8.MasterUUID, err = r.masterRepo.Create(ctx, tx, repo.EntityType("exchange_rate"), fmt.Sprintf("%d", r8.RateID)) // Assuming RateID is unique enough for name
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to create master entity for exchange rate: %w", err)
 	}
 	metaJSON, err := metadata.MarshalCanonical(r8.Metadata)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to marshal exchange rate metadata: %w", err)
 	}
 
 	_, err = tx.ExecContext(ctx, `INSERT INTO service_commerce_exchange_rate (rate_id, master_id, master_uuid, pair_id, rate, timestamp, metadata, campaign_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, r8.RateID, r8.MasterID, r8.MasterUUID, r8.PairID, r8.Rate, r8.Timestamp, metaJSON, r8.CampaignID)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", rbErr)
+		}
 		return fmt.Errorf("failed to insert into service_commerce_exchange_rate: %w", err)
 	}
 	return tx.Commit()
@@ -1590,7 +1721,7 @@ func (r *repository) GetAssetPosition(ctx context.Context, id int64) (*AssetPosi
 	return &position, nil
 }
 
-func (r *repository) ListAssetPositions(ctx context.Context, portfolioID int64, campaignID int64) ([]*AssetPosition, error) { // Updated signature
+func (r *repository) ListAssetPositions(ctx context.Context, portfolioID, campaignID int64) ([]*AssetPosition, error) { // Updated signature
 	query := `
 		SELECT id, master_id, master_uuid, portfolio_id, asset_id, quantity, average_price, metadata, campaign_id
 		FROM service_commerce_asset_position

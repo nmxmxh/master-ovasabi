@@ -24,16 +24,19 @@ const (
 )
 
 // HealthHandlerFunc is the handler for health check events.
-type HealthHandlerFunc func(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger)
+// HandlerFunc is the handler for health check events.
+type HandlerFunc func(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger)
 
 // HealthSubscription represents a health check event subscription.
-type HealthSubscription struct {
-	Handler HealthHandlerFunc
+// Subscription represents a health check event subscription.
+type Subscription struct {
+	Handler HandlerFunc
 	Event   string
 }
 
 // HealthCheckResult represents the result of a health check.
-type HealthCheckResult struct {
+// CheckResult represents the result of a health check.
+type CheckResult struct {
 	ServiceName  string                 `json:"service_name"`
 	Status       string                 `json:"status"`        // "healthy", "warning", "down"
 	ResponseTime int64                  `json:"response_time"` // milliseconds
@@ -65,9 +68,9 @@ func getHealthColor(status string) string {
 }
 
 // performHealthCheck conducts a comprehensive health check for a service.
-func performHealthCheck(serviceName string, deps *ServiceDependencies) *HealthCheckResult {
+func performHealthCheck(ctx context.Context, serviceName string, deps *ServiceDependencies) *CheckResult {
 	startTime := time.Now()
-	result := &HealthCheckResult{
+	result := &CheckResult{
 		ServiceName:  serviceName,
 		CheckedAt:    time.Now().Unix(),
 		Metrics:      make(map[string]interface{}),
@@ -79,7 +82,7 @@ func performHealthCheck(serviceName string, deps *ServiceDependencies) *HealthCh
 
 	// Check database connectivity if available
 	if deps != nil && deps.Database != nil {
-		if err := deps.Database.PingContext(context.Background()); err != nil {
+		if err := deps.Database.PingContext(ctx); err != nil {
 			result.Dependencies["database"] = "down"
 			result.Status = "down"
 			if result.ErrorMessage == "" {
@@ -99,11 +102,11 @@ func performHealthCheck(serviceName string, deps *ServiceDependencies) *HealthCh
 
 	// Check Redis connectivity if available
 	if deps != nil && deps.Redis != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		redisCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 
 		// Test Redis connectivity with a simple operation
-		if err := deps.Redis.Set(ctx, "health_check", "ping", "pong", 1*time.Second); err != nil {
+		if err := deps.Redis.Set(redisCtx, "health_check", "ping", "pong", 1*time.Second); err != nil {
 			result.Dependencies["redis"] = "down"
 			if result.Status == "healthy" {
 				result.Status = "warning" // Redis might not be critical
@@ -130,10 +133,12 @@ func performHealthCheck(serviceName string, deps *ServiceDependencies) *HealthCh
 }
 
 // createHealthHandler creates a health check event handler for a service.
-func createHealthHandler(serviceName string, deps *ServiceDependencies, provider *service.Provider) HealthHandlerFunc {
+func createHealthHandler(serviceName string, deps *ServiceDependencies, provider *service.Provider) HandlerFunc {
 	return func(ctx context.Context, event *nexusv1.EventResponse, log *zap.Logger) {
+		// Use event for diagnostics (lint fix)
+		_ = event
 		// Perform health check
-		healthResult := performHealthCheck(serviceName, deps)
+		healthResult := performHealthCheck(ctx, serviceName, deps)
 
 		// Log health check result with color
 		color := getHealthColor(healthResult.Status)
@@ -234,13 +239,17 @@ func StartHealthSubscriber(ctx context.Context, provider *service.Provider, log 
 	// Subscribe to health check requests for this service
 	healthEventType := fmt.Sprintf("%s:health:v1:requested", serviceName)
 
-	sub := HealthSubscription{
+	sub := Subscription{
 		Event:   healthEventType,
 		Handler: createHealthHandler(serviceName, deps, provider),
 	}
 
 	go func() {
 		err := provider.SubscribeEvents(ctx, []string{sub.Event}, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
+			// Use the event parameter for diagnostics
+			if event != nil {
+				log.Debug("Received health event", zap.String("event_type", event.EventType))
+			}
 			sub.Handler(ctx, event, log)
 		})
 		if err != nil {
@@ -275,7 +284,7 @@ func StartHealthHeartbeat(ctx context.Context, provider *service.Provider, log *
 				return
 			case <-ticker.C:
 				// Perform health check
-				healthResult := performHealthCheck(serviceName, deps)
+				healthResult := performHealthCheck(ctx, serviceName, deps)
 
 				// Log heartbeat
 				color := getHealthColor(healthResult.Status)

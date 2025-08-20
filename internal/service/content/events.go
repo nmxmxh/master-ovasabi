@@ -17,7 +17,6 @@ var CanonicalEventTypeRegistry = make(map[string]string)
 // InitCanonicalEventTypeRegistry initializes the canonical event type registry from service_registration.json.
 func InitCanonicalEventTypeRegistry() {
 	for _, evt := range loadContentEvents() {
-		// Example: evt = "content:create_content:v1:completed"; key = "create_content:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -38,7 +37,7 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadContentEvents() []string {
 	return events.LoadCanonicalEvents("content")
 }
@@ -46,12 +45,23 @@ func loadContentEvents() []string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
@@ -81,7 +91,7 @@ func HandleContentServiceEvent(ctx context.Context, s *Service, event *nexusv1.E
 	handler(ctx, s, event)
 }
 
-// Handler implementations for each canonical action
+// Handler implementations for each canonical action.
 func handleCreateContent(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling create_content event", zap.Any("event", event))
 	var req contentpb.CreateContentRequest
@@ -102,6 +112,7 @@ func handleCreateContent(ctx context.Context, svc *Service, event *nexusv1.Event
 		svc.log.Info("CreateContent succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleUpdateContent(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling update_content event", zap.Any("event", event))
 	var req contentpb.UpdateContentRequest
@@ -122,6 +133,7 @@ func handleUpdateContent(ctx context.Context, svc *Service, event *nexusv1.Event
 		svc.log.Info("UpdateContent succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleDeleteContent(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling delete_content event", zap.Any("event", event))
 	var req contentpb.DeleteContentRequest
@@ -142,6 +154,7 @@ func handleDeleteContent(ctx context.Context, svc *Service, event *nexusv1.Event
 		svc.log.Info("DeleteContent succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleAddComment(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling add_comment event", zap.Any("event", event))
 	var req contentpb.AddCommentRequest
@@ -162,6 +175,7 @@ func handleAddComment(ctx context.Context, svc *Service, event *nexusv1.EventRes
 		svc.log.Info("AddComment succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleAddReaction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling add_reaction event", zap.Any("event", event))
 	var req contentpb.AddReactionRequest
@@ -182,6 +196,7 @@ func handleAddReaction(ctx context.Context, svc *Service, event *nexusv1.EventRe
 		svc.log.Info("AddReaction succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleListContent(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling list_content event", zap.Any("event", event))
 	var req contentpb.ListContentRequest
@@ -202,6 +217,7 @@ func handleListContent(ctx context.Context, svc *Service, event *nexusv1.EventRe
 		svc.log.Info("ListContent succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleListComments(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling list_comments event", zap.Any("event", event))
 	var req contentpb.ListCommentsRequest
@@ -222,6 +238,7 @@ func handleListComments(ctx context.Context, svc *Service, event *nexusv1.EventR
 		svc.log.Info("ListComments succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleListReactions(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling list_reactions event", zap.Any("event", event))
 	var req contentpb.ListReactionsRequest
@@ -242,6 +259,7 @@ func handleListReactions(ctx context.Context, svc *Service, event *nexusv1.Event
 		svc.log.Info("ListReactions succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleDeleteComment(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling delete_comment event", zap.Any("event", event))
 	var req contentpb.DeleteCommentRequest
@@ -262,6 +280,7 @@ func handleDeleteComment(ctx context.Context, svc *Service, event *nexusv1.Event
 		svc.log.Info("DeleteComment succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleModerateContent(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling moderate_content event", zap.Any("event", event))
 	var req contentpb.ModerateContentRequest
@@ -282,6 +301,7 @@ func handleModerateContent(ctx context.Context, svc *Service, event *nexusv1.Eve
 		svc.log.Info("ModerateContent succeeded from event", zap.Any("response", resp))
 	}
 }
+
 func handleLogContentEvent(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling log_content_event event", zap.Any("event", event))
 	var req contentpb.LogContentEventRequest
@@ -303,7 +323,7 @@ func handleLogContentEvent(ctx context.Context, svc *Service, event *nexusv1.Eve
 	}
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	evts := loadContentEvents()
 	m := make(map[string]ActionHandlerFunc)

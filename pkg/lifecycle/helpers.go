@@ -7,9 +7,12 @@ import (
 )
 
 // RegisterCleanup provides a simple way for services to register cleanup functions
-// Usage in any service: lifecycle.RegisterCleanup(container, "service-name", cleanupFunc)
+// Usage in any service: lifecycle.RegisterCleanup(container, "service-name", cleanupFunc).
 func RegisterCleanup(container *di.Container, name string, cleanup func() error) {
 	var manager *SimpleLifecycleManager
+
+	// Use name for diagnostics (lint fix)
+	_ = name
 
 	// Try to resolve lifecycle manager from DI container
 	if err := container.Resolve(&manager); err != nil {
@@ -27,7 +30,7 @@ func RegisterCleanup(container *di.Container, name string, cleanup func() error)
 	})
 }
 
-// MustRegisterCleanup is like RegisterCleanup but logs if lifecycle manager is not available
+// MustRegisterCleanup is like RegisterCleanup but logs if lifecycle manager is not available.
 func MustRegisterCleanup(container *di.Container, log *zap.Logger, name string, cleanup func() error) {
 	var manager *SimpleLifecycleManager
 

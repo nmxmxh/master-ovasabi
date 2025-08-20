@@ -1,6 +1,7 @@
 package referral
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -53,7 +54,7 @@ func NewRepository(db *sql.DB, log *zap.Logger, master repository.MasterReposito
 }
 
 // Create inserts a new referral record.
-func (r *Repository) Create(referral *Referral) error {
+func (r *Repository) Create(ctx context.Context, referral *Referral) error {
 	query := `
 		INSERT INTO service_referral_main (referrer_master_id, referrer_master_uuid, referred_master_id, referred_master_uuid, campaign_id, device_hash, referral_code, successful, created_at, updated_at, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -69,7 +70,8 @@ func (r *Repository) Create(referral *Referral) error {
 		return err
 	}
 
-	err = r.GetDB().QueryRow(
+	err = r.GetDB().QueryRowContext(
+		ctx,
 		query,
 		referral.ReferrerMasterID,
 		referral.ReferrerMasterUUID,
@@ -99,7 +101,7 @@ func (r *Repository) GetByID(id int64) (*Referral, error) {
 		FROM service_referral_main
 		WHERE id = $1`
 
-	err := r.GetDB().QueryRow(query, id).Scan(
+	err := r.GetDB().QueryRowContext(context.Background(), query, id).Scan(
 		&referral.ID,
 		&referral.ReferrerMasterID,
 		&referral.ReferrerMasterUUID,
@@ -129,7 +131,7 @@ func (r *Repository) GetByID(id int64) (*Referral, error) {
 }
 
 // GetStats retrieves referral statistics for a user.
-func (r *Repository) GetStats(referrerMasterID int64) (*Stats, error) {
+func (r *Repository) GetStats(ctx context.Context, referrerMasterID int64) (*Stats, error) {
 	stats := &Stats{}
 	query := `
 		SELECT
@@ -138,7 +140,7 @@ func (r *Repository) GetStats(referrerMasterID int64) (*Stats, error) {
 		FROM service_referral_main
 		WHERE referrer_master_id = $1`
 
-	err := r.GetDB().QueryRow(query, referrerMasterID).Scan(
+	err := r.GetDB().QueryRowContext(ctx, query, referrerMasterID).Scan(
 		&stats.TotalReferrals,
 		&stats.SuccessfulReferrals,
 	)
@@ -149,7 +151,7 @@ func (r *Repository) GetStats(referrerMasterID int64) (*Stats, error) {
 }
 
 // GetByCode retrieves a referral by referral_code.
-func (r *Repository) GetByCode(referralCode string) (*Referral, error) {
+func (r *Repository) GetByCode(ctx context.Context, referralCode string) (*Referral, error) {
 	referral := &Referral{}
 	var metadataJSON []byte
 	query := `
@@ -157,7 +159,7 @@ func (r *Repository) GetByCode(referralCode string) (*Referral, error) {
 		FROM service_referral_main
 		WHERE referral_code = $1`
 
-	err := r.GetDB().QueryRow(query, referralCode).Scan(
+	err := r.GetDB().QueryRowContext(ctx, query, referralCode).Scan(
 		&referral.ID,
 		&referral.ReferrerMasterID,
 		&referral.ReferrerMasterUUID,
@@ -187,13 +189,13 @@ func (r *Repository) GetByCode(referralCode string) (*Referral, error) {
 }
 
 // UpdateReferredMasterID updates the referred_master_id for a referral.
-func (r *Repository) UpdateReferredMasterID(referralCode string, referredMasterID int64) error {
-	_, err := r.GetDB().Exec(`UPDATE service_referral_main SET referred_master_id = $1 WHERE referral_code = $2`, referredMasterID, referralCode)
+func (r *Repository) UpdateReferredMasterID(ctx context.Context, referralCode string, referredMasterID int64) error {
+	_, err := r.GetDB().ExecContext(ctx, `UPDATE service_referral_main SET referred_master_id = $1 WHERE referral_code = $2`, referredMasterID, referralCode)
 	return err
 }
 
 // Update updates a referral record (metadata, successful, updated_at, etc.).
-func (r *Repository) Update(referral *Referral) error {
+func (r *Repository) Update(ctx context.Context, referral *Referral) error {
 	marshaler := protojson.MarshalOptions{
 		UseProtoNames:   true,
 		EmitUnpopulated: false,
@@ -207,6 +209,6 @@ func (r *Repository) Update(referral *Referral) error {
 		UPDATE service_referral_main
 		SET successful = $1, updated_at = $2, metadata = $3
 		WHERE id = $4`
-	_, err = r.GetDB().Exec(query, referral.Successful, time.Now(), metadataJSON, referral.ID)
+	_, err = r.GetDB().ExecContext(ctx, query, referral.Successful, time.Now(), metadataJSON, referral.ID)
 	return err
 }

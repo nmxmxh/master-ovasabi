@@ -9,21 +9,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// BootstrapRegistries loads DB-backed service/event registry into memory on startup.
-func BootstrapRegistries(ctx context.Context, db *sql.DB, log *zap.Logger) error {
+// Registries loads DB-backed service/event registry into memory on startup.
+func Registries(ctx context.Context, db *sql.DB, log *zap.Logger) error {
 	dbSvc := &registry.DBServiceRegistry{DB: db}
 	dbEvt := &registry.DBEventRegistry{DB: db}
 
 	// Seed service registry from config/service_registration.json if needed
-	seeded := false
 	if seedFn := getSeedServiceRegistryFunc(); seedFn != nil {
 		var err error
-		seeded, err = seedFn()
-		if err != nil {
+		seeded, err := seedFn()
+		switch {
+		case err != nil:
 			log.Warn("Failed to seed service registry from JSON", zap.Error(err))
-		} else if seeded {
+		case seeded:
 			log.Info("Service registry seeded from config/service_registration.json")
-		} else {
+		default:
 			log.Info("Service registry already seeded.")
 		}
 	}

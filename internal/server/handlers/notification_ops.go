@@ -69,21 +69,21 @@ func NotificationHandler(container *di.Container) http.HandlerFunc {
 						return
 					}
 				}
-				handleNotificationAction(w, ctx, log, req, &notificationpb.SendNotificationRequest{}, notifSvc.SendNotification)
+				handleNotificationAction(ctx, w, log, req, &notificationpb.SendNotificationRequest{}, notifSvc.SendNotification)
 			},
 			"send_email": func() {
 				if isGuest {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthenticated: user_id required for email", nil)
 					return
 				}
-				handleNotificationAction(w, ctx, log, req, &notificationpb.SendEmailRequest{}, notifSvc.SendEmail)
+				handleNotificationAction(ctx, w, log, req, &notificationpb.SendEmailRequest{}, notifSvc.SendEmail)
 			},
 			"send_sms": func() {
 				if isGuest {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthenticated: user_id required for SMS", nil)
 					return
 				}
-				handleNotificationAction(w, ctx, log, req, &notificationpb.SendSMSRequest{}, notifSvc.SendSMS)
+				handleNotificationAction(ctx, w, log, req, &notificationpb.SendSMSRequest{}, notifSvc.SendSMS)
 			},
 			"send_push": func() {
 				if isGuest {
@@ -92,21 +92,21 @@ func NotificationHandler(container *di.Container) http.HandlerFunc {
 						return
 					}
 				}
-				handleNotificationAction(w, ctx, log, req, &notificationpb.SendPushNotificationRequest{}, notifSvc.SendPushNotification)
+				handleNotificationAction(ctx, w, log, req, &notificationpb.SendPushNotificationRequest{}, notifSvc.SendPushNotification)
 			},
 			"list_notifications": func() {
 				if isGuest {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthenticated: user_id required", nil)
 					return
 				}
-				handleNotificationAction(w, ctx, log, req, &notificationpb.ListNotificationsRequest{}, notifSvc.ListNotifications)
+				handleNotificationAction(ctx, w, log, req, &notificationpb.ListNotificationsRequest{}, notifSvc.ListNotifications)
 			},
 			"acknowledge_notification": func() {
 				if isGuest {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthenticated: user_id required", nil)
 					return
 				}
-				handleNotificationAction(w, ctx, log, req, &notificationpb.AcknowledgeNotificationRequest{}, notifSvc.AcknowledgeNotification)
+				handleNotificationAction(ctx, w, log, req, &notificationpb.AcknowledgeNotificationRequest{}, notifSvc.AcknowledgeNotification)
 			},
 			"broadcast_event": func() {
 				// Broadcasts are typically admin/system actions, but we'll allow authenticated users for now.
@@ -114,14 +114,14 @@ func NotificationHandler(container *di.Container) http.HandlerFunc {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthenticated: user_id required", nil)
 					return
 				}
-				handleNotificationAction(w, ctx, log, req, &notificationpb.BroadcastEventRequest{}, notifSvc.BroadcastEvent)
+				handleNotificationAction(ctx, w, log, req, &notificationpb.BroadcastEventRequest{}, notifSvc.BroadcastEvent)
 			},
 			"list_notification_events": func() {
 				if isGuest {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthenticated: user_id required", nil)
 					return
 				}
-				handleNotificationAction(w, ctx, log, req, &notificationpb.ListNotificationEventsRequest{}, notifSvc.ListNotificationEvents)
+				handleNotificationAction(ctx, w, log, req, &notificationpb.ListNotificationEventsRequest{}, notifSvc.ListNotificationEvents)
 			},
 			"subscribe_to_events": func() {
 				if isGuest {
@@ -241,8 +241,8 @@ func (s *singleChunkStream) RecvMsg(_ interface{}) error  { return nil }
 
 // handleNotificationAction is a generic helper to reduce boilerplate in NotificationHandler.
 func handleNotificationAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

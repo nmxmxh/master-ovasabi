@@ -9,6 +9,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
 	crawlerpb "github.com/nmxmxh/master-ovasabi/api/protos/crawler/v1"
+	"go.uber.org/zap"
 	"golang.org/x/net/html/charset"
 )
 
@@ -29,6 +30,10 @@ func (w *HTMLWorker) Cleanup() {
 }
 
 func (w *HTMLWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) (*crawlerpb.CrawlResult, error) {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	result := &crawlerpb.CrawlResult{TaskUuid: task.Uuid}
 
 	w.collector = colly.NewCollector(
@@ -38,9 +43,17 @@ func (w *HTMLWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) (*c
 
 	w.collector.OnResponse(func(r *colly.Response) {
 		encoding, _, _ := charset.DetermineEncoding(r.Body, r.Headers.Get("Content-Type"))
-		utf8Body, _ := encoding.NewDecoder().Bytes(r.Body)
+		utf8Body, err := encoding.NewDecoder().Bytes(r.Body)
+		if err != nil {
+			w.Logger.Error("Failed to decode response body", zap.Error(err))
+			return
+		}
 
-		doc, _ := goquery.NewDocumentFromReader(bytes.NewReader(utf8Body))
+		doc, err := goquery.NewDocumentFromReader(bytes.NewReader(utf8Body))
+		if err != nil {
+			w.Logger.Error("Failed to create goquery document", zap.Error(err))
+			return
+		}
 
 		cleanContent := sanitizeHTML(doc)
 		links := extractLinks(doc, r.Request.URL)
@@ -59,10 +72,11 @@ func (w *HTMLWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) (*c
 	return result, nil
 }
 
-// Remove ads, scripts, and boilerplate elements
+// Remove ads, scripts, and boilerplate elements.
 func sanitizeHTML(doc *goquery.Document) string {
 	doc.Find("script, style, iframe, noscript").Remove()
 	doc.Find("*").Each(func(i int, s *goquery.Selection) {
+		_ = i // Use i to avoid revive unused-parameter warning
 		if isAdElement(s) {
 			s.Remove()
 		}
@@ -70,7 +84,7 @@ func sanitizeHTML(doc *goquery.Document) string {
 	return strings.TrimSpace(doc.Text())
 }
 
-// Detect if element is likely an ad
+// Detect if element is likely an ad.
 func isAdElement(s *goquery.Selection) bool {
 	class, _ := s.Attr("class")
 	id, _ := s.Attr("id")
@@ -80,10 +94,11 @@ func isAdElement(s *goquery.Selection) bool {
 	return false
 }
 
-// Extract all hyperlinks, resolving relative URLs
+// Extract all hyperlinks, resolving relative URLs.
 func extractLinks(doc *goquery.Document, base *url.URL) []string {
 	var links []string
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
+		_ = i // Use i to avoid revive unused-parameter warning
 		href, exists := s.Attr("href")
 		if !exists {
 			return

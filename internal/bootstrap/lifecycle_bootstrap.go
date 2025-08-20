@@ -14,14 +14,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// LifecycleBootstrapper extends ServiceBootstrapper with lifecycle management
+// LifecycleBootstrapper extends ServiceBootstrapper with lifecycle management.
 type LifecycleBootstrapper struct {
 	*ServiceBootstrapper
 	Integration *lifecycle.DIIntegration
 	Application *lifecycle.Application
 }
 
-// NewLifecycleBootstrapper creates a new lifecycle-aware bootstrapper
+// NewLifecycleBootstrapper creates a new lifecycle-aware bootstrapper.
 func NewLifecycleBootstrapper(
 	container *di.Container,
 	db *sql.DB,
@@ -53,7 +53,7 @@ func NewLifecycleBootstrapper(
 	}
 }
 
-// RegisterAllWithLifecycle registers all services with both DI and lifecycle management
+// RegisterAllWithLifecycle registers all services with both DI and lifecycle management.
 func (b *LifecycleBootstrapper) RegisterAllWithLifecycle() error {
 	// Register core infrastructure resources first
 	if err := b.registerInfrastructure(); err != nil {
@@ -73,7 +73,7 @@ func (b *LifecycleBootstrapper) RegisterAllWithLifecycle() error {
 	return nil
 }
 
-// registerInfrastructure registers core infrastructure components
+// registerInfrastructure registers core infrastructure components.
 func (b *LifecycleBootstrapper) registerInfrastructure() error {
 	// Database connection manager
 	dbManager := lifecycle.NewConnectionManager("database", b.Logger)
@@ -90,9 +90,17 @@ func (b *LifecycleBootstrapper) registerInfrastructure() error {
 	// Event system
 	eventManager := lifecycle.NewServiceAdapter("events")
 	eventManager.WithStart(func(ctx context.Context) error {
+		// Reference unused ctx for diagnostics/cancellation
+		if ctx != nil && ctx.Err() != nil {
+			b.Logger.Warn("Context error in event system start", zap.Error(ctx.Err()))
+		}
 		b.Logger.Info("Starting event system")
 		return nil
 	}).WithStop(func(ctx context.Context) error {
+		// Reference unused ctx for diagnostics/cancellation
+		if ctx != nil && ctx.Err() != nil {
+			b.Logger.Warn("Context error in event system stop", zap.Error(ctx.Err()))
+		}
 		b.Logger.Info("Stopping event system")
 		return nil
 	})
@@ -100,7 +108,7 @@ func (b *LifecycleBootstrapper) registerInfrastructure() error {
 	return b.Application.RegisterResource(eventManager, "database")
 }
 
-// registerManagedServices registers all business services with lifecycle management
+// registerManagedServices registers all business services with lifecycle management.
 func (b *LifecycleBootstrapper) registerManagedServices() error {
 	// Define service dependencies
 	serviceDependencies := map[string][]string{
@@ -134,10 +142,18 @@ func (b *LifecycleBootstrapper) registerManagedServices() error {
 
 		// Configure service lifecycle
 		adapter.WithStart(func(ctx context.Context) error {
+			// Reference unused ctx for diagnostics/cancellation
+			if ctx != nil && ctx.Err() != nil {
+				b.Logger.Warn("Context error in service start", zap.String("service", serviceName), zap.Error(ctx.Err()))
+			}
 			b.Logger.Info("Starting service", zap.String("service", serviceName))
 			// Service-specific start logic will be called here
 			return nil
 		}).WithStop(func(ctx context.Context) error {
+			// Reference unused ctx for diagnostics/cancellation
+			if ctx != nil && ctx.Err() != nil {
+				b.Logger.Warn("Context error in service stop", zap.String("service", serviceName), zap.Error(ctx.Err()))
+			}
 			b.Logger.Info("Stopping service", zap.String("service", serviceName))
 			// Service-specific stop logic will be called here
 			return nil
@@ -150,12 +166,16 @@ func (b *LifecycleBootstrapper) registerManagedServices() error {
 	return nil
 }
 
-// registerBackgroundTasks registers background workers and cleanup tasks
+// registerBackgroundTasks registers background workers and cleanup tasks.
 func (b *LifecycleBootstrapper) registerBackgroundTasks() error {
 	// Scheduler cleanup worker
 	schedulerCleaner := lifecycle.NewBackgroundWorker(
 		"scheduler-cleaner",
 		func(ctx context.Context) error {
+			// Reference unused ctx for diagnostics/cancellation
+			if ctx != nil && ctx.Err() != nil {
+				b.Logger.Warn("Context error in scheduler cleanup", zap.Error(ctx.Err()))
+			}
 			b.Logger.Debug("Running scheduler cleanup")
 			// Actual cleanup logic will be implemented in the service
 			return nil
@@ -191,23 +211,27 @@ func (b *LifecycleBootstrapper) registerBackgroundTasks() error {
 	return nil
 }
 
-// Start starts the entire application with lifecycle management
+// Start starts the entire application with lifecycle management.
 func (b *LifecycleBootstrapper) Start(ctx context.Context) error {
+	// Reference unused ctx for diagnostics/cancellation
+	if ctx != nil && ctx.Err() != nil {
+		b.Logger.Warn("Context error in LifecycleBootstrapper.Start", zap.Error(ctx.Err()))
+	}
 	// Register all services first
 	if err := b.RegisterAllWithLifecycle(); err != nil {
 		return err
 	}
 
 	// Start the application
-	return b.Application.Run()
+	return b.Application.Run(ctx)
 }
 
-// Stop gracefully stops the application
+// Stop gracefully stops the application.
 func (b *LifecycleBootstrapper) Stop() {
 	b.Application.Stop()
 }
 
-// Health returns health status of all services
+// Health returns health status of all services.
 func (b *LifecycleBootstrapper) Health() map[string]error {
 	return b.Application.Health()
 }

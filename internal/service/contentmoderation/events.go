@@ -46,10 +46,21 @@ func loadModerationEvents() []string {
 
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 func parseActionAndState(eventType string) (action, state string) {
@@ -76,7 +87,7 @@ func HandleModerationServiceEvent(ctx context.Context, s *Service, event *nexusv
 	handler(ctx, s, event)
 }
 
-// Handler implementations for each canonical moderation action
+// Handler implementations for each canonical moderation action.
 func handleSubmitContentForModeration(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling submit_content_for_moderation event", zap.Any("event", event))
 	var req contentmoderationpb.SubmitContentForModerationRequest
@@ -140,7 +151,7 @@ func handleRejectContent(ctx context.Context, svc *Service, event *nexusv1.Event
 	}
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	evts := loadModerationEvents()
 	m := make(map[string]ActionHandlerFunc)

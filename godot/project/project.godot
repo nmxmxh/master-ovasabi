@@ -1,0 +1,28 @@
+
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="OVASABI Godot Headless"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.4", "4.4.1")
+config/icon="res://assets/icon.png"
+
+[autoload]
+
+Autoload="*res://scripts/autoload.gd"
+PhysicsEngine2D="*res://scripts/PhysicsEngine2D.gd"
+PhysicsEngine3D="*res://scripts/PhysicsEngine3D.gd"
+PhysicsEntityRegistry="*res://scripts/physics/PhysicsEntityRegistry.gd"
+PhysicsDebugger="*res://scripts/physics/PhysicsDebugger.gd"
+
+[input]
+physics_debug={"deadzone":0.5,"events":[{"type":"KEY","keycode":16777237}]} # Default: F8 key

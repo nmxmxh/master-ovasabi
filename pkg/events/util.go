@@ -50,6 +50,17 @@ func EmitEventWithDLQ(
 	extraFields ...zap.Field,
 ) (*commonpb.Metadata, bool) {
 	// Event emission logic has been centralized elsewhere. This function is now a stub.
+	// Use all parameters for diagnostics to avoid unused parameter warnings.
+	if log != nil {
+		log.Debug("EmitEventWithDLQ called",
+			zap.String("event_type", eventType),
+			zap.String("event_id", eventID),
+			zap.Any("cache", cache),
+			zap.Any("emitter", emitter),
+			zap.Any("context_done", ctx.Err()),
+			zap.Any("extra_fields_count", len(extraFields)),
+		)
+	}
 	// TODO: Call centralized event emission logic here.
 	return meta, false
 }

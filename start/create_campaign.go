@@ -443,7 +443,10 @@ func main() {
 
 	if *dbURL == "" {
 		fmt.Print("Enter Postgres connection string: ")
-		fmt.Scanln(dbURL)
+		if _, err := fmt.Scanln(dbURL); err != nil {
+			fmt.Println("Failed to read Postgres connection string:", err)
+			os.Exit(1)
+		}
 	}
 
 	db, err := sql.Open("postgres", *dbURL)
@@ -451,21 +454,24 @@ func main() {
 		fmt.Println("Failed to connect to database:", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() {
+		if db != nil {
+			db.Close()
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	var campaignID int
 	err = db.QueryRowContext(ctx, `
-			   INSERT INTO service_campaign_main (slug, name, metadata, created_at, updated_at)
-			   VALUES ($1, $2, $3::jsonb, NOW(), NOW())
-			   RETURNING id;
-	   `, *slug, *name, string(metadataJSON)).Scan(&campaignID)
+	      INSERT INTO service_campaign_main (slug, name, metadata, created_at, updated_at)
+	      VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+	      RETURNING id;
+	  `, *slug, *name, string(metadataJSON)).Scan(&campaignID)
 	if err != nil {
 		fmt.Println("Failed to insert campaign:", err)
 		os.Exit(1)
 	}
+	defer cancel()
 
 	fmt.Printf("Campaign created with id: %d\n", campaignID)
 }

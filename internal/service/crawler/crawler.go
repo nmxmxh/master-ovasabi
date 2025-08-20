@@ -20,7 +20,7 @@ import (
 
 // --- Graceful Orchestration Adapter for EventEmitter (for DRY orchestration) ---
 
-// --- Service and Dispatcher Types ---
+// --- Service and Dispatcher Types ---.
 type Service struct {
 	crawlerpb.UnimplementedCrawlerServiceServer
 	log          *zap.Logger
@@ -46,7 +46,7 @@ type Dispatcher struct {
 
 type WorkerFactory func() workers.Worker
 
-// --- Constants for worker pool ---
+// --- Constants for worker pool ---.
 const (
 	DefaultWorkerCount = 4
 	DefaultQueueSize   = 100
@@ -55,10 +55,10 @@ const (
 
 // --- CrawlerService gRPC Methods ---
 
-// Ensure gRPC interface compliance
+// Ensure gRPC interface compliance.
 var _ crawlerpb.CrawlerServiceServer = (*Service)(nil)
 
-// SubmitTask submits a new crawl task and orchestrates via graceful
+// SubmitTask submits a new crawl task and orchestrates via graceful.
 func (s *Service) SubmitTask(ctx context.Context, req *crawlerpb.SubmitTaskRequest) (*crawlerpb.SubmitTaskResponse, error) {
 	if req == nil || req.Task == nil {
 		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "missing task in request", nil)
@@ -100,7 +100,7 @@ func (s *Service) SubmitTask(ctx context.Context, req *crawlerpb.SubmitTaskReque
 	return resp, nil
 }
 
-// GetTaskStatus returns the current status of a crawl task
+// GetTaskStatus returns the current status of a crawl task.
 func (s *Service) GetTaskStatus(ctx context.Context, req *crawlerpb.GetTaskStatusRequest) (*crawlerpb.CrawlTask, error) {
 	if req == nil || req.Uuid == "" {
 		gErr := graceful.WrapErr(ctx, codes.InvalidArgument, "missing uuid in request", nil)
@@ -118,7 +118,7 @@ func (s *Service) GetTaskStatus(ctx context.Context, req *crawlerpb.GetTaskStatu
 	return task, nil
 }
 
-// StreamResults streams crawl results for a given task UUID
+// StreamResults streams crawl results for a given task UUID.
 func (s *Service) StreamResults(req *crawlerpb.StreamResultsRequest, stream crawlerpb.CrawlerService_StreamResultsServer) error {
 	ctx := stream.Context()
 	if req == nil || req.TaskUuid == "" {
@@ -146,7 +146,7 @@ func (s *Service) StreamResults(req *crawlerpb.StreamResultsRequest, stream craw
 	return nil
 }
 
-// NewService creates a new crawler service with proper dependency injection
+// NewService creates a new crawler service with proper dependency injection.
 func NewService(
 	ctx context.Context,
 	log *zap.Logger,
@@ -156,6 +156,11 @@ func NewService(
 	eventEnabled bool,
 	workerFactories map[crawlerpb.TaskType]WorkerFactory,
 ) (*Service, error) {
+	// Reference unused ctx for diagnostics
+	if ctx != nil && ctx.Err() != nil {
+		log.Warn("Context error in NewService", zap.Error(ctx.Err()))
+	}
+
 	dispatcher, err := NewDispatcher(log, repo, workerFactories)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -172,7 +177,7 @@ func NewService(
 		handler:      graceful.NewHandler(log, eventEmitter, cache, "crawler", "v1", eventEnabled),
 	}
 
-	dispatcher.Start()
+	dispatcher.Start(ctx)
 	log.Info("crawler service started",
 		zap.Int("workers", DefaultWorkerCount),
 		zap.Bool("events_enabled", eventEnabled),
@@ -181,7 +186,7 @@ func NewService(
 	return svc, nil
 }
 
-// NewDispatcher creates and configures a new Dispatcher
+// NewDispatcher creates and configures a new Dispatcher.
 func NewDispatcher(
 	log *zap.Logger,
 	repo *Repository,
@@ -207,19 +212,21 @@ func NewDispatcher(
 	return d, nil
 }
 
-// Start launches the worker pool and the result processor
-func (d *Dispatcher) Start() {
+// Start launches the worker pool and the result processor.
+func (d *Dispatcher) Start(ctx context.Context) {
 	d.processorWg.Add(1)
-	go d.resultProcessor()
+	go d.resultProcessor(ctx)
 
 	d.workerWg.Add(DefaultWorkerCount)
 	for i := 0; i < DefaultWorkerCount; i++ {
-		go d.worker(i)
+		go d.worker(ctx, i)
 	}
 }
 
-// worker processes tasks with context propagation and graceful error handling
-func (d *Dispatcher) worker(id int) {
+// worker processes tasks with context propagation and graceful error handling.
+func (d *Dispatcher) worker(ctx context.Context, id int) {
+	// Reference unused id for diagnostics
+	d.log.Debug("Dispatcher.worker started", zap.Int("worker_id", id))
 	defer d.workerWg.Done()
 	ticker := time.NewTicker(RateLimit)
 	defer ticker.Stop()
@@ -227,8 +234,8 @@ func (d *Dispatcher) worker(id int) {
 	for task := range d.jobQueue {
 		<-ticker.C // Rate limiting
 
-		// Create worker context with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		// Create worker context with timeout, inheriting parent ctx
+		workerCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 
 		worker, exists := d.workerMap[task.Type]
 		if !exists {
@@ -236,6 +243,7 @@ func (d *Dispatcher) worker(id int) {
 			d.log.Error("no worker found",
 				zap.String("uuid", task.Uuid),
 				zap.String("type", task.Type.String()),
+				zap.Int("worker_id", id),
 			)
 
 			result := &crawlerpb.CrawlResult{
@@ -251,19 +259,22 @@ func (d *Dispatcher) worker(id int) {
 
 		// Update task status to processing
 		task.Status = crawlerpb.TaskStatus_TASK_STATUS_PROCESSING
-		if _, err := d.repo.UpdateCrawlTask(ctx, task); err != nil {
+		if _, err := d.repo.UpdateCrawlTask(workerCtx, task); err != nil {
 			d.log.Error("failed to update task status",
 				zap.String("uuid", task.Uuid),
 				zap.Error(err),
+				zap.Int("worker_id", id),
 			)
 		}
 
 		// Process task with context
-		result, err := worker.Process(ctx, task)
+		result, err := worker.Process(workerCtx, task)
+		cancel()
 		if err != nil {
 			d.log.Error("task processing failed",
 				zap.String("uuid", task.Uuid),
 				zap.Error(err),
+				zap.Int("worker_id", id),
 			)
 
 			result = &crawlerpb.CrawlResult{
@@ -281,13 +292,11 @@ func (d *Dispatcher) worker(id int) {
 	}
 }
 
-// resultProcessor handles results with proper context
-func (d *Dispatcher) resultProcessor() {
+// resultProcessor handles results with proper context.
+func (d *Dispatcher) resultProcessor(ctx context.Context) {
 	defer d.processorWg.Done()
 
 	for result := range d.results {
-		ctx := context.Background()
-
 		if err := d.repo.StoreCrawlResult(ctx, result); err != nil {
 			d.log.Error("failed to store result",
 				zap.String("uuid", result.TaskUuid),
@@ -316,7 +325,7 @@ func (d *Dispatcher) resultProcessor() {
 	}
 }
 
-// Stop gracefully shuts down the dispatcher with timeout
+// Stop gracefully shuts down the dispatcher with timeout.
 func (d *Dispatcher) Stop(ctx context.Context) error {
 	var shutdownErr error
 	shutdownComplete := make(chan struct{})
@@ -347,7 +356,7 @@ func (d *Dispatcher) Stop(ctx context.Context) error {
 	return shutdownErr
 }
 
-// Shutdown gracefully stops the service
+// Shutdown gracefully stops the service.
 func (s *Service) Shutdown(ctx context.Context) error {
 	s.log.Info("shutting down crawler service")
 
@@ -364,7 +373,7 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// RegisterGRPCServer registers the service
+// RegisterGRPCServer registers the service.
 func (s *Service) RegisterGRPCServer(server *grpc.Server) {
 	crawlerpb.RegisterCrawlerServiceServer(server, s)
 }

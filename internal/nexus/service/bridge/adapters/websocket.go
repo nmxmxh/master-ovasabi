@@ -54,9 +54,9 @@ func (a *WebSocketAdapter) Capabilities() []string {
 
 func (a *WebSocketAdapter) Endpoint() string { return a.serverAddr }
 
-func (a *WebSocketAdapter) Connect(_ context.Context, _ bridge.AdapterConfig) error {
+func (a *WebSocketAdapter) Connect(ctx context.Context, _ bridge.AdapterConfig) error {
 	// Start WebSocket server in a goroutine with timeouts
-	go func() {
+	go func(ctx context.Context) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/ws", a.handleWS)
 		srv := &http.Server{
@@ -66,7 +66,8 @@ func (a *WebSocketAdapter) Connect(_ context.Context, _ bridge.AdapterConfig) er
 			WriteTimeout: 15 * time.Second,
 			IdleTimeout:  60 * time.Second,
 		}
-		ln, err := net.Listen("tcp", a.serverAddr)
+		var lc net.ListenConfig
+		ln, err := lc.Listen(ctx, "tcp", a.serverAddr)
 		if err != nil {
 			zap.L().Warn("WebSocketAdapter Listen error", zap.Error(err))
 			return
@@ -74,7 +75,7 @@ func (a *WebSocketAdapter) Connect(_ context.Context, _ bridge.AdapterConfig) er
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			zap.L().Warn("WebSocketAdapter Serve error", zap.Error(err))
 		}
-	}()
+	}(ctx)
 	return nil
 }
 
@@ -216,11 +217,9 @@ func (a *WebSocketAdapter) BroadcastEvent(eventType string, event interface{}) {
 		allowed := client.filters
 		if len(allowed) == 0 {
 			allowed = defaultAllowed
-		} else {
+		} else if allowed["search"] {
 			// If client explicitly requests all, add custom event types
-			if allowed["search"] {
-				allowed["search:search:v1:success"] = true
-			}
+			allowed["search:search:v1:success"] = true
 		}
 		if !allowed[eventType] {
 			continue

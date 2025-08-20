@@ -63,6 +63,9 @@ func (r *DBServiceRegistry) LoadAll(ctx context.Context) ([]ServiceRegistration,
 		}
 		result = append(result, svc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
@@ -86,6 +89,9 @@ func (r *DBEventRegistry) LoadAll(ctx context.Context) ([]EventRegistration, err
 			return nil, err
 		}
 		result = append(result, evt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return result, nil
 }

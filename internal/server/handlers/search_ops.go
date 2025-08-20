@@ -174,7 +174,7 @@ func SearchOpsHandler(container *di.Container) http.HandlerFunc {
 				httputil.WriteJSONResponse(w, log, resp)
 			},
 			"suggest": func() {
-				handleSearchAction(w, ctx, log, reqMap, &searchpb.SuggestRequest{}, searchSvc.Suggest)
+				handleSearchAction(ctx, w, log, reqMap, &searchpb.SuggestRequest{}, searchSvc.Suggest)
 			},
 		}
 
@@ -188,8 +188,8 @@ func SearchOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleSearchAction is a generic helper for simple search actions.
 func handleSearchAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

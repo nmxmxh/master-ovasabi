@@ -16,7 +16,12 @@ export interface ThreeCore {
   ShaderMaterial: typeof THREE.ShaderMaterial;
   Material: typeof THREE.Material;
   SphereGeometry: typeof THREE.SphereGeometry;
+  PlaneGeometry: typeof THREE.PlaneGeometry;
+  BoxGeometry: typeof THREE.BoxGeometry;
+  TorusKnotGeometry: typeof THREE.TorusKnotGeometry;
   MeshBasicMaterial: typeof THREE.MeshBasicMaterial;
+  MeshPhysicalMaterial: typeof THREE.MeshPhysicalMaterial;
+  MeshStandardMaterial: typeof THREE.MeshStandardMaterial;
   Mesh: typeof THREE.Mesh;
   Line: typeof THREE.Line;
   LineBasicMaterial: typeof THREE.LineBasicMaterial;
@@ -31,6 +36,8 @@ export interface ThreeCore {
   Fog: typeof THREE.Fog;
   AmbientLight: typeof THREE.AmbientLight;
   DirectionalLight: typeof THREE.DirectionalLight;
+  Object3D: typeof THREE.Object3D;
+  Group: typeof THREE.Group;
 }
 
 export interface ThreeRenderers {
@@ -186,7 +193,12 @@ export async function loadThreeCore(): Promise<ThreeCore> {
       ShaderMaterial: THREE.ShaderMaterial,
       Material: THREE.Material,
       SphereGeometry: THREE.SphereGeometry,
+      PlaneGeometry: THREE.PlaneGeometry,
+      BoxGeometry: THREE.BoxGeometry,
+      TorusKnotGeometry: THREE.TorusKnotGeometry,
       MeshBasicMaterial: THREE.MeshBasicMaterial,
+      MeshPhysicalMaterial: THREE.MeshPhysicalMaterial,
+      MeshStandardMaterial: THREE.MeshStandardMaterial,
       Mesh: THREE.Mesh,
       Line: THREE.Line,
       LineBasicMaterial: THREE.LineBasicMaterial,
@@ -200,7 +212,9 @@ export async function loadThreeCore(): Promise<ThreeCore> {
       UnsignedByteType: THREE.UnsignedByteType,
       Fog: THREE.Fog,
       AmbientLight: THREE.AmbientLight,
-      DirectionalLight: THREE.DirectionalLight
+      DirectionalLight: THREE.DirectionalLight,
+      Object3D: THREE.Object3D,
+      Group: THREE.Group
     };
 
     // Track performance metrics

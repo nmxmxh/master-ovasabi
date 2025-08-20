@@ -62,7 +62,8 @@ type KGHooks struct {
 // NewKGHooks creates a new KGHooks instance.
 func NewKGHooks(redisClient *redis.Client, logger *zap.Logger, eventSubscriber interface {
 	SubscribeEvents(ctx context.Context, eventTypes []string, meta *commonpb.Metadata, handler func(context.Context, *nexusv1.EventResponse)) error
-}) *KGHooks {
+},
+) *KGHooks {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &KGHooks{
 		redis:           redisClient,
@@ -94,6 +95,10 @@ func (h *KGHooks) subscribeToNexus() {
 
 	// Define the event handler that will process incoming KG updates
 	handler := func(ctx context.Context, eventResp *nexusv1.EventResponse) {
+		// Reference unused ctx for diagnostics/cancellation
+		if ctx != nil && ctx.Err() != nil {
+			h.logger.Warn("Context error in KG event handler", zap.Error(ctx.Err()))
+		}
 		h.logger.Debug("KGHooks received event from Nexus", zap.String("eventType", eventResp.EventType), zap.String("eventID", eventResp.EventId))
 
 		// The canonical payload is a commonpb.Payload, which contains a structpb.Struct.

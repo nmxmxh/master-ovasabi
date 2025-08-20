@@ -23,7 +23,7 @@ interface WASMFunctions {
     callback: (result: Float32Array) => void
   ) => boolean;
   runGPUComputeWithOffset: (
-    inputData: Float32Array,
+    inputData: Uint8Array,
     elapsedTime: number,
     globalParticleOffset: number,
     callback: (result: Float32Array) => void
@@ -126,42 +126,6 @@ export interface GPUCapabilities {
   };
 }
 
-// Utility to build WebSocket URL dynamically using window.location
-export function getDynamicWebSocketURL(campaignId: string | number = '0'): string {
-  try {
-    if (typeof window !== 'undefined' && window.location) {
-      // Check for environment variable first (development)
-      const envWsUrl = (import.meta.env?.VITE_WS_URL as string) || '';
-      if (envWsUrl) {
-        console.log(`[WASM-Bridge] Using environment WebSocket URL: ${envWsUrl}`);
-        return envWsUrl;
-      }
-
-      // For development, use same host as frontend (goes through Vite proxy to ws-gateway)
-      const host = window.location.host;
-      if (host.includes('5173') || host.includes('3000') || host.includes('localhost')) {
-        // Development environment - use frontend host so it goes through Vite proxy
-        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const proxyUrl = `${protocol}://${host}/ws/${campaignId}/`;
-        console.log(`[WASM-Bridge] Development mode - using Vite proxy WebSocket URL: ${proxyUrl}`);
-        return proxyUrl;
-      }
-
-      // Production - use same host as frontend
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const url = `${protocol}://${host}/ws/${campaignId}/`;
-      console.log(`[WASM-Bridge] Production mode - using same-host WebSocket URL: ${url}`);
-      return url;
-    }
-  } catch (error) {
-    console.warn('[WASM-Bridge] Error generating dynamic WebSocket URL:', error);
-  }
-
-  // Fallback for non-browser environments or errors
-  const fallbackUrl = `ws://localhost:8080/ws/${campaignId}/`;
-  console.log(`[WASM-Bridge] Using fallback WebSocket URL: ${fallbackUrl}`);
-  return fallbackUrl;
-}
 export class WasmGPUBridge {
   private initialized = false;
   private initPromise: Promise<boolean> | null = null;
@@ -182,8 +146,17 @@ export class WasmGPUBridge {
   private maxConcurrentJobs = 4;
 
   constructor() {
-    this.initializeWASMGPU();
-    this.initializeDistributedProcessing();
+    // Wait for WASM to be ready before initializing GPU bridge
+    if (typeof window !== 'undefined') {
+      window.addEventListener('wasmReady', () => {
+        this.initializeWASMGPU();
+        this.initializeDistributedProcessing();
+      });
+    } else {
+      // Fallback for non-browser environments
+      this.initializeWASMGPU();
+      this.initializeDistributedProcessing();
+    }
   }
 
   private async initializeDistributedProcessing() {
@@ -1020,8 +993,19 @@ export class WasmGPUBridge {
         return;
       }
 
+      // Ensure inputData is passed as Uint8Array for Go WASM compatibility
+      let bufferToSend: Uint8Array;
+      if (Object.prototype.toString.call(inputData) === '[object Float32Array]') {
+        bufferToSend = new Uint8Array((inputData as unknown as Float32Array).buffer);
+      } else if (Object.prototype.toString.call(inputData) === '[object Uint8Array]') {
+        bufferToSend = inputData as unknown as Uint8Array;
+      } else if (Object.prototype.toString.call(inputData) === '[object ArrayBuffer]') {
+        bufferToSend = new Uint8Array(inputData as unknown as ArrayBuffer);
+      } else {
+        throw new Error('Unsupported buffer type for WASM GPU compute');
+      }
       const success = window.runGPUComputeWithOffset(
-        inputData,
+        bufferToSend,
         elapsedTime,
         globalParticleOffset / 3, // Convert to particle count (since offset is in floats)
         (result: Float32Array) => {
@@ -1699,74 +1683,79 @@ export class WasmGPUBridge {
 
 // Singleton instance for centralized GPU access
 export const wasmGPU = new WasmGPUBridge();
+const WASM_SESSION_ID = `wasm-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 console.log(
-  '[WASM-GPU-Bridge] ✅ Centralized WASM GPU singleton created - GPU initialization will happen lazily when needed'
+  `[WASM-GPU-Bridge] ✅ Centralized WASM GPU singleton created - GPU initialization will happen lazily when needed | Session: ${WASM_SESSION_ID}`
 );
-
-// Initialize WASM GPU in the background after a delay to not block page load
 if (typeof window !== 'undefined') {
-  // Do NOT set window.__WASM_WS_URL - let WASM handle dynamic URL construction based on campaign metadata
-  // This allows the WASM to dynamically switch campaigns without being locked to a static URL
+  (window as any).__WASM_SESSION_ID = WASM_SESSION_ID;
+}
 
-  // Media streaming uses a different port (8085) and endpoint with campaign parameters
+// Only set global media streaming URL, do not auto-connect or trigger any connection logic here.
+if (typeof window !== 'undefined') {
   const mediaUrl = (() => {
     if (typeof window !== 'undefined' && window.location) {
       const host = window.location.host;
       let baseUrl: string;
-
       if (host.includes('5173') || host.includes('3000') || host.includes('localhost')) {
-        // Development environment - use media-streaming service port
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         baseUrl = `${protocol}://localhost:8085/ws`;
       } else {
-        // Production - use same host but different service
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         baseUrl = `${protocol}://${host}/media/ws`;
       }
-
-      // Add campaign parameters for auto-connection
-      const campaignId = '0'; // Default campaign
-      const contextId = 'webgpu-particles'; // Context for WebGPU particle demo
-      const peerId = `guest_${Math.random().toString(36).substring(2, 10)}`; // Generate guest peer ID
-
+      const campaignId = '0';
+      const contextId = 'webgpu-particles';
+      // Use the centralized WASM guest/user ID for peerId
+      const peerId =
+        (window as any).userID || `guest_${Math.random().toString(36).substring(2, 10)}`;
       return `${baseUrl}?campaign=${campaignId}&context=${contextId}&peer=${peerId}`;
     }
     return 'ws://localhost:8085/ws?campaign=0&context=webgpu-particles&peer=guest_default';
   })();
-
-  // Do not set window.__WASM_WS_URL - let WASM construct URLs dynamically based on campaign metadata
   (window as any).__MEDIA_STREAMING_URL = mediaUrl;
-
   console.log(`[WASM-Bridge] Set global URLs for WASM:`);
   console.log(`[WASM-Bridge] - Media WS: ${mediaUrl}`);
   console.log(`[WASM-Bridge] - Main WS: Dynamic construction in WASM based on campaign metadata`);
-
-  // Removed test WebSocket connectivity to backend (no more redundant connection)
-
-  setTimeout(() => {
-    wasmGPU.waitForInitialization().catch(error => {
-      console.warn('[WASM-GPU-Bridge] Background initialization failed:', error);
-    });
-
-    // Also trigger GPU capabilities detection for metadata
-    wasmGPU.updateMetadataWithGPUInfo().catch(error => {
-      console.warn('[WASM-GPU-Bridge] GPU capabilities metadata update failed:', error);
-    });
-  }, 1000); // Wait 1 second after page load
+  // No setTimeout or background connection here. Media streaming connection should be triggered explicitly by frontend after WASM is ready.
 }
 
 // WASM lifecycle state tracking
 if (typeof window !== 'undefined') {
   // Set this to true when WASM is initialized, false when cleaned up
   (window as any).wasmReady = false;
-  // Optionally, listen for WASM ready event and set to true
-  if (typeof (window as any).onWasmReady === 'function') {
-    (window as any).onWasmReady = () => {
-      (window as any).wasmReady = true;
-      console.log('[WASM] wasmReady set to true');
-    };
+  (window as any).swReady = false;
+  // Use global metadata object for all runtime metadata
+  if (typeof (window as any).__WASM_GLOBAL_METADATA === 'undefined') {
+    (window as any).__WASM_GLOBAL_METADATA = {};
+  }
+
+  function initializeAfterReady() {
+    if ((window as any).swReady && (window as any).wasmReady) {
+      // Only set readiness, do not re-initialize WASM bridge, GPU, or media streaming unless truly needed
+      console.log('[WASM-Bridge] All systems ready.');
+    }
+  }
+
+  window.addEventListener('wasmReady', () => {
+    (window as any).wasmReady = true;
+    initializeAfterReady();
+  });
+
+  navigator.serviceWorker?.addEventListener('message', event => {
+    if (event.data?.type === 'sw-ready') {
+      (window as any).swReady = true;
+      initializeAfterReady();
+    }
+  });
+
+  // If SW is not used, proceed with WASM only
+  if (!navigator.serviceWorker) {
+    (window as any).swReady = true;
   }
 }
+(window as any).wasmReady = true;
+console.log('[WASM] wasmReady set to true');
 
 // Example usage for WebSocket connection:
 // const wsURL = getDynamicWebSocketURL();
@@ -1776,10 +1765,39 @@ if (typeof window !== 'undefined') {
 type WasmListener = (msg: WasmBridgeMessage) => void;
 const listeners: WasmListener[] = [];
 
+// Track last cancellation reason for diagnostics
+let lastWasmCancellationReason: string | null = null;
+
+/**
+ * Get the last WASM cancellation reason for UI or debugging.
+ */
+export function getLastWasmCancellationReason(): string | null {
+  return lastWasmCancellationReason;
+}
+
 // notifyListeners handles WASM→Frontend type conversion at the boundary
 function notifyListeners(msg: any) {
   // Convert WASM message to proper TypeScript types at the boundary
   const convertedMsg = wasmMessageToTypescript(msg);
+  // If this is a connection:closed event, log the reason
+  if (convertedMsg.type === 'connection:closed') {
+    // Try to extract reason from payload/metadata if present
+    const reason =
+      (convertedMsg.metadata && convertedMsg.metadata.reason) ||
+      (convertedMsg.payload && convertedMsg.payload.reason) ||
+      'unknown';
+    lastWasmCancellationReason = reason;
+    // Log to console and set global for debugging/UI
+    console.warn('[WASM-Bridge] Connection closed. Reason:', reason, 'Full event:', convertedMsg);
+    if (typeof window !== 'undefined') {
+      (window as any).__WASM_LAST_CANCELLATION_REASON = reason;
+      // Optionally, display in a simple UI element for demo/debug
+      let el = document.getElementById('wasm-cancellation-reason');
+      if (el) {
+        el.textContent = `WASM Cancellation Reason: ${reason}`;
+      }
+    }
+  }
   listeners.forEach(cb => cb(convertedMsg));
 }
 
@@ -1886,10 +1904,25 @@ export function subscribeToWasmMessages(cb: WasmListener): () => void {
  * @param msg - The message object to send
  */
 export function wasmSendMessage(msg: WasmBridgeMessage | EventEnvelope) {
+  // Defensive: ensure metadata is always an object before passing to WASM
+  console.log('MESSAGE >>>>>>', msg);
+  if ('metadata' in msg && typeof msg.metadata === 'string') {
+    try {
+      // Try base64 decode then parse
+      const decoded = atob(msg.metadata);
+      msg.metadata = JSON.parse(decoded);
+    } catch {
+      try {
+        msg.metadata = JSON.parse(msg.metadata);
+      } catch {
+        msg.metadata = {};
+      }
+    }
+  }
   if (typeof window !== 'undefined' && typeof (window as any).sendWasmMessage === 'function') {
     // Convert TypeScript types to WASM-compatible format at the boundary
-    const wasmMsg = typescriptToWasmMessage(msg);
-    (window as any).sendWasmMessage(wasmMsg);
+
+    (window as any).sendWasmMessage(msg);
   } else {
     // Queue the message if the bridge isn't ready yet.
     console.warn('WASM bridge not available. Message will be sent upon readiness.');
@@ -1897,36 +1930,50 @@ export function wasmSendMessage(msg: WasmBridgeMessage | EventEnvelope) {
   }
 }
 
-// typescriptToWasmMessage converts TypeScript types to WASM-compatible format
-function typescriptToWasmMessage(msg: WasmBridgeMessage | EventEnvelope): any {
-  // Ensure we have a clean object that WASM can properly handle
-  const wasmMsg: any = {
-    type: msg.type
-  };
+// // typescriptToWasmMessage converts TypeScript types to WASM-compatible format
+// function typescriptToWasmMessage(msg: WasmBridgeMessage | EventEnvelope): any {
+//   // Ensure we have a clean object that WASM can properly handle
+//   const wasmMsg: any = {
+//     type: msg.type
+//   };
 
-  // Handle payload - ensure it's properly structured
-  if ('payload' in msg && msg.payload !== undefined) {
-    wasmMsg.payload = msg.payload;
-  }
+//   // Handle payload - ensure it's properly structured
+//   if ('payload' in msg && msg.payload !== undefined) {
+//     wasmMsg.payload = msg.payload;
+//   }
 
-  // Handle metadata - ensure it's an object
-  if ('metadata' in msg && msg.metadata !== undefined) {
-    wasmMsg.metadata = msg.metadata;
-  } else {
-    wasmMsg.metadata = {};
-  }
+//   // Handle metadata - ensure it's an object, never a string or base64
+//   if ('metadata' in msg && msg.metadata !== undefined) {
+//     if (typeof msg.metadata === 'string') {
+//       try {
+//         // Try base64 decode then parse
+//         const decoded = atob(msg.metadata);
+//         wasmMsg.metadata = JSON.parse(decoded);
+//       } catch {
+//         try {
+//           wasmMsg.metadata = JSON.parse(msg.metadata);
+//         } catch {
+//           wasmMsg.metadata = {};
+//         }
+//       }
+//     } else {
+//       wasmMsg.metadata = msg.metadata;
+//     }
+//   } else {
+//     wasmMsg.metadata = {};
+//   }
 
-  // Copy any additional properties from WasmBridgeMessage
-  if ('payload' in msg || 'metadata' in msg) {
-    Object.keys(msg).forEach(key => {
-      if (!['type', 'payload', 'metadata'].includes(key)) {
-        wasmMsg[key] = (msg as any)[key];
-      }
-    });
-  }
+//   // Copy any additional properties from WasmBridgeMessage
+//   if ('payload' in msg || 'metadata' in msg) {
+//     Object.keys(msg).forEach(key => {
+//       if (!['type', 'payload', 'metadata'].includes(key)) {
+//         wasmMsg[key] = (msg as any)[key];
+//       }
+//     });
+//   }
 
-  return wasmMsg;
-}
+//   return wasmMsg;
+// }
 
 // --- Centralize guest/user ID generation at startup ---
 if (typeof window !== 'undefined' && !(window as any).userID) {
@@ -1946,31 +1993,21 @@ export function connectMediaStreamingToCampaign(
 ): void {
   // Always use the centralized userID
   const finalPeerId = peerId || (window as any).userID;
-
-  // Event-driven: wait for mediaStreamingReady before connecting
-  function doConnect() {
-    window.mediaStreaming.connectToCampaign(campaignId, contextId, finalPeerId);
-  }
-
   const isWasmReady =
     typeof window !== 'undefined' && 'wasmReady' in window && (window as any).wasmReady === true;
-
   if (
     isWasmReady &&
     window.mediaStreaming &&
     typeof window.mediaStreaming.connectToCampaign === 'function'
   ) {
-    doConnect();
-  } else if (typeof window !== 'undefined') {
-    // Listen for mediaStreamingReady event
-    const onReady = () => {
-      window.removeEventListener('mediaStreamingReady', onReady);
-      doConnect();
-    };
-    window.addEventListener('mediaStreamingReady', onReady);
+    window.mediaStreaming.connectToCampaign(campaignId, contextId, finalPeerId);
+    console.log(
+      `[WASM-Bridge] Media streaming connected to campaign ${campaignId} with context ${contextId} and peer ${finalPeerId}`
+    );
   } else {
+    // Do not attempt connection. Log and abort.
     console.warn(
-      '[Media-Streaming] connectToCampaign: Media streaming not available in this environment'
+      '[WASM-Bridge] Media streaming connection attempted before WASM is ready or mediaStreaming is unavailable. Aborting.'
     );
   }
 }
@@ -2025,5 +2062,35 @@ export function subscribeToMediaStreamingMessages(callback: (data: any) => void)
     window.mediaStreaming.onMessage(callback);
   } else {
     console.warn('[Media-Streaming] Media streaming API not available');
+  }
+}
+
+/**
+ * Disconnect from media streaming and clean up resources.
+ */
+export function disconnectMediaStreaming(): void {
+  try {
+    // Call WASM shutdown if available
+    if (
+      typeof window !== 'undefined' &&
+      window.mediaStreaming &&
+      typeof window.mediaStreaming.shutdown === 'function'
+    ) {
+      window.mediaStreaming.shutdown();
+      console.log('[WASM-Bridge] Media streaming shutdown called.');
+    } else {
+      console.warn('[WASM-Bridge] mediaStreaming.shutdown not available.');
+    }
+    // Clear state in Zustand global store
+    const { useGlobalStore } = require('../store/global');
+    const clearMediaStreamingState = useGlobalStore.getState().clearMediaStreamingState;
+    if (typeof clearMediaStreamingState === 'function') {
+      clearMediaStreamingState();
+      console.log('[WASM-Bridge] Media streaming state cleared.');
+    } else {
+      console.warn('[WASM-Bridge] clearMediaStreamingState not available.');
+    }
+  } catch (err) {
+    console.warn('[WASM-Bridge] Error during media streaming disconnect:', err);
   }
 }

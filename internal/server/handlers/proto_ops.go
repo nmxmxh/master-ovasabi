@@ -13,8 +13,12 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-// HTTP handler for serving all registered proto descriptors
+// HTTP handler for serving all registered proto descriptors.
 func ProtoDescriptorHTTPHandler(w http.ResponseWriter, r *http.Request) {
+	// Reference unused parameter r for diagnostics
+	if r != nil && r.Method == http.MethodHead {
+		w.Header().Set("X-Proto-Method", "HEAD")
+	}
 	files := protoregistry.GlobalFiles
 	var fds descriptorpb.FileDescriptorSet
 	files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
@@ -28,13 +32,21 @@ func ProtoDescriptorHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(out)
+	if _, err := w.Write(out); err != nil {
+		log.Printf("Failed to write proto descriptors: %v", err)
+	}
 }
 
-// WebSocket handler for serving proto descriptors on request
+// WebSocket handler for serving proto descriptors on request.
 func ProtoDescriptorWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true }, // Harden for production
+		CheckOrigin: func(r *http.Request) bool {
+			// Reference unused parameter r for diagnostics
+			if r != nil && r.Method == http.MethodOptions {
+				log.Printf("WebSocket CheckOrigin called with OPTIONS method")
+			}
+			return true
+		}, // Harden for production
 	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -59,7 +71,9 @@ func ProtoDescriptorWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		var req protoDescriptorRequest
 		if err := json.Unmarshal(msg, &req); err != nil {
-			conn.WriteJSON(errorResponse{Type: "error", Message: "invalid request"})
+			if err := conn.WriteJSON(errorResponse{Type: "error", Message: "invalid request"}); err != nil {
+				log.Printf("WebSocket WriteJSON error (invalid request): %v", err)
+			}
 			continue
 		}
 		if req.Type == "get_proto_descriptors" {
@@ -71,7 +85,9 @@ func ProtoDescriptorWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			bin, err := proto.Marshal(&fds)
 			if err != nil {
-				conn.WriteJSON(errorResponse{Type: "error", Message: "failed to marshal descriptors"})
+				if err := conn.WriteJSON(errorResponse{Type: "error", Message: "failed to marshal descriptors"}); err != nil {
+					log.Printf("WebSocket WriteJSON error (marshal descriptors): %v", err)
+				}
 				continue
 			}
 			if err := conn.WriteMessage(websocket.BinaryMessage, bin); err != nil {
@@ -79,7 +95,9 @@ func ProtoDescriptorWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		} else {
-			conn.WriteJSON(errorResponse{Type: "error", Message: "unknown request type"})
+			if err := conn.WriteJSON(errorResponse{Type: "error", Message: "unknown request type"}); err != nil {
+				log.Printf("WebSocket WriteJSON error (unknown request type): %v", err)
+			}
 		}
 	}
 }

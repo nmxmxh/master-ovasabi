@@ -9,14 +9,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// ServiceRegistration provides enhanced service registration with lifecycle management
+// ServiceRegistration provides enhanced service registration with lifecycle management.
 type ServiceRegistration struct {
 	integration *DIIntegration
 	container   *di.Container
 	log         *zap.Logger
 }
 
-// NewServiceRegistration creates a new service registration manager
+// NewServiceRegistration creates a new service registration manager.
 func NewServiceRegistration(container *di.Container, log *zap.Logger) *ServiceRegistration {
 	return &ServiceRegistration{
 		integration: NewDIIntegration(container, log),
@@ -25,7 +25,7 @@ func NewServiceRegistration(container *di.Container, log *zap.Logger) *ServiceRe
 	}
 }
 
-// RegisterWithLifecycle registers a service with full lifecycle management
+// RegisterWithLifecycle registers a service with full lifecycle management.
 func (sr *ServiceRegistration) RegisterWithLifecycle(config ServiceConfig) error {
 	// Register DI factory
 	err := sr.container.Register(config.Interface, config.Factory)
@@ -45,17 +45,17 @@ func (sr *ServiceRegistration) RegisterWithLifecycle(config ServiceConfig) error
 	)
 }
 
-// ServiceConfig defines service registration configuration
+// ServiceConfig defines service registration configuration.
 type ServiceConfig struct {
 	Name         string
 	Interface    interface{}
 	Factory      di.Factory
 	Dependencies []string
-	Lifecycle    LifecycleConfig
+	Lifecycle    Config
 }
 
-// LifecycleConfig defines lifecycle management options
-type LifecycleConfig struct {
+// Config defines lifecycle management options.
+type Config struct {
 	StartFunc       func(service interface{}, ctx context.Context) error
 	StopFunc        func(service interface{}, ctx context.Context) error
 	HealthFunc      func(service interface{}) error
@@ -65,33 +65,33 @@ type LifecycleConfig struct {
 	Connections     []ConnectionConfig
 }
 
-// BackgroundTaskConfig defines background worker configuration
+// BackgroundTaskConfig defines background worker configuration.
 type BackgroundTaskConfig struct {
 	Name     string
 	WorkFunc func(service interface{}, ctx context.Context) error
 	Interval time.Duration
 }
 
-// CleanupConfig defines cleanup task configuration
+// CleanupConfig defines cleanup task configuration.
 type CleanupConfig struct {
 	Name        string
 	CleanupFunc func(service interface{}) error
 }
 
-// PoolConfig defines resource pool configuration
+// PoolConfig defines resource pool configuration.
 type PoolConfig struct {
 	Name        string
 	Pool        interface{}
 	CleanupFunc func()
 }
 
-// ConnectionConfig defines connection management configuration
+// ConnectionConfig defines connection management configuration.
 type ConnectionConfig struct {
 	Name       string
 	Connection interface{} // Must implement Connection interface
 }
 
-// createLifecycleAdapter creates a lifecycle adapter from service config
+// createLifecycleAdapter creates a lifecycle adapter from service config.
 func (sr *ServiceRegistration) createLifecycleAdapter(config ServiceConfig) func(service interface{}, log *zap.Logger) Resource {
 	return func(service interface{}, log *zap.Logger) Resource {
 		// Create composite resource for complex services
@@ -124,15 +124,15 @@ func (sr *ServiceRegistration) createLifecycleAdapter(config ServiceConfig) func
 	}
 }
 
-// hasComplexLifecycle checks if service has complex lifecycle requirements
-func (sr *ServiceRegistration) hasComplexLifecycle(config LifecycleConfig) bool {
+// hasComplexLifecycle checks if service has complex lifecycle requirements.
+func (sr *ServiceRegistration) hasComplexLifecycle(config Config) bool {
 	return len(config.BackgroundTasks) > 0 ||
 		len(config.Cleanup) > 0 ||
 		len(config.ResourcePools) > 0 ||
 		len(config.Connections) > 0
 }
 
-// createCompositeResource creates a composite resource for complex services
+// createCompositeResource creates a composite resource for complex services.
 func (sr *ServiceRegistration) createCompositeResource(service interface{}, config ServiceConfig, log *zap.Logger) Resource {
 	return &CompositeResource{
 		name:    config.Name,
@@ -143,21 +143,21 @@ func (sr *ServiceRegistration) createCompositeResource(service interface{}, conf
 	}
 }
 
-// CompositeResource manages complex service lifecycle with multiple components
+// CompositeResource manages complex service lifecycle with multiple components.
 type CompositeResource struct {
 	name    string
 	service interface{}
-	config  LifecycleConfig
+	config  Config
 	log     *zap.Logger
 	manager *Manager
 }
 
-// Name returns the composite resource name
+// Name returns the composite resource name.
 func (cr *CompositeResource) Name() string {
 	return cr.name
 }
 
-// Start initializes all components of the composite resource
+// Start initializes all components of the composite resource.
 func (cr *CompositeResource) Start(ctx context.Context) error {
 	// Register background workers
 	for _, task := range cr.config.BackgroundTasks {
@@ -212,7 +212,7 @@ func (cr *CompositeResource) Start(ctx context.Context) error {
 	return cr.manager.Start(ctx)
 }
 
-// Stop shuts down all components
+// Stop shuts down all components.
 func (cr *CompositeResource) Stop(ctx context.Context) error {
 	// Stop managed components first
 	if err := cr.manager.Stop(ctx); err != nil {
@@ -227,7 +227,7 @@ func (cr *CompositeResource) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Health checks the health of the composite resource
+// Health checks the health of the composite resource.
 func (cr *CompositeResource) Health() error {
 	// Check main service health
 	if cr.config.HealthFunc != nil {

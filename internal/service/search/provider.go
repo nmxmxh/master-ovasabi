@@ -81,7 +81,7 @@ func Register(
 
 	// Only register event handlers for canonical event types for this service
 	for _, evt := range eventTypes {
-		action, _ := parseActionAndState(evt)
+		action := parseActionAndState(evt)
 		if _, ok := actionHandlers[action]; ok {
 			log.Info("Handler available for event type", zap.String("event_type", evt), zap.String("action", action), zap.String("where", "provider registration"))
 			// No per-event-type registration needed; event bus and generic handler handle routing.

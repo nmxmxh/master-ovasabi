@@ -294,6 +294,31 @@ services:
       - ovasabi-network
     restart: unless-stopped
 
+  godot-headless:
+    platform: linux/amd64
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.godot
+    environment:
+      GODOT_PROJECT_PATH: /godot/project
+      GODOT_HEADLESS: 'true'
+      GODOT_MAX_THREADS: 'auto'
+      NEXUS_GRPC_ADDR: 'nexus:50052'
+      LOG_LEVEL: info
+      WS_PORT: '6010'
+      RTC_PORT: '6011'
+      WS_GATEWAY_HOST: ws-gateway
+      WS_GATEWAY_PORT: '8090'
+    volumes:
+      - ../../godot/project:/godot/project:ro
+    depends_on:
+      - nexus
+    networks:
+      - ovasabi-network
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+
   # ai:
   #   build:
   #     context: ../..

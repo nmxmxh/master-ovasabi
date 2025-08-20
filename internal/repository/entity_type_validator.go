@@ -10,7 +10,7 @@ import (
 )
 
 // ValidateEntityTypeFromJSON checks if the entity type exists in the service_registration.json file.
-func ValidateEntityTypeFromJSON(ctx context.Context, entityType string, jsonPath string) error {
+func ValidateEntityTypeFromJSON(ctx context.Context, entityType, jsonPath string) error {
 	f, err := os.Open(jsonPath)
 	if err != nil {
 		return fmt.Errorf("failed to open service_registration.json: %w", err)

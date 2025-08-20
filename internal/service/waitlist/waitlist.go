@@ -2,6 +2,7 @@ package waitlist
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,7 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Service implements the waitlist gRPC service
+// Service implements the waitlist gRPC service.
 type Service struct {
 	waitlistpb.UnimplementedWaitlistServiceServer
 	log          *zap.Logger
@@ -27,7 +28,7 @@ type Service struct {
 	handler      *graceful.Handler
 }
 
-// NewService creates a new waitlist service instance
+// NewService creates a new waitlist service instance.
 func NewService(
 	log *zap.Logger,
 	repo Repository,
@@ -45,7 +46,7 @@ func NewService(
 	}
 }
 
-// CreateWaitlistEntry creates a new waitlist entry
+// CreateWaitlistEntry creates a new waitlist entry.
 func (s *Service) CreateWaitlistEntry(ctx context.Context, req *waitlistpb.CreateWaitlistEntryRequest) (*waitlistpb.CreateWaitlistEntryResponse, error) {
 	// Validate required fields
 	if req.Email == "" {
@@ -178,9 +179,11 @@ func (s *Service) CreateWaitlistEntry(ctx context.Context, req *waitlistpb.Creat
 	if req.ReferralUsername != nil && *req.ReferralUsername != "" {
 		if err := s.repo.CreateReferralRecord(ctx, *req.ReferralUsername, createdEntry.Id); err != nil {
 			// Log but don't fail the whole operation for referral record creation failure
-			graceful.LogAndWrap(ctx, s.log, codes.Internal, "failed to create referral record", err,
+			if logErr := graceful.LogAndWrap(ctx, s.log, codes.Internal, "failed to create referral record", err,
 				zap.String("referral_username", *req.ReferralUsername),
-				zap.Int64("referred_id", createdEntry.Id))
+				zap.Int64("referred_id", createdEntry.Id)); logErr != nil {
+				s.log.Warn("Failed to log referral record error", zap.Error(logErr))
+			}
 		}
 	}
 
@@ -216,7 +219,7 @@ func (s *Service) CreateWaitlistEntry(ctx context.Context, req *waitlistpb.Creat
 	}, nil
 }
 
-// GetWaitlistEntry retrieves a waitlist entry by ID, UUID, or email
+// GetWaitlistEntry retrieves a waitlist entry by ID, UUID, or email.
 func (s *Service) GetWaitlistEntry(ctx context.Context, req *waitlistpb.GetWaitlistEntryRequest) (*waitlistpb.GetWaitlistEntryResponse, error) {
 	var entry *waitlistpb.WaitlistEntry
 	var err error
@@ -234,7 +237,7 @@ func (s *Service) GetWaitlistEntry(ctx context.Context, req *waitlistpb.GetWaitl
 	}
 
 	if err != nil {
-		if err == ErrWaitlistEntryNotFound {
+		if errors.Is(err, ErrWaitlistEntryNotFound) {
 			ctxErr := graceful.LogAndWrap(ctx, s.log, codes.NotFound, "waitlist entry not found", err)
 			return nil, graceful.ToStatusError(ctxErr)
 		}
@@ -281,7 +284,7 @@ func (s *Service) GetWaitlistEntry(ctx context.Context, req *waitlistpb.GetWaitl
 	}, nil
 }
 
-// UpdateWaitlistEntry updates an existing waitlist entry
+// UpdateWaitlistEntry updates an existing waitlist entry.
 func (s *Service) UpdateWaitlistEntry(ctx context.Context, req *waitlistpb.UpdateWaitlistEntryRequest) (*waitlistpb.UpdateWaitlistEntryResponse, error) {
 	if req.Id == 0 {
 		ctxErr := graceful.LogAndWrap(ctx, s.log, codes.InvalidArgument, "id is required", nil,
@@ -292,7 +295,7 @@ func (s *Service) UpdateWaitlistEntry(ctx context.Context, req *waitlistpb.Updat
 	// Get existing entry
 	existing, err := s.repo.GetByID(ctx, req.Id)
 	if err != nil {
-		if err == ErrWaitlistEntryNotFound {
+		if errors.Is(err, ErrWaitlistEntryNotFound) {
 			ctxErr := graceful.LogAndWrap(ctx, s.log, codes.NotFound, "waitlist entry not found", err,
 				zap.Int64("id", req.Id))
 			return nil, graceful.ToStatusError(ctxErr)
@@ -505,7 +508,7 @@ func (s *Service) UpdateWaitlistEntry(ctx context.Context, req *waitlistpb.Updat
 	}, nil
 }
 
-// ListWaitlistEntries lists waitlist entries with pagination and filters
+// ListWaitlistEntries lists waitlist entries with pagination and filters.
 func (s *Service) ListWaitlistEntries(ctx context.Context, req *waitlistpb.ListWaitlistEntriesRequest) (*waitlistpb.ListWaitlistEntriesResponse, error) {
 	limit := int(req.Limit)
 	offset := int(req.Offset)
@@ -579,12 +582,12 @@ func (s *Service) ListWaitlistEntries(ctx context.Context, req *waitlistpb.ListW
 	}, nil
 }
 
-// InviteUser invites a user (updates status to invited)
+// InviteUser invites a user (updates status to invited).
 func (s *Service) InviteUser(ctx context.Context, req *waitlistpb.InviteUserRequest) (*waitlistpb.InviteUserResponse, error) {
 	// Get existing entry
 	existing, err := s.repo.GetByID(ctx, req.Id)
 	if err != nil {
-		if err == ErrWaitlistEntryNotFound {
+		if errors.Is(err, ErrWaitlistEntryNotFound) {
 			ctxErr := graceful.LogAndWrap(ctx, s.log, codes.NotFound, "waitlist entry not found", err,
 				zap.Int64("id", req.Id))
 			return nil, graceful.ToStatusError(ctxErr)
@@ -641,7 +644,7 @@ func (s *Service) InviteUser(ctx context.Context, req *waitlistpb.InviteUserRequ
 	}, nil
 }
 
-// CheckUsernameAvailability checks if a username is available
+// CheckUsernameAvailability checks if a username is available.
 func (s *Service) CheckUsernameAvailability(ctx context.Context, req *waitlistpb.CheckUsernameAvailabilityRequest) (*waitlistpb.CheckUsernameAvailabilityResponse, error) {
 	if req.Username == "" {
 		ctxErr := graceful.LogAndWrap(ctx, s.log, codes.InvalidArgument, "username is required", nil,
@@ -654,7 +657,7 @@ func (s *Service) CheckUsernameAvailability(ctx context.Context, req *waitlistpb
 		// Username format is invalid, return false but don't treat as error
 		return &waitlistpb.CheckUsernameAvailabilityResponse{
 			Available: false,
-		}, nil
+		}, err
 	}
 
 	exists, err := s.repo.UsernameExists(ctx, req.Username)
@@ -689,7 +692,7 @@ func (s *Service) CheckUsernameAvailability(ctx context.Context, req *waitlistpb
 	}, nil
 }
 
-// ValidateReferralUsername validates a referral username
+// ValidateReferralUsername validates a referral username.
 func (s *Service) ValidateReferralUsername(ctx context.Context, req *waitlistpb.ValidateReferralUsernameRequest) (*waitlistpb.ValidateReferralUsernameResponse, error) {
 	if req.Username == "" {
 		ctxErr := graceful.LogAndWrap(ctx, s.log, codes.InvalidArgument, "username is required", nil,
@@ -729,7 +732,7 @@ func (s *Service) ValidateReferralUsername(ctx context.Context, req *waitlistpb.
 	}, nil
 }
 
-// GetLeaderboard gets the referral leaderboard
+// GetLeaderboard gets the referral leaderboard.
 func (s *Service) GetLeaderboard(ctx context.Context, req *waitlistpb.GetLeaderboardRequest) (*waitlistpb.GetLeaderboardResponse, error) {
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -801,7 +804,9 @@ func (s *Service) GetLeaderboard(ctx context.Context, req *waitlistpb.GetLeaderb
 
 	// Cache the result
 	if s.cache != nil {
-		s.cache.Set(ctx, cacheKey, "entries", entries, 5*time.Minute)
+		if err := s.cache.Set(ctx, cacheKey, "entries", entries, 5*time.Minute); err != nil {
+			s.log.Warn("Failed to cache leaderboard entries", zap.Error(err))
+		}
 	}
 
 	// Success orchestration (graceful handler)
@@ -833,7 +838,7 @@ func (s *Service) GetLeaderboard(ctx context.Context, req *waitlistpb.GetLeaderb
 	}, nil
 }
 
-// GetReferralsByUser gets referrals made by a user
+// GetReferralsByUser gets referrals made by a user.
 func (s *Service) GetReferralsByUser(ctx context.Context, req *waitlistpb.GetReferralsByUserRequest) (*waitlistpb.GetReferralsByUserResponse, error) {
 	referrals, err := s.repo.GetReferralsByUser(ctx, req.UserId)
 	if err != nil {
@@ -867,7 +872,7 @@ func (s *Service) GetReferralsByUser(ctx context.Context, req *waitlistpb.GetRef
 	}, nil
 }
 
-// GetLocationStats gets location-based statistics
+// GetLocationStats gets location-based statistics.
 func (s *Service) GetLocationStats(ctx context.Context, req *waitlistpb.GetLocationStatsRequest) (*waitlistpb.GetLocationStatsResponse, error) {
 	var campaign string
 	if req.Campaign != nil {
@@ -928,7 +933,9 @@ func (s *Service) GetLocationStats(ctx context.Context, req *waitlistpb.GetLocat
 
 	// Cache the result
 	if s.cache != nil {
-		s.cache.Set(ctx, cacheKey, "stats", stats, 10*time.Minute)
+		if err := s.cache.Set(ctx, cacheKey, "stats", stats, 10*time.Minute); err != nil {
+			s.log.Warn("Failed to cache location stats", zap.Error(err))
+		}
 	}
 
 	// Success orchestration (graceful handler)
@@ -958,7 +965,7 @@ func (s *Service) GetLocationStats(ctx context.Context, req *waitlistpb.GetLocat
 	}, nil
 }
 
-// GetWaitlistStats gets waitlist statistics
+// GetWaitlistStats gets waitlist statistics.
 func (s *Service) GetWaitlistStats(ctx context.Context, req *waitlistpb.GetWaitlistStatsRequest) (*waitlistpb.GetWaitlistStatsResponse, error) {
 	var campaign string
 	if req.Campaign != nil {
@@ -1009,7 +1016,9 @@ func (s *Service) GetWaitlistStats(ctx context.Context, req *waitlistpb.GetWaitl
 
 	// Cache the result
 	if s.cache != nil {
-		s.cache.Set(ctx, cacheKey, "stats", stats, 5*time.Minute)
+		if err := s.cache.Set(ctx, cacheKey, "stats", stats, 5*time.Minute); err != nil {
+			s.log.Warn("Failed to cache waitlist stats", zap.Error(err))
+		}
 	}
 
 	// Success orchestration (graceful handler)
@@ -1038,7 +1047,7 @@ func (s *Service) GetWaitlistStats(ctx context.Context, req *waitlistpb.GetWaitl
 	}, nil
 }
 
-// GetWaitlistPosition gets a user's position in the waitlist
+// GetWaitlistPosition gets a user's position in the waitlist.
 func (s *Service) GetWaitlistPosition(ctx context.Context, req *waitlistpb.GetWaitlistPositionRequest) (*waitlistpb.GetWaitlistPositionResponse, error) {
 	position, err := s.repo.GetWaitlistPosition(ctx, req.Id)
 	if err != nil {
@@ -1067,8 +1076,18 @@ func (s *Service) GetWaitlistPosition(ctx context.Context, req *waitlistpb.GetWa
 		"waitlist.position.retrieved",
 		nil,
 	)
+	// Clamp position to int32 range to avoid overflow
+	var safePosition int32
+	switch {
+	case position > int(^uint32(0)>>1):
+		safePosition = int32(^uint32(0) >> 1)
+	case position < -int(^uint32(0)>>1)-1:
+		safePosition = -int32(^uint32(0)>>1) - 1
+	default:
+		safePosition = int32(position)
+	}
 	return &waitlistpb.GetWaitlistPositionResponse{
-		Position: int32(position),
+		Position: safePosition,
 	}, nil
 }
 

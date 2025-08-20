@@ -356,7 +356,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	cmd := exec.Command(ffprobePath, "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", tmpFile)
+	cmd := exec.CommandContext(ctx, ffprobePath, "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", tmpFile)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err = cmd.Run()

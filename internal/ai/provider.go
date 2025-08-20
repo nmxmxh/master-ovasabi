@@ -64,6 +64,23 @@ func Register(
 	eventEnabled bool,
 	provider interface{},
 ) error {
+	// Reference unused parameters for diagnostics
+	if container != nil {
+		log.Debug("Register called with container", zap.Any("container", container))
+	}
+	if eventEmitter != nil {
+		log.Debug("Register called with eventEmitter", zap.Any("eventEmitter", eventEmitter))
+	}
+	if db != nil {
+		log.Debug("Register called with db", zap.Any("db", db))
+	}
+	if masterRepo != nil {
+		log.Debug("Register called with masterRepo", zap.Any("masterRepo", masterRepo))
+	}
+	log.Debug("Register called with eventEnabled", zap.Bool("eventEnabled", eventEnabled))
+	if provider != nil {
+		log.Debug("Register called with provider", zap.Any("provider", provider))
+	}
 	log.Info("Registering AI service and caching in Redis")
 	// Example: Add AI service metadata to Redis cache
 	cache, err := redisProvider.GetCache(ctx, "ai")

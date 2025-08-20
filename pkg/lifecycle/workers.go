@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// BackgroundWorker provides generic management for goroutines and background tasks
+// BackgroundWorker provides generic management for goroutines and background tasks.
 type BackgroundWorker struct {
 	name     string
 	workFunc func(ctx context.Context) error
@@ -21,7 +21,7 @@ type BackgroundWorker struct {
 	mu       sync.Mutex
 }
 
-// NewBackgroundWorker creates a new background worker
+// NewBackgroundWorker creates a new background worker.
 func NewBackgroundWorker(name string, workFunc func(ctx context.Context) error, interval time.Duration, log *zap.Logger) *BackgroundWorker {
 	return &BackgroundWorker{
 		name:     name,
@@ -32,12 +32,12 @@ func NewBackgroundWorker(name string, workFunc func(ctx context.Context) error, 
 	}
 }
 
-// Name returns the worker name
+// Name returns the worker name.
 func (w *BackgroundWorker) Name() string {
 	return w.name
 }
 
-// Start begins the background worker
+// Start begins the background worker.
 func (w *BackgroundWorker) Start(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -54,7 +54,7 @@ func (w *BackgroundWorker) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop gracefully stops the background worker
+// Stop gracefully stops the background worker.
 func (w *BackgroundWorker) Stop(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -82,7 +82,7 @@ func (w *BackgroundWorker) Stop(ctx context.Context) error {
 	}
 }
 
-// Health checks if the worker is running
+// Health checks if the worker is running.
 func (w *BackgroundWorker) Health() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -93,7 +93,7 @@ func (w *BackgroundWorker) Health() error {
 	return nil
 }
 
-// run is the main worker loop
+// run is the main worker loop.
 func (w *BackgroundWorker) run(ctx context.Context) {
 	defer w.wg.Done()
 
@@ -104,7 +104,7 @@ func (w *BackgroundWorker) run(ctx context.Context) {
 	}
 }
 
-// runPeriodic runs the work function at regular intervals
+// runPeriodic runs the work function at regular intervals.
 func (w *BackgroundWorker) runPeriodic(ctx context.Context) {
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
@@ -127,7 +127,7 @@ func (w *BackgroundWorker) runPeriodic(ctx context.Context) {
 	}
 }
 
-// runOnce runs the work function once
+// runOnce runs the work function once.
 func (w *BackgroundWorker) runOnce(ctx context.Context) {
 	if err := w.workFunc(ctx); err != nil {
 		w.log.Error("Background worker execution failed",
@@ -136,7 +136,7 @@ func (w *BackgroundWorker) runOnce(ctx context.Context) {
 	}
 }
 
-// PoolManager provides generic management for resource pools
+// PoolManager provides generic management for resource pools.
 type PoolManager struct {
 	name     string
 	pools    map[string]interface{}
@@ -145,7 +145,7 @@ type PoolManager struct {
 	log      *zap.Logger
 }
 
-// NewPoolManager creates a new pool manager
+// NewPoolManager creates a new pool manager.
 func NewPoolManager(name string, log *zap.Logger) *PoolManager {
 	return &PoolManager{
 		name:     name,
@@ -155,37 +155,53 @@ func NewPoolManager(name string, log *zap.Logger) *PoolManager {
 	}
 }
 
-// Name returns the pool manager name
+// Name returns the pool manager name.
 func (p *PoolManager) Name() string {
 	return p.name
 }
 
-// Start initializes the pool manager
+// Start initializes the pool manager.
 func (p *PoolManager) Start(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		p.log.Warn("Pool manager start cancelled", zap.String("manager", p.name))
+		return ctx.Err()
+	default:
+	}
 	p.log.Info("Pool manager started", zap.String("manager", p.name))
 	return nil
 }
 
-// Stop cleans up all pools
+// Stop cleans up all pools.
 func (p *PoolManager) Stop(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	for name, cleaner := range p.cleaners {
-		p.log.Debug("Cleaning pool", zap.String("pool", name))
-		cleaner()
-	}
+	done := make(chan struct{})
+	go func() {
+		for name, cleaner := range p.cleaners {
+			p.log.Debug("Cleaning pool", zap.String("pool", name))
+			cleaner()
+		}
+		close(done)
+	}()
 
-	p.log.Info("Pool manager stopped", zap.String("manager", p.name))
-	return nil
+	select {
+	case <-done:
+		p.log.Info("Pool manager stopped", zap.String("manager", p.name))
+		return nil
+	case <-ctx.Done():
+		p.log.Warn("Pool manager stop cancelled", zap.String("manager", p.name))
+		return ctx.Err()
+	}
 }
 
-// Health checks pool status
+// Health checks pool status.
 func (p *PoolManager) Health() error {
 	return nil
 }
 
-// RegisterPool adds a pool with optional cleanup function
+// RegisterPool adds a pool with optional cleanup function.
 func (p *PoolManager) RegisterPool(name string, pool interface{}, cleaner func()) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -196,7 +212,7 @@ func (p *PoolManager) RegisterPool(name string, pool interface{}, cleaner func()
 	}
 }
 
-// GetPool retrieves a pool by name
+// GetPool retrieves a pool by name.
 func (p *PoolManager) GetPool(name string) (interface{}, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -205,7 +221,7 @@ func (p *PoolManager) GetPool(name string) (interface{}, bool) {
 	return pool, exists
 }
 
-// ConnectionManager provides generic connection lifecycle management
+// ConnectionManager provides generic connection lifecycle management.
 type ConnectionManager struct {
 	name        string
 	connections map[string]Connection
@@ -213,13 +229,13 @@ type ConnectionManager struct {
 	log         *zap.Logger
 }
 
-// Connection represents any connection that can be closed
+// Connection represents any connection that can be closed.
 type Connection interface {
 	Close() error
 	Ping() error
 }
 
-// NewConnectionManager creates a new connection manager
+// NewConnectionManager creates a new connection manager.
 func NewConnectionManager(name string, log *zap.Logger) *ConnectionManager {
 	return &ConnectionManager{
 		name:        name,
@@ -228,36 +244,52 @@ func NewConnectionManager(name string, log *zap.Logger) *ConnectionManager {
 	}
 }
 
-// Name returns the connection manager name
+// Name returns the connection manager name.
 func (c *ConnectionManager) Name() string {
 	return c.name
 }
 
-// Start initializes the connection manager
+// Start initializes the connection manager.
 func (c *ConnectionManager) Start(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		c.log.Warn("Connection manager start cancelled", zap.String("manager", c.name))
+		return ctx.Err()
+	default:
+	}
 	c.log.Info("Connection manager started", zap.String("manager", c.name))
 	return nil
 }
 
-// Stop closes all connections
+// Stop closes all connections.
 func (c *ConnectionManager) Stop(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for name, conn := range c.connections {
-		c.log.Debug("Closing connection", zap.String("connection", name))
-		if err := conn.Close(); err != nil {
-			c.log.Error("Failed to close connection",
-				zap.String("connection", name),
-				zap.Error(err))
+	done := make(chan struct{})
+	go func() {
+		for name, conn := range c.connections {
+			c.log.Debug("Closing connection", zap.String("connection", name))
+			if err := conn.Close(); err != nil {
+				c.log.Error("Failed to close connection",
+					zap.String("connection", name),
+					zap.Error(err))
+			}
 		}
-	}
+		close(done)
+	}()
 
-	c.log.Info("Connection manager stopped", zap.String("manager", c.name))
-	return nil
+	select {
+	case <-done:
+		c.log.Info("Connection manager stopped", zap.String("manager", c.name))
+		return nil
+	case <-ctx.Done():
+		c.log.Warn("Connection manager stop cancelled", zap.String("manager", c.name))
+		return ctx.Err()
+	}
 }
 
-// Health checks all connections
+// Health checks all connections.
 func (c *ConnectionManager) Health() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -273,14 +305,14 @@ func (c *ConnectionManager) Health() error {
 	return nil
 }
 
-// RegisterConnection adds a connection to be managed
+// RegisterConnection adds a connection to be managed.
 func (c *ConnectionManager) RegisterConnection(name string, conn Connection) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.connections[name] = conn
 }
 
-// GetConnection retrieves a connection by name
+// GetConnection retrieves a connection by name.
 func (c *ConnectionManager) GetConnection(name string) (Connection, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

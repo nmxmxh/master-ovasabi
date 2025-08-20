@@ -2,7 +2,6 @@ package talent
 
 import (
 	"context"
-
 	"strings"
 
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
@@ -20,7 +19,6 @@ func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadTalentEvents()
 	for _, evt := range evts {
-		// Example: evt = "talent:book_talent:v1:success"; key = "book_talent:success"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -41,7 +39,7 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadTalentEvents() []string {
 	return events.LoadCanonicalEvents("talent")
 }
@@ -49,12 +47,23 @@ func loadTalentEvents() []string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
@@ -67,7 +76,7 @@ func parseActionAndState(eventType string) (action, state string) {
 	return "", ""
 }
 
-// Generic event handler for all talent service actions
+// Generic event handler for all talent service actions.
 func HandleTalentServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	eventType := event.GetEventType()
 	action, _ := parseActionAndState(eventType)
@@ -91,7 +100,7 @@ func HandleTalentServiceEvent(ctx context.Context, s *Service, event *nexusv1.Ev
 	handler(ctx, s, event)
 }
 
-// Canonical handler stubs for each talent action
+// Canonical handler stubs for each talent action.
 func handleCreateTalentProfile(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	if event == nil || event.Payload == nil || event.Payload.Data == nil {
 		if s.log != nil {
@@ -110,7 +119,11 @@ func handleCreateTalentProfile(ctx context.Context, s *Service, event *nexusv1.E
 		}
 		return
 	}
-	_, _ = s.CreateTalentProfile(ctx, &req)
+	if _, err := s.CreateTalentProfile(ctx, &req); err != nil {
+		if s.log != nil {
+			s.log.Error("CreateTalentProfile failed", zap.Error(err))
+		}
+	}
 }
 
 func handleUpdateTalentProfile(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -131,7 +144,11 @@ func handleUpdateTalentProfile(ctx context.Context, s *Service, event *nexusv1.E
 		}
 		return
 	}
-	_, _ = s.UpdateTalentProfile(ctx, &req)
+	if _, err := s.UpdateTalentProfile(ctx, &req); err != nil {
+		if s.log != nil {
+			s.log.Error("UpdateTalentProfile failed", zap.Error(err))
+		}
+	}
 }
 
 func handleDeleteTalentProfile(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -152,7 +169,11 @@ func handleDeleteTalentProfile(ctx context.Context, s *Service, event *nexusv1.E
 		}
 		return
 	}
-	_, _ = s.DeleteTalentProfile(ctx, &req)
+	if _, err := s.DeleteTalentProfile(ctx, &req); err != nil {
+		if s.log != nil {
+			s.log.Error("DeleteTalentProfile failed", zap.Error(err))
+		}
+	}
 }
 
 func handleBookTalent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -173,12 +194,16 @@ func handleBookTalent(ctx context.Context, s *Service, event *nexusv1.EventRespo
 		}
 		return
 	}
-	_, _ = s.BookTalent(ctx, &req)
+	if _, err := s.BookTalent(ctx, &req); err != nil {
+		if s.log != nil {
+			s.log.Error("BookTalent failed", zap.Error(err))
+		}
+	}
 }
 
 // Add more handlers as needed for other actions (list_bookings, etc.)
 
-// Register all talent action handlers
+// Register all talent action handlers.
 func init() {
 	RegisterActionHandler("create_talent_profile", handleCreateTalentProfile)
 	RegisterActionHandler("update_talent_profile", handleUpdateTalentProfile)
@@ -187,7 +212,7 @@ func init() {
 	// Add more handlers here for full coverage
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	InitCanonicalEventTypeRegistry()
 	m := make(map[string]ActionHandlerFunc)

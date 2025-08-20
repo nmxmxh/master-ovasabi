@@ -98,12 +98,6 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 
 // handleSearchAction is the generic business logic handler for the "search" action, used by the generic event handler.
 func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
-	// Only process canonical 'requested' events, ignore 'started', 'completed', 'failed', etc.
-	if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
-		s.log.Debug("[handleSearchAction] Ignoring non-requested event (only handling 'requested')", zap.String("event_type", event.GetEventType()), zap.String("event_id", event.EventId))
-		return
-	}
-
 	if event == nil {
 		s.log.Warn("search event is nil")
 		s.handler.Error(ctx, "search", codes.InvalidArgument, "Search event is nil", nil, nil, "")
@@ -146,7 +140,7 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 	canonicalStarted := GetCanonicalEventType("search", "started")
 	if canonicalStarted == "" {
 		s.log.Warn("Failed to resolve canonical event type for search:started")
-		canonicalStarted = "search:search:v1:started" // fallback
+		// fallback value for canonicalStarted is not used
 	}
 	var req searchpb.SearchRequest
 	if event.Payload.Data != nil {
@@ -205,7 +199,6 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 	case "within":
 		resp, err = s.WithinSearch(ctx, &req)
 	case "federated":
-		fallthrough
 	default:
 		fedReq := &Request{
 			Query:    req.GetQuery(),
@@ -233,7 +226,7 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 		}
 		resp = &searchpb.SearchResponse{
 			Results:    protos,
-			Total:      int32(len(results)),
+			Total:      utils.ToInt32(len(results)),
 			PageNumber: req.GetPageNumber(),
 			PageSize:   req.GetPageSize(),
 		}
@@ -264,7 +257,9 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 		b, err := protojson.Marshal(resp)
 		if err == nil {
 			completedPayload = &structpb.Struct{}
-			_ = protojson.Unmarshal(b, completedPayload)
+			if err := protojson.Unmarshal(b, completedPayload); err != nil {
+				s.log.Error("Failed to unmarshal completedPayload", zap.Error(err))
+			}
 		}
 	}
 
@@ -376,7 +371,6 @@ func handleSuggestAction(ctx context.Context, s *Service, event *nexusv1.EventRe
 	case "internal":
 		resp, err = s.Suggest(ctx, &req)
 	case "federated":
-		fallthrough
 	default:
 		resp, err = s.Suggest(ctx, &req)
 	}
@@ -754,12 +748,12 @@ func (a *DuckDuckGoSearchAdapter) Search(ctx context.Context, req *Request) ([]*
 	}
 
 	var result struct {
-		AbstractText  string `json:"AbstractText"`
-		AbstractURL   string `json:"AbstractURL"`
+		AbstractText  string `json:"abstract_text"`
+		AbstractURL   string `json:"abstract_url"`
 		RelatedTopics []struct {
-			Text     string `json:"Text"`
-			FirstURL string `json:"FirstURL"`
-		} `json:"RelatedTopics"`
+			Text     string `json:"text"`
+			FirstURL string `json:"first_url"`
+		} `json:"related_topics"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
@@ -1306,28 +1300,6 @@ func AIProcessResults(ctx context.Context, results []*Result, eventEmitter event
 	return results
 }
 
-// --- AIEnrichmentEventEmitter ---
-// Emits AI-enriched search results to the event bus and WebSocket (production: inject real bus/ws).
-type AIEnrichmentEventEmitter struct {
-	EventBus events.EventEmitter
-	Log      *zap.Logger
-}
-
-func (a *AIEnrichmentEventEmitter) EmitRawEventWithLogging(ctx context.Context, log *zap.Logger, eventType, eventID string, payload []byte) (string, bool) {
-	// Deprecated: Use EmitEventEnvelopeWithLogging instead.
-	if log != nil {
-		log.Info("AIEnrichmentEventEmitter fallback emit (deprecated)", zap.String("event_type", eventType), zap.String("event_id", eventID))
-	}
-	return eventID, false
-}
-
-func (a *AIEnrichmentEventEmitter) EmitEventWithLogging(ctx context.Context, emitter interface{}, log *zap.Logger, eventType, eventID string, meta *commonpb.Metadata) (string, bool) {
-	// Deprecated: Use EmitEventEnvelopeWithLogging instead.
-	return eventID, false
-}
-
-// --- Federated, Concurrent Search Orchestration ---
-
 // FederatedSearch performs a federated search across multiple sources.
 func (s *Service) FederatedSearch(ctx context.Context, req *Request) ([]*Result, error) {
 	errMsgs := make([]string, 0, len(s.adapters))
@@ -1469,11 +1441,11 @@ func (s *Service) FederatedSearch(ctx context.Context, req *Request) ([]*Result,
 	deduped := make([]*Result, 0, len(allResults))
 	seen := make(map[string]struct{})
 	for _, rw := range allResults {
-		if rw.Result == nil || rw.Result.ID == "" {
+		if rw.Result == nil || rw.ID == "" {
 			continue
 		}
-		if _, exists := seen[rw.Result.ID]; !exists {
-			seen[rw.Result.ID] = struct{}{}
+		if _, exists := seen[rw.ID]; !exists {
+			seen[rw.ID] = struct{}{}
 			deduped = append(deduped, rw.Result)
 		}
 	}

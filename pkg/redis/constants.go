@@ -40,7 +40,7 @@ const (
 	ContextUser              = "user"              // User service related data
 	ContextWaitlist          = "waitlist"          // Waitlist service related data
 
-	// Cross-cutting or domain-specific contexts (retain if used elsewhere)
+	// Cross-cutting or domain-specific contexts (retain if used elsewhere).
 	ContextAuth      = "auth"      // Authentication related data
 	ContextBroadcast = "broadcast" // Broadcast related data
 	ContextI18n      = "i18n"      // Internationalization related data

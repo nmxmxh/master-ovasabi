@@ -12,7 +12,7 @@ import (
 
 // CanonicalEventTypeRegistry provides lookup and validation for canonical event types.
 // CanonicalEventTypeRegistry provides lookup and validation for canonical event types.
-// Now keyed by action+state, e.g., "search:started", "suggest:started"
+// Now keyed by action+state, e.g., "search:started", "suggest:started".
 var CanonicalEventTypeRegistry map[string]string
 
 // CanonicalPatternType is the pattern type for all search events (future-proof for multi-pattern services).
@@ -23,7 +23,6 @@ func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadSearchEvents()
 	for _, evt := range evts {
-		// Example: evt = "search:search:v1:completed"; key = "search:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -56,6 +55,17 @@ type EventSubscription struct {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names (e.g., "search", "suggest") to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{
 	"search":  handleSearchAction,
@@ -64,24 +74,24 @@ var actionHandlers = map[string]ActionHandlerFunc{
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
-func parseActionAndState(eventType string) (action, state string) {
+func parseActionAndState(eventType string) string {
 	// Format: {service}:{action}:v{version}:{state}
 	parts := strings.Split(eventType, ":")
 	if len(parts) >= 4 {
-		return parts[1], parts[3]
+		return parts[1]
 	}
-	return "", ""
+	return ""
 }
 
 // HandleSearchServiceEvent is the generic event handler for all search service actions.
 func HandleSearchServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	eventType := event.GetEventType()
 	s.log.Info("[SearchService] Received event", zap.String("event_type", eventType), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
-	action, _ := parseActionAndState(eventType)
+	action := parseActionAndState(eventType)
 	handler, ok := actionHandlers[action]
 	if !ok {
 		s.log.Warn("No handler for action", zap.String("action", action), zap.String("event_type", eventType))
@@ -97,12 +107,12 @@ func HandleSearchServiceEvent(ctx context.Context, s *Service, event *nexusv1.Ev
 	handler(ctx, s, event)
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadSearchEvents() []string {
 	return events.LoadCanonicalEvents("search")
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	events := loadSearchEvents()
 	m := make(map[string]EventHandlerFunc)

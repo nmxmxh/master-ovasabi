@@ -45,7 +45,11 @@ func (r *Repository) CreateCrawlTask(ctx context.Context, task *crawlerpb.CrawlT
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to begin transaction")
 	}
-	defer tx.Rollback() // Rollback is a no-op if the transaction has been committed.
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			r.log.Error("failed to rollback transaction on panic", zap.Error(rbErr))
+		}
+	}()
 
 	// Create a master record for the task. The name is derived from the target for easy identification.
 	masterID, masterUUID, err := r.masterRepo.CreateMasterRecord(ctx, "task", task.Target)
@@ -94,17 +98,17 @@ func (r *Repository) CreateCrawlTask(ctx context.Context, task *crawlerpb.CrawlT
 }
 
 // GetCrawlTask retrieves a crawl task by its UUID. This is a read-only operation.
-func (r *Repository) GetCrawlTask(ctx context.Context, uuid string) (*crawlerpb.CrawlTask, error) {
+func (r *Repository) GetCrawlTask(ctx context.Context, uuidStr string) (*crawlerpb.CrawlTask, error) {
 	query := `
 		SELECT id, uuid, master_id, master_uuid, task_type, target, depth, filters, status, metadata, created_at, updated_at
 		FROM service_crawler_tasks
 		WHERE uuid = $1
 	`
-	row := r.db.QueryRowContext(ctx, query, uuid)
+	row := r.db.QueryRowContext(ctx, query, uuidStr)
 	task, err := r.scanCrawlTask(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errors.Wrapf(err, "crawl task with uuid %s not found", uuid)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.Wrapf(err, "crawl task with uuid %s not found", uuidStr)
 		}
 		return nil, errors.Wrap(err, "failed to get crawl task")
 	}
@@ -158,22 +162,18 @@ func (r *Repository) ListCrawlTasks(ctx context.Context, page, pageSize int32, f
 	}
 
 	var total int
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM service_crawler_tasks %s", where)
+	countQuery := "SELECT COUNT(*) FROM service_crawler_tasks " + where
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, errors.Wrap(err, "failed to count crawl tasks")
 	}
 
-	query := fmt.Sprintf(`
-		SELECT id, uuid, master_id, master_uuid, task_type, target, depth, filters, status, metadata, created_at, updated_at
-		FROM service_crawler_tasks
-		%s
-		ORDER BY created_at DESC
-		LIMIT $%d OFFSET $%d
-	`, where, argIdx, argIdx+1)
-
 	offset := page * pageSize
+	query := "SELECT id, uuid, master_id, master_uuid, task_type, target, depth, filters, status, metadata, created_at, updated_at FROM service_crawler_tasks"
+	if where != "" {
+		query += " " + where
+	}
+	query += " ORDER BY created_at DESC LIMIT $" + fmt.Sprintf("%d", argIdx) + " OFFSET $" + fmt.Sprintf("%d", argIdx+1)
 	args = append(args, pageSize, offset)
-
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to list crawl tasks")
@@ -198,7 +198,11 @@ func (r *Repository) StoreCrawlResult(ctx context.Context, result *crawlerpb.Cra
 	if err != nil {
 		return errors.Wrap(err, "failed to begin transaction")
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			r.log.Error("failed to rollback transaction on panic", zap.Error(rbErr))
+		}
+	}()
 
 	task, err := r.GetCrawlTask(ctx, result.TaskUuid)
 	if err != nil {
@@ -295,7 +299,7 @@ func (r *Repository) GetCrawlResult(ctx context.Context, taskUUID string) (*craw
 	row := r.db.QueryRowContext(ctx, query, taskUUID)
 	result, err := r.scanCrawlResult(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.Wrapf(err, "crawl result for task_uuid %s not found", taskUUID)
 		}
 		return nil, errors.Wrap(err, "failed to get crawl result")

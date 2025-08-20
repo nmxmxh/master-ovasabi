@@ -84,7 +84,7 @@ class EnhancedComputeManager {
   private performanceBuffer: CircularBuffer<PerformanceMetrics>;
 
   constructor(workerCount?: number) {
-    this.workerCount = workerCount || Math.min(navigator.hardwareConcurrency || 4, 8);
+    this.workerCount = workerCount || Math.min(navigator.hardwareConcurrency || 2, 2);
     this.capabilities = {
       webgpu: 'gpu' in navigator,
       wasm: false,

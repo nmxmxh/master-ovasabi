@@ -9,13 +9,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// HealthChecker provides health checking capabilities for services
+// HealthChecker provides health checking capabilities for services.
 type HealthChecker struct {
 	logger *zap.Logger
 	client *http.Client
 }
 
-// NewHealthChecker creates a new health checker
+// NewHealthChecker creates a new health checker.
 func NewHealthChecker(logger *zap.Logger) *HealthChecker {
 	return &HealthChecker{
 		logger: logger,
@@ -25,7 +25,7 @@ func NewHealthChecker(logger *zap.Logger) *HealthChecker {
 	}
 }
 
-// HealthStatus represents the health status of a service
+// HealthStatus represents the health status of a service.
 type HealthStatus struct {
 	ServiceName  string                 `json:"service_name"`
 	IsHealthy    bool                   `json:"is_healthy"`
@@ -36,7 +36,7 @@ type HealthStatus struct {
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// HealthCheckResult contains the results of checking multiple services
+// HealthCheckResult contains the results of checking multiple services.
 type HealthCheckResult struct {
 	TotalServices     int                     `json:"total_services"`
 	HealthyServices   int                     `json:"healthy_services"`
@@ -45,7 +45,7 @@ type HealthCheckResult struct {
 	CheckedAt         time.Time               `json:"checked_at"`
 }
 
-// CheckServiceHealth checks the health of a single service
+// CheckServiceHealth checks the health of a single service.
 func (hc *HealthChecker) CheckServiceHealth(ctx context.Context, config ServiceRegistrationConfig) HealthStatus {
 	status := HealthStatus{
 		ServiceName: config.Name,
@@ -61,7 +61,7 @@ func (hc *HealthChecker) CheckServiceHealth(ctx context.Context, config ServiceR
 
 	// Perform health check
 	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, "GET", healthEndpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthEndpoint, http.NoBody)
 	if err != nil {
 		status.Error = fmt.Sprintf("Failed to create request: %v", err)
 		return status
@@ -92,7 +92,7 @@ func (hc *HealthChecker) CheckServiceHealth(ctx context.Context, config ServiceR
 	return status
 }
 
-// CheckAllServices checks the health of all configured services
+// CheckAllServices checks the health of all configured services.
 func (hc *HealthChecker) CheckAllServices(ctx context.Context, configs []ServiceRegistrationConfig) *HealthCheckResult {
 	result := &HealthCheckResult{
 		TotalServices: len(configs),
@@ -115,7 +115,7 @@ func (hc *HealthChecker) CheckAllServices(ctx context.Context, configs []Service
 	return result
 }
 
-// getHealthEndpoint tries to determine the health check endpoint for a service
+// getHealthEndpoint tries to determine the health check endpoint for a service.
 func (hc *HealthChecker) getHealthEndpoint(config ServiceRegistrationConfig) string {
 	// Check if there's a specific health endpoint configured
 	if config.HealthCheck != "" {
@@ -140,7 +140,7 @@ func (hc *HealthChecker) getHealthEndpoint(config ServiceRegistrationConfig) str
 	return ""
 }
 
-// getServiceBaseURL tries to determine the base URL for a service
+// getServiceBaseURL tries to determine the base URL for a service.
 func (hc *HealthChecker) getServiceBaseURL(config ServiceRegistrationConfig) string {
 	// Check for metrics endpoint to infer base URL
 	if config.Metrics != "" {
@@ -152,7 +152,7 @@ func (hc *HealthChecker) getServiceBaseURL(config ServiceRegistrationConfig) str
 	return ""
 }
 
-// HealthMonitor provides continuous health monitoring
+// HealthMonitor provides continuous health monitoring.
 type HealthMonitor struct {
 	checker  *HealthChecker
 	logger   *zap.Logger
@@ -160,7 +160,7 @@ type HealthMonitor struct {
 	configs  []ServiceRegistrationConfig
 }
 
-// NewHealthMonitor creates a new health monitor
+// NewHealthMonitor creates a new health monitor.
 func NewHealthMonitor(logger *zap.Logger, configs []ServiceRegistrationConfig, interval time.Duration) *HealthMonitor {
 	return &HealthMonitor{
 		checker:  NewHealthChecker(logger),
@@ -170,7 +170,7 @@ func NewHealthMonitor(logger *zap.Logger, configs []ServiceRegistrationConfig, i
 	}
 }
 
-// Start begins continuous health monitoring
+// Start begins continuous health monitoring.
 func (hm *HealthMonitor) Start(ctx context.Context) <-chan *HealthCheckResult {
 	resultChan := make(chan *HealthCheckResult, 1)
 
@@ -212,7 +212,7 @@ func (hm *HealthMonitor) Start(ctx context.Context) <-chan *HealthCheckResult {
 	return resultChan
 }
 
-// logHealthResult logs the health check results
+// logHealthResult logs the health check results.
 func (hm *HealthMonitor) logHealthResult(result *HealthCheckResult) {
 	hm.logger.Info("Health check completed",
 		zap.Int("total", result.TotalServices),

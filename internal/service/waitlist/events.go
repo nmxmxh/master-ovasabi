@@ -2,9 +2,10 @@ package waitlist
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
-	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/nmxmxh/master-ovasabi/pkg/events" // ...existing imports...
 )
 
 // RouteEventToActionHandler routes an event to the registered action handler based on canonical event type.
@@ -13,12 +14,12 @@ func RouteEventToActionHandler(ctx context.Context, s interface{}, eventType str
 	// Canonical event type format: "waitlist:create:v1:completed" or similar
 	parts := strings.Split(eventType, ":")
 	if len(parts) < 2 {
-		return nil, nil // not a canonical event type
+		return nil, fmt.Errorf("not a canonical event type: %s", eventType)
 	}
 	action := parts[1]
 	handler, ok := actionHandlers[action]
 	if !ok {
-		return nil, nil // no handler registered for this action
+		return nil, fmt.Errorf("no handler registered for action: %s", action)
 	}
 	return handler(ctx, s, req)
 }
@@ -31,7 +32,6 @@ func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadWaitlistEvents()
 	for _, evt := range evts {
-		// Example: evt = "waitlist:create:v1:completed"; key = "create:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -52,7 +52,7 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadWaitlistEvents() []string {
 	return events.LoadCanonicalEvents("waitlist")
 }
@@ -60,10 +60,30 @@ func loadWaitlistEvents() []string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s interface{}, req interface{}) (interface{}, error)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s interface{}, req interface{}) (interface{}, error) {
+		var eventType string
+		switch v := req.(type) {
+		case map[string]interface{}:
+			if et, ok := v["event_type"].(string); ok {
+				eventType = et
+			}
+		case struct{ EventType string }:
+			eventType = v.EventType
+		}
+		if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return nil, nil
+		}
+		return handler(ctx, s, req)
+	}
+}
+
 // actionHandlers maps action names (e.g., "create", "update") to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }

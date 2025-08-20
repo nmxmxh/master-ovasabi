@@ -19,7 +19,6 @@ func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadMediaEvents()
 	for _, evt := range evts {
-		// Example: evt = "media:upload_light_media:v1:completed"; key = "upload_light_media:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -40,7 +39,7 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadMediaEvents() []string {
 	return events.LoadCanonicalEvents("media")
 }
@@ -48,21 +47,32 @@ func loadMediaEvents() []string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *ServiceImpl, event *nexusv1.EventResponse)
 
-// actionHandlers maps action names to their business logic handlers.
-var actionHandlers = map[string]ActionHandlerFunc{
-	"upload_light_media":       handleUploadLightMedia,
-	"start_heavy_media_upload": handleStartHeavyMediaUpload,
-	"stream_media_chunk":       handleStreamMediaChunk,
-	"complete_media_upload":    handleCompleteMediaUpload,
-	"get_media":                handleGetMedia,
-	"stream_media_content":     handleStreamMediaContent,
-	"delete_media":             handleDeleteMedia,
-	"list_user_media":          handleListUserMedia,
-	"list_system_media":        handleListSystemMedia,
-	"broadcast_system_media":   handleBroadcastSystemMedia,
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *ServiceImpl, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
 }
 
-// Handler stubs for each media action
+// actionHandlers maps action names to their business logic handlers.
+var actionHandlers = map[string]ActionHandlerFunc{
+	"upload_light_media":       FilterRequestedOnly(handleUploadLightMedia),
+	"start_heavy_media_upload": FilterRequestedOnly(handleStartHeavyMediaUpload),
+	"stream_media_chunk":       FilterRequestedOnly(handleStreamMediaChunk),
+	"complete_media_upload":    FilterRequestedOnly(handleCompleteMediaUpload),
+	"get_media":                FilterRequestedOnly(handleGetMedia),
+	"stream_media_content":     FilterRequestedOnly(handleStreamMediaContent),
+	"delete_media":             FilterRequestedOnly(handleDeleteMedia),
+	"list_user_media":          FilterRequestedOnly(handleListUserMedia),
+	"list_system_media":        FilterRequestedOnly(handleListSystemMedia),
+	"broadcast_system_media":   FilterRequestedOnly(handleBroadcastSystemMedia),
+}
+
+// Handler stubs for each media action.
 func handleStartHeavyMediaUpload(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling start_heavy_media_upload event", zap.Any("event", event))
 	var req mediapb.StartHeavyMediaUploadRequest
@@ -368,7 +378,7 @@ func HandleMediaServiceEvent(ctx context.Context, s *ServiceImpl, event *nexusv1
 	handler(ctx, s, event)
 }
 
-// Example handler for upload_light_media
+// Example handler for upload_light_media.
 func handleUploadLightMedia(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling upload_light_media event", zap.Any("event", event))
 	var req mediapb.UploadLightMediaRequest
@@ -399,7 +409,7 @@ func handleUploadLightMedia(ctx context.Context, svc *ServiceImpl, event *nexusv
 	}
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	InitCanonicalEventTypeRegistry()
 	m := make(map[string]ActionHandlerFunc)

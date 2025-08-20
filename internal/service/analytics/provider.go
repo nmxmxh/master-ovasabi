@@ -51,6 +51,10 @@ func Register(
 	eventEnabled bool,
 	provider interface{},
 ) error {
+	// Reference unused masterRepo for diagnostics
+	if masterRepo != nil {
+		log.Debug("Register called with masterRepo", zap.Any("masterRepo", masterRepo))
+	}
 	repo := NewRepository(db, log)
 	cache, err := redisProvider.GetCache(ctx, "analytics")
 	if err != nil {

@@ -72,18 +72,23 @@ func ReferralOpsHandler(container *di.Container) http.HandlerFunc {
 
 		actionHandlers := map[string]func(){
 			"create_referral": func() {
-				deviceHash, _ := req["device_hash"].(string)
+				deviceHashVal, ok := req["device_hash"].(string)
+				if !ok {
+					log.Warn("device_hash type assertion failed", zap.Any("device_hash", req["device_hash"]))
+					deviceHashVal = ""
+				}
+				deviceHash := deviceHashVal
 				if isGuest && deviceHash == "" {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: device_hash required for guests", nil)
 					return
 				}
-				handleReferralAction(w, ctx, log, req, &referralpb.CreateReferralRequest{}, referralSvc.CreateReferral)
+				handleReferralAction(ctx, w, log, req, &referralpb.CreateReferralRequest{}, referralSvc.CreateReferral)
 			},
 			"get_referral": func() {
-				handleReferralAction(w, ctx, log, req, &referralpb.GetReferralRequest{}, referralSvc.GetReferral)
+				handleReferralAction(ctx, w, log, req, &referralpb.GetReferralRequest{}, referralSvc.GetReferral)
 			},
 			"get_referral_stats": func() {
-				handleReferralAction(w, ctx, log, req, &referralpb.GetReferralStatsRequest{}, referralSvc.GetReferralStats)
+				handleReferralAction(ctx, w, log, req, &referralpb.GetReferralStatsRequest{}, referralSvc.GetReferralStats)
 			},
 		}
 
@@ -97,8 +102,8 @@ func ReferralOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleReferralAction is a generic helper to reduce boilerplate in ReferralOpsHandler.
 func handleReferralAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

@@ -20,26 +20,30 @@ func LoadCanonicalEvents(service string) []string {
 
 	eventTypes := make([]string, 0)
 	for _, svc := range services {
-		if svc["name"] == service {
-			version, _ := svc["version"].(string)
-			endpoints, ok := svc["endpoints"].([]interface{})
+		if svc["name"] != service {
+			continue
+		}
+		versionVal, ok := svc["version"].(string)
+		if !ok {
+			versionVal = ""
+		}
+		endpoints, ok := svc["endpoints"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, ep := range endpoints {
+			epMap, ok := ep.(map[string]interface{})
 			if !ok {
 				continue
 			}
-			for _, ep := range endpoints {
-				epMap, ok := ep.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				actions, ok := epMap["actions"].([]interface{})
-				if !ok {
-					continue
-				}
-				for _, act := range actions {
-					if actStr, ok := act.(string); ok {
-						for _, state := range []string{"requested", "started", "success", "failed", "completed"} {
-							eventTypes = append(eventTypes, service+":"+actStr+":"+version+":"+state)
-						}
+			actions, ok := epMap["actions"].([]interface{})
+			if !ok {
+				continue
+			}
+			for _, act := range actions {
+				if actStr, ok := act.(string); ok {
+					for _, state := range []string{"requested", "started", "success", "failed", "completed"} {
+						eventTypes = append(eventTypes, service+":"+actStr+":"+versionVal+":"+state)
 					}
 				}
 			}

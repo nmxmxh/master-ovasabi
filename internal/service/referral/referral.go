@@ -65,7 +65,7 @@ func (s *Service) CreateReferral(ctx context.Context, req *referralpb.CreateRefe
 		UpdatedAt:        time.Now(),
 		Metadata:         req.Metadata,
 	}
-	if err := s.repo.Create(record); err != nil {
+	if err := s.repo.Create(ctx, record); err != nil {
 		s.handler.Error(ctx, "create_referral", codes.Internal, "failed to create referral", err, req.Metadata, "")
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.Internal))
 	}
@@ -84,7 +84,7 @@ func (s *Service) GetReferralStats(ctx context.Context, req *referralpb.GetRefer
 		s.handler.Error(ctx, "get_referral_stats", codes.InvalidArgument, "invalid master id", nil, nil, "")
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, nil, "context", codes.InvalidArgument))
 	}
-	stats, err := s.repo.GetStats(req.MasterId)
+	stats, err := s.repo.GetStats(ctx, req.MasterId)
 	if err != nil {
 		s.handler.Error(ctx, "get_referral_stats", codes.Internal, "failed to get referral stats", err, nil, "")
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.Internal))
@@ -105,7 +105,7 @@ func (s *Service) GetReferral(ctx context.Context, req *referralpb.GetReferralRe
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, nil, "context", codes.InvalidArgument))
 	}
 	s.log.Debug("GetReferral called", zap.String("referral_code", req.ReferralCode))
-	referral, err := s.repo.GetByCode(req.ReferralCode)
+	referral, err := s.repo.GetByCode(ctx, req.ReferralCode)
 	if err != nil {
 		if errors.Is(err, ErrReferralNotFound) {
 			s.handler.Error(ctx, "get_referral", codes.NotFound, "referral not found", err, nil, req.ReferralCode)
@@ -140,7 +140,7 @@ func (s *Service) RegisterReferral(ctx context.Context, req *referralpb.Register
 		UpdatedAt:        time.Now(),
 		Metadata:         req.Metadata,
 	}
-	if err := s.repo.Create(record); err != nil {
+	if err := s.repo.Create(ctx, record); err != nil {
 		s.handler.Error(ctx, "register_referral", codes.Internal, "failed to register referral", err, req.Metadata, "")
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to register referral", codes.Internal))
 	}
@@ -156,7 +156,7 @@ func (s *Service) RegisterReferral(ctx context.Context, req *referralpb.Register
 // RewardReferral rewards a referral and emits an event.
 func (s *Service) RewardReferral(ctx context.Context, req *referralpb.RewardReferralRequest) (*referralpb.RewardReferralResponse, error) {
 	metadata.MigrateMetadata(req.Metadata)
-	referral, err := s.repo.GetByCode(req.ReferralCode)
+	referral, err := s.repo.GetByCode(ctx, req.ReferralCode)
 	if err != nil {
 		s.handler.Error(ctx, "reward_referral", codes.NotFound, "referral not found", err, nil, req.ReferralCode)
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "referral not found", codes.NotFound))
@@ -165,7 +165,7 @@ func (s *Service) RewardReferral(ctx context.Context, req *referralpb.RewardRefe
 	referral.Successful = true
 	referral.UpdatedAt = time.Now()
 	referral.Metadata = req.Metadata
-	if err := s.repo.Update(referral); err != nil {
+	if err := s.repo.Update(ctx, referral); err != nil {
 		s.handler.Error(ctx, "reward_referral", codes.Internal, "failed to reward referral", err, req.Metadata, req.ReferralCode)
 		return nil, graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "failed to reward referral", codes.Internal))
 	}
@@ -224,7 +224,7 @@ func (s *Service) UpdateReferredMasterID(ctx context.Context, referralCode, refe
 			return graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.InvalidArgument))
 		}
 	}
-	if err := s.repo.UpdateReferredMasterID(referralCode, referredMasterIDInt); err != nil {
+	if err := s.repo.UpdateReferredMasterID(ctx, referralCode, referredMasterIDInt); err != nil {
 		return graceful.ToStatusError(graceful.MapAndWrapErr(ctx, err, "context", codes.Internal))
 	}
 	return nil

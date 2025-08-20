@@ -11,14 +11,14 @@ import (
 )
 
 // PayloadValidator provides centralized payload validation and cleaning
-// based on service registration schemas and protobuf field definitions
+// based on service registration schemas and protobuf field definitions.
 type PayloadValidator struct {
 	generator     *DynamicServiceRegistrationGenerator
 	messageFields map[string][]string // Maps message type to its field names
 	logger        *zap.Logger
 }
 
-// NewPayloadValidator creates a new payload validator using existing registration infrastructure
+// NewPayloadValidator creates a new payload validator using existing registration infrastructure.
 func NewPayloadValidator(logger *zap.Logger, protoPath string) (*PayloadValidator, error) {
 	generator := NewDynamicServiceRegistrationGenerator(logger, protoPath, "")
 
@@ -36,7 +36,7 @@ func NewPayloadValidator(logger *zap.Logger, protoPath string) (*PayloadValidato
 	return pv, nil
 }
 
-// loadMessageFields loads all message field definitions from proto files
+// loadMessageFields loads all message field definitions from proto files.
 func (pv *PayloadValidator) loadMessageFields() error {
 	protoServices, err := pv.generator.discoverProtoServices()
 	if err != nil {
@@ -56,7 +56,7 @@ func (pv *PayloadValidator) loadMessageFields() error {
 	return nil
 }
 
-// parseMessageFields parses a protobuf message definition to extract field names
+// parseMessageFields parses a protobuf message definition to extract field names.
 func (pv *PayloadValidator) parseMessageFields(messageType string) ([]string, error) {
 	// Find the proto file that contains this message
 	protoFile, err := pv.findProtoFileForMessage(messageType)
@@ -72,7 +72,7 @@ func (pv *PayloadValidator) parseMessageFields(messageType string) ([]string, er
 	return pv.extractFieldsFromMessage(string(content), messageType)
 }
 
-// findProtoFileForMessage finds the proto file that contains a specific message type
+// findProtoFileForMessage finds the proto file that contains a specific message type.
 func (pv *PayloadValidator) findProtoFileForMessage(messageType string) (string, error) {
 	var foundFile string
 
@@ -82,7 +82,6 @@ func (pv *PayloadValidator) findProtoFileForMessage(messageType string) (string,
 		}
 		return nil
 	})
-
 	if err != nil {
 		return "", err
 	}
@@ -94,7 +93,7 @@ func (pv *PayloadValidator) findProtoFileForMessage(messageType string) (string,
 	return foundFile, nil
 }
 
-// extractFieldsFromMessage extracts field names from a message definition
+// extractFieldsFromMessage extracts field names from a message definition.
 func (pv *PayloadValidator) extractFieldsFromMessage(content, messageType string) ([]string, error) {
 	var fields []string
 
@@ -145,7 +144,7 @@ func (pv *PayloadValidator) extractFieldsFromMessage(content, messageType string
 	return fields, nil
 }
 
-// ValidateAndCleanPayload validates and cleans a payload based on the target service and action
+// ValidateAndCleanPayload validates and cleans a payload based on the target service and action.
 func (pv *PayloadValidator) ValidateAndCleanPayload(eventType string, payload *structpb.Struct) (*structpb.Struct, error) {
 	if payload == nil || payload.Fields == nil {
 		return payload, nil
@@ -199,7 +198,7 @@ func (pv *PayloadValidator) ValidateAndCleanPayload(eventType string, payload *s
 }
 
 // parseEventType extracts service and action from canonical event type
-// Format: {service}:{action}:v{version}:{state}
+// Format: {service}:{action}:v{version}:{state}.
 func (pv *PayloadValidator) parseEventType(eventType string) (service, action string, err error) {
 	parts := strings.Split(eventType, ":")
 	if len(parts) < 2 {
@@ -209,7 +208,7 @@ func (pv *PayloadValidator) parseEventType(eventType string) (service, action st
 	return parts[0], parts[1], nil
 }
 
-// getRequestModel gets the request model for a service/action combination using standard naming conventions
+// getRequestModel gets the request model for a service/action combination using standard naming conventions.
 func (pv *PayloadValidator) getRequestModel(service, action string) (string, error) {
 	// Convert to PascalCase for protobuf naming convention
 	servicePascal := pv.toPascalCase(service)
@@ -253,7 +252,7 @@ func (pv *PayloadValidator) getRequestModel(service, action string) (string, err
 	return "", fmt.Errorf("request model not found for %s.%s (tried patterns: %v)", service, action, patterns)
 }
 
-// toPascalCase converts a string to PascalCase (first letter uppercase, rest lowercase for each word)
+// toPascalCase converts a string to PascalCase (first letter uppercase, rest lowercase for each word).
 func (pv *PayloadValidator) toPascalCase(s string) string {
 	if s == "" {
 		return s
@@ -267,7 +266,7 @@ func (pv *PayloadValidator) toPascalCase(s string) string {
 
 	var result strings.Builder
 	for _, word := range words {
-		if len(word) > 0 {
+		if word != "" {
 			result.WriteString(strings.ToUpper(word[:1]) + word[1:])
 		}
 	}
@@ -275,12 +274,12 @@ func (pv *PayloadValidator) toPascalCase(s string) string {
 	return result.String()
 }
 
-// walkProtoFiles is a helper method to walk through proto files
+// walkProtoFiles is a helper method to walk through proto files.
 func (g *DynamicServiceRegistrationGenerator) walkProtoFiles(callback func(path string, content []byte) error) error {
 	return g.walkProtoDir(g.protoPath, callback)
 }
 
-// walkProtoDir recursively walks through a directory looking for proto files
+// walkProtoDir recursively walks through a directory looking for proto files.
 func (g *DynamicServiceRegistrationGenerator) walkProtoDir(dir string, callback func(path string, content []byte) error) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

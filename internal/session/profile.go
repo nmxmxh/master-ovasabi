@@ -8,27 +8,27 @@ import (
 
 // UIState mirrors the frontend UIState type for accessibility and personalization
 // Add or adjust fields as needed to match your frontend
-// (This is a minimal version; expand as needed)
+// (This is a minimal version; expand as needed).
 type UIState struct {
 	Theme     string `json:"theme"`
 	Locale    string `json:"locale"`
 	Direction string `json:"direction"`
 	Contrast  struct {
-		PrefersHighContrast bool   `json:"prefersHighContrast"`
-		ColorContrastRatio  string `json:"colorContrastRatio,omitempty"`
+		PrefersHighContrast bool   `json:"prefers_high_contrast"`
+		ColorContrastRatio  string `json:"color_contrast_ratio,omitempty"`
 	} `json:"contrast"`
-	AnimationDirection string `json:"animationDirection,omitempty"`
+	AnimationDirection string `json:"animation_direction,omitempty"`
 	Orientation        string `json:"orientation,omitempty"`
 	Menu               string `json:"menu,omitempty"`
-	FooterLink         string `json:"footerLink,omitempty"`
+	FooterLink         string `json:"footer_link,omitempty"`
 	Viewport           struct {
-		Width  int `json:"width"`
-		Height int `json:"height"`
-		DVW    int `json:"dvw"`
-		DVH    int `json:"dvh"`
+		Width  int `json:"width,omitempty"`
+		Height int `json:"height,omitempty"`
+		DVW    int `json:"dvw,omitempty"`
+		DVH    int `json:"dvh,omitempty"`
 	} `json:"viewport"`
 	Motion struct {
-		PrefersReducedMotion bool `json:"prefersReducedMotion"`
+		PrefersReducedMotion bool `json:"prefers_reduced_motion"`
 	} `json:"motion"`
 	// ...add more as needed
 }
@@ -87,7 +87,7 @@ var (
 	storeMu      sync.RWMutex
 )
 
-// ScheduleProfileDeletion marks a profile for deletion after a delay (optimistic GDPR erase)
+// ScheduleProfileDeletion marks a profile for deletion after a delay (optimistic GDPR erase).
 func ScheduleProfileDeletion(sessionID string, delaySeconds int, deleteFn func(string)) {
 	go func() {
 		// Wait for the delay, then delete
@@ -96,7 +96,7 @@ func ScheduleProfileDeletion(sessionID string, delaySeconds int, deleteFn func(s
 	}()
 }
 
-// DeleteProfile removes a profile from the store and erases sensitive fields (GDPR)
+// DeleteProfile removes a profile from the store and erases sensitive fields (GDPR).
 func DeleteProfile(sessionID string) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
@@ -121,7 +121,7 @@ func DeleteProfile(sessionID string) {
 	}
 }
 
-// GetProfile returns the UnifiedProfile for a session, or creates a new one if not found
+// GetProfile returns the UnifiedProfile for a session, or creates a new one if not found.
 func GetProfile(sessionID string) *UnifiedProfile {
 	storeMu.RLock()
 	profile, ok := sessionStore[sessionID]
@@ -138,8 +138,8 @@ func GetProfile(sessionID string) *UnifiedProfile {
 			Locale:    "en",
 			Direction: "ltr",
 			Contrast: struct {
-				PrefersHighContrast bool   `json:"prefersHighContrast"`
-				ColorContrastRatio  string `json:"colorContrastRatio,omitempty"`
+				PrefersHighContrast bool   `json:"prefers_high_contrast"`
+				ColorContrastRatio  string `json:"color_contrast_ratio,omitempty"`
 			}{},
 		},
 		Privileges: []string{"guest"},
@@ -151,7 +151,7 @@ func GetProfile(sessionID string) *UnifiedProfile {
 }
 
 // MergeProfiles merges two profiles (e.g., guest -> waitlist, waitlist -> user)
-// Uses per-profile locking for thread safety
+// Uses per-profile locking for thread safety.
 func MergeProfiles(oldP, newP *UnifiedProfile) *UnifiedProfile {
 	oldP.mu.Lock()
 	defer oldP.mu.Unlock()
@@ -178,7 +178,7 @@ func MergeProfiles(oldP, newP *UnifiedProfile) *UnifiedProfile {
 	for _, p := range newP.Privileges {
 		privMap[p] = struct{}{}
 	}
-	var privs []string
+	privs := make([]string, 0, len(privMap))
 	for p := range privMap {
 		privs = append(privs, p)
 	}
@@ -244,7 +244,7 @@ func MergeProfiles(oldP, newP *UnifiedProfile) *UnifiedProfile {
 }
 
 // ToJSON returns the JSON representation of the profile (thread safe)
-// Optionally, redact sensitive fields for frontend streaming (GDPR)
+// Optionally, redact sensitive fields for frontend streaming (GDPR).
 func (p *UnifiedProfile) ToJSON(redact bool) ([]byte, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -274,7 +274,7 @@ func (p *UnifiedProfile) ToJSON(redact bool) ([]byte, error) {
 	})
 }
 
-// UpdateProfile updates the profile in the store with a thread-safe update function
+// UpdateProfile updates the profile in the store with a thread-safe update function.
 func UpdateProfile(sessionID string, updateFn func(*UnifiedProfile)) {
 	storeMu.RLock()
 	profile, ok := sessionStore[sessionID]
@@ -287,21 +287,22 @@ func UpdateProfile(sessionID string, updateFn func(*UnifiedProfile)) {
 	updateFn(profile)
 }
 
-// SetDialogueState updates the dialogue state for the user (e.g., last message, context)
+// SetDialogueState updates the dialogue state for the user (e.g., last message, context).
 func (p *UnifiedProfile) SetDialogueState(key string, value interface{}) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.CampaignSpecific.UI == nil {
 		p.CampaignSpecific.UI = make(map[string]interface{})
 	}
-	if _, ok := p.CampaignSpecific.UI["dialogue_state"].(map[string]interface{}); !ok {
-		p.CampaignSpecific.UI["dialogue_state"] = make(map[string]interface{})
+	ds, ok := p.CampaignSpecific.UI["dialogue_state"].(map[string]interface{})
+	if !ok {
+		ds = make(map[string]interface{})
+		p.CampaignSpecific.UI["dialogue_state"] = ds
 	}
-	ds := p.CampaignSpecific.UI["dialogue_state"].(map[string]interface{})
 	ds[key] = value
 }
 
-// StreamPrivileges returns a copy of the privileges for streaming (thread safe)
+// StreamPrivileges returns a copy of the privileges for streaming (thread safe).
 func (p *UnifiedProfile) StreamPrivileges() []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -310,14 +311,14 @@ func (p *UnifiedProfile) StreamPrivileges() []string {
 	return out
 }
 
-// SetDisplayName safely sets the display name (thread safe)
+// SetDisplayName safely sets the display name (thread safe).
 func (p *UnifiedProfile) SetDisplayName(name string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.DisplayName = &name
 }
 
-// SetUsername safely sets the username (thread safe)
+// SetUsername safely sets the username (thread safe).
 func (p *UnifiedProfile) SetUsername(username string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

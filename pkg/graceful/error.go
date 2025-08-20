@@ -202,11 +202,7 @@ type ErrorOrchestrationConfig struct {
 func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchestrationConfig) []error {
 	// 1. Canonical event emission. This is now the standard path for all error events.
 	if cfg.EventEmitter != nil && cfg.EventEnabled {
-		correlationID := utils.GetStringFromContext(ctx, "correlation_id")
-		requestID := utils.GetStringFromContext(ctx, "request_id")
-		if correlationID == "" {
-			correlationID = requestID
-		}
+		// actorID and environment fetched if needed elsewhere
 		// actorID and environment fetched if needed elsewhere
 
 		// event variable removed, envelope is used for emission
@@ -342,11 +338,14 @@ func (e *ContextError) StandardOrchestrate(ctx context.Context, cfg ErrorOrchest
 		if errorMeta.ServiceSpecific == nil {
 			errorMeta.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 		}
-		errorDetails, _ := structpb.NewStruct(map[string]interface{}{
+		errorDetails, err := structpb.NewStruct(map[string]interface{}{
 			"code":    e.Code.String(),
 			"message": e.Message,
 			"cause":   e.Error(),
 		})
+		if err != nil && cfg.Log != nil {
+			cfg.Log.Warn("Failed to create error details struct", zap.Error(err))
+		}
 		errorMeta.ServiceSpecific.Fields["error_context"] = structpb.NewStructValue(errorDetails)
 
 		req := &nexusv1.RegisterPatternRequest{

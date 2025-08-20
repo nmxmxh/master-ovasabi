@@ -32,8 +32,8 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
-	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/health"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -81,13 +81,13 @@ func Register(
 			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
 		}
 		health.StartHealthSubscriber(ctx, prov, log, "product", healthDeps)
-		
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "product")
 	}
 	return nil
 }
 
-// getCanonicalProductEventTypes returns all canonical product event types for registry-driven orchestration
+// getCanonicalProductEventTypes returns all canonical product event types for registry-driven orchestration.
 func getCanonicalProductEventTypes() []string {
 	eventTypes := make([]string, 0, len(eventTypeToHandler))
 	for eventType := range eventTypeToHandler {

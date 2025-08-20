@@ -57,44 +57,49 @@ func (r *DefaultMasterRepository) validateEntityType(ctx context.Context, entity
 
 // CreateMasterRecord creates a new master record in a new transaction.
 // This is for cases where the master record is the only thing being created in a transaction.
-func (r *DefaultMasterRepository) CreateMasterRecord(ctx context.Context, entityType, name string) (int64, string, error) {
+func (r *DefaultMasterRepository) CreateMasterRecord(ctx context.Context, entityType, name string) (id int64, uuidStr string, err error) {
 	tx, err := r.GetDB().BeginTx(ctx, nil)
 	if err != nil {
-		return 0, "", err
+		return id, uuidStr, err
 	}
 	defer func() {
-		if r := recover(); r != nil {
-			_ = tx.Rollback()
-			panic(r)
+		if rec := recover(); rec != nil {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.log.Warn("Failed to rollback transaction after panic in CreateMasterRecord", zap.Error(rbErr))
+			}
+			panic(rec)
 		}
-		if err != nil { // Only rollback if an error occurred in the function
-			_ = tx.Rollback()
+		if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.log.Warn("Failed to rollback transaction after error in CreateMasterRecord", zap.Error(rbErr))
+			}
 		}
 	}()
 
-	id, uuidStr, err := r.Create(ctx, tx, EntityType(entityType), name) // Pass empty description by default
+	id, uuidStr, err = r.Create(ctx, tx, EntityType(entityType), name) // Pass empty description by default
 	if err != nil {
-		return 0, "", err
+		return id, uuidStr, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return 0, "", fmt.Errorf("failed to commit transaction: %w", err)
+	if commitErr := tx.Commit(); commitErr != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", commitErr)
+		return id, uuidStr, err
 	}
 
-	return id, uuidStr, nil
+	return id, uuidStr, err
 }
 
 // Create creates a new master record within an existing transaction.
 // It returns the generated master_id, master_uuid, and an error if any.
-func (r *DefaultMasterRepository) Create(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (int64, string, error) {
-	return r.CreateWithDescription(ctx, tx, entityType, name, "")
+func (r *DefaultMasterRepository) Create(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (id int64, uuidStr string, err error) {
+	id, uuidStr, err = r.CreateWithDescription(ctx, tx, entityType, name, "")
+	return id, uuidStr, err
 }
 
 // CreateWithDescription creates a new master record with a custom description.
-func (r *DefaultMasterRepository) CreateWithDescription(ctx context.Context, tx *sql.Tx, entityType EntityType, name string, description string) (int64, string, error) {
+func (r *DefaultMasterRepository) CreateWithDescription(ctx context.Context, tx *sql.Tx, entityType EntityType, name, description string) (id int64, uuidStr string, err error) {
 	newUUID := uuid.New()
-	var id int64
-	err := tx.QueryRowContext(ctx, // Use the provided tx
+	err = tx.QueryRowContext(ctx, // Use the provided tx
 		`INSERT INTO master (uuid, name, type, description, version, created_at, updated_at) 
 			VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) 
 			RETURNING id`,
@@ -108,7 +113,8 @@ func (r *DefaultMasterRepository) CreateWithDescription(ctx context.Context, tx 
 		}
 		return 0, "", fmt.Errorf("failed to create master record: %w", err)
 	}
-	return id, newUUID.String(), nil
+	uuidStr = newUUID.String()
+	return id, uuidStr, err
 }
 
 // UpdateMasterDescription updates the description for a master record by name and type.

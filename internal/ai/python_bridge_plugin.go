@@ -56,7 +56,15 @@ func (p *PythonBridgePlugin) Infer(input []byte) ([]byte, error) {
 		return nil, err
 	}
 	// Return the marshaled response (could be improved to extract summary, etc.)
-	return resp.ProtoReflect().Interface().(interface{ MarshalVT() ([]byte, error) }).MarshalVT()
+	marshaler, ok := resp.ProtoReflect().Interface().(interface{ MarshalVT() ([]byte, error) })
+	if !ok {
+		return nil, fmt.Errorf("response does not implement MarshalVT")
+	}
+	data, err := marshaler.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 func (p *PythonBridgePlugin) Summarize(input []byte) (string, error) {

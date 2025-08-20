@@ -112,11 +112,11 @@ func (o *CampaignOrchestrator) Signup(ctx context.Context, slug, email, username
 	}
 	if meta.BroadcastEnabled {
 		// Fire-and-forget broadcast, log if it fails but don't block signup
-		go func() {
-			if err := o.BroadcastService.Broadcast(context.Background(), slug, fmt.Sprintf("New user joined: %s", username)); err != nil {
+		go func(ctx context.Context) {
+			if err := o.BroadcastService.Broadcast(ctx, slug, fmt.Sprintf("New user joined: %s", username)); err != nil {
 				o.log.Warn("Failed to send broadcast message", zap.Error(err), zap.String("campaign_slug", slug))
 			}
-		}()
+		}(ctx)
 	}
 	return nil
 }

@@ -141,6 +141,14 @@ self.addEventListener('activate', event => {
         // Take control of all clients immediately
         return self.clients.claim();
       })
+      .then(() => {
+        // Notify all clients that SW is ready and assets are cached
+        return self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({ type: 'sw-ready' });
+          });
+        });
+      })
   );
 });
 
@@ -175,6 +183,7 @@ async function handleWASMRequest(request) {
   try {
     const cache = await caches.open(WASM_CACHE);
 
+    let response;
     if (isDevelopment) {
       // In development, always try network first to get latest WASM
       try {
@@ -183,27 +192,39 @@ async function handleWASMRequest(request) {
           await cache.put(request, networkResponse.clone());
           console.log('[SW] Updated WASM cache in development:', request.url);
         }
-        return networkResponse;
+        response = networkResponse;
       } catch (networkError) {
         console.log('[SW] Network failed for WASM, using cache:', request.url);
         const cachedResponse = await cache.match(request);
-        if (cachedResponse) return cachedResponse;
-        throw networkError;
+        if (cachedResponse) response = cachedResponse;
+        else throw networkError;
       }
     } else {
       // Production: cache first
       const cachedResponse = await cache.match(request);
       if (cachedResponse) {
         console.log('[SW] Serving WASM from cache:', request.url);
-        return cachedResponse;
+        response = cachedResponse;
+      } else {
+        const networkResponse = await fetch(request);
+        if (networkResponse.ok) {
+          await cache.put(request, networkResponse.clone());
+        }
+        response = networkResponse;
       }
-
-      const networkResponse = await fetch(request);
-      if (networkResponse.ok) {
-        await cache.put(request, networkResponse.clone());
-      }
-      return networkResponse;
     }
+    // Ensure correct MIME type for .wasm files
+    if (request.url.endsWith('.wasm') && response) {
+      const newHeaders = new Headers(response.headers);
+      newHeaders.set('Content-Type', 'application/wasm');
+      const body = await response.arrayBuffer();
+      return new Response(body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: newHeaders
+      });
+    }
+    return response;
   } catch (error) {
     console.error('[SW] WASM request failed:', error);
     throw error;

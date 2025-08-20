@@ -146,7 +146,8 @@ func (s *Server) Start(grpcPort string) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		lis, err := net.Listen("tcp", ":"+grpcPort)
+		var lc net.ListenConfig
+		lis, err := lc.Listen(ctx, "tcp", ":"+grpcPort)
 		if err != nil {
 			errCh <- fmt.Errorf("gRPC listen error: %w", err)
 			cancel()

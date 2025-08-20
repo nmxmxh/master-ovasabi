@@ -24,6 +24,14 @@ type Service struct {
 }
 
 func NewService(ctx context.Context, log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) talentpb.TalentServiceServer {
+	select {
+	case <-ctx.Done():
+		if log != nil {
+			log.Warn("Talent service creation cancelled by context", zap.Error(ctx.Err()))
+		}
+		return nil
+	default:
+	}
 	// If graceful.NewHandler supports context, pass it; otherwise, keep as is
 	handler := graceful.NewHandler(log, eventEmitter, cache, "talent", "v1", eventEnabled)
 	s := &Service{
@@ -41,13 +49,13 @@ var _ talentpb.TalentServiceServer = (*Service)(nil)
 
 func (s *Service) CreateTalentProfile(ctx context.Context, req *talentpb.CreateTalentProfileRequest) (*talentpb.CreateTalentProfileResponse, error) {
 	if req == nil || req.Profile == nil {
-		err := s.handler.Error(ctx, "create_talent_profile", codes.InvalidArgument, "missing profile data", nil, nil, "")
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "create_talent_profile", codes.InvalidArgument, "missing profile data", nil, nil, "")
+		return nil, graceful.ToStatusError(nil)
 	}
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		err := s.handler.Error(ctx, "create_talent_profile", codes.Unauthenticated, "missing authentication", nil, nil, "")
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "create_talent_profile", codes.Unauthenticated, "missing authentication", nil, nil, "")
+		return nil, graceful.ToStatusError(nil)
 	}
 	req.Profile.UserId = authUserID
 	metaStruct := &Metadata{
@@ -81,7 +89,7 @@ func (s *Service) CreateTalentProfile(ctx context.Context, req *talentpb.CreateT
 	req.Profile.Metadata = normMeta
 	created, err := s.repo.CreateTalentProfile(ctx, req.Profile, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "create_talent_profile", codes.Internal, "failed to create talent profile", err, nil, authUserID)
+		s.handler.Error(ctx, "create_talent_profile", codes.Internal, "failed to create talent profile", err, nil, authUserID)
 		return nil, graceful.ToStatusError(err)
 	}
 	s.handler.Success(ctx, "create_talent_profile", codes.OK, "talent profile created", created, created.Metadata, authUserID, nil)
@@ -91,23 +99,23 @@ func (s *Service) CreateTalentProfile(ctx context.Context, req *talentpb.CreateT
 func (s *Service) UpdateTalentProfile(ctx context.Context, req *talentpb.UpdateTalentProfileRequest) (*talentpb.UpdateTalentProfileResponse, error) {
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		err := s.handler.Error(ctx, "update_talent_profile", codes.Unauthenticated, "missing authentication", nil, nil, "")
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "update_talent_profile", codes.Unauthenticated, "missing authentication", nil, nil, "")
+		return nil, graceful.ToStatusError(nil)
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isAdmin := utils.IsServiceAdmin(roles, "talent")
 	profile, err := s.repo.GetTalentProfile(ctx, req.Profile.Id, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "update_talent_profile", codes.NotFound, "talent profile not found", err, nil, authUserID)
+		s.handler.Error(ctx, "update_talent_profile", codes.NotFound, "talent profile not found", err, nil, authUserID)
 		return nil, graceful.ToStatusError(err)
 	}
 	if !isAdmin && profile.UserId != authUserID {
-		err := s.handler.Error(ctx, "update_talent_profile", codes.PermissionDenied, "cannot update profile you do not own", nil, nil, authUserID)
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "update_talent_profile", codes.PermissionDenied, "cannot update profile you do not own", nil, nil, authUserID)
+		return nil, graceful.ToStatusError(nil)
 	}
 	if req == nil || req.Profile == nil {
-		err := s.handler.Error(ctx, "update_talent_profile", codes.InvalidArgument, "profile is required", nil, nil, authUserID)
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "update_talent_profile", codes.InvalidArgument, "profile is required", nil, nil, authUserID)
+		return nil, graceful.ToStatusError(nil)
 	}
 	metaStruct := &Metadata{
 		Skills:         req.Profile.Skills,
@@ -140,7 +148,7 @@ func (s *Service) UpdateTalentProfile(ctx context.Context, req *talentpb.UpdateT
 	req.Profile.Metadata = normMeta
 	updated, err := s.repo.UpdateTalentProfile(ctx, req.Profile, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "update_talent_profile", codes.Internal, "failed to update talent profile", err, nil, authUserID)
+		s.handler.Error(ctx, "update_talent_profile", codes.Internal, "failed to update talent profile", err, nil, authUserID)
 		return nil, graceful.ToStatusError(err)
 	}
 	s.handler.Success(ctx, "update_talent_profile", codes.OK, "talent profile updated", updated, updated.Metadata, authUserID, nil)
@@ -150,27 +158,27 @@ func (s *Service) UpdateTalentProfile(ctx context.Context, req *talentpb.UpdateT
 func (s *Service) DeleteTalentProfile(ctx context.Context, req *talentpb.DeleteTalentProfileRequest) (*talentpb.DeleteTalentProfileResponse, error) {
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		err := s.handler.Error(ctx, "delete_talent_profile", codes.Unauthenticated, "missing authentication", nil, nil, "")
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "delete_talent_profile", codes.Unauthenticated, "missing authentication", nil, nil, "")
+		return nil, graceful.ToStatusError(nil)
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isAdmin := utils.IsServiceAdmin(roles, "talent")
 	profile, err := s.repo.GetTalentProfile(ctx, req.ProfileId, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "delete_talent_profile", codes.NotFound, "talent profile not found", err, nil, authUserID)
+		s.handler.Error(ctx, "delete_talent_profile", codes.NotFound, "talent profile not found", err, nil, authUserID)
 		return nil, graceful.ToStatusError(err)
 	}
 	if !isAdmin && profile.UserId != authUserID {
-		err := s.handler.Error(ctx, "delete_talent_profile", codes.PermissionDenied, "cannot delete profile you do not own", nil, nil, authUserID)
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "delete_talent_profile", codes.PermissionDenied, "cannot delete profile you do not own", nil, nil, authUserID)
+		return nil, graceful.ToStatusError(nil)
 	}
 	if req == nil || req.ProfileId == "" {
-		err := s.handler.Error(ctx, "delete_talent_profile", codes.InvalidArgument, "profile_id is required", nil, nil, authUserID)
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "delete_talent_profile", codes.InvalidArgument, "profile_id is required", nil, nil, authUserID)
+		return nil, graceful.ToStatusError(nil)
 	}
 	err = s.repo.DeleteTalentProfile(ctx, req.ProfileId, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "delete_talent_profile", codes.Internal, "failed to delete talent profile", err, nil, authUserID)
+		s.handler.Error(ctx, "delete_talent_profile", codes.Internal, "failed to delete talent profile", err, nil, authUserID)
 		return nil, graceful.ToStatusError(err)
 	}
 	s.handler.Success(ctx, "delete_talent_profile", codes.OK, "talent profile deleted", req.ProfileId, profile.Metadata, authUserID, nil)
@@ -179,17 +187,17 @@ func (s *Service) DeleteTalentProfile(ctx context.Context, req *talentpb.DeleteT
 
 func (s *Service) GetTalentProfile(ctx context.Context, req *talentpb.GetTalentProfileRequest) (*talentpb.GetTalentProfileResponse, error) {
 	if req == nil || req.ProfileId == "" {
-		err := s.handler.Error(ctx, "get_talent_profile", codes.InvalidArgument, "profile_id is required", nil, nil, "")
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "get_talent_profile", codes.InvalidArgument, "profile_id is required", nil, nil, "")
+		return nil, graceful.ToStatusError(nil)
 	}
 	profile, err := s.repo.GetTalentProfile(ctx, req.ProfileId, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "get_talent_profile", codes.Internal, "failed to get talent profile", err, nil, "")
+		s.handler.Error(ctx, "get_talent_profile", codes.Internal, "failed to get talent profile", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	if profile == nil {
-		err := s.handler.Error(ctx, "get_talent_profile", codes.NotFound, "talent profile not found", nil, nil, "")
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "get_talent_profile", codes.NotFound, "talent profile not found", nil, nil, "")
+		return nil, graceful.ToStatusError(nil)
 	}
 	s.handler.Success(ctx, "get_talent_profile", codes.OK, "talent profile fetched", profile, profile.Metadata, profile.UserId, nil)
 	return &talentpb.GetTalentProfileResponse{Profile: profile, CampaignId: req.CampaignId}, nil
@@ -197,8 +205,8 @@ func (s *Service) GetTalentProfile(ctx context.Context, req *talentpb.GetTalentP
 
 func (s *Service) ListTalentProfiles(ctx context.Context, req *talentpb.ListTalentProfilesRequest) (*talentpb.ListTalentProfilesResponse, error) {
 	if req == nil {
-		err := s.handler.Error(ctx, "list_talent_profiles", codes.InvalidArgument, "request is required", nil, nil, "")
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "list_talent_profiles", codes.InvalidArgument, "request is required", nil, nil, "")
+		return nil, graceful.ToStatusError(nil)
 	}
 	page := int(req.Page)
 	if page < 1 {
@@ -213,7 +221,7 @@ func (s *Service) ListTalentProfiles(ctx context.Context, req *talentpb.ListTale
 	location := req.Location
 	profiles, total, err := s.repo.ListTalentProfiles(ctx, page, pageSize, skills, tags, location, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "list_talent_profiles", codes.Internal, "failed to list talent profiles", err, nil, "")
+		s.handler.Error(ctx, "list_talent_profiles", codes.Internal, "failed to list talent profiles", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	totalPages := utils.ToInt32((total + pageSize - 1) / pageSize)
@@ -229,8 +237,8 @@ func (s *Service) ListTalentProfiles(ctx context.Context, req *talentpb.ListTale
 
 func (s *Service) SearchTalentProfiles(ctx context.Context, req *talentpb.SearchTalentProfilesRequest) (*talentpb.SearchTalentProfilesResponse, error) {
 	if req == nil {
-		err := s.handler.Error(ctx, "search_talent_profiles", codes.InvalidArgument, "request is required", nil, nil, "")
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "search_talent_profiles", codes.InvalidArgument, "request is required", nil, nil, "")
+		return nil, graceful.ToStatusError(nil)
 	}
 	page := int(req.Page)
 	if page < 1 {
@@ -245,7 +253,7 @@ func (s *Service) SearchTalentProfiles(ctx context.Context, req *talentpb.Search
 	location := req.Location
 	profiles, total, err := s.repo.SearchTalentProfiles(ctx, req.Query, page, pageSize, skills, tags, location, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "search_talent_profiles", codes.Internal, "failed to search talent profiles", err, nil, "")
+		s.handler.Error(ctx, "search_talent_profiles", codes.Internal, "failed to search talent profiles", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	totalPages := utils.ToInt32((total + pageSize - 1) / pageSize)
@@ -261,12 +269,12 @@ func (s *Service) SearchTalentProfiles(ctx context.Context, req *talentpb.Search
 
 func (s *Service) BookTalent(ctx context.Context, req *talentpb.BookTalentRequest) (*talentpb.BookTalentResponse, error) {
 	if req == nil || req.TalentId == "" || req.UserId == "" {
-		err := s.handler.Error(ctx, "book_talent", codes.InvalidArgument, "talent_id and user_id are required", nil, nil, req.UserId)
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "book_talent", codes.InvalidArgument, "talent_id and user_id are required", nil, nil, req.UserId)
+		return nil, graceful.ToStatusError(nil)
 	}
 	booking, err := s.repo.BookTalent(ctx, req.TalentId, req.UserId, req.StartTime, req.EndTime, req.Notes, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "book_talent", codes.Internal, "failed to book talent", err, nil, req.UserId)
+		s.handler.Error(ctx, "book_talent", codes.Internal, "failed to book talent", err, nil, req.UserId)
 		return nil, graceful.ToStatusError(err)
 	}
 	s.handler.Success(ctx, "book_talent", codes.OK, "talent booked", booking, booking.Metadata, req.UserId, nil)
@@ -275,8 +283,8 @@ func (s *Service) BookTalent(ctx context.Context, req *talentpb.BookTalentReques
 
 func (s *Service) ListBookings(ctx context.Context, req *talentpb.ListBookingsRequest) (*talentpb.ListBookingsResponse, error) {
 	if req == nil || req.UserId == "" {
-		err := s.handler.Error(ctx, "list_bookings", codes.InvalidArgument, "user_id is required", nil, nil, req.UserId)
-		return nil, graceful.ToStatusError(err)
+		s.handler.Error(ctx, "list_bookings", codes.InvalidArgument, "user_id is required", nil, nil, req.UserId)
+		return nil, graceful.ToStatusError(nil)
 	}
 	page := int(req.Page)
 	if page < 1 {
@@ -288,7 +296,7 @@ func (s *Service) ListBookings(ctx context.Context, req *talentpb.ListBookingsRe
 	}
 	bookings, total, err := s.repo.ListBookings(ctx, req.UserId, page, pageSize, req.CampaignId)
 	if err != nil {
-		err = s.handler.Error(ctx, "list_bookings", codes.Internal, "failed to list bookings", err, nil, req.UserId)
+		s.handler.Error(ctx, "list_bookings", codes.Internal, "failed to list bookings", err, nil, req.UserId)
 		return nil, graceful.ToStatusError(err)
 	}
 	totalPages := utils.ToInt32((total + pageSize - 1) / pageSize)

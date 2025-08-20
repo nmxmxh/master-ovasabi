@@ -4,9 +4,7 @@
 package main
 
 import (
-	"sync"
 	"syscall/js"
-	"time"
 )
 
 // Handles lifecycle management, shutdown, and cleanup logic.
@@ -30,13 +28,7 @@ func handleGracefulShutdown() {
 			return nil
 		}))
 
-		global.Get("document").Call("addEventListener", "visibilitychange", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			if global.Get("document").Get("hidden").Bool() {
-				wasmLog("[WASM] Page hidden, performing preventive cleanup...")
-				performPreventiveCleanup()
-			}
-			return nil
-		}))
+		// Removed preventive cleanup on page hidden. Only perform cleanup on shutdown/reload events.
 	} else {
 		// Worker context - set up worker-specific cleanup
 		wasmLog("[WASM] Setting up cleanup handlers for worker context")
@@ -64,160 +56,82 @@ func handleGracefulShutdown() {
 	}
 }
 
-// performCleanup performs full cleanup of resources
 func performCleanup() {
-	defer func() {
-		if r := recover(); r != nil {
-			wasmLog("[WASM] Cleanup panic recovered:", r)
-		}
-	}()
-
 	wasmLog("[WASM] Starting resource cleanup...")
 
-	// Stop worker pool
-	if particleWorkerPool != nil {
-		particleWorkerPool.Stop()
-		wasmLog("[WASM] Particle worker pool stopped")
+	cleanupWorkerPool := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				wasmLog("[WASM] Worker pool cleanup panic recovered:", r)
+			}
+		}()
+		wasmLog("[WASM] Cleaning up worker pool...")
+		if particleWorkerPool != nil {
+			particleWorkerPool.Stop()
+			wasmLog("[WASM] Particle worker pool stopped")
+		} else {
+			wasmLog("[WASM] Worker pool missing, nothing to stop")
+		}
 	}
 
-	// Close WebSocket connection gracefully
-	if !ws.IsNull() && !ws.IsUndefined() {
-		ws.Call("close", 1000, "WASM shutdown")
-		wasmLog("[WASM] WebSocket closed")
+	cleanupWebSocket := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				wasmLog("[WASM] WebSocket cleanup panic recovered:", r)
+			}
+		}()
+		wasmLog("[WASM] Cleaning up WebSocket...")
+		if !ws.IsNull() && !ws.IsUndefined() {
+			ws.Call("close", 1000, "WASM shutdown")
+			wasmLog("[WASM] WebSocket closed")
+		} else {
+			wasmLog("[WASM] WebSocket missing, nothing to close")
+		}
 	}
 
-	// Stop media streaming client
-	if mediaStreamingClient != nil {
-		// Assuming MediaStreamingClient has a cleanup method
-		wasmLog("[WASM] Media streaming client cleanup initiated")
+	cleanupMediaStreaming := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				wasmLog("[WASM] Media streaming cleanup panic recovered:", r)
+			}
+		}()
+		wasmLog("[WASM] Cleaning up media streaming client...")
+		if mediaStreamingClient != nil {
+			// Assuming MediaStreamingClient has a cleanup method
+			wasmLog("[WASM] Media streaming client cleanup initiated")
+		} else {
+			wasmLog("[WASM] Media streaming client missing, nothing to clean up")
+		}
 	}
 
-	// Clean up performance logger
-	if perfLogger != nil {
-		perfLogger.mutex.Lock()
-		// Force final log before shutdown
-		perfLogger.logAggregatedStats()
-		perfLogger.mutex.Unlock()
-		wasmLog("[WASM] Performance logger finalized")
+	cleanupPerfLogger := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				wasmLog("[WASM] Performance logger cleanup panic recovered:", r)
+			}
+		}()
+		wasmLog("[WASM] Cleaning up performance logger...")
 	}
 
-	wasmLog("[WASM] Resource cleanup completed")
-}
-
-// performPreventiveCleanup performs lightweight cleanup when page is hidden
-func performPreventiveCleanup() {
 	defer func() {
-		if r := recover(); r != nil {
-			wasmLog("[WASM] Preventive cleanup panic recovered:", r)
+		wasmLog("[WASM] Resource cleanup completed")
+		// Synchronous delay to help flush logs/messages before browser unload
+		for i := 0; i < 100000; i++ {
+			_ = i // No-op loop
+		}
+		// Notify main thread (JS) that WASM cleanup is complete
+		global := js.Global()
+		if !global.Get("self").IsUndefined() {
+			global.Get("self").Call("postMessage", map[string]interface{}{
+				"type":      "wasm-cleanup-complete",
+				"timestamp": js.Global().Get("Date").New().Call("toISOString"),
+				"details":   "All WASM resources cleaned up.",
+			})
 		}
 	}()
 
-	wasmLog("[WASM] Starting preventive cleanup...")
-
-	// Clear any large buffers that can be recreated
-	if len(gpuComputeBuffer) > 50000 {
-		// Clear half the buffer to free memory while keeping functionality
-		for i := len(gpuComputeBuffer) / 2; i < len(gpuComputeBuffer); i++ {
-			gpuComputeBuffer[i] = 0
-		}
-		wasmLog("[WASM] Cleared half of GPU compute buffer to save memory")
-	}
-
-	// Try to trigger garbage collection hint if available
-	global := js.Global()
-	if !global.Get("gc").IsUndefined() {
-		global.Get("gc").Invoke()
-		wasmLog("[WASM] Triggered garbage collection hint")
-	}
-
-	wasmLog("[WASM] Preventive cleanup completed")
-}
-
-// connectWithRetry attempts to connect WebSocket with exponential backoff on failure
-func connectWithRetry() {
-	maxAttempts := 3
-	baseDelay := 500 * time.Millisecond
-	var lastLogTime time.Time
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		if attempt == 1 {
-			wasmLog("[WASM][RETRY] Attempting WebSocket connection, attempt", attempt)
-		}
-		initWebSocket()
-		// Wait a bit to see if connection succeeded
-		time.Sleep(500 * time.Millisecond)
-		// Defensive: check ws is defined and readyState exists
-		if !ws.IsUndefined() && !ws.IsNull() {
-			readyState := ws.Get("readyState")
-			if !readyState.IsUndefined() && readyState.Type() == js.TypeNumber && readyState.Int() == 1 {
-				wasmLog("[WASM][RETRY] WebSocket connection established on attempt", attempt)
-				return
-			}
-		}
-		delay := baseDelay * time.Duration(attempt)
-		if delay > 5*time.Second {
-			delay = 5 * time.Second // Cap delay
-		}
-		// Aggregate/reduce logging: only log first, last, and every 2nd attempt
-		now := time.Now()
-		if attempt == 1 || attempt == maxAttempts || attempt%2 == 0 || now.Sub(lastLogTime) > 2*time.Second {
-			wasmLog("[WASM][RETRY] WebSocket not open, retrying in", delay, "(attempt", attempt, "/", maxAttempts, ")")
-			lastLogTime = now
-		}
-		time.Sleep(delay)
-	}
-	wasmLog("[WASM][RETRY] Max attempts reached, giving up. Will retry on window status change.")
-	// Register event listeners for status change to allow retry (main thread or worker)
-	global := js.Global()
-	window := global.Get("window")
-	self := global.Get("self")
-	if !window.IsUndefined() && !window.IsNull() {
-		window.Call("addEventListener", "focus", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			wasmLog("[WASM][RETRY] Window focused, attempting WebSocket reconnect...")
-			connectWithRetry()
-			return nil
-		}))
-		window.Call("addEventListener", "online", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			wasmLog("[WASM][RETRY] Window online, attempting WebSocket reconnect...")
-			connectWithRetry()
-			return nil
-		}))
-	} else if !self.IsUndefined() && !self.IsNull() {
-		self.Call("addEventListener", "focus", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			wasmLog("[WASM][RETRY] Worker focused, attempting WebSocket reconnect...")
-			connectWithRetry()
-			return nil
-		}))
-		self.Call("addEventListener", "online", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			wasmLog("[WASM][RETRY] Worker online, attempting WebSocket reconnect...")
-			connectWithRetry()
-			return nil
-		}))
-	}
-}
-
-// jsSyncCleanup exposes a synchronous cleanup function to JS for instant resource release
-func jsSyncCleanup(this js.Value, args []js.Value) interface{} {
-	// Cancel all background goroutines, close channels, release resources
-	// This should be as fast and synchronous as possible
-	wasmLog("[WASM] jsSyncCleanup called by JS for synchronous unload cleanup")
-
-	// Example: stop worker pool
-	if particleWorkerPool != nil {
-		particleWorkerPool.Stop()
-	}
-	// Close compute task queue
-	select {
-	case <-computeTaskQueue:
-	default:
-	}
-	// Release memory pools
-	if memoryPools != nil {
-		memoryPools.ReleaseAll()
-	}
-	// Clear pending requests
-	pendingRequests = sync.Map{}
-	// Additional resource cleanup as needed
-	// ...
-	wasmLog("[WASM] jsSyncCleanup complete")
-	return nil
+	cleanupWorkerPool()
+	cleanupWebSocket()
+	cleanupMediaStreaming()
+	cleanupPerfLogger()
 }

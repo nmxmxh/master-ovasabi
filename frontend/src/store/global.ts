@@ -6,16 +6,6 @@ import { useMemo, useCallback } from 'react';
 // --- WASM Readiness and Message Queue Globals ---
 // These are used for WASM readiness and message queuing before Zustand store is initialized
 
-// --- Centralized User ID Initialization ---
-if (typeof window !== 'undefined') {
-  let id = sessionStorage.getItem('auth_id') || sessionStorage.getItem('guest_id');
-  if (!id) {
-    id = 'guest_' + Math.random().toString(36).substring(2, 10);
-    sessionStorage.setItem('guest_id', id);
-  }
-  window.userID = id;
-}
-
 // --- Type Definitions (Communication Standards Compliant) ---
 export interface EventEnvelope {
   type: string; // {service}:{action}:v{version}:{state}
@@ -123,6 +113,12 @@ interface ConnectionState {
   maxReconnectAttempts: number;
   reconnectDelay: number;
   wasmReady: boolean;
+  wasmFunctions?: {
+    initWebGPU: boolean;
+    runGPUCompute: boolean;
+    getGPUMetricsBuffer: boolean;
+    [key: string]: boolean;
+  };
 }
 
 // --- Generic Feature State ---
@@ -146,6 +142,15 @@ export interface MediaStreamingState {
 
 // --- Utility Functions ---
 const generateId = (): string => {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+    const array = new Uint8Array(16);
+    window.crypto.getRandomValues(array);
+    // Convert to base64, remove non-alphanumeric chars, and trim length
+    return btoa(String.fromCharCode(...array))
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 24);
+  }
+  // Fallback to Math.random if crypto is unavailable
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
@@ -202,11 +207,23 @@ const getDeviceInfo = () => {
 const createInitialMetadata = (): Metadata => {
   const deviceId = getSessionStorage('device_id') || `device_${generateId()}`;
   const sessionId = `session_${generateId()}`;
-  const guestId = getSessionStorage('guest_id') || `guest_${generateId()}`;
+  // Always use window.userID as the source of truth
+  // Always use the guest ID from localStorage, as managed by WASM. Fallback to window.userID, then generate if missing.
+  let guestId = '';
+  if (typeof window !== 'undefined') {
+    guestId = localStorage.getItem('guest_id') || window.userID || '';
+    if (!guestId) {
+      guestId = `guest_${generateId()}`;
+      localStorage.setItem('guest_id', guestId);
+    }
+    window.userID = guestId;
+  } else {
+    guestId = `guest_${generateId()}`;
+  }
   const deviceInfo = getDeviceInfo();
 
   setSessionStorage('device_id', deviceId);
-  setSessionStorage('guest_id', guestId);
+  // Do not set guest_id in sessionStorage; WASM manages userID
 
   return {
     campaign: {
@@ -217,7 +234,9 @@ const createInitialMetadata = (): Metadata => {
         consentGiven: false
       }
     },
-    user: {},
+    user: {
+      userId: guestId
+    },
     device: {
       deviceId,
       ...deviceInfo,
@@ -266,6 +285,7 @@ interface GlobalState {
   ) => void;
   updateEventState: (eventType: string, state: string) => void;
   setConnectionState: (state: Partial<ConnectionState>) => void;
+  setWasmFunctions: (funcs: { [key: string]: boolean }) => void;
   handleWasmMessage: (msg: any) => void;
   processQueuedMessages: () => void;
   reconnect: () => void;
@@ -370,7 +390,12 @@ export const useGlobalStore = create<GlobalState>()(
             reconnectAttempts: 0,
             maxReconnectAttempts: 5,
             reconnectDelay: 1000,
-            wasmReady: false
+            wasmReady: false,
+            wasmFunctions: {
+              initWebGPU: false,
+              runGPUCompute: false,
+              getGPUMetricsBuffer: false
+            }
           },
           serviceStates: {}, // Generic state for all services
           pendingRequests: {},
@@ -430,21 +455,29 @@ export const useGlobalStore = create<GlobalState>()(
               (window as any).reconnectWebSocket();
             }
 
-            state.emitEvent(
-              {
-                type: 'campaign:state:request',
-                payload: {},
-                metadata: {
-                  ...state.metadata,
-                  campaign: {
-                    ...state.metadata.campaign,
-                    campaignId,
-                    slug: slug || state.metadata.campaign.slug
+            // Only emit campaign:state:request if not already pending and payload is not null/empty
+            const alreadyPending =
+              state.pendingRequests &&
+              Object.values(state.pendingRequests).some(
+                req => req.expectedEventType === 'campaign:state:v1:success'
+              );
+            if (!alreadyPending) {
+              state.emitEvent(
+                {
+                  type: 'campaign:state:v1:request',
+                  payload: {}, // Always use empty object, never null
+                  metadata: {
+                    ...state.metadata,
+                    campaign: {
+                      ...state.metadata.campaign,
+                      campaignId,
+                      slug: slug || state.metadata.campaign.slug
+                    }
                   }
-                }
-              },
-              onResponse
-            );
+                },
+                onResponse
+              );
+            }
           },
 
           // Direct campaign update function
@@ -561,7 +594,7 @@ export const useGlobalStore = create<GlobalState>()(
             );
 
             // Send via WASM bridge if connected
-            if (state.connection.connected && state.connection.wasmReady) {
+            if (state.connection.wasmReady) {
               // Create clean message object for WASM bridge
               const wasmMessage = {
                 type: fullEvent.type,
@@ -570,6 +603,8 @@ export const useGlobalStore = create<GlobalState>()(
                 correlationId: fullEvent.correlationId,
                 timestamp: fullEvent.timestamp
               };
+
+              console.log('FULLLLL EVENT >>>>>>', fullEvent);
 
               console.log('[Global State] Sending to WASM:', {
                 type: wasmMessage.type,
@@ -610,6 +645,22 @@ export const useGlobalStore = create<GlobalState>()(
               }),
               false,
               'setConnectionState'
+            ),
+
+          setWasmFunctions: funcs =>
+            set(
+              state =>
+                ({
+                  connection: {
+                    ...state.connection,
+                    wasmFunctions: {
+                      ...state.connection.wasmFunctions,
+                      ...funcs
+                    }
+                  }
+                }) as Partial<GlobalState>,
+              false,
+              'setWasmFunctions'
             ),
 
           handleWasmMessage: msg => {
@@ -828,51 +879,50 @@ export const useGlobalStore = create<GlobalState>()(
 
           reconnect: () => {
             const state = get();
-
-            // Check if we should even attempt to reconnect
+            // --- Architectural comment: Only WASM should manage actual WebSocket connection/reconnection. Frontend must only request via window.reconnectWebSocket and never call initWebSocket directly. ---
+            // Defensive: Prevent redundant reconnection attempts
             if (state.connection.connecting) {
               console.log('[Global Store] Already attempting to reconnect, skipping');
               return;
             }
-
             if (state.connection.reconnectAttempts >= state.connection.maxReconnectAttempts) {
               console.log('[Global Store] Max reconnection attempts reached, giving up');
               return;
             }
-
-            // Check if we're actually disconnected
             if (state.connection.connected && state.connection.wasmReady) {
               console.log('[Global Store] Already connected, skipping reconnection');
               return;
             }
-
+            if (typeof window !== 'undefined' && (window as any).isShuttingDown) {
+              console.warn('[Global Store] Shutdown in progress, reconnection blocked.');
+              return;
+            }
+            // Redundancy prevention is handled by WASM (wsReconnectInProgress). Do not use window.__ovasabiReconnectionScheduled.
             console.log(
               `[Global Store] Attempting reconnection (attempt ${state.connection.reconnectAttempts + 1}/${state.connection.maxReconnectAttempts})`
             );
-
             get().setConnectionState({
               connecting: true,
               reconnectAttempts: state.connection.reconnectAttempts + 1
             });
-
             const delay = Math.min(
               state.connection.reconnectDelay * Math.pow(2, state.connection.reconnectAttempts),
               30000 // Max 30 seconds
             );
-
             setTimeout(() => {
-              // Use WASM reconnection method if available
-              if (typeof window !== 'undefined' && (window as any).reconnectWebSocket) {
-                console.log('[Global Store] Triggering WASM WebSocket reconnection');
-                (window as any).reconnectWebSocket();
-              } else if (typeof window !== 'undefined' && (window as any).initWebSocket) {
-                console.log('[Global Store] Fallback to initWebSocket');
-                (window as any).initWebSocket();
+              if (
+                typeof window !== 'undefined' &&
+                typeof window.reconnectWebSocket === 'function'
+              ) {
+                console.log(
+                  '[Global Store] Triggering WASM WebSocket reconnection via reconnectWebSocket'
+                );
+                window.reconnectWebSocket();
               } else {
                 console.warn('[Global Store] No WASM reconnection method available');
               }
-
               get().setConnectionState({ connecting: false });
+              // No need to reset any JS-side reconnection flag; WASM handles redundancy guard.
             }, delay);
           },
 
@@ -1039,16 +1089,22 @@ let initializationLock = false; // Prevent multiple initializations
 
 // Initialize WASM handlers immediately when this module loads
 if (typeof window !== 'undefined') {
-  // Override the default handlers from main.ts immediately
-  window.onWasmReady = () => {
-    console.log('[Global State] WASM Ready (before store init)');
-    pendingWasmReady = true;
+  // Accept status object from WASM (wasmReady, connected)
+  window.onWasmReady = (status?: { wasmReady?: boolean; connected?: boolean }) => {
+    console.log('[Global State] WASM Ready (before store init)', status);
+    if (status && typeof status === 'object') {
+      pendingWasmReady = true;
+      // Store status for later use
+      window.__pendingWasmStatus = status;
+    } else {
+      pendingWasmReady = true;
+      window.__pendingWasmStatus = { wasmReady: true, connected: true };
+    }
   };
 
   window.onWasmMessage = (msg: any) => {
     // Integration: update campaign state from WASM/WebSocket events
     if (msg.type === 'campaign:state:v1:success' || msg.type === 'campaign:state:v1:completed') {
-      // Update campaignState and metadata.campaign in Zustand store
       useGlobalStore.getState().updateMetadata(current => ({
         ...current,
         campaign: {
@@ -1087,11 +1143,13 @@ export function initializeGlobalState() {
 
   // Setup WASM ready handler (now that store is ready)
   if (typeof window !== 'undefined') {
-    window.onWasmReady = () => {
-      console.log('[Global State] WASM Ready');
+    window.onWasmReady = (status?: { wasmReady?: boolean; connected?: boolean }) => {
+      console.log('[Global State] WASM Ready', status);
+      const ready =
+        status && typeof status === 'object' ? status : { wasmReady: true, connected: true };
       store.setConnectionState({
-        wasmReady: true,
-        connected: true,
+        wasmReady: !!ready.wasmReady,
+        connected: !!ready.connected,
         lastPing: getTimezoneAwareTimestamp(),
         reconnectAttempts: 0
       });
@@ -1105,13 +1163,16 @@ export function initializeGlobalState() {
     // Handle any pending WASM ready state
     if (pendingWasmReady) {
       console.log('[Global State] Processing pending WASM ready');
+      const ready = window.__pendingWasmStatus || { wasmReady: true, connected: true };
       store.setConnectionState({
-        wasmReady: true,
-        connected: true,
+        wasmReady: !!ready.wasmReady,
+        connected: !!ready.connected,
         lastPing: getTimezoneAwareTimestamp(),
         reconnectAttempts: 0
       });
+      store.processQueuedMessages();
       pendingWasmReady = false;
+      window.__pendingWasmStatus = undefined;
     }
 
     // Handle any pending messages
@@ -1272,6 +1333,19 @@ export function initializeGlobalState() {
 }
 
 // --- Utility Hooks ---
+// --- WASM WebSocket Connection Status ---
+// Use this hook to reflect the current WebSocket connection state managed by WASM.
+// Zustand store's connection state is updated via WASM events (onWasmReady, onWasmMessage).
+export function useWasmWebSocketStatus() {
+  return useGlobalStore(state => ({
+    connected: state.connection.connected,
+    connecting: state.connection.connecting,
+    wasmReady: state.connection.wasmReady,
+    lastPing: state.connection.lastPing,
+    reconnectAttempts: state.connection.reconnectAttempts
+  }));
+}
+
 export function useEventHistory(eventType?: string, limit?: number) {
   const events = useGlobalStore(state => state.events);
 

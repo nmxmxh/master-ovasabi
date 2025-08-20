@@ -131,7 +131,7 @@ func (t *Tester) SetupPostgres(ctx context.Context, migration func(db *sql.DB) e
 	if err != nil {
 		return fmt.Errorf("failed to connect to Postgres: %w", err)
 	}
-	if err := waitForPostgres(db, 10*time.Second); err != nil {
+	if err := waitForPostgres(ctx, db, 10*time.Second); err != nil {
 		return fmt.Errorf("postgres not ready: %w", err)
 	}
 	if migration != nil {
@@ -146,13 +146,13 @@ func (t *Tester) SetupPostgres(ctx context.Context, migration func(db *sql.DB) e
 }
 
 // waitForPostgres pings the DB until it is ready or times out.
-func waitForPostgres(db *sql.DB, timeout time.Duration) error {
+func waitForPostgres(ctx context.Context, db *sql.DB, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timeout waiting for Postgres to be ready")
 		}
-		if err := db.Ping(); err == nil {
+		if err := db.PingContext(ctx); err == nil {
 			return nil
 		}
 		time.Sleep(200 * time.Millisecond)

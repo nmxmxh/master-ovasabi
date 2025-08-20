@@ -93,7 +93,7 @@ func emitToNexus(eventType string, payload interface{}, metadata json.RawMessage
 	}
 
 	// Send to Nexus event bus via WebSocket
-	sendWSMessage(0, envelopeBytes)
+	sendWSMessage(envelopeBytes)
 	wasmLog("[NEXUS EMIT]", env.Type, string(env.Payload))
 }
 

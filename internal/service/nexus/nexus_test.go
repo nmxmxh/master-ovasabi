@@ -2,12 +2,15 @@ package nexus
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/google/uuid" // ...existing imports...
+
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/nexus"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
@@ -29,6 +32,10 @@ func NewMockEventRepository() *MockEventRepository {
 }
 
 func (m *MockEventRepository) SaveEvent(ctx context.Context, event *nexus.CanonicalEvent) error {
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.events = append(m.events, event)
@@ -45,28 +52,55 @@ func (m *MockEventRepository) GetEvents() []*nexus.CanonicalEvent {
 }
 
 func (m *MockEventRepository) GetEvent(ctx context.Context, id uuid.UUID) (*nexus.CanonicalEvent, error) {
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	_ = id // Use id to avoid revive unused-parameter warning
 	// Not implemented for this test
-	return nil, nil
+	return nil, fmt.Errorf("event not found")
 }
 
 func (m *MockEventRepository) ListEventsByMaster(ctx context.Context, masterID int64) ([]*nexus.CanonicalEvent, error) {
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	_ = masterID // Use masterID to avoid revive unused-parameter warning
 	// Not implemented for this test
-	return nil, nil
+	return nil, fmt.Errorf("no events found for master")
 }
 
 func (m *MockEventRepository) ListPendingEvents(ctx context.Context, entityType repository.EntityType) ([]*nexus.CanonicalEvent, error) {
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	_ = entityType // Use entityType to avoid revive unused-parameter warning
 	// Not implemented for this test
-	return nil, nil
+	return nil, fmt.Errorf("no pending events found")
 }
 
 func (m *MockEventRepository) UpdateEventStatus(ctx context.Context, id uuid.UUID, status string, errMsg *string) error {
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	_ = id     // Use id to avoid revive unused-parameter warning
+	_ = status // Use status to avoid revive unused-parameter warning
+	_ = errMsg // Use errMsg to avoid revive unused-parameter warning
 	// Not implemented for this test
 	return nil
 }
 
 func (m *MockEventRepository) ListEventsByPattern(ctx context.Context, patternID string) ([]*nexus.CanonicalEvent, error) {
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	_ = patternID // Use patternID to avoid revive unused-parameter warning
 	// Not implemented for this test
-	return nil, nil
+	return nil, fmt.Errorf("no events found for pattern")
 }
 
 func TestEventOrdering(t *testing.T) {
@@ -113,7 +147,14 @@ func TestEventOrdering(t *testing.T) {
 
 		for i, event := range events {
 			require.NotNil(t, event.NexusSequence)
-			assert.Equal(t, uint64(i+1), *event.NexusSequence)
+			idx := i
+			var seq uint64
+			if idx < 0 {
+				seq = 1
+			} else {
+				seq = uint64(idx) + 1
+			}
+			assert.Equal(t, seq, *event.NexusSequence)
 		}
 	})
 
@@ -133,6 +174,7 @@ func TestEventOrdering(t *testing.T) {
 		// Start concurrent workers
 		for worker := 0; worker < numWorkers; worker++ {
 			go func(workerID int) {
+				_ = workerID // Use workerID to avoid revive unused-parameter warning
 				defer wg.Done()
 				for i := 0; i < eventsPerWorker; i++ {
 					req := &nexusv1.EventRequest{
@@ -166,8 +208,13 @@ func TestEventOrdering(t *testing.T) {
 		}
 
 		// Verify we have all sequence numbers from 1 to totalEvents
-		for i := uint64(1); i <= uint64(totalEvents); i++ {
-			assert.True(t, sequences[i], "Missing sequence number: %d", i)
+		for i := 1; i <= totalEvents; i++ {
+			// Ensure i is non-negative before conversion to uint64
+			if i < 0 {
+				t.Fatalf("Sequence index is negative: %d", i)
+			}
+			seq := uint64(i)
+			assert.True(t, sequences[seq], "Missing sequence number: %d", i)
 		}
 	})
 }

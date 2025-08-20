@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -57,6 +61,7 @@ type WSClient struct {
 	send       chan []byte // buffered outgoing channel for raw bytes
 	campaignID string
 	userID     string
+	done       chan struct{} // signals connection closure
 }
 
 // ClientMap stores active WebSocket clients.
@@ -80,12 +85,14 @@ var (
 	pendingRequests = newPendingRequestsMap()
 )
 
-// Track relevant event types for dynamic subscription
-var relevantEventTypesMu sync.RWMutex
-var relevantEventTypes = make(map[string]struct{})
+// Track relevant event types for dynamic subscription.
+var (
+	relevantEventTypesMu sync.RWMutex
+	relevantEventTypes   = make(map[string]struct{})
+)
 
 // --- Canonical Event Type Pre-population ---
-// At startup, parse service_registration.json and pre-populate all :success event types
+// At startup, parse service_registration.json and pre-populate all :success event types.
 func prepopulateCanonicalSuccessEventTypes(path string, log logger.Logger) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -104,9 +111,55 @@ func prepopulateCanonicalSuccessEventTypes(path string, log logger.Logger) {
 		return
 	}
 	states := []string{"success"}
+	// Always add all campaign:* event types as relevant for subscription/routing
+	AddRelevantEventType("campaign:state:v1:success")
+	AddRelevantEventType("campaign:state:v1:request")
+	AddRelevantEventType("campaign:update:v1:success")
+	AddRelevantEventType("campaign:update:v1:requested")
+	AddRelevantEventType("campaign:feature:v1:success")
+	AddRelevantEventType("campaign:feature:v1:requested")
+	AddRelevantEventType("campaign:config:v1:success")
+	AddRelevantEventType("campaign:config:v1:requested")
+	AddRelevantEventType("campaign:list:v1:success")
+	AddRelevantEventType("campaign:list:v1:requested")
+	// Defensive: add any event type starting with 'campaign:' dynamically
 	for _, svc := range services {
-		service, _ := svc["name"].(string)
-		version, _ := svc["version"].(string)
+		if name, ok := svc["name"].(string); ok && strings.HasPrefix(name, "campaign") {
+			for _, ep := range svc["endpoints"].([]interface{}) {
+				epm, ok := ep.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				for _, action := range epm["actions"].([]interface{}) {
+					if act, ok := action.(string); ok {
+						et := name + ":" + act + ":success"
+						AddRelevantEventType(et)
+						etReq := name + ":" + act + ":requested"
+						AddRelevantEventType(etReq)
+					}
+				}
+			}
+		}
+	}
+	for _, svc := range services {
+		serviceVal, serviceOk := svc["name"]
+		var service string
+		if serviceOk {
+			if s, ok := serviceVal.(string); ok {
+				service = s
+			} else {
+				log.Warn("service name type assertion failed", zap.Any("service_val", serviceVal))
+			}
+		}
+		versionVal, versionOk := svc["version"]
+		var version string
+		if versionOk {
+			if v, ok := versionVal.(string); ok {
+				version = v
+			} else {
+				log.Warn("service version type assertion failed", zap.Any("version_val", versionVal))
+			}
+		}
 		endpoints, ok := svc["endpoints"].([]interface{})
 		if !ok {
 			continue
@@ -135,14 +188,14 @@ func prepopulateCanonicalSuccessEventTypes(path string, log logger.Logger) {
 	log.Info("Pre-populated canonical :success event types", zap.Int("count", len(GetRelevantEventTypes())))
 }
 
-// AddRelevantEventType registers an event type as relevant for subscription
+// AddRelevantEventType registers an event type as relevant for subscription.
 func AddRelevantEventType(eventType string) {
 	relevantEventTypesMu.Lock()
 	defer relevantEventTypesMu.Unlock()
 	relevantEventTypes[eventType] = struct{}{}
 }
 
-// GetRelevantEventTypes returns a slice of currently relevant event types
+// GetRelevantEventTypes returns a slice of currently relevant event types.
 func GetRelevantEventTypes() []string {
 	relevantEventTypesMu.RLock()
 	defer relevantEventTypesMu.RUnlock()
@@ -153,35 +206,37 @@ func GetRelevantEventTypes() []string {
 	return types
 }
 
-// --- Robust request/response pattern ---
+// --- Robust request/response pattern ---.
 type pendingRequestEntry struct {
 	expectedEventType string
 	client            *WSClient
 }
 type pendingRequestsMap struct {
 	mu   sync.RWMutex
-	data map[string]pendingRequestEntry // eventId -> entry
+	data map[string]pendingRequestEntry // eventID -> entry
 }
 
 func newPendingRequestsMap() *pendingRequestsMap {
 	return &pendingRequestsMap{data: make(map[string]pendingRequestEntry)}
 }
-func (m *pendingRequestsMap) Store(eventId string, entry pendingRequestEntry) {
+
+func (m *pendingRequestsMap) Store(eventID string, entry pendingRequestEntry) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.data[eventId] = entry
+	m.data[eventID] = entry
 }
-func (m *pendingRequestsMap) LoadAndDelete(eventId string) (pendingRequestEntry, bool) {
+
+func (m *pendingRequestsMap) LoadAndDelete(eventID string) (pendingRequestEntry, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	entry, ok := m.data[eventId]
+	entry, ok := m.data[eventID]
 	if ok {
-		delete(m.data, eventId)
+		delete(m.data, eventID)
 	}
 	return entry, ok
 }
 
-// --- Default Campaign Model ---
+// --- Default Campaign Model ---.
 type DefaultCampaign struct {
 	CampaignID  int64                  `json:"campaign_id"`
 	Name        string                 `json:"name"`
@@ -247,8 +302,14 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws/", wsCampaignUserHandler) // Catches /ws/{campaign_id}/{user_id}
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		// Reference unused parameter r for diagnostics
+		if r != nil && r.Method == http.MethodHead {
+			w.Header().Set("X-Healthz-Method", "HEAD")
+		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			log.Warn("Failed to write healthz response", zap.Error(err))
+		}
 	})
 
 	srv := &http.Server{
@@ -298,8 +359,15 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 		campaignID = parts[0]
 	}
 	var userID string
+	// Always use userId from path if present
 	if len(parts) > 1 && parts[1] != "" {
-		userID = parts[1]
+		if parts[1] == "godot" || strings.HasPrefix(parts[1], "godot") {
+			userID = "godot"
+		} else {
+			userID = parts[1]
+		}
+	} else if r.Header.Get("X-Godot-Backend") == "1" {
+		userID = "godot"
 	} else {
 		userID = "guest_" + uuid.New().String()
 	}
@@ -315,59 +383,67 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 		send:       make(chan []byte, 2048), // 2048 message buffer for high-frequency GPU compute streaming
 		campaignID: campaignID,
 		userID:     userID,
+		done:       make(chan struct{}),
 	}
 	wsClientMap.Store(campaignID, userID, client)
 	log.Info("Client connected", zap.String("campaign", campaignID), zap.String("user", userID), zap.String("remote", r.RemoteAddr))
 
+	// Use a background context for WebSocket lifecycle, not tied to HTTP request
+	wsCtx, wsCancel := context.WithCancel(context.Background())
 	go client.writePump()
-	go client.readPump()
+	go client.readPumpWithContext(wsCtx, wsCancel)
+	// Cancel wsCtx only when you want to close the connection (e.g., on error or shutdown)
 
-	// --- Emit campaign:state:request to Nexus on new connection (handshake) ---
-	globalFields := map[string]interface{}{
-		"user_id":     userID,
-		"campaign_id": campaignID,
-	}
-	metaStruct, _ := structpb.NewStruct(map[string]interface{}{"global": globalFields})
-	meta := &commonpb.Metadata{ServiceSpecific: metaStruct}
-	correlationID := uuid.NewString()
-	stateRequest := &nexuspb.EventRequest{
-		EventId:    correlationID,
-		EventType:  "campaign:state:request",
-		EntityId:   userID,
-		CampaignId: 0, // Always 0 for now, or parse as needed
-		Metadata:   meta,
-	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_, err := nexusClient.EmitEvent(ctx, stateRequest)
-		if err != nil {
-			log.Warn("Failed to emit campaign:state:request on handshake", zap.Error(err), zap.String("user_id", userID), zap.String("campaign_id", campaignID))
-		} else {
-			log.Info("Emitted campaign:state:request on handshake", zap.String("user_id", userID), zap.String("campaign_id", campaignID))
-		}
-	}()
 }
 
 // readPump pumps messages from the WebSocket connection to the Nexus event bus.
-func (c *WSClient) readPump() {
+func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.CancelFunc) {
 	defer func() {
 		wsClientMap.Delete(c.campaignID, c.userID)
-		c.conn.Close()
+		close(c.done) // signal writePump to exit
+		err := c.conn.Close()
+		if err != nil {
+			log.Warn("Error closing WebSocket connection", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
+		}
 		log.Info("Client disconnected", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
+		wsCancel() // Cancel context to signal shutdown
 	}()
 	c.conn.SetReadLimit(2097152) // 2MB read limit for large WASM GPU compute buffers (was 1024 bytes)
-	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(60 * time.Second)); return nil })
+	if err := c.conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+		log.Warn("SetReadDeadline failed", zap.Error(err))
+	}
+	c.conn.SetPongHandler(func(string) error {
+		if err := c.conn.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+			log.Warn("SetReadDeadline (pong handler) failed", zap.Error(err))
+		}
+		return nil
+	})
 
 	for {
+		select {
+		case <-ctx.Done():
+			log.Info("Context cancelled, closing readPump", zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("reason", ctx.Err().Error()))
+			return
+		default:
+		}
 		_, msgBytes, err := c.conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Warn("Error reading from client", zap.Error(err))
-			} else {
-				log.Info("Client closed connection", zap.Error(err))
+			errType := fmt.Sprintf("%T", err)
+			switch {
+			case websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure):
+				log.Warn("Unexpected WebSocket close error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
+			case errors.Is(err, io.EOF):
+				log.Info("WebSocket closed: EOF", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
+			case errors.Is(err, context.Canceled):
+				log.Info("WebSocket closed: context canceled", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
+			case strings.Contains(err.Error(), "use of closed network connection"):
+				log.Warn("WebSocket closed: use of closed network connection", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
+			case strings.Contains(err.Error(), "timeout"):
+				log.Warn("WebSocket closed: timeout", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
+			default:
+				log.Info("WebSocket closed: other error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType), zap.String("error_msg", err.Error()))
 			}
+			log.Info("Exiting readPump due to error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
 			break
 		}
 
@@ -405,7 +481,7 @@ func (c *WSClient) readPump() {
 		// --- Robust request/response: store pending request info ---
 		// Generate correlationId (eventId) if not present in metadata
 		var correlationID string
-		var clientMeta *commonpb.Metadata = clientMsg.Metadata
+		clientMeta := clientMsg.Metadata
 		if clientMeta != nil && clientMeta.ServiceSpecific != nil {
 			if global, ok := clientMeta.ServiceSpecific.Fields["global"]; ok {
 				if globalStruct, ok := global.GetStructValue().AsMap()["correlation_id"]; ok {
@@ -433,11 +509,20 @@ func (c *WSClient) readPump() {
 		// --- Existing logic for forwarding to Nexus ---
 		var payloadMap map[string]interface{}
 		payloadRaw := string(clientMsg.Payload)
-		if (len(payloadRaw) == 0 || payloadRaw == "null") && canonicalType == "echo" {
+		if (payloadRaw == "" || payloadRaw == "null") && canonicalType == "echo" {
 			log.Debug("Ignoring empty echo event", zap.String("user_id", c.userID))
 			continue
 		}
-		if len(payloadRaw) == 0 || payloadRaw == "null" {
+		// Ignore campaign:state:request events with null/empty payload
+		if (payloadRaw == "" || payloadRaw == "null") && canonicalType == "campaign:state:v1:request" {
+			log.Warn("Ignoring empty campaign:state:request event from client",
+				zap.String("user_id", c.userID),
+				zap.String("event_type", clientMsg.Type),
+				zap.String("payload_raw", payloadRaw),
+			)
+			continue
+		}
+		if payloadRaw == "" || payloadRaw == "null" {
 			payloadMap = make(map[string]interface{})
 			log.Warn("Client payload is empty or null, emitting empty payload object",
 				zap.String("user_id", c.userID),
@@ -505,10 +590,18 @@ func (c *WSClient) readPump() {
 			} else {
 				metaMap["global"] = globalFields
 			}
-			structVal, _ := structpb.NewStruct(metaMap)
+			structVal, err := structpb.NewStruct(metaMap)
+			if err != nil {
+				log.Error("Failed to create structpb.Struct for merged metadata", zap.Error(err), zap.Any("metaMap", metaMap))
+				continue
+			}
 			mergedMeta = &commonpb.Metadata{ServiceSpecific: structVal}
 		} else {
-			structVal, _ := structpb.NewStruct(map[string]interface{}{"global": globalFields})
+			structVal, err := structpb.NewStruct(map[string]interface{}{"global": globalFields})
+			if err != nil {
+				log.Error("Failed to create structpb.Struct for global metadata", zap.Error(err), zap.Any("globalFields", globalFields))
+				continue
+			}
 			mergedMeta = &commonpb.Metadata{ServiceSpecific: structVal}
 		}
 
@@ -520,23 +613,36 @@ func (c *WSClient) readPump() {
 		}
 
 		// Emit to Nexus
+		var campaignIDInt int64
+		if c.campaignID != "" {
+			if parsed, err := strconv.ParseInt(c.campaignID, 10, 64); err == nil {
+				campaignIDInt = parsed
+			} else {
+				log.Warn("Failed to parse campaignID as int64, defaulting to 0", zap.String("campaign_id", c.campaignID), zap.Error(err))
+				campaignIDInt = 0
+			}
+		}
 		eventReq := &nexuspb.EventRequest{
 			EventId:    correlationID,
 			EventType:  canonicalType,
 			EntityId:   c.userID,
-			CampaignId: 0, // Use 0 or parse as needed
+			CampaignId: campaignIDInt,
 			Metadata:   mergedMeta,
 			Payload:    &commonpb.Payload{Data: &structpb.Struct{}},
 		}
 		// Unmarshal payloadBytes into structpb.Struct and wrap in commonpb.Payload
 		var payloadStruct map[string]interface{}
 		if err := json.Unmarshal(payloadBytes, &payloadStruct); err == nil {
-			structVal, _ := structpb.NewStruct(payloadStruct)
+			structVal, err := structpb.NewStruct(payloadStruct)
+			if err != nil {
+				log.Error("Failed to create structpb.Struct for payload", zap.Error(err), zap.Any("payloadStruct", payloadStruct))
+				continue
+			}
 			eventReq.Payload = &commonpb.Payload{Data: structVal}
 		}
 
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		go func(ctx context.Context) {
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 			_, err := nexusClient.EmitEvent(ctx, eventReq)
 			if err != nil {
@@ -544,7 +650,7 @@ func (c *WSClient) readPump() {
 			} else {
 				log.Info("Emitted client event to Nexus", zap.String("user_id", c.userID), zap.String("event_type", canonicalType))
 			}
-		}()
+		}(ctx)
 	}
 }
 
@@ -553,26 +659,42 @@ func (c *WSClient) writePump() {
 	ticker := time.NewTicker(45 * time.Second)
 	defer func() {
 		ticker.Stop()
-		c.conn.Close()
+		err := c.conn.Close()
+		if err != nil {
+			log.Warn("Error closing WebSocket connection in writePump", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
+		}
+		log.Info("writePump exiting and connection closed", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 	}()
 	for {
 		select {
+		case <-c.done:
+			log.Info("writePump received done signal, exiting", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
+			return
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				log.Warn("SetWriteDeadline failed", zap.Error(err))
+			}
 			if !ok {
 				// The client map closed the channel. Send a close message.
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if err := c.conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+					log.Warn("WriteMessage (close) failed", zap.Error(err))
+				}
+				log.Info("writePump channel closed, exiting", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 				return
 			}
 
 			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
-				log.Warn("Write error", zap.Error(err))
+				log.Warn("Write error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
+				log.Info("Exiting writePump due to error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 				return
 			}
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				log.Warn("SetWriteDeadline (ping) failed", zap.Error(err))
+			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				log.Warn("Ping error", zap.Error(err))
+				log.Warn("Ping error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
+				log.Info("Exiting writePump due to ping error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 				return
 			}
 		}
@@ -613,7 +735,7 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 			for {
 				event, err := stream.Recv()
 				if err != nil {
-					if status.Code(err) == codes.Canceled || err == io.EOF {
+					if status.Code(err) == codes.Canceled || errors.Is(err, io.EOF) {
 						log.Info("Nexus stream closed, will attempt to reconnect.", zap.Error(err))
 					} else {
 						log.Error("Error receiving event from Nexus", zap.Error(err))
@@ -622,19 +744,21 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 				}
 
 				// --- Robust request/response: check for pending request match ---
-				eventId := event.EventId
+				eventID := event.EventId
 				eventType := event.EventType
-				if entry, ok := pendingRequests.LoadAndDelete(eventId); ok {
+				if entry, ok := pendingRequests.LoadAndDelete(eventID); ok {
 					if eventType == entry.expectedEventType {
+						payloadMap := event.Payload.GetData().AsMap()
+						payloadMap["source"] = "nexus"
 						wsEvent := WebSocketEvent{
 							Type:    eventType,
-							Payload: event.Payload.GetData().AsMap(),
+							Payload: payloadMap,
 						}
 						payloadBytes, err := json.Marshal(wsEvent)
 						if err == nil {
 							select {
 							case entry.client.send <- payloadBytes:
-								log.Info("[REQ/RESP] Forwarded response to client", zap.String("eventId", eventId), zap.String("eventType", eventType), zap.String("user_id", entry.client.userID))
+								log.Info("[REQ/RESP] Forwarded response to client", zap.String("eventID", eventID), zap.String("eventType", eventType), zap.String("user_id", entry.client.userID))
 							default:
 								log.Warn("[REQ/RESP] WebSocket send buffer full", zap.String("user_id", entry.client.userID), zap.String("event_type", eventType))
 							}
@@ -659,6 +783,7 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 				if isCanonical {
 					userID, campaignID, _ := getBroadcastScope(event)
 					payloadMap := event.Payload.GetData().AsMap()
+					payloadMap["source"] = "nexus"
 					log.Debug("[WS-GATEWAY] Canonical event routing info", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payloadMap", payloadMap))
 					wsEvent := WebSocketEvent{
 						Type:    event.EventType,
@@ -670,60 +795,26 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 						continue
 					}
 					log.Info("[CANONICAL_EVENT] Forwarding event", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payload", payloadMap))
-					sent := false
+					delivered := false
 					wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
-						log.Debug("[WS-GATEWAY] Checking client for event delivery", zap.String("client_campaign_id", cid), zap.String("client_user_id", uid), zap.String("event_type", event.EventType))
 						if uid == userID && cid == campaignID {
-							select {
-							case client.send <- payloadBytes:
-								sent = true
-								log.Info("[CANONICAL_EVENT] Forwarded event to client", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
-							default:
-								log.Warn("[CANONICAL_EVENT] WebSocket send buffer full", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
-							}
+							go func(client *WSClient, payloadBytes []byte, uid, cid string) {
+								select {
+								case client.send <- payloadBytes:
+									log.Info("[CANONICAL_EVENT] Forwarded event to client", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
+								case <-time.After(100 * time.Millisecond):
+									log.Error("[CANONICAL_EVENT] Dropped event: WebSocket send buffer full (non-blocking)", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
+								}
+							}(client, payloadBytes, uid, cid)
+							delivered = true
 							return false
 						}
 						return true
 					})
-					if !sent {
+					if !delivered {
 						log.Warn("[CANONICAL_EVENT] No matching WebSocket client", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("event_type", event.EventType))
 					}
 					continue // Don't broadcast to all for canonical events
-				}
-				// Fallback: Forward campaign:state events for campaign state sync (legacy/compat)
-				if strings.HasPrefix(event.EventType, "campaign:state:v1:") {
-					userID, campaignID, _ := getBroadcastScope(event)
-					payloadMap := event.Payload.GetData().AsMap()
-					log.Debug("[WS-GATEWAY] Campaign state event routing info", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payloadMap", payloadMap))
-					wsEvent := WebSocketEvent{
-						Type:    event.EventType,
-						Payload: payloadMap,
-					}
-					payloadBytes, err := json.Marshal(wsEvent)
-					if err != nil {
-						log.Error("Failed to marshal campaign state event for client", zap.Error(err), zap.String("event_type", event.EventType))
-						continue
-					}
-					log.Info("[CAMPAIGN_STATE] Forwarding event (legacy)", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payload", payloadMap))
-					sent := false
-					wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
-						log.Debug("[WS-GATEWAY] Checking client for campaign state delivery", zap.String("client_campaign_id", cid), zap.String("client_user_id", uid), zap.String("event_type", event.EventType))
-						if uid == userID && cid == campaignID {
-							select {
-							case client.send <- payloadBytes:
-								sent = true
-								log.Info("[CAMPAIGN_STATE] Forwarded event to client (legacy)", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
-							default:
-								log.Warn("[CAMPAIGN_STATE] WebSocket send buffer full (legacy)", zap.String("user_id", uid), zap.String("campaign_id", cid), zap.String("event_type", event.EventType))
-							}
-							return false
-						}
-						return true
-					})
-					if !sent {
-						log.Warn("[CAMPAIGN_STATE] No matching WebSocket client (legacy)", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("event_type", event.EventType))
-					}
-					continue // Don't broadcast to all for campaign state events
 				}
 				// Fallback: Existing broadcast logic for other events
 				userID, campaignID, isSystem := getBroadcastScope(event)
@@ -737,16 +828,17 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 					log.Error("Failed to marshal event payload for client", zap.Error(err), zap.String("event_type", event.EventType))
 					continue
 				}
-				if isSystem {
+				switch {
+				case isSystem:
 					log.Info("[WS-GATEWAY] Broadcasting system event to all clients", zap.String("event_type", event.EventType))
 					broadcastSystem(payloadBytes)
-				} else if campaignID != "" && userID != "" {
+				case campaignID != "" && userID != "":
 					log.Info("[WS-GATEWAY] Broadcasting event to user", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("event_type", event.EventType))
 					broadcastUser(userID, payloadBytes)
-				} else if campaignID != "" {
+				case campaignID != "":
 					log.Info("[WS-GATEWAY] Broadcasting event to campaign", zap.String("campaign_id", campaignID), zap.String("event_type", event.EventType))
 					broadcastCampaign(campaignID, payloadBytes)
-				} else {
+				default:
 					log.Warn("[WS-GATEWAY] Event has no routing info; broadcasting as system event", zap.String("event_id", event.EventId), zap.String("event_type", event.EventType))
 					broadcastSystem(payloadBytes)
 				}
@@ -765,8 +857,26 @@ func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string,
 	payloadMap := payload.GetData().AsMap()
 
 	// Extract user_id and campaign_id from payload (top-level)
-	userID, _ = payloadMap["user_id"].(string)
-	campaignID, _ = payloadMap["campaign_id"].(string)
+	userIDVal, userIDOk := payloadMap["user_id"]
+	if userIDOk {
+		if uid, ok := userIDVal.(string); ok {
+			userID = uid
+			// Special handling for Godot backend
+			if uid == "godot" {
+				isSystem = true // treat as backend entity
+			}
+		} else {
+			log.Warn("user_id type assertion failed", zap.Any("user_id_val", userIDVal))
+		}
+	}
+	campaignIDVal, campaignIDOk := payloadMap["campaign_id"]
+	if campaignIDOk {
+		if cid, ok := campaignIDVal.(string); ok {
+			campaignID = cid
+		} else {
+			log.Warn("campaign_id type assertion failed", zap.Any("campaign_id_val", campaignIDVal))
+		}
+	}
 	log.Debug("[getBroadcastScope] Extracted from payload", zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Any("payloadMap", payloadMap))
 
 	// If missing, try to extract from metadata.service_specific.global
@@ -794,7 +904,7 @@ func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string,
 	// Determine if this is a system event based on event type or content
 	isSystem = event.EventType == "system" || strings.HasPrefix(event.EventType, "system:")
 	log.Debug("[getBroadcastScope] isSystem determination", zap.Bool("is_system", isSystem), zap.String("event_type", event.EventType))
-	return
+	return userID, campaignID, isSystem
 }
 
 func broadcastSystem(payload []byte) {
@@ -842,7 +952,7 @@ func broadcastUser(userID string, payload []byte) {
 // See docs/communication_standards.md and pkg/registration/generator.go for event type generation logic.
 // This gateway is now fully generic and does not require updates for new services/actions.
 
-// Helper: Extracts the canonical event type from a client message (with fallback)
+// Helper: Extracts the canonical event type from a client message (with fallback).
 func extractCanonicalEventType(msg ClientWebSocketMessage) string {
 	// If the client sends a canonical event type in Type, use it directly
 	return msg.Type
@@ -922,13 +1032,13 @@ type ExponentialBackoff struct {
 }
 
 // NewExponentialBackoff creates and initializes a new ExponentialBackoff instance.
-func NewExponentialBackoff(min, max time.Duration, multiplier, jitter float64) *ExponentialBackoff {
+func NewExponentialBackoff(minDuration, maxDuration time.Duration, multiplier, jitter float64) *ExponentialBackoff {
 	return &ExponentialBackoff{
-		minInterval: min,
-		maxInterval: max,
+		minInterval: minDuration,
+		maxInterval: maxDuration,
 		multiplier:  multiplier,
 		jitter:      jitter,
-		current:     min,
+		current:     minDuration,
 	}
 }
 
@@ -945,7 +1055,18 @@ func (b *ExponentialBackoff) NextInterval() time.Duration {
 	}
 
 	if b.jitter > 0 {
-		jitterAmount := time.Duration(float64(interval) * b.jitter * (rand.Float64()*2 - 1))
+		// Use crypto/rand for secure jitter
+		var randFloat float64
+		{
+			b := make([]byte, 8)
+			if _, err := rand.Read(b); err == nil {
+				bits := binary.LittleEndian.Uint64(b)
+				randFloat = float64(bits) / float64(^uint64(0)) // [0,1)
+			} else {
+				randFloat = 0.5 // fallback
+			}
+		}
+		jitterAmount := time.Duration(float64(interval) * b.jitter * (randFloat*2 - 1))
 		interval += jitterAmount
 	}
 

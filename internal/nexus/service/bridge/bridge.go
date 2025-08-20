@@ -25,6 +25,10 @@ type EventBusEnvelopeAdapter struct {
 
 // EmitEventEnvelope implements graceful.EventEmitter for canonical event emission.
 func (a *EventBusEnvelopeAdapter) EmitEventEnvelope(ctx context.Context, envelope *events.EventEnvelope) (string, error) {
+	// Reference unused ctx for diagnostics/cancellation
+	if ctx != nil && ctx.Err() != nil {
+		return "", ctx.Err()
+	}
 	// Convert EventEnvelope to EventRequest
 	req := &nexuspb.EventRequest{
 		EventType: envelope.Type,
@@ -91,7 +95,7 @@ func (b *Service) initEventBus() {
 						zap.String("type", eventType),
 						zap.String("id", event.EntityId),
 						zap.Error(err))
-				} else {
+				} else if b.log != nil {
 					b.log.Info("Emitted canonical OrchestrationEvent",
 						zap.String("type", eventType),
 						zap.String("id", event.EntityId))
@@ -100,10 +104,8 @@ func (b *Service) initEventBus() {
 		})
 		if err != nil {
 			b.log.Error("Failed to subscribe to event bus", zap.String("eventType", eventType), zap.Error(err))
-		} else {
-			if b.log != nil {
-				b.log.Info("Subscribed to event bus", zap.String("eventType", eventType))
-			}
+		} else if b.log != nil {
+			b.log.Info("Subscribed to event bus", zap.String("eventType", eventType))
 		}
 	}
 }

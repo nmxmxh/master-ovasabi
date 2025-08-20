@@ -68,7 +68,7 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: authentication required", nil)
 					return
 				}
-				handleTalentAction(w, ctx, log, req, &talentpb.CreateTalentProfileRequest{}, talentSvc.CreateTalentProfile)
+				handleTalentAction(ctx, w, log, req, &talentpb.CreateTalentProfileRequest{}, talentSvc.CreateTalentProfile)
 			},
 			"update_talent_profile": func() {
 				if isGuest {
@@ -76,7 +76,7 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 					return
 				}
 				// Service layer handles ownership/admin check
-				handleTalentAction(w, ctx, log, req, &talentpb.UpdateTalentProfileRequest{}, talentSvc.UpdateTalentProfile)
+				handleTalentAction(ctx, w, log, req, &talentpb.UpdateTalentProfileRequest{}, talentSvc.UpdateTalentProfile)
 			},
 			"delete_talent_profile": func() {
 				if isGuest {
@@ -84,43 +84,53 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 					return
 				}
 				// Service layer handles ownership/admin check
-				handleTalentAction(w, ctx, log, req, &talentpb.DeleteTalentProfileRequest{}, talentSvc.DeleteTalentProfile)
+				handleTalentAction(ctx, w, log, req, &talentpb.DeleteTalentProfileRequest{}, talentSvc.DeleteTalentProfile)
 			},
 			"get_talent_profile": func() {
 				// Publicly accessible
-				handleTalentAction(w, ctx, log, req, &talentpb.GetTalentProfileRequest{}, talentSvc.GetTalentProfile)
+				handleTalentAction(ctx, w, log, req, &talentpb.GetTalentProfileRequest{}, talentSvc.GetTalentProfile)
 			},
 			"list_talent_profiles": func() {
 				// Publicly accessible
-				handleTalentAction(w, ctx, log, req, &talentpb.ListTalentProfilesRequest{}, talentSvc.ListTalentProfiles)
+				handleTalentAction(ctx, w, log, req, &talentpb.ListTalentProfilesRequest{}, talentSvc.ListTalentProfiles)
 			},
 			"search_talent_profiles": func() {
 				// Publicly accessible
-				handleTalentAction(w, ctx, log, req, &talentpb.SearchTalentProfilesRequest{}, talentSvc.SearchTalentProfiles)
+				handleTalentAction(ctx, w, log, req, &talentpb.SearchTalentProfilesRequest{}, talentSvc.SearchTalentProfiles)
 			},
 			"book_talent": func() {
 				if isGuest {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: authentication required", nil)
 					return
 				}
-				requestUserID, _ := req["user_id"].(string)
+				requestUserIDVal, ok := req["user_id"].(string)
+				if !ok {
+					log.Warn("user_id type assertion failed", zap.Any("user_id", req["user_id"]))
+					requestUserIDVal = ""
+				}
+				requestUserID := requestUserIDVal
 				if requestUserID != userID && !isAdmin {
 					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: can only book for yourself unless you are an admin", nil)
 					return
 				}
-				handleTalentAction(w, ctx, log, req, &talentpb.BookTalentRequest{}, talentSvc.BookTalent)
+				handleTalentAction(ctx, w, log, req, &talentpb.BookTalentRequest{}, talentSvc.BookTalent)
 			},
 			"list_bookings": func() {
 				if isGuest {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized: authentication required", nil)
 					return
 				}
-				requestUserID, _ := req["user_id"].(string)
+				requestUserIDVal, ok := req["user_id"].(string)
+				if !ok {
+					log.Warn("user_id type assertion failed", zap.Any("user_id", req["user_id"]))
+					requestUserIDVal = ""
+				}
+				requestUserID := requestUserIDVal
 				if requestUserID != userID && !isAdmin {
 					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: can only list your own bookings unless you are an admin", nil)
 					return
 				}
-				handleTalentAction(w, ctx, log, req, &talentpb.ListBookingsRequest{}, talentSvc.ListBookings)
+				handleTalentAction(ctx, w, log, req, &talentpb.ListBookingsRequest{}, talentSvc.ListBookings)
 			},
 		}
 
@@ -135,8 +145,8 @@ func TalentOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleTalentAction is a generic helper to reduce boilerplate in TalentOpsHandler.
 func handleTalentAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

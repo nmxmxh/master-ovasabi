@@ -11,8 +11,15 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// Canonical handler for get_policy
+// Canonical handler for get_policy.
 func handleGetPolicy(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		if s.log != nil {
+			s.log.Warn("handleGetPolicy cancelled by context", zap.Error(ctx.Err()))
+		}
+		return
+	}
 	if event == nil || event.Payload == nil || event.Payload.Data == nil {
 		if s.log != nil {
 			s.log.Error("Invalid event for get_policy handler")
@@ -45,17 +52,16 @@ type EventSubscription struct {
 // CanonicalEventTypeRegistry provides lookup and validation for canonical event types.
 var CanonicalEventTypeRegistry map[string]string
 
-// Load canonical event types from actions.txt
+// Load canonical event types from actions.txt.
 func loadSecurityEvents() []string {
 	return events.LoadCanonicalEvents("security")
 }
 
-// InitCanonicalEventTypeRegistry initializes the canonical event type registry from actions.txt
+// InitCanonicalEventTypeRegistry initializes the canonical event type registry from actions.txt.
 func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadSecurityEvents()
 	for _, evt := range evts {
-		// Example: evt = "security:authorize:v1:success"; key = "authorize:success"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -79,10 +85,21 @@ func GetCanonicalEventType(action, state string) string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names (e.g., "authorize", "query_events") to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
-// Canonical event handler stubs for each security action
+// Canonical event handler stubs for each security action.
 func handleAuthorize(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	if event == nil || event.Payload == nil || event.Payload.Data == nil {
 		if s.log != nil {
@@ -101,7 +118,11 @@ func handleAuthorize(ctx context.Context, s *Service, event *nexusv1.EventRespon
 		}
 		return
 	}
-	_, _ = s.Authorize(ctx, &req)
+	if _, err := s.Authorize(ctx, &req); err != nil {
+		if s.log != nil {
+			s.log.Error("Authorize failed", zap.Error(err))
+		}
+	}
 }
 
 func handleQueryEvents(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -122,10 +143,21 @@ func handleQueryEvents(ctx context.Context, s *Service, event *nexusv1.EventResp
 		}
 		return
 	}
-	_, _ = s.QueryEvents(ctx, &req)
+	if _, err := s.QueryEvents(ctx, &req); err != nil {
+		if s.log != nil {
+			s.log.Error("QueryEvents failed", zap.Error(err))
+		}
+	}
 }
 
 func handleSetPolicy(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		if s.log != nil {
+			s.log.Warn("handleSetPolicy cancelled by context", zap.Error(ctx.Err()))
+		}
+		return
+	}
 	if event == nil || event.Payload == nil || event.Payload.Data == nil {
 		if s.log != nil {
 			s.log.Error("Invalid event for set_policy handler")
@@ -147,6 +179,13 @@ func handleSetPolicy(ctx context.Context, s *Service, event *nexusv1.EventRespon
 }
 
 func handleIssueSecret(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		if s.log != nil {
+			s.log.Warn("handleIssueSecret cancelled by context", zap.Error(ctx.Err()))
+		}
+		return
+	}
 	if event == nil || event.Payload == nil || event.Payload.Data == nil {
 		if s.log != nil {
 			s.log.Error("Invalid event for issue_secret handler")
@@ -185,7 +224,11 @@ func handleAuditEvent(ctx context.Context, s *Service, event *nexusv1.EventRespo
 		}
 		return
 	}
-	_, _ = s.AuditEvent(ctx, &req)
+	if _, err := s.AuditEvent(ctx, &req); err != nil {
+		if s.log != nil {
+			s.log.Error("AuditEvent failed", zap.Error(err))
+		}
+	}
 }
 
 func handleAuthenticate(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -206,11 +249,15 @@ func handleAuthenticate(ctx context.Context, s *Service, event *nexusv1.EventRes
 		}
 		return
 	}
-	_, _ = s.Authenticate(ctx, &req)
+	if _, err := s.Authenticate(ctx, &req); err != nil {
+		if s.log != nil {
+			s.log.Error("Authenticate failed", zap.Error(err))
+		}
+	}
 }
 
 // Register all security action handlers (from actions.txt)
-// Register all security action handlers (from actions.txt)
+// Register all security action handlers (from actions.txt).
 func init() {
 	RegisterActionHandler("authorize", handleAuthorize)
 	RegisterActionHandler("query_events", handleQueryEvents)
@@ -224,7 +271,7 @@ func init() {
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
@@ -262,7 +309,7 @@ func HandleSecurityServiceEvent(ctx context.Context, s *Service, event *nexusv1.
 	handler(ctx, s, event)
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	InitCanonicalEventTypeRegistry()
 	m := make(map[string]EventHandlerFunc)

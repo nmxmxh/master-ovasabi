@@ -43,7 +43,7 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadCrawlerEvents() []string {
 	return events.LoadCanonicalEvents("crawler")
 }
@@ -51,12 +51,23 @@ func loadCrawlerEvents() []string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
@@ -86,7 +97,7 @@ func HandleCrawlerServiceEvent(ctx context.Context, s *Service, event *nexusv1.E
 	handler(ctx, s, event)
 }
 
-// Handler implementations for each canonical action
+// Handler implementations for each canonical action.
 func handleSubmitTask(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling submit_task event", zap.Any("event", event))
 	var req crawlerpb.SubmitTaskRequest
@@ -165,22 +176,9 @@ func handleStreamResults(ctx context.Context, svc *Service, event *nexusv1.Event
 	}
 }
 
-// dummyStreamResultsServer is a stub for event-driven streaming
-type dummyStreamResultsServer struct {
-	ctx context.Context
-	log *zap.Logger
-}
+// dummyStreamResultsServer is a stub for event-driven streaming.
 
-func (d *dummyStreamResultsServer) Context() context.Context {
-	return d.ctx
-}
-
-func (d *dummyStreamResultsServer) Send(result *crawlerpb.CrawlResult) error {
-	d.log.Info("Dummy stream result", zap.Any("result", result))
-	return nil
-}
-
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	evts := loadCrawlerEvents()
 	m := make(map[string]ActionHandlerFunc)

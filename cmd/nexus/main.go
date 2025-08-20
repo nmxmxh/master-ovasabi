@@ -46,7 +46,8 @@ func main() {
 	if addr == "" {
 		addr = "nexus:50052"
 	}
-	lis, err := net.Listen("tcp", addr)
+	var lc net.ListenConfig
+	lis, err := lc.Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to listen on "+addr, err).
 			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
@@ -81,7 +82,7 @@ func main() {
 	// ...existing code...
 
 	// Connect to Postgres using central connect package
-	db, err := connect.ConnectPostgres(context.Background(), log, cfg)
+	db, err := connect.Postgres(context.Background(), log, cfg)
 	if err != nil {
 		graceful.WrapErr(context.Background(), codes.Unavailable, "Failed to connect to database", err).
 			StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{})
@@ -120,13 +121,16 @@ func main() {
 	// Refactored: Log file info for service_registration.json before creating Nexus service
 	if info, statErr := os.Stat("config/service_registration.json"); statErr != nil {
 		log.Warn("service_registration.json missing or inaccessible", zap.Error(statErr))
-	} else if info.IsDir() {
-		log.Error("service_registration.json is a directory, expected a file")
-	} else if info.Size() == 0 {
-		log.Error("service_registration.json is empty")
 	} else {
-		log.Info("service_registration.json present",
-			zap.Int64("size", info.Size()))
+		switch {
+		case info.IsDir():
+			log.Error("service_registration.json is a directory, expected a file")
+		case info.Size() == 0:
+			log.Error("service_registration.json is empty")
+		default:
+			log.Info("service_registration.json present",
+				zap.Int64("size", info.Size()))
+		}
 	}
 
 	// Create the Nexus service implementation

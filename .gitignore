@@ -1,3 +1,5 @@
+# Ignore Godot engine binaries
+godot/bin/Godot_v*.stable_linux.x86_64
 # Exclude all GGUF model files
 internal/ai/python/models/*.gguf
 # Environment files

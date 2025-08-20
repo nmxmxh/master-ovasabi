@@ -5,14 +5,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// SimpleLifecycleManager provides minimal, zero-cost lifecycle integration
+// SimpleLifecycleManager provides minimal, zero-cost lifecycle integration.
 type SimpleLifecycleManager struct {
 	container *di.Container
 	cleanup   []func() error
 	log       *zap.Logger
 }
 
-// NewSimpleLifecycleManager creates a minimal lifecycle manager
+// NewSimpleLifecycleManager creates a minimal lifecycle manager.
 func NewSimpleLifecycleManager(container *di.Container, log *zap.Logger) *SimpleLifecycleManager {
 	return &SimpleLifecycleManager{
 		container: container,
@@ -21,12 +21,12 @@ func NewSimpleLifecycleManager(container *di.Container, log *zap.Logger) *Simple
 	}
 }
 
-// AddCleanup registers a cleanup function to be called on shutdown
+// AddCleanup registers a cleanup function to be called on shutdown.
 func (s *SimpleLifecycleManager) AddCleanup(cleanup func() error) {
 	s.cleanup = append(s.cleanup, cleanup)
 }
 
-// Shutdown executes all cleanup functions in reverse order
+// Shutdown executes all cleanup functions in reverse order.
 func (s *SimpleLifecycleManager) Shutdown() {
 	s.log.Info("Starting graceful shutdown")
 
@@ -40,9 +40,12 @@ func (s *SimpleLifecycleManager) Shutdown() {
 	s.log.Info("Graceful shutdown complete")
 }
 
-// AddToContainer registers the lifecycle manager in the DI container
+// AddToContainer registers the lifecycle manager in the DI container.
 func (s *SimpleLifecycleManager) AddToContainer() error {
 	return s.container.Register((*SimpleLifecycleManager)(nil), func(c *di.Container) (interface{}, error) {
+		// Use c if you need to reference the container instance
+		// For now, just return s, but c is available for future use
+		_ = c
 		return s, nil
 	})
 }

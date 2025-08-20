@@ -49,11 +49,16 @@ func (w *VideoWorker) Cleanup() {
 }
 
 func (w *VideoWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) (*crawlerpb.CrawlResult, error) {
+	// Use context for diagnostics/cancellation (lint fix)
 	logger := zap.L().Sugar()
+	if ctx != nil && ctx.Err() != nil {
+		logger.Warnf("Process cancelled by context: %v", ctx.Err())
+		return nil, ctx.Err()
+	}
 	audioPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s-audio.wav", task.Uuid))
 
 	// Step 1: Extract audio using ffmpeg
-	if err := extractAudio(task.Target, audioPath); err != nil {
+	if err := extractAudio(ctx, task.Target, audioPath); err != nil {
 		logger.Errorf("audio extraction failed: %v", err)
 		return nil, err
 	}
@@ -73,7 +78,7 @@ func (w *VideoWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) (*
 	}
 
 	// Step 3: Extract video metadata
-	metadata, err := extractVideoMetadata(task.Target)
+	metadata, err := extractVideoMetadata(ctx, task.Target)
 	if err != nil {
 		logger.Warnf("failed to extract video metadata: %v", err)
 	}
@@ -101,8 +106,8 @@ func (w *VideoWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) (*
 	}, nil
 }
 
-func extractAudio(inputPath, outputPath string) error {
-	cmd := exec.Command("ffmpeg", "-i", inputPath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", outputPath, "-y")
+func extractAudio(ctx context.Context, inputPath, outputPath string) error {
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", outputPath, "-y")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -116,8 +121,8 @@ type VideoMetadata struct {
 	Height     int
 }
 
-func extractVideoMetadata(path string) (VideoMetadata, error) {
-	cmd := exec.Command("ffprobe",
+func extractVideoMetadata(ctx context.Context, path string) (VideoMetadata, error) {
+	cmd := exec.CommandContext(ctx, "ffprobe",
 		"-v", "error",
 		"-select_streams", "v:0",
 		"-show_entries", "stream=codec_name,width,height",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"maps"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,64 +45,95 @@ func (m *CampaignStateManager) safeGo(fn func()) {
 	}()
 }
 
-// EmitCampaignState emits the current campaign state to a specific user (e.g., on handshake or request)
-func (m *CampaignStateManager) EmitCampaignState(campaignID, userID string, metadata *commonpb.Metadata) {
+// PrepareStateForUser returns a decorated copy of campaign state for a given user/client type.
+func (m *CampaignStateManager) PrepareStateForUser(campaignID, userID string) map[string]any {
 	state := m.GetState(campaignID)
-	structData := meta.NewStructFromMap(state, nil)
-	event := &nexusv1.EventResponse{
-		Success:   true,
-		EventId:   "state_init:" + campaignID + ":" + userID,
-		EventType: "campaign:state:v1:success",
-		Message:   "state_init",
-		Metadata:  metadata,
-		Payload: &commonpb.Payload{
-			Data: structData,
-		},
+	stateCopy := make(map[string]any, len(state))
+	for k, v := range state {
+		stateCopy[k] = v
 	}
-	m.feedbackBus(event)
+	if userID == "godot" {
+		stateCopy["entity_type"] = "backend"
+		stateCopy["client_type"] = "godot"
+		stateCopy["timestamp"] = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+	return stateCopy
 }
 
-// HandleEvent is a generic event handler for campaign-related events (to be called from the Nexus event bus)
-func (m *CampaignStateManager) HandleEvent(event *nexusv1.EventRequest) {
-	switch event.EventType {
-	case "campaign:state:request":
-		// Expect campaign_id and user_id in metadata or payload
-		var campaignID, userID string
-		if event.Metadata != nil {
-			if global, ok := event.Metadata.ServiceSpecific.Fields["global"]; ok && global != nil {
-				if globalStruct := global.GetStructValue(); globalStruct != nil {
-					if v, ok := globalStruct.AsMap()["campaign_id"]; ok {
-						if s, ok := v.(string); ok {
-							campaignID = s
-						}
-					}
-					if v, ok := globalStruct.AsMap()["user_id"]; ok {
-						if s, ok := v.(string); ok {
-							userID = s
-						}
-					}
+// HandleEvent is a generic event handler for campaign-related events (to be called from the Nexus event bus).
+func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.EventRequest) {
+	campaignID, userID := m.extractCampaignAndUserID(event)
+	// Canonical event mutation: only process events ending in ':requested' or ':started'
+	if strings.HasSuffix(event.EventType, ":requested") || strings.HasSuffix(event.EventType, ":started") {
+		switch event.EventType {
+		case "campaign:list:v1:requested":
+			m.handleCampaignList(ctx, event)
+		case "campaign:update:v1:requested":
+			m.handleCampaignUpdate(ctx, event)
+		case "campaign:feature:v1:requested":
+			m.handleFeatureUpdate(ctx, event)
+		case "campaign:config:v1:requested":
+			m.handleConfigUpdate(ctx, event)
+		case "campaign:state:v1:request":
+			state := m.PrepareStateForUser(campaignID, userID)
+			structData := meta.NewStructFromMap(state, nil)
+			eventType := "campaign:state:v1:success"
+			// Extract or create correlation ID
+			var correlationID string
+			if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
+				if v, ok := event.Metadata.ServiceSpecific.Fields["correlation_id"]; ok && v != nil {
+					correlationID = v.GetStringValue()
 				}
 			}
+			if correlationID == "" && event.Payload != nil && event.Payload.Data != nil {
+				if v, ok := event.Payload.Data.Fields["correlationId"]; ok && v != nil {
+					correlationID = v.GetStringValue()
+				}
+			}
+			if correlationID == "" {
+				// Generate a new correlation ID if missing
+				correlationID = "corrid:" + campaignID + ":" + userID + ":" + time.Now().UTC().Format("20060102T150405.000Z")
+			}
+			if userID == "godot" {
+				eventType = "campaign:state:v1:godot_update"
+				// Optionally: broadcast to Godot stream
+				cs := m.GetOrCreateState(campaignID)
+				godotStreamKey := "godot_stream:" + campaignID
+				var godotStream chan *nexusv1.EventResponse
+				val, ok := cs.Subscribers.Load(godotStreamKey)
+				if !ok {
+					godotStream = make(chan *nexusv1.EventResponse, 128)
+					cs.Subscribers.Store(godotStreamKey, godotStream)
+				} else {
+					godotStream, _ = val.(chan *nexusv1.EventResponse)
+				}
+				eventResp := &nexusv1.EventResponse{
+					Success:   true,
+					EventId:   correlationID,
+					EventType: eventType,
+					Message:   "godot_state_update",
+					Metadata:  event.Metadata,
+					Payload:   &commonpb.Payload{Data: structData},
+				}
+				select {
+				case godotStream <- eventResp:
+				default:
+					m.log.Warn("Godot campaign state stream full, dropping update", zap.String("campaign_id", campaignID))
+				}
+			}
+			// Always emit to feedback bus for request/response
+			eventResp := &nexusv1.EventResponse{
+				Success:   true,
+				EventId:   correlationID,
+				EventType: eventType,
+				Message:   "state_init",
+				Metadata:  event.Metadata,
+				Payload:   &commonpb.Payload{Data: structData},
+			}
+			m.feedbackBus(eventResp)
 		}
-		// Fallback: try top-level fields
-		if campaignID == "" && event.CampaignId != 0 {
-			campaignID = "0"
-			// If you want to use the int64 value as string:
-			// campaignID = strconv.FormatInt(event.CampaignId, 10)
-		}
-		m.EmitCampaignState(campaignID, userID, event.Metadata)
-
-	case "campaign:list:v1:requested":
-		m.handleCampaignList(event)
-
-	case "campaign:update:v1:requested":
-		m.handleCampaignUpdate(event)
-
-	case "campaign:feature:v1:requested":
-		m.handleFeatureUpdate(event)
-
-	case "campaign:config:v1:requested":
-		m.handleConfigUpdate(event)
+	} else {
+		m.log.Debug("Ignoring non-mutation event type", zap.String("event_type", event.EventType))
 	}
 }
 
@@ -196,7 +228,15 @@ func (m *CampaignStateManager) LoadDefaultCampaign(path string) error {
 	if err := dec.Decode(&data); err != nil {
 		return err
 	}
-	campaignID, _ := data["slug"].(string)
+	campaignIDVal, campaignIDOk := data["slug"]
+	var campaignID string
+	if campaignIDOk {
+		if s, ok := campaignIDVal.(string); ok {
+			campaignID = s
+		} else {
+			m.log.Warn("campaignID type assertion failed in LoadDefaultCampaign", zap.Any("campaignIDVal", campaignIDVal))
+		}
+	}
 	if campaignID == "" {
 		campaignID = "0"
 	}
@@ -226,7 +266,12 @@ func (m *CampaignStateManager) LoadDefaultCampaign(path string) error {
 func (m *CampaignStateManager) GetOrCreateState(campaignID string) *CampaignState {
 	val, ok := m.campaigns.Load(campaignID)
 	if ok {
-		return val.(*CampaignState)
+		cs, ok2 := val.(*CampaignState)
+		if !ok2 {
+			m.log.Warn("Type assertion to *CampaignState failed in GetOrCreateState", zap.Any("val", val))
+			return nil
+		}
+		return cs
 	}
 	cs := &CampaignState{
 		CampaignID:  campaignID,
@@ -239,7 +284,7 @@ func (m *CampaignStateManager) GetOrCreateState(campaignID string) *CampaignStat
 }
 
 // UpdateState updates the campaign state and emits a real-time feedback event.
-func (m *CampaignStateManager) UpdateState(campaignID string, userID string, update map[string]any, metadata *commonpb.Metadata) {
+func (m *CampaignStateManager) UpdateState(campaignID, userID string, update map[string]any, metadata *commonpb.Metadata) {
 	cs := m.GetOrCreateState(campaignID)
 	// Use metadata pkg to flatten and learn campaign state from metadata
 	if metadata != nil {
@@ -269,6 +314,8 @@ func (m *CampaignStateManager) UpdateState(campaignID string, userID string, upd
 
 	// Notify all subscribers for this campaign, panic-safe
 	cs.Subscribers.Range(func(key, value interface{}) bool {
+		// Reference unused parameter 'key' for diagnostics
+		_ = key
 		ch, ok := value.(chan *nexusv1.EventResponse)
 		if !ok {
 			return true
@@ -305,15 +352,15 @@ func (m *CampaignStateManager) Unsubscribe(campaignID, userID string) {
 // GetState returns a copy of the current state for a campaign.
 func (m *CampaignStateManager) GetState(campaignID string) map[string]any {
 	cs := m.GetOrCreateState(campaignID)
-	copy := make(map[string]any, len(cs.State))
+	stateCopy := make(map[string]any, len(cs.State))
 	for k, v := range cs.State {
-		copy[k] = v
+		stateCopy[k] = v
 	}
-	return copy
+	return stateCopy
 }
 
-// handleCampaignList processes campaign list requests and returns all available campaigns
-func (m *CampaignStateManager) handleCampaignList(event *nexusv1.EventRequest) {
+// handleCampaignList processes campaign list requests and returns all available campaigns.
+func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *nexusv1.EventRequest) {
 	_, userID := m.extractCampaignAndUserID(event)
 
 	// Log the type and structure of incoming metadata for debugging
@@ -366,7 +413,7 @@ func (m *CampaignStateManager) handleCampaignList(event *nexusv1.EventRequest) {
 
 	// If repository is available, fetch from database
 	if m.repo != nil {
-		if dbCampaigns, err := m.repo.List(context.Background(), payload.Limit, payload.Offset); err == nil {
+		if dbCampaigns, err := m.repo.List(ctx, payload.Limit, payload.Offset); err == nil {
 			for _, c := range dbCampaigns {
 				campaignData := map[string]any{
 					"id":    c.ID,
@@ -405,8 +452,16 @@ func (m *CampaignStateManager) handleCampaignList(event *nexusv1.EventRequest) {
 	// Fallback: add campaigns from memory state if database failed or is unavailable
 	if len(campaigns) == 0 {
 		m.campaigns.Range(func(key, value interface{}) bool {
-			campaignID := key.(string)
-			cs := value.(*CampaignState)
+			campaignID, ok := key.(string)
+			if !ok {
+				m.log.Warn("Type assertion to string failed for campaignID in handleCampaignList", zap.Any("key", key))
+				return true
+			}
+			cs, ok2 := value.(*CampaignState)
+			if !ok2 {
+				m.log.Warn("Type assertion to *CampaignState failed in handleCampaignList", zap.Any("value", value))
+				return true
+			}
 
 			campaignData := map[string]any{
 				"id":   campaignID,
@@ -436,15 +491,15 @@ func (m *CampaignStateManager) handleCampaignList(event *nexusv1.EventRequest) {
 	}
 
 	// Extract correlationId from metadata or payload
-	var correlationId string
+	var correlationID string
 	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil && event.Metadata.ServiceSpecific.Fields != nil {
 		if v, ok := event.Metadata.ServiceSpecific.Fields["correlation_id"]; ok && v != nil {
-			correlationId = v.GetStringValue()
+			correlationID = v.GetStringValue()
 		}
 	}
-	if correlationId == "" && event.Payload != nil && event.Payload.Data != nil {
+	if correlationID == "" && event.Payload != nil && event.Payload.Data != nil {
 		if v, ok := event.Payload.Data.Fields["correlationId"]; ok && v != nil {
-			correlationId = v.GetStringValue()
+			correlationID = v.GetStringValue()
 		}
 	}
 
@@ -455,7 +510,7 @@ func (m *CampaignStateManager) handleCampaignList(event *nexusv1.EventRequest) {
 		"limit":         payload.Limit,
 		"offset":        payload.Offset,
 		"user_id":       userID,
-		"correlationId": correlationId,
+		"correlationId": correlationID,
 	}
 
 	structData := meta.NewStructFromMap(responsePayload, nil)
@@ -477,10 +532,10 @@ func (m *CampaignStateManager) handleCampaignList(event *nexusv1.EventRequest) {
 	m.feedbackBus(response)
 }
 
-// handleCampaignUpdate processes direct campaign update requests
-func (m *CampaignStateManager) handleCampaignUpdate(event *nexusv1.EventRequest) {
+// handleCampaignUpdate processes direct campaign update requests.
+func (m *CampaignStateManager) handleCampaignUpdate(ctx context.Context, event *nexusv1.EventRequest) {
 	var payload struct {
-		CampaignID string         `json:"campaignId"`
+		CampaignID string         `json:"campaign_id"`
 		Updates    map[string]any `json:"updates"`
 	}
 
@@ -524,15 +579,15 @@ func (m *CampaignStateManager) handleCampaignUpdate(event *nexusv1.EventRequest)
 	// Optionally persist to database asynchronously
 	if m.repo != nil {
 		m.safeGo(func() {
-			m.persistToDB(payload.CampaignID, payload.Updates)
+			m.persistToDB(ctx, payload.CampaignID, payload.Updates)
 		})
 	}
 }
 
-// handleFeatureUpdate processes feature-specific updates
-func (m *CampaignStateManager) handleFeatureUpdate(event *nexusv1.EventRequest) {
+// handleFeatureUpdate processes feature-specific updates.
+func (m *CampaignStateManager) handleFeatureUpdate(_ context.Context, event *nexusv1.EventRequest) {
 	var payload struct {
-		CampaignID string   `json:"campaignId"`
+		CampaignID string   `json:"campaign_id"`
 		Features   []string `json:"features"`
 		Action     string   `json:"action"` // "add", "remove", "set"
 	}
@@ -568,10 +623,11 @@ func (m *CampaignStateManager) handleFeatureUpdate(event *nexusv1.EventRequest) 
 	cs := m.GetOrCreateState(payload.CampaignID)
 	currentFeatures := []string{}
 
-	// Get current features
-	if existing, ok := cs.State["features"].([]string); ok {
+	// Get current features using type switch
+	switch existing := cs.State["features"].(type) {
+	case []string:
 		currentFeatures = existing
-	} else if existing, ok := cs.State["features"].([]any); ok {
+	case []any:
 		for _, f := range existing {
 			if s, ok := f.(string); ok {
 				currentFeatures = append(currentFeatures, s)
@@ -629,10 +685,10 @@ func (m *CampaignStateManager) handleFeatureUpdate(event *nexusv1.EventRequest) 
 }
 
 // handleConfigUpdate processes configuration updates (UI content, scripts, etc.)
-func (m *CampaignStateManager) handleConfigUpdate(event *nexusv1.EventRequest) {
+func (m *CampaignStateManager) handleConfigUpdate(_ context.Context, event *nexusv1.EventRequest) {
 	var payload struct {
-		CampaignID string         `json:"campaignId"`
-		ConfigType string         `json:"configType"` // "ui_content", "scripts", "communication"
+		CampaignID string         `json:"campaign_id"`
+		ConfigType string         `json:"config_type"` // "ui_content", "scripts", "communication"
 		Config     map[string]any `json:"config"`
 	}
 
@@ -671,10 +727,8 @@ func (m *CampaignStateManager) handleConfigUpdate(event *nexusv1.EventRequest) {
 	m.UpdateState(payload.CampaignID, userID, updates, event.Metadata)
 }
 
-// extractCampaignAndUserID extracts campaign and user IDs from event metadata
-func (m *CampaignStateManager) extractCampaignAndUserID(event *nexusv1.EventRequest) (string, string) {
-	var campaignID, userID string
-
+// extractCampaignAndUserID extracts campaign and user IDs from event metadata.
+func (m *CampaignStateManager) extractCampaignAndUserID(event *nexusv1.EventRequest) (campaignID, userID string) {
 	if event.Metadata != nil {
 		// Try to get from global metadata
 		if global, ok := event.Metadata.ServiceSpecific.Fields["global"]; ok && global != nil {
@@ -711,9 +765,12 @@ func (m *CampaignStateManager) extractCampaignAndUserID(event *nexusv1.EventRequ
 	return campaignID, userID
 }
 
-// persistToDB asynchronously persists campaign state changes to the database
-func (m *CampaignStateManager) persistToDB(campaignID string, updates map[string]any) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// persistToDB asynchronously persists campaign state changes to the database.
+func (m *CampaignStateManager) persistToDB(ctx context.Context, campaignID string, updates map[string]any) {
+	cancel := func() {}
+	if _, ok := ctx.Deadline(); !ok {
+		ctx, cancel = context.WithTimeout(ctx, 10*time.Second)
+	}
 	defer cancel()
 
 	// Get campaign from DB
@@ -774,7 +831,13 @@ func (m *CampaignStateManager) GetCampaignArchitectureSummary() map[string]any {
 	totalCampaigns := 0
 
 	m.campaigns.Range(func(key, value interface{}) bool {
-		cs := value.(*CampaignState)
+		// Reference unused parameter 'key' for diagnostics
+		_ = key
+		cs, ok := value.(*CampaignState)
+		if !ok {
+			m.log.Warn("Type assertion to *CampaignState failed in GetCampaignArchitectureSummary", zap.Any("value", value))
+			return true
+		}
 		campaignInfo := map[string]any{
 			"campaign_id":  cs.CampaignID,
 			"last_updated": cs.LastUpdated,
@@ -790,8 +853,6 @@ func (m *CampaignStateManager) GetCampaignArchitectureSummary() map[string]any {
 		})
 		campaignInfo["subscribers"] = subscribers
 		totalSubscribers += subscribers
-		campaigns = append(campaigns, campaignInfo)
-		totalCampaigns++
 		return true
 	})
 

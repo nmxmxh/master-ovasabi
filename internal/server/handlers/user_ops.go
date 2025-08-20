@@ -104,57 +104,57 @@ func UserOpsHandler(container *di.Container) http.HandlerFunc {
 		// --- Action Handlers Map ---
 		actionHandlers := map[string]func(){
 			"create_user": func() {
-				handleUserAction(w, ctx, log, req, &userv1.CreateUserRequest{}, userSvc.CreateUser)
+				handleUserAction(ctx, w, log, req, &userv1.CreateUserRequest{}, userSvc.CreateUser)
 			},
-			"get_user": func() { handleUserAction(w, ctx, log, req, &userv1.GetUserRequest{}, userSvc.GetUser) },
+			"get_user": func() { handleUserAction(ctx, w, log, req, &userv1.GetUserRequest{}, userSvc.GetUser) },
 			"get_user_by_username": func() {
-				handleUserAction(w, ctx, log, req, &userv1.GetUserByUsernameRequest{}, userSvc.GetUserByUsername)
+				handleUserAction(ctx, w, log, req, &userv1.GetUserByUsernameRequest{}, userSvc.GetUserByUsername)
 			},
-			"get_user_by_email": func() { handleUserAction(w, ctx, log, req, &userv1.GetUserByEmailRequest{}, userSvc.GetUserByEmail) },
+			"get_user_by_email": func() { handleUserAction(ctx, w, log, req, &userv1.GetUserByEmailRequest{}, userSvc.GetUserByEmail) },
 			"register_interest": func() {
-				handleUserAction(w, ctx, log, req, &userv1.RegisterInterestRequest{}, userSvc.RegisterInterest)
+				handleUserAction(ctx, w, log, req, &userv1.RegisterInterestRequest{}, userSvc.RegisterInterest)
 			},
-			"create_session": func() { handleUserAction(w, ctx, log, req, &userv1.CreateSessionRequest{}, userSvc.CreateSession) },
-			"get_session":    func() { handleUserAction(w, ctx, log, req, &userv1.GetSessionRequest{}, userSvc.GetSession) },
-			"revoke_session": func() { handleUserAction(w, ctx, log, req, &userv1.RevokeSessionRequest{}, userSvc.RevokeSession) },
-			"list_sessions":  func() { handleUserAction(w, ctx, log, req, &userv1.ListSessionsRequest{}, userSvc.ListSessions) },
-			"add_friend":     func() { handleUserAction(w, ctx, log, req, &userv1.AddFriendRequest{}, userSvc.AddFriend) },
-			"remove_friend":  func() { handleUserAction(w, ctx, log, req, &userv1.RemoveFriendRequest{}, userSvc.RemoveFriend) },
-			"list_friends":   func() { handleUserAction(w, ctx, log, req, &userv1.ListFriendsRequest{}, userSvc.ListFriends) },
+			"create_session": func() { handleUserAction(ctx, w, log, req, &userv1.CreateSessionRequest{}, userSvc.CreateSession) },
+			"get_session":    func() { handleUserAction(ctx, w, log, req, &userv1.GetSessionRequest{}, userSvc.GetSession) },
+			"revoke_session": func() { handleUserAction(ctx, w, log, req, &userv1.RevokeSessionRequest{}, userSvc.RevokeSession) },
+			"list_sessions":  func() { handleUserAction(ctx, w, log, req, &userv1.ListSessionsRequest{}, userSvc.ListSessions) },
+			"add_friend":     func() { handleUserAction(ctx, w, log, req, &userv1.AddFriendRequest{}, userSvc.AddFriend) },
+			"remove_friend":  func() { handleUserAction(ctx, w, log, req, &userv1.RemoveFriendRequest{}, userSvc.RemoveFriend) },
+			"list_friends":   func() { handleUserAction(ctx, w, log, req, &userv1.ListFriendsRequest{}, userSvc.ListFriends) },
 			"suggest_connections": func() {
-				handleUserAction(w, ctx, log, req, &userv1.SuggestConnectionsRequest{}, userSvc.SuggestConnections)
+				handleUserAction(ctx, w, log, req, &userv1.SuggestConnectionsRequest{}, userSvc.SuggestConnections)
 			},
-			"list_connections": func() { handleUserAction(w, ctx, log, req, &userv1.ListConnectionsRequest{}, userSvc.ListConnections) },
-			"block_user":       func() { handleUserAction(w, ctx, log, req, &userv1.BlockUserRequest{}, userSvc.BlockUser) },
-			"list_user_events": func() { handleUserAction(w, ctx, log, req, &userv1.ListUserEventsRequest{}, userSvc.ListUserEvents) },
-			"list_audit_logs":  func() { handleUserAction(w, ctx, log, req, &userv1.ListAuditLogsRequest{}, userSvc.ListAuditLogs) },
+			"list_connections": func() { handleUserAction(ctx, w, log, req, &userv1.ListConnectionsRequest{}, userSvc.ListConnections) },
+			"block_user":       func() { handleUserAction(ctx, w, log, req, &userv1.BlockUserRequest{}, userSvc.BlockUser) },
+			"list_user_events": func() { handleUserAction(ctx, w, log, req, &userv1.ListUserEventsRequest{}, userSvc.ListUserEvents) },
+			"list_audit_logs":  func() { handleUserAction(ctx, w, log, req, &userv1.ListAuditLogsRequest{}, userSvc.ListAuditLogs) },
 			"update_user": func() {
 				if !checkAdminPermission() {
 					return
 				}
-				handleUserAction(w, ctx, log, req, &userv1.UpdateUserRequest{}, userSvc.UpdateUser)
+				handleUserAction(ctx, w, log, req, &userv1.UpdateUserRequest{}, userSvc.UpdateUser)
 			},
 			"delete_user": func() {
 				if !checkAdminPermission() {
 					return
 				}
-				handleUserAction(w, ctx, log, req, &userv1.DeleteUserRequest{}, userSvc.DeleteUser)
+				handleUserAction(ctx, w, log, req, &userv1.DeleteUserRequest{}, userSvc.DeleteUser)
 			},
 			"assign_role": func() {
 				if !checkAdminPermission() {
 					return
 				}
-				handleUserAction(w, ctx, log, req, &userv1.AssignRoleRequest{}, userSvc.AssignRole)
+				handleUserAction(ctx, w, log, req, &userv1.AssignRoleRequest{}, userSvc.AssignRole)
 			},
 			"remove_role": func() {
 				if !checkAdminPermission() {
 					return
 				}
-				handleUserAction(w, ctx, log, req, &userv1.RemoveRoleRequest{}, userSvc.RemoveRole)
+				handleUserAction(ctx, w, log, req, &userv1.RemoveRoleRequest{}, userSvc.RemoveRole)
 			},
 			"update_preferences": func() {
 				// Special handling for get-then-update logic
-				handleUpdatePreferences(w, ctx, log, req, userSvc)
+				handleUpdatePreferences(ctx, w, log, req, userSvc)
 			},
 			"send_verification_email":      func() { httputil.WriteJSONError(w, log, http.StatusNotImplemented, "not implemented", nil) },
 			"verify_email":                 func() { httputil.WriteJSONError(w, log, http.StatusNotImplemented, "not implemented", nil) },
@@ -180,8 +180,8 @@ func UserOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleUserAction is a generic helper to reduce boilerplate in UserOpsHandler.
 func handleUserAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,
@@ -205,7 +205,7 @@ func handleUserAction[T proto.Message, U proto.Message](
 }
 
 // handleUpdatePreferences contains the specific logic for updating user preferences.
-func handleUpdatePreferences(w http.ResponseWriter, ctx context.Context, log *zap.Logger, reqMap map[string]interface{}, userSvc userv1.UserServiceServer) {
+func handleUpdatePreferences(ctx context.Context, w http.ResponseWriter, log *zap.Logger, reqMap map[string]interface{}, userSvc userv1.UserServiceServer) {
 	userID, ok := reqMap["user_id"].(string)
 	if !ok {
 		httputil.WriteJSONError(w, log, http.StatusBadRequest, "missing or invalid user_id", nil)
@@ -254,7 +254,7 @@ func handleUpdatePreferences(w http.ResponseWriter, ctx context.Context, log *za
 		FieldsToUpdates: []string{"metadata"},
 	}
 
-	handleUserAction(w, ctx, log, reqMap, updateReq, userSvc.UpdateUser)
+	handleUserAction(ctx, w, log, reqMap, updateReq, userSvc.UpdateUser)
 }
 
 // mapToProtoUser converts a map[string]interface{} to a proto.Message using JSON as an intermediate.

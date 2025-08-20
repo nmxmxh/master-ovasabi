@@ -78,66 +78,66 @@ func CommerceOpsHandler(container *di.Container) http.HandlerFunc {
 
 		actionHandlers := map[string]func(){
 			"create_quote": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.CreateQuoteRequest{}, commerceSvc.CreateQuote)
+				handleCommerceAction(ctx, w, log, req, &commercepb.CreateQuoteRequest{}, commerceSvc.CreateQuote)
 			},
-			"get_quote": func() { handleCommerceAction(w, ctx, log, req, &commercepb.GetQuoteRequest{}, commerceSvc.GetQuote) },
+			"get_quote": func() { handleCommerceAction(ctx, w, log, req, &commercepb.GetQuoteRequest{}, commerceSvc.GetQuote) },
 			"create_order": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.CreateOrderRequest{}, commerceSvc.CreateOrder)
+				handleCommerceAction(ctx, w, log, req, &commercepb.CreateOrderRequest{}, commerceSvc.CreateOrder)
 			},
-			"get_order": func() { handleCommerceAction(w, ctx, log, req, &commercepb.GetOrderRequest{}, commerceSvc.GetOrder) },
+			"get_order": func() { handleCommerceAction(ctx, w, log, req, &commercepb.GetOrderRequest{}, commerceSvc.GetOrder) },
 			"initiate_payment": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.InitiatePaymentRequest{}, commerceSvc.InitiatePayment)
+				handleCommerceAction(ctx, w, log, req, &commercepb.InitiatePaymentRequest{}, commerceSvc.InitiatePayment)
 			},
 			"confirm_payment": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.ConfirmPaymentRequest{}, commerceSvc.ConfirmPayment)
+				handleCommerceAction(ctx, w, log, req, &commercepb.ConfirmPaymentRequest{}, commerceSvc.ConfirmPayment)
 			},
 			"refund_payment": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.RefundPaymentRequest{}, commerceSvc.RefundPayment)
+				handleCommerceAction(ctx, w, log, req, &commercepb.RefundPaymentRequest{}, commerceSvc.RefundPayment)
 			},
 			"get_transaction": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.GetTransactionRequest{}, commerceSvc.GetTransaction)
+				handleCommerceAction(ctx, w, log, req, &commercepb.GetTransactionRequest{}, commerceSvc.GetTransaction)
 			},
 			"get_balance": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.GetBalanceRequest{}, commerceSvc.GetBalance)
+				handleCommerceAction(ctx, w, log, req, &commercepb.GetBalanceRequest{}, commerceSvc.GetBalance)
 			},
 			"list_quotes": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.ListQuotesRequest{}, commerceSvc.ListQuotes)
+				handleCommerceAction(ctx, w, log, req, &commercepb.ListQuotesRequest{}, commerceSvc.ListQuotes)
 			},
 			"list_orders": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.ListOrdersRequest{}, commerceSvc.ListOrders)
+				handleCommerceAction(ctx, w, log, req, &commercepb.ListOrdersRequest{}, commerceSvc.ListOrders)
 			},
 			"update_order_status": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.UpdateOrderStatusRequest{}, commerceSvc.UpdateOrderStatus)
+				handleCommerceAction(ctx, w, log, req, &commercepb.UpdateOrderStatusRequest{}, commerceSvc.UpdateOrderStatus)
 			},
 			"list_transactions": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.ListTransactionsRequest{}, commerceSvc.ListTransactions)
+				handleCommerceAction(ctx, w, log, req, &commercepb.ListTransactionsRequest{}, commerceSvc.ListTransactions)
 			},
 			"list_balances": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.ListBalancesRequest{}, commerceSvc.ListBalances)
+				handleCommerceAction(ctx, w, log, req, &commercepb.ListBalancesRequest{}, commerceSvc.ListBalances)
 			},
 			"list_events": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.ListEventsRequest{}, commerceSvc.ListEvents)
+				handleCommerceAction(ctx, w, log, req, &commercepb.ListEventsRequest{}, commerceSvc.ListEvents)
 			},
 			"create_investment_account": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.CreateInvestmentAccountRequest{}, commerceSvc.CreateInvestmentAccount)
+				handleCommerceAction(ctx, w, log, req, &commercepb.CreateInvestmentAccountRequest{}, commerceSvc.CreateInvestmentAccount)
 			},
 			"place_investment_order": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.PlaceInvestmentOrderRequest{}, commerceSvc.PlaceInvestmentOrder)
+				handleCommerceAction(ctx, w, log, req, &commercepb.PlaceInvestmentOrderRequest{}, commerceSvc.PlaceInvestmentOrder)
 			},
 			"get_portfolio": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.GetPortfolioRequest{}, commerceSvc.GetPortfolio)
+				handleCommerceAction(ctx, w, log, req, &commercepb.GetPortfolioRequest{}, commerceSvc.GetPortfolio)
 			},
 			"get_investment_account": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.GetInvestmentAccountRequest{}, commerceSvc.GetInvestmentAccount)
+				handleCommerceAction(ctx, w, log, req, &commercepb.GetInvestmentAccountRequest{}, commerceSvc.GetInvestmentAccount)
 			},
 			"list_portfolios": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.ListPortfoliosRequest{}, commerceSvc.ListPortfolios)
+				handleCommerceAction(ctx, w, log, req, &commercepb.ListPortfoliosRequest{}, commerceSvc.ListPortfolios)
 			},
 			"create_exchange_pair": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.CreateExchangePairRequest{}, commerceSvc.CreateExchangePair)
+				handleCommerceAction(ctx, w, log, req, &commercepb.CreateExchangePairRequest{}, commerceSvc.CreateExchangePair)
 			},
 			"list_exchange_pairs": func() {
-				handleCommerceAction(w, ctx, log, req, &commercepb.ListExchangePairsRequest{}, commerceSvc.ListExchangePairs)
+				handleCommerceAction(ctx, w, log, req, &commercepb.ListExchangePairsRequest{}, commerceSvc.ListExchangePairs)
 			},
 		}
 
@@ -151,8 +151,8 @@ func CommerceOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleCommerceAction is a generic helper to reduce boilerplate in CommerceOpsHandler.
 func handleCommerceAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

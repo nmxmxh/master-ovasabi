@@ -11,13 +11,13 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 )
 
-// Email validation regex
+// Email validation regex.
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 
-// Username validation regex (alphanumeric, underscore, hyphen, 3-30 chars)
+// Username validation regex (alphanumeric, underscore, hyphen, 3-30 chars).
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,30}$`)
 
-// ValidateEmail validates an email address format
+// ValidateEmail validates an email address format.
 func ValidateEmail(email string) error {
 	if !emailRegex.MatchString(email) {
 		return ErrInvalidEmail
@@ -25,7 +25,7 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
-// ValidateUsername validates a username format
+// ValidateUsername validates a username format.
 func ValidateUsername(username string) error {
 	if len(username) < 3 || len(username) > 30 {
 		return ErrInvalidUsernameLength
@@ -54,14 +54,14 @@ func ValidateUsername(username string) error {
 		"afghanistan", "albania", "algeria", "andorra", "angola", "antigua", "argentina", "armenia", "australia", "austria", "azerbaijan", "bahamas", "bahrain", "bangladesh", "barbados", "belarus", "belgium", "belize", "benin", "bhutan", "bolivia", "bosnia", "botswana", "brazil", "brunei", "bulgaria", "burkina", "burundi", "cambodia", "cameroon", "canada", "cape_verde", "central_african_republic", "chad", "chile", "china", "colombia", "comoros", "congo", "costa_rica", "croatia", "cuba", "cyprus", "czech", "denmark", "djibouti", "dominica", "dominican", "ecuador", "egypt", "el_salvador", "equatorial_guinea", "eritrea", "estonia", "eswatini", "ethiopia", "fiji", "finland", "france", "gabon", "gambia", "georgia", "germany", "ghana", "greece", "grenada", "guatemala", "guinea", "guyana", "haiti", "honduras", "hungary", "iceland", "india", "indonesia", "iran", "iraq", "ireland", "israel", "italy", "jamaica", "japan", "jordan", "kazakhstan", "kenya", "kiribati", "kosovo", "kuwait", "kyrgyzstan", "laos", "latvia", "lebanon", "lesotho", "liberia", "libya", "liechtenstein", "lithuania", "luxembourg", "madagascar", "malawi", "malaysia", "maldives", "mali", "malta", "marshall", "mauritania", "mauritius", "mexico", "micronesia", "moldova", "monaco", "mongolia", "montenegro", "morocco", "mozambique", "myanmar", "namibia", "nauru", "nepal", "netherlands", "new_zealand", "nicaragua", "niger", "nigeria", "north_korea", "north_macedonia", "norway", "oman", "pakistan", "palau", "palestine", "panama", "papua_new_guinea", "paraguay", "peru", "philippines", "poland", "portugal", "qatar", "romania", "russia", "rwanda", "saint_kitts", "saint_lucia", "saint_vincent", "samoa", "san_marino", "sao_tome", "saudi_arabia", "senegal", "serbia", "seychelles", "sierra_leone", "singapore", "slovakia", "slovenia", "solomon", "somalia", "south_africa", "south_korea", "south_sudan", "spain", "sri_lanka", "sudan", "suriname", "sweden", "switzerland", "syria", "taiwan", "tajikistan", "tanzania", "thailand", "timor", "togo", "tonga", "trinidad", "tunisia", "turkey", "turkmenistan", "tuvalu", "uganda", "ukraine", "united_arab_emirates", "united_kingdom", "united_states", "uruguay", "uzbekistan", "vanuatu", "vatican", "venezuela", "vietnam", "yemen", "zambia", "zimbabwe", "new_york", "los_angeles", "chicago", "houston", "phoenix", "philadelphia", "san_antonio", "san_diego", "dallas", "san_jose", "austin", "jacksonville", "fort_worth", "columbus", "charlotte", "san_francisco", "indianapolis", "seattle", "denver", "washington", "boston", "el_paso", "detroit", "nashville", "memphis", "portland", "oklahoma_city", "las_vegas", "louisville", "baltimore", "milwaukee", "albuquerque", "tucson", "fresno", "mesa", "sacramento", "atlanta", "kansas_city", "colorado_springs", "miami", "raleigh", "omaha", "long_beach", "virginia_beach", "oakland", "minneapolis", "tulsa", "arlington", "tampa", "new_orleans", "wichita", "cleveland", "bakersfield", "aurora", "anaheim", "honolulu", "santa_ana", "riverside", "corpus_christi", "lexington", "stockton", "henderson", "saint_paul", "st_louis", "cincinnati", "pittsburgh", "greensboro", "lincoln", "plano", "anchorage", "orlando", "irvine", "newark", "durham", "chula_vista", "toledo", "fort_wayne", "st_petersburg", "laredo", "jersey_city", "chandler", "madison", "lubbock", "scottsdale", "reno", "buffalo", "gilbert", "glendale", "north_las_vegas", "winston_salem", "chesapeake", "norfolk", "fremont", "garland", "irving", "hialeah", "richmond", "boise", "spokane", "baton_rouge",
 	}
 	for _, r := range reserved {
-		if strings.ToLower(username) == r {
+		if strings.EqualFold(username, r) {
 			return ErrInvalidUsernameLength
 		}
 	}
 	return nil
 }
 
-// structToMap converts a protobuf Struct to a Go map
+// structToMap converts a protobuf Struct to a Go map.
 func structToMap(s *structpb.Struct) map[string]interface{} {
 	if s == nil {
 		return nil
@@ -69,16 +69,20 @@ func structToMap(s *structpb.Struct) map[string]interface{} {
 	return s.AsMap()
 }
 
-// mapToStruct converts a Go map to a protobuf Struct
+// mapToStruct converts a Go map to a protobuf Struct.
 func mapToStruct(m map[string]interface{}) *structpb.Struct {
 	if m == nil {
 		return nil
 	}
-	s, _ := structpb.NewStruct(m)
+	s, err := structpb.NewStruct(m)
+	if err != nil {
+		// Optionally log or handle error
+		return nil
+	}
 	return s
 }
 
-// metadataToMap converts protobuf Metadata to a Go map
+// metadataToMap converts protobuf Metadata to a Go map.
 func metadataToMap(meta *commonpb.Metadata) map[string]interface{} {
 	if meta == nil {
 		return nil
@@ -105,7 +109,7 @@ func metadataToMap(meta *commonpb.Metadata) map[string]interface{} {
 	return result
 }
 
-// mapToMetadata converts a Go map to protobuf Metadata
+// mapToMetadata converts a Go map to protobuf Metadata.
 func mapToMetadata(m map[string]interface{}) *commonpb.Metadata {
 	if m == nil {
 		return nil
@@ -114,16 +118,25 @@ func mapToMetadata(m map[string]interface{}) *commonpb.Metadata {
 	meta := &commonpb.Metadata{}
 
 	if serviceSpecific, ok := m["service_specific"].(map[string]interface{}); ok {
-		meta.ServiceSpecific, _ = structpb.NewStruct(serviceSpecific)
+		s, err := structpb.NewStruct(serviceSpecific)
+		if err == nil {
+			meta.ServiceSpecific = s
+		}
 	}
 	if features, ok := m["features"].([]string); ok {
 		meta.Features = features
 	}
 	if customRules, ok := m["custom_rules"].(map[string]interface{}); ok {
-		meta.CustomRules, _ = structpb.NewStruct(customRules)
+		s, err := structpb.NewStruct(customRules)
+		if err == nil {
+			meta.CustomRules = s
+		}
 	}
 	if audit, ok := m["audit"].(map[string]interface{}); ok {
-		meta.Audit, _ = structpb.NewStruct(audit)
+		s, err := structpb.NewStruct(audit)
+		if err == nil {
+			meta.Audit = s
+		}
 	}
 	if tags, ok := m["tags"].([]string); ok {
 		meta.Tags = tags
@@ -132,7 +145,7 @@ func mapToMetadata(m map[string]interface{}) *commonpb.Metadata {
 	return meta
 }
 
-// timestampProto converts a time.Time to a protobuf Timestamp
+// timestampProto converts a time.Time to a protobuf Timestamp.
 func timestampProto(t time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(t)
 }

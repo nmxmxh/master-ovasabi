@@ -4,9 +4,9 @@ import (
 	"errors"
 )
 
-// Error definitions for the waitlist service
+// Error definitions for the waitlist service.
 var (
-	// Input validation errors
+	// Input validation errors.
 	ErrInvalidEmail      = errors.New("invalid email address")
 	ErrInvalidTier       = errors.New("invalid tier, must be one of: talent, pioneer, hustlers, business")
 	ErrInvalidStatus     = errors.New("invalid status, must be one of: pending, approved, rejected, invited")
@@ -16,7 +16,7 @@ var (
 	ErrTierRequired      = errors.New("tier is required")
 	ErrIntentionRequired = errors.New("intention is required")
 
-	// Business logic errors
+	// Business logic errors.
 	ErrEmailAlreadyExists    = errors.New("email already exists in waitlist")
 	ErrUsernameAlreadyTaken  = errors.New("username is already reserved")
 	ErrInvalidReferralCode   = errors.New("invalid referral code")
@@ -24,11 +24,11 @@ var (
 	ErrAlreadyInvited        = errors.New("user already invited")
 	ErrCannotUpdateInvited   = errors.New("cannot update invited user")
 
-	// System errors
+	// System errors.
 	ErrDatabaseConnection = errors.New("database connection error")
 	ErrInternalServer     = errors.New("internal server error")
 
-	// Campaign-specific errors
+	// Campaign-specific errors.
 	ErrReferralUserNotFound    = errors.New("referral username not found")
 	ErrSelfReferralNotAllowed  = errors.New("self-referral not allowed")
 	ErrReferralAlreadyExists   = errors.New("referral already exists")
@@ -41,7 +41,7 @@ var (
 	ErrInvalidReferredID       = errors.New("invalid referred user ID")
 )
 
-// Valid tiers
+// Valid tiers.
 var ValidTiers = map[string]bool{
 	"talent":   true,
 	"pioneer":  true,
@@ -49,7 +49,7 @@ var ValidTiers = map[string]bool{
 	"business": true,
 }
 
-// Valid statuses
+// Valid statuses.
 var ValidStatuses = map[string]bool{
 	"pending":  true,
 	"approved": true,
@@ -57,7 +57,7 @@ var ValidStatuses = map[string]bool{
 	"invited":  true,
 }
 
-// Tier priorities for waitlist ordering (higher = higher priority)
+// Tier priorities for waitlist ordering (higher = higher priority).
 var TierPriorities = map[string]int{
 	"business": 400,
 	"hustlers": 300,
@@ -65,14 +65,14 @@ var TierPriorities = map[string]int{
 	"talent":   100,
 }
 
-// Campaign constants
+// Campaign constants.
 const (
 	DefaultCampaignName   = "ovasabi-website-launch"
 	DefaultReferralPoints = 10
 	ReferralPriorityBonus = 5 // Half of referral points added to priority
 )
 
-// Referral types
+// Referral types.
 var ValidReferralTypes = map[string]bool{
 	"username": true,
 	"code":     true,

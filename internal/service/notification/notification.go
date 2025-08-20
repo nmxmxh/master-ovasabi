@@ -50,7 +50,7 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 }
 
 func (s *Service) GetNotification(ctx context.Context, req *notificationpb.GetNotificationRequest) (*notificationpb.GetNotificationResponse, error) {
-	id := s.parseInt64(req.NotificationId)
+	id := s.parseInt64(ctx, req.NotificationId)
 	notification, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.NotFound, "notification not found", err)
@@ -61,12 +61,12 @@ func (s *Service) GetNotification(ctx context.Context, req *notificationpb.GetNo
 		return nil, graceful.ToStatusError(err)
 	}
 	return &notificationpb.GetNotificationResponse{
-		Notification: s.mapNotificationToProto(notification),
+		Notification: s.mapNotificationToProto(ctx, notification),
 	}, nil
 }
 
 func (s *Service) ListNotifications(ctx context.Context, req *notificationpb.ListNotificationsRequest) (*notificationpb.ListNotificationsResponse, error) {
-	userID := s.parseInt64(req.UserId)
+	userID := s.parseInt64(ctx, req.UserId)
 	notifications, err := s.repo.ListByUserID(ctx, userID, int(req.PageSize), int(req.Page))
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to list notifications", err)
@@ -78,7 +78,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationpb.Lis
 	}
 	protoNotifications := make([]*notificationpb.Notification, 0, len(notifications))
 	for _, n := range notifications {
-		protoNotifications = append(protoNotifications, s.mapNotificationToProto(n))
+		protoNotifications = append(protoNotifications, s.mapNotificationToProto(ctx, n))
 	}
 	var totalCount int32
 	if len(protoNotifications) > math.MaxInt32 {
@@ -111,7 +111,7 @@ func (s *Service) SendNotification(ctx context.Context, req *notificationpb.Send
 		}
 	}
 	notification := &Notification{
-		UserID:     s.parseInt64(req.UserId),
+		UserID:     s.parseInt64(ctx, req.UserId),
 		CampaignID: req.CampaignId,
 		Type:       Type(req.Channel),
 		Title:      req.Title,
@@ -145,7 +145,7 @@ func (s *Service) SendNotification(ctx context.Context, req *notificationpb.Send
 		PatternMeta:  created.Metadata,
 	})
 	return &notificationpb.SendNotificationResponse{
-		Notification: s.mapNotificationToProto(created),
+		Notification: s.mapNotificationToProto(ctx, created),
 		Status:       "created",
 	}, nil
 }
@@ -216,7 +216,7 @@ func (s *Service) SendPushNotification(ctx context.Context, req *notificationpb.
 		return nil, graceful.ToStatusError(graceful.WrapErr(ctx, codes.Unauthenticated, "unauthenticated: user_id required for push notification", nil))
 	}
 	notification := &Notification{
-		UserID:     s.parseInt64(req.UserId),
+		UserID:     s.parseInt64(ctx, req.UserId),
 		CampaignID: req.CampaignId,
 		Type:       TypePush,
 		Title:      req.Title,
@@ -277,7 +277,7 @@ func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.Broadc
 		Content:     req.Message,
 		Status:      StatusPending,
 		Metadata:    req.Payload,
-		ScheduledAt: s.toTimePtr(req.ScheduledAt),
+		ScheduledAt: s.toTimePtr(ctx, req.ScheduledAt),
 	}
 	created, err := s.repo.CreateBroadcast(ctx, broadcast)
 	if err != nil {
@@ -294,7 +294,7 @@ func (s *Service) BroadcastEvent(ctx context.Context, req *notificationpb.Broadc
 }
 
 func (s *Service) ListNotificationEvents(ctx context.Context, req *notificationpb.ListNotificationEventsRequest) (*notificationpb.ListNotificationEventsResponse, error) {
-	notificationID := s.parseInt64(req.NotificationId)
+	notificationID := s.parseInt64(ctx, req.NotificationId)
 	eventList, err := s.repo.ListNotificationEvents(ctx, notificationID, int(req.PageSize), int(req.Page))
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to list events", err)
@@ -328,7 +328,7 @@ func (s *Service) ListNotificationEvents(ctx context.Context, req *notificationp
 }
 
 func (s *Service) AcknowledgeNotification(ctx context.Context, req *notificationpb.AcknowledgeNotificationRequest) (*notificationpb.AcknowledgeNotificationResponse, error) {
-	id := s.parseInt64(req.NotificationId)
+	id := s.parseInt64(ctx, req.NotificationId)
 	notification, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		s.log.Error("notification not found", zap.Error(err))
@@ -396,13 +396,13 @@ func (s *Service) StreamAssetChunks(req *notificationpb.StreamAssetChunksRequest
 }
 
 // --- Helpers ---.
-func (s *Service) parseInt64(str string) int64 {
+func (s *Service) parseInt64(ctx context.Context, str string) int64 {
 	id, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
-		errWrapped := graceful.WrapErr(context.Background(), codes.InvalidArgument, "Failed to parse int64", err)
+		errWrapped := graceful.WrapErr(ctx, codes.InvalidArgument, "Failed to parse int64", err)
 		var ce *graceful.ContextError
 		if errors.As(errWrapped, &ce) {
-			ce.StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{Log: s.log})
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
 		s.log.Warn("Failed to parse int64", zap.String("input", str), zap.Error(err))
 		return 0
@@ -410,12 +410,12 @@ func (s *Service) parseInt64(str string) int64 {
 	return id
 }
 
-func (s *Service) toTimePtr(ts *timestamppb.Timestamp) *time.Time {
+func (s *Service) toTimePtr(ctx context.Context, ts *timestamppb.Timestamp) *time.Time {
 	if ts == nil {
-		errWrapped := graceful.WrapErr(context.Background(), codes.InvalidArgument, "Timestamp is nil", errors.New("timestamp is nil"))
+		errWrapped := graceful.WrapErr(ctx, codes.InvalidArgument, "Timestamp is nil", errors.New("timestamp is nil"))
 		var ce *graceful.ContextError
 		if errors.As(errWrapped, &ce) {
-			ce.StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{Log: s.log})
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
 		return nil
 	}
@@ -423,12 +423,12 @@ func (s *Service) toTimePtr(ts *timestamppb.Timestamp) *time.Time {
 	return &t
 }
 
-func (s *Service) mapNotificationToProto(n *Notification) *notificationpb.Notification {
+func (s *Service) mapNotificationToProto(ctx context.Context, n *Notification) *notificationpb.Notification {
 	if n == nil {
-		errWrapped := graceful.WrapErr(context.Background(), codes.NotFound, "Notification is nil", errors.New("notification is nil"))
+		errWrapped := graceful.WrapErr(ctx, codes.NotFound, "Notification is nil", errors.New("notification is nil"))
 		var ce *graceful.ContextError
 		if errors.As(errWrapped, &ce) {
-			ce.StandardOrchestrate(context.Background(), graceful.ErrorOrchestrationConfig{Log: s.log})
+			ce.StandardOrchestrate(ctx, graceful.ErrorOrchestrationConfig{Log: s.log})
 		}
 		return nil
 	}

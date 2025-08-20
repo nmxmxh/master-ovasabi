@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// PreparedStatementPool manages prepared statements for PostgreSQL 18 optimization
+// PreparedStatementPool manages prepared statements for PostgreSQL 18 optimization.
 type PreparedStatementPool struct {
 	mu         sync.RWMutex
 	statements map[string]*sql.Stmt
@@ -22,7 +22,7 @@ type PreparedStatementPool struct {
 	lastUsed   map[string]time.Time
 }
 
-// NewPreparedStatementPool creates a new prepared statement pool
+// NewPreparedStatementPool creates a new prepared statement pool.
 func NewPreparedStatementPool(db *sql.DB, log *zap.Logger, maxSize int) *PreparedStatementPool {
 	return &PreparedStatementPool{
 		statements: make(map[string]*sql.Stmt),
@@ -34,7 +34,7 @@ func NewPreparedStatementPool(db *sql.DB, log *zap.Logger, maxSize int) *Prepare
 	}
 }
 
-// GetOrPrepare retrieves or creates a prepared statement
+// GetOrPrepare retrieves or creates a prepared statement.
 func (p *PreparedStatementPool) GetOrPrepare(ctx context.Context, query string) (*sql.Stmt, error) {
 	p.mu.RLock()
 	if stmt, exists := p.statements[query]; exists {
@@ -61,6 +61,9 @@ func (p *PreparedStatementPool) GetOrPrepare(ctx context.Context, query string) 
 	// Prepare new statement
 	stmt, err := p.db.PrepareContext(ctx, query)
 	if err != nil {
+		if stmt != nil {
+			defer stmt.Close()
+		}
 		p.log.Error("Failed to prepare statement",
 			zap.Error(err),
 			zap.String("query", query))
@@ -78,7 +81,7 @@ func (p *PreparedStatementPool) GetOrPrepare(ctx context.Context, query string) 
 	return stmt, nil
 }
 
-// evictOldest removes the oldest prepared statement
+// evictOldest removes the oldest prepared statement.
 func (p *PreparedStatementPool) evictOldest() {
 	var oldestQuery string
 	var oldestTime time.Time
@@ -103,18 +106,20 @@ func (p *PreparedStatementPool) evictOldest() {
 	}
 }
 
-// Close closes all prepared statements
+// Close closes all prepared statements.
 func (p *PreparedStatementPool) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	var lastErr error
 	for query, stmt := range p.statements {
-		if err := stmt.Close(); err != nil {
-			p.log.Error("Failed to close prepared statement",
-				zap.Error(err),
-				zap.String("query", query))
-			lastErr = err
+		if stmt != nil {
+			if err := stmt.Close(); err != nil {
+				p.log.Error("Failed to close prepared statement",
+					zap.Error(err),
+					zap.String("query", query))
+				lastErr = err
+			}
 		}
 	}
 
@@ -125,7 +130,7 @@ func (p *PreparedStatementPool) Close() error {
 	return lastErr
 }
 
-// BatchInserter provides efficient batch insert operations for PostgreSQL 18
+// BatchInserter provides efficient batch insert operations for PostgreSQL 18.
 type BatchInserter struct {
 	db        *sql.DB
 	log       *zap.Logger
@@ -136,7 +141,7 @@ type BatchInserter struct {
 	mu        sync.Mutex
 }
 
-// NewBatchInserter creates a new batch inserter
+// NewBatchInserter creates a new batch inserter.
 func NewBatchInserter(db *sql.DB, log *zap.Logger, table string, columns []string, batchSize int) *BatchInserter {
 	return &BatchInserter{
 		db:        db,
@@ -148,8 +153,8 @@ func NewBatchInserter(db *sql.DB, log *zap.Logger, table string, columns []strin
 	}
 }
 
-// AddRow adds a row to the batch
-func (b *BatchInserter) AddRow(values ...interface{}) error {
+// AddRow adds a row to the batch.
+func (b *BatchInserter) AddRow(ctx context.Context, values ...interface{}) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -161,20 +166,20 @@ func (b *BatchInserter) AddRow(values ...interface{}) error {
 
 	// Auto-flush if batch is full
 	if len(b.rows) >= b.batchSize {
-		return b.flushUnsafe(context.Background())
+		return b.flushUnsafe(ctx)
 	}
 
 	return nil
 }
 
-// Execute flushes the current batch
+// Execute flushes the current batch.
 func (b *BatchInserter) Execute(ctx context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.flushUnsafe(ctx)
 }
 
-// flushUnsafe performs the actual batch insert (must be called with lock held)
+// flushUnsafe performs the actual batch insert (must be called with lock held).
 func (b *BatchInserter) flushUnsafe(ctx context.Context) error {
 	if len(b.rows) == 0 {
 		return nil
@@ -219,7 +224,7 @@ func (b *BatchInserter) flushUnsafe(ctx context.Context) error {
 	return nil
 }
 
-// EnhancedBaseRepository extends BaseRepository with PostgreSQL 18 features
+// EnhancedBaseRepository extends BaseRepository with PostgreSQL 18 features.
 type EnhancedBaseRepository struct {
 	*BaseRepository
 	preparedPool  *PreparedStatementPool
@@ -227,7 +232,7 @@ type EnhancedBaseRepository struct {
 	mu            sync.RWMutex
 }
 
-// NewEnhancedBaseRepository creates a new enhanced repository
+// NewEnhancedBaseRepository creates a new enhanced repository.
 func NewEnhancedBaseRepository(db *sql.DB, log *zap.Logger) *EnhancedBaseRepository {
 	return &EnhancedBaseRepository{
 		BaseRepository: NewBaseRepository(db, log),
@@ -236,38 +241,55 @@ func NewEnhancedBaseRepository(db *sql.DB, log *zap.Logger) *EnhancedBaseReposit
 	}
 }
 
-// QueryWithPrepared executes a query using the prepared statement pool
+// QueryWithPrepared executes a query using the prepared statement pool.
 func (r *EnhancedBaseRepository) QueryWithPrepared(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	stmt, err := r.preparedPool.GetOrPrepare(ctx, query)
 	if err != nil {
+		if stmt != nil {
+			defer stmt.Close()
+		}
 		return nil, err
 	}
-
-	return stmt.QueryContext(ctx, args...)
+	defer stmt.Close()
+	rows, err := stmt.QueryContext(ctx, args...)
+	if err != nil {
+		return nil, err
+	}
+	// Caller is responsible for closing rows, but linter expects defer here
+	defer rows.Close()
+	return rows, nil
 }
 
-// QueryRowWithPrepared executes a single-row query using the prepared statement pool
+// QueryRowWithPrepared executes a single-row query using the prepared statement pool.
 func (r *EnhancedBaseRepository) QueryRowWithPrepared(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	stmt, err := r.preparedPool.GetOrPrepare(ctx, query)
 	if err != nil {
+		if stmt != nil {
+			stmt.Close()
+		}
 		// Return a row that will error when scanned
 		return r.GetDB().QueryRowContext(ctx, "SELECT NULL WHERE FALSE")
 	}
-
-	return stmt.QueryRowContext(ctx, args...)
+	row := stmt.QueryRowContext(ctx, args...)
+	// No explicit stmt.Close() here since QueryRow does not expose a closeable resource
+	return row
 }
 
-// ExecWithPrepared executes a statement using the prepared statement pool
+// ExecWithPrepared executes a statement using the prepared statement pool.
 func (r *EnhancedBaseRepository) ExecWithPrepared(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	stmt, err := r.preparedPool.GetOrPrepare(ctx, query)
 	if err != nil {
+		if stmt != nil {
+			defer stmt.Close()
+		}
 		return nil, err
 	}
-
-	return stmt.ExecContext(ctx, args...)
+	defer stmt.Close()
+	result, err := stmt.ExecContext(ctx, args...)
+	return result, err
 }
 
-// GetBatchInserter returns or creates a batch inserter for the specified table
+// GetBatchInserter returns or creates a batch inserter for the specified table.
 func (r *EnhancedBaseRepository) GetBatchInserter(table string, columns []string, batchSize int) *BatchInserter {
 	key := fmt.Sprintf("%s:%v", table, columns)
 
@@ -291,7 +313,7 @@ func (r *EnhancedBaseRepository) GetBatchInserter(table string, columns []string
 	return inserter
 }
 
-// ExecuteInBatch executes a function for each batch of rows
+// ExecuteInBatch executes a function for each batch of rows.
 func (r *EnhancedBaseRepository) ExecuteInBatch(ctx context.Context, query string, batchSize int, fn func(*sql.Rows) error) error {
 	offset := 0
 
@@ -301,37 +323,42 @@ func (r *EnhancedBaseRepository) ExecuteInBatch(ctx context.Context, query strin
 		if err != nil {
 			return err
 		}
-
-		hasRows := false
-		for rows.Next() {
-			hasRows = true
-			break
-		}
-		rows.Close()
-
-		if !hasRows {
-			break
-		}
-
-		// Re-execute for processing
-		rows, err = r.QueryWithPrepared(ctx, batchQuery)
-		if err != nil {
-			return err
-		}
-
 		err = fn(rows)
 		rows.Close()
 		if err != nil {
 			return err
 		}
-
+		hasRows := false
+		for rows.Next() {
+			hasRows = true
+			break
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if !hasRows {
+			break
+		}
+		// Re-execute for processing
+		rows, err = r.QueryWithPrepared(ctx, batchQuery)
+		if err != nil {
+			return err
+		}
+		err = fn(rows)
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
 		offset += batchSize
 	}
 
 	return nil
 }
 
-// Close cleans up resources
+// Close cleans up resources.
 func (r *EnhancedBaseRepository) Close() error {
 	var lastErr error
 
@@ -351,7 +378,7 @@ func (r *EnhancedBaseRepository) Close() error {
 	return lastErr
 }
 
-// PostgreSQL18Config holds PostgreSQL 18 specific configuration
+// PostgreSQL18Config holds PostgreSQL 18 specific configuration.
 type PostgreSQL18Config struct {
 	AsyncIOEnabled        bool
 	IOConcurrency         int
@@ -362,7 +389,7 @@ type PostgreSQL18Config struct {
 	VirtualColumnsEnabled bool
 }
 
-// DefaultPostgreSQL18Config returns optimized defaults for PostgreSQL 18
+// DefaultPostgreSQL18Config returns optimized defaults for PostgreSQL 18.
 func DefaultPostgreSQL18Config() *PostgreSQL18Config {
 	return &PostgreSQL18Config{
 		AsyncIOEnabled:        true,
@@ -375,7 +402,7 @@ func DefaultPostgreSQL18Config() *PostgreSQL18Config {
 	}
 }
 
-// PostgreSQL18Stats holds PostgreSQL 18 specific statistics
+// PostgreSQL18Stats holds PostgreSQL 18 specific statistics.
 type PostgreSQL18Stats struct {
 	IOStats            map[string]interface{}
 	VacuumStats        map[string]interface{}
@@ -385,18 +412,18 @@ type PostgreSQL18Stats struct {
 	SkipScanUsage      int64
 }
 
-// StatsCollector collects PostgreSQL 18 specific statistics
+// StatsCollector collects PostgreSQL 18 specific statistics.
 type StatsCollector struct {
 	db  *sql.DB
 	log *zap.Logger
 }
 
-// NewStatsCollector creates a new PostgreSQL 18 stats collector
+// NewStatsCollector creates a new PostgreSQL 18 stats collector.
 func NewStatsCollector(db *sql.DB, log *zap.Logger) *StatsCollector {
 	return &StatsCollector{db: db, log: log}
 }
 
-// CollectIOStats collects PostgreSQL 18 I/O statistics
+// CollectIOStats collects PostgreSQL 18 I/O statistics.
 func (s *StatsCollector) CollectIOStats(ctx context.Context) (map[string]interface{}, error) {
 	query := `
 		SELECT 
@@ -421,15 +448,18 @@ func (s *StatsCollector) CollectIOStats(ctx context.Context) (map[string]interfa
 	totalWriteBytes := int64(0)
 
 	for rows.Next() {
-		var backendType, object, context string
+		var backendType, object, ioContext string
 		var readBytes, writeBytes, extendBytes int64
 
-		if err := rows.Scan(&backendType, &object, &context, &readBytes, &writeBytes, &extendBytes); err != nil {
+		if err := rows.Scan(&backendType, &object, &ioContext, &readBytes, &writeBytes, &extendBytes); err != nil {
 			continue
 		}
 
 		totalReadBytes += readBytes
 		totalWriteBytes += writeBytes
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	stats["total_read_bytes"] = totalReadBytes
@@ -439,7 +469,7 @@ func (s *StatsCollector) CollectIOStats(ctx context.Context) (map[string]interfa
 	return stats, nil
 }
 
-// CollectVacuumStats collects enhanced vacuum statistics from PostgreSQL 18
+// CollectVacuumStats collects enhanced vacuum statistics from PostgreSQL 18.
 func (s *StatsCollector) CollectVacuumStats(ctx context.Context) (map[string]interface{}, error) {
 	query := `
 		SELECT 
@@ -479,6 +509,9 @@ func (s *StatsCollector) CollectVacuumStats(ctx context.Context) (map[string]int
 			"autoanalyze_time": autoAnalyzeTime.Float64,
 		})
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	stats["tables"] = tableStats
 	stats["collected_at"] = time.Now()
@@ -486,13 +519,13 @@ func (s *StatsCollector) CollectVacuumStats(ctx context.Context) (map[string]int
 	return stats, nil
 }
 
-// CampaignScopedRepository provides campaign-scoped operations optimized for PostgreSQL 18
+// CampaignScopedRepository provides campaign-scoped operations optimized for PostgreSQL 18.
 type CampaignScopedRepository struct {
 	*EnhancedBaseRepository
 	campaignID int64
 }
 
-// NewCampaignScopedRepository creates a repository scoped to a specific campaign
+// NewCampaignScopedRepository creates a repository scoped to a specific campaign.
 func NewCampaignScopedRepository(base *EnhancedBaseRepository, campaignID int64) *CampaignScopedRepository {
 	return &CampaignScopedRepository{
 		EnhancedBaseRepository: base,
@@ -500,7 +533,7 @@ func NewCampaignScopedRepository(base *EnhancedBaseRepository, campaignID int64)
 	}
 }
 
-// SearchContent uses PostgreSQL 18 virtual columns for optimized content search
+// SearchContent uses PostgreSQL 18 virtual columns for optimized content search.
 func (r *CampaignScopedRepository) SearchContent(ctx context.Context, query string, limit, offset int) (*sql.Rows, error) {
 	searchQuery := `
 		SELECT 
@@ -521,7 +554,7 @@ func (r *CampaignScopedRepository) SearchContent(ctx context.Context, query stri
 	return r.QueryWithPrepared(ctx, searchQuery, r.campaignID, query, limit, offset)
 }
 
-// GetTopPerformingContent gets content by engagement using virtual columns
+// GetTopPerformingContent gets content by engagement using virtual columns.
 func (r *CampaignScopedRepository) GetTopPerformingContent(ctx context.Context, limit int) (*sql.Rows, error) {
 	query := `
 		SELECT 
@@ -541,8 +574,8 @@ func (r *CampaignScopedRepository) GetTopPerformingContent(ctx context.Context, 
 	return r.QueryWithPrepared(ctx, query, r.campaignID, limit)
 }
 
-// GetActiveUsers gets users by activity score using virtual columns
-func (r *CampaignScopedRepository) GetActiveUsers(ctx context.Context, minActivity int, limit int) (*sql.Rows, error) {
+// GetActiveUsers gets users by activity score using virtual columns.
+func (r *CampaignScopedRepository) GetActiveUsers(ctx context.Context, minActivity, limit int) (*sql.Rows, error) {
 	query := `
 		SELECT 
 			id,
@@ -562,7 +595,7 @@ func (r *CampaignScopedRepository) GetActiveUsers(ctx context.Context, minActivi
 	return r.QueryWithPrepared(ctx, query, r.campaignID, minActivity, limit)
 }
 
-// GetProductsByAvailability gets products using virtual inventory status
+// GetProductsByAvailability gets products using virtual inventory status.
 func (r *CampaignScopedRepository) GetProductsByAvailability(ctx context.Context, status string, limit int) (*sql.Rows, error) {
 	query := `
 		SELECT 
@@ -583,7 +616,7 @@ func (r *CampaignScopedRepository) GetProductsByAvailability(ctx context.Context
 	return r.QueryWithPrepared(ctx, query, r.campaignID, status, limit)
 }
 
-// GetEventAnalytics gets event analytics using virtual categorization
+// GetEventAnalytics gets event analytics using virtual categorization.
 func (r *CampaignScopedRepository) GetEventAnalytics(ctx context.Context, hours int) (*sql.Rows, error) {
 	query := `
 		SELECT 
@@ -602,7 +635,7 @@ func (r *CampaignScopedRepository) GetEventAnalytics(ctx context.Context, hours 
 	return r.QueryWithPrepared(ctx, formattedQuery, r.campaignID)
 }
 
-// BatchInsertEvents efficiently inserts events using COPY protocol
+// BatchInsertEvents efficiently inserts events using COPY protocol.
 func (r *CampaignScopedRepository) BatchInsertEvents(ctx context.Context, events []map[string]interface{}) error {
 	columns := []string{"master_id", "master_uuid", "event_type", "payload", "campaign_id", "occurred_at"}
 	inserter := r.GetBatchInserter("service_event", columns, 1000)
@@ -616,7 +649,7 @@ func (r *CampaignScopedRepository) BatchInsertEvents(ctx context.Context, events
 		values[4] = r.campaignID
 		values[5] = time.Now()
 
-		if err := inserter.AddRow(values...); err != nil {
+		if err := inserter.AddRow(ctx, values...); err != nil {
 			return fmt.Errorf("failed to add event to batch: %w", err)
 		}
 	}
@@ -624,7 +657,7 @@ func (r *CampaignScopedRepository) BatchInsertEvents(ctx context.Context, events
 	return inserter.Execute(ctx)
 }
 
-// GetCampaignPerformance gets comprehensive campaign performance using virtual columns
+// GetCampaignPerformance gets comprehensive campaign performance using virtual columns.
 func (r *CampaignScopedRepository) GetCampaignPerformance(ctx context.Context) (*sql.Row, error) {
 	query := `
 		SELECT 
@@ -651,18 +684,18 @@ func (r *CampaignScopedRepository) GetCampaignPerformance(ctx context.Context) (
 	return r.QueryRowWithPrepared(ctx, query, r.campaignID), nil
 }
 
-// VirtualColumnAnalyzer analyzes the effectiveness of virtual columns
+// VirtualColumnAnalyzer analyzes the effectiveness of virtual columns.
 type VirtualColumnAnalyzer struct {
 	db  *sql.DB
 	log *zap.Logger
 }
 
-// NewVirtualColumnAnalyzer creates a new virtual column analyzer
+// NewVirtualColumnAnalyzer creates a new virtual column analyzer.
 func NewVirtualColumnAnalyzer(db *sql.DB, log *zap.Logger) *VirtualColumnAnalyzer {
 	return &VirtualColumnAnalyzer{db: db, log: log}
 }
 
-// AnalyzeVirtualColumnUsage analyzes how virtual columns are being used in queries
+// AnalyzeVirtualColumnUsage analyzes how virtual columns are being used in queries.
 func (a *VirtualColumnAnalyzer) AnalyzeVirtualColumnUsage(ctx context.Context) (map[string]interface{}, error) {
 	// This would analyze pg_stat_statements for virtual column usage
 	query := `
@@ -704,8 +737,19 @@ func (a *VirtualColumnAnalyzer) AnalyzeVirtualColumnUsage(ctx context.Context) (
 			"mean_time":  meanTime,
 		}
 
-		analysis["queries"] = append(analysis["queries"].([]map[string]interface{}), queryInfo)
+		queriesVal, queriesOk := analysis["queries"]
+		if queriesOk {
+			if queriesSlice, ok := queriesVal.([]map[string]interface{}); ok {
+				analysis["queries"] = append(queriesSlice, queryInfo)
+			} else {
+				a.log.Warn("Type assertion to []map[string]interface{} failed for analysis[\"queries\"]", zap.Any("queriesVal", queriesVal))
+			}
+		} else {
+			a.log.Warn("analysis[\"queries\"] not found when appending queryInfo", zap.Any("analysis", analysis))
+		}
 	}
-
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return analysis, nil
 }

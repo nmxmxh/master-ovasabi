@@ -156,19 +156,19 @@ func ContentModerationOpsHandler(container *di.Container) http.HandlerFunc {
 
 		actionHandlers := map[string]func(){
 			"submit_content_for_moderation": func() {
-				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.SubmitContentForModerationRequest{}, moderationSvc.SubmitContentForModeration)
+				handleContentModerationAction(ctx, w, log, req, &contentmoderationpb.SubmitContentForModerationRequest{}, moderationSvc.SubmitContentForModeration)
 			},
 			"get_moderation_result": func() {
-				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.GetModerationResultRequest{}, moderationSvc.GetModerationResult)
+				handleContentModerationAction(ctx, w, log, req, &contentmoderationpb.GetModerationResultRequest{}, moderationSvc.GetModerationResult)
 			},
 			"list_flagged_content": func() {
-				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.ListFlaggedContentRequest{}, moderationSvc.ListFlaggedContent)
+				handleContentModerationAction(ctx, w, log, req, &contentmoderationpb.ListFlaggedContentRequest{}, moderationSvc.ListFlaggedContent)
 			},
 			"approve_content": func() {
-				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.ApproveContentRequest{}, moderationSvc.ApproveContent)
+				handleContentModerationAction(ctx, w, log, req, &contentmoderationpb.ApproveContentRequest{}, moderationSvc.ApproveContent)
 			},
 			"reject_content": func() {
-				handleContentModerationAction(w, ctx, log, req, &contentmoderationpb.RejectContentRequest{}, moderationSvc.RejectContent)
+				handleContentModerationAction(ctx, w, log, req, &contentmoderationpb.RejectContentRequest{}, moderationSvc.RejectContent)
 			},
 		}
 
@@ -183,8 +183,8 @@ func ContentModerationOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleContentModerationAction is a generic helper to reduce boilerplate in ContentModerationOpsHandler.
 func handleContentModerationAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

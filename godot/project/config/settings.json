@@ -1,0 +1,6 @@
+{
+  "service_name": "godot-headless",
+  "ws_port": 6010,
+  "rtc_port": 6011,
+  "log_level": "info"
+}

@@ -71,7 +71,7 @@ func SchedulerOpsHandler(container *di.Container) http.HandlerFunc {
 					return
 				}
 				enrichSchedulerMetadata(req)
-				handleSchedulerAction(w, ctx, log, req, &schedulerpb.CreateJobRequest{}, schedulerSvc.CreateJob)
+				handleSchedulerAction(ctx, w, log, req, &schedulerpb.CreateJobRequest{}, schedulerSvc.CreateJob)
 			},
 			"update_job": func() {
 				if !isSystem {
@@ -79,26 +79,26 @@ func SchedulerOpsHandler(container *di.Container) http.HandlerFunc {
 					return
 				}
 				enrichSchedulerMetadata(req)
-				handleSchedulerAction(w, ctx, log, req, &schedulerpb.UpdateJobRequest{}, schedulerSvc.UpdateJob)
+				handleSchedulerAction(ctx, w, log, req, &schedulerpb.UpdateJobRequest{}, schedulerSvc.UpdateJob)
 			},
 			"delete_job": func() {
 				if !isSystem {
 					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: system/admin role required", nil)
 					return
 				}
-				handleSchedulerAction(w, ctx, log, req, &schedulerpb.DeleteJobRequest{}, schedulerSvc.DeleteJob)
+				handleSchedulerAction(ctx, w, log, req, &schedulerpb.DeleteJobRequest{}, schedulerSvc.DeleteJob)
 			},
 			"get_job": func() {
-				handleSchedulerAction(w, ctx, log, req, &schedulerpb.GetJobRequest{}, schedulerSvc.GetJob)
+				handleSchedulerAction(ctx, w, log, req, &schedulerpb.GetJobRequest{}, schedulerSvc.GetJob)
 			},
 			"list_jobs": func() {
-				handleSchedulerAction(w, ctx, log, req, &schedulerpb.ListJobsRequest{}, schedulerSvc.ListJobs)
+				handleSchedulerAction(ctx, w, log, req, &schedulerpb.ListJobsRequest{}, schedulerSvc.ListJobs)
 			},
 			"run_job": func() {
-				handleSchedulerAction(w, ctx, log, req, &schedulerpb.RunJobRequest{}, schedulerSvc.RunJob)
+				handleSchedulerAction(ctx, w, log, req, &schedulerpb.RunJobRequest{}, schedulerSvc.RunJob)
 			},
 			"list_job_runs": func() {
-				handleSchedulerAction(w, ctx, log, req, &schedulerpb.ListJobRunsRequest{}, schedulerSvc.ListJobRuns)
+				handleSchedulerAction(ctx, w, log, req, &schedulerpb.ListJobRunsRequest{}, schedulerSvc.ListJobRuns)
 			},
 		}
 
@@ -146,8 +146,8 @@ func enrichSchedulerMetadata(req map[string]interface{}) {
 
 // handleSchedulerAction is a generic helper to reduce boilerplate in SchedulerOpsHandler.
 func handleSchedulerAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

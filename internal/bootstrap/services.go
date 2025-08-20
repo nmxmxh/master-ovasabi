@@ -22,7 +22,6 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service/content"
 	"github.com/nmxmxh/master-ovasabi/internal/service/contentmoderation"
 	"github.com/nmxmxh/master-ovasabi/internal/service/crawler"
-	healthservice "github.com/nmxmxh/master-ovasabi/internal/service/health"
 	"github.com/nmxmxh/master-ovasabi/internal/service/localization"
 	"github.com/nmxmxh/master-ovasabi/internal/service/media"
 	"github.com/nmxmxh/master-ovasabi/internal/service/messaging"
@@ -81,34 +80,35 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 	// Initialize minimal lifecycle management if not already set
 	if b.Lifecycle == nil {
 		b.Lifecycle = lifecycle.NewSimpleLifecycleManager(b.Container, b.Logger)
-		b.Lifecycle.AddToContainer() // Register in DI container for services to access
+		if err := b.Lifecycle.AddToContainer(); err != nil {
+			return fmt.Errorf("failed to add lifecycle to container: %w", err)
+		}
 	}
 
 	// Map service names to their registration functions.
 	// The adapter handles the necessary type assertions, keeping this map clean.
 	registerFuncs := map[string]registration.ServiceRegisterFunc{
-		"user":               createRegisterAdapter(user.Register),
-		"notification":       createRegisterAdapter(notification.Register),
-		"referral":           createRegisterAdapter(referral.Register),
-		"commerce":           createRegisterAdapter(commerce.Register),
-		"media":              createRegisterAdapter(media.Register),
-		"product":            createRegisterAdapter(product.Register),
-		"talent":             createRegisterAdapter(talent.Register),
-		"scheduler":          createRegisterAdapter(scheduler.Register),
-		"analytics":          createRegisterAdapter(analytics.Register),
-		"admin":              createRegisterAdapter(admin.Register),
-		"content":            createRegisterAdapter(content.Register),
-		"contentmoderation":  createRegisterAdapter(contentmoderation.Register),
-		"security":           createRegisterAdapter(security.Register),
-		"messaging":          createRegisterAdapter(messaging.Register),
-		"nexus":              createRegisterAdapter(nexus.Register),
-		"campaign":           createRegisterAdapter(campaign.Register),
-		"localization":       createRegisterAdapter(localization.Register),
-		"search":             createRegisterAdapter(search.Register),
-		"crawler":            createRegisterAdapter(crawler.Register),
-		"waitlist":           createRegisterAdapter(waitlist.Register),
-		"ai":                 createRegisterAdapter(ai.Register),
-		"centralized-health": createRegisterAdapter(healthservice.Register),
+		"user":              createRegisterAdapter(user.Register),
+		"notification":      createRegisterAdapter(notification.Register),
+		"referral":          createRegisterAdapter(referral.Register),
+		"commerce":          createRegisterAdapter(commerce.Register),
+		"media":             createRegisterAdapter(media.Register),
+		"product":           createRegisterAdapter(product.Register),
+		"talent":            createRegisterAdapter(talent.Register),
+		"scheduler":         createRegisterAdapter(scheduler.Register),
+		"analytics":         createRegisterAdapter(analytics.Register),
+		"admin":             createRegisterAdapter(admin.Register),
+		"content":           createRegisterAdapter(content.Register),
+		"contentmoderation": createRegisterAdapter(contentmoderation.Register),
+		"security":          createRegisterAdapter(security.Register),
+		"messaging":         createRegisterAdapter(messaging.Register),
+		"nexus":             createRegisterAdapter(nexus.Register),
+		"campaign":          createRegisterAdapter(campaign.Register),
+		"localization":      createRegisterAdapter(localization.Register),
+		"search":            createRegisterAdapter(search.Register),
+		"crawler":           createRegisterAdapter(crawler.Register),
+		"waitlist":          createRegisterAdapter(waitlist.Register),
+		"ai":                createRegisterAdapter(ai.Register),
 	}
 	// Use the JSON-driven registration from the shared registration package.
 	err := registration.RegisterAllFromJSON(

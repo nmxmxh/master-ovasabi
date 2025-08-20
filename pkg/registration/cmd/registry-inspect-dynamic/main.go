@@ -33,11 +33,13 @@ func main() {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create logger: %v\n", err)
-		os.Exit(1)
+		// No defer before this os.Exit, so no change needed here
 	}
 
 	// Always load from disk for local inspection
-	_ = registry.LoadRegistriesFromDisk("config/registry")
+	if err := registry.LoadRegistriesFromDisk("config/registry"); err != nil {
+		logger.Warn("Failed to load registries from disk", zap.Error(err))
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -51,8 +53,14 @@ func main() {
 	}()
 
 	// Create dynamic inspector
-	absProtoPath, _ := filepath.Abs(*protoPath)
-	absSrcPath, _ := filepath.Abs(*srcPath)
+	absProtoPath, err := filepath.Abs(*protoPath)
+	if err != nil {
+		logger.Fatal("Failed to get absolute proto path", zap.Error(err))
+	}
+	absSrcPath, err := filepath.Abs(*srcPath)
+	if err != nil {
+		logger.Fatal("Failed to get absolute src path", zap.Error(err))
+	}
 
 	inspector := registration.NewDynamicInspector(
 		logger,
@@ -98,16 +106,21 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create config watcher", zap.Error(err))
 			}
-			defer watcher.Stop()
 
 			// Generate initial config
 			if err := generator.GenerateAndSaveConfig(ctx, *output); err != nil {
+				if stopErr := watcher.Stop(); stopErr != nil {
+					logger.Warn("Failed to stop watcher", zap.Error(stopErr))
+				}
 				logger.Fatal("Failed to generate initial service registration", zap.Error(err))
 			}
 			fmt.Printf("Generated initial service registration configuration: %s\n", *output)
 
 			// Start watching
 			if err := watcher.Start(ctx); err != nil {
+				if stopErr := watcher.Stop(); stopErr != nil {
+					logger.Warn("Failed to stop watcher", zap.Error(stopErr))
+				}
 				logger.Fatal("Failed to start config watcher", zap.Error(err))
 			}
 
@@ -116,6 +129,9 @@ func main() {
 			// Wait for interrupt signal
 			<-ctx.Done()
 			fmt.Println("\nShutting down...")
+			if err := watcher.Stop(); err != nil {
+				logger.Warn("Failed to stop watcher", zap.Error(err))
+			}
 		} else {
 			// One-time generation
 			if err := generator.GenerateAndSaveConfig(ctx, *output); err != nil {
@@ -147,7 +163,11 @@ func main() {
 		if err != nil {
 			logger.Fatal("Failed to create config watcher", zap.Error(err))
 		}
-		defer watcher.Stop()
+		defer func() {
+			if err := watcher.Stop(); err != nil {
+				logger.Warn("Failed to stop watcher", zap.Error(err))
+			}
+		}()
 
 		// Generate initial config
 		if err := generator.GenerateAndSaveConfig(ctx, *output); err != nil {
@@ -169,7 +189,7 @@ func main() {
 	case "inspect":
 		if *service == "" {
 			fmt.Fprintf(os.Stderr, "Service name is required for inspection\n")
-			os.Exit(1)
+			return
 		}
 
 		result, err := inspector.InspectService(*service)
@@ -182,7 +202,7 @@ func main() {
 	case "validate":
 		if *service == "" {
 			fmt.Fprintf(os.Stderr, "Service name is required for validation\n")
-			os.Exit(1)
+			return
 		}
 
 		// Load service configuration and validate
@@ -227,7 +247,7 @@ func main() {
 
 		if config1 == nil || config2 == nil {
 			fmt.Fprintf(os.Stderr, "One or both services not found\n")
-			os.Exit(1)
+			return
 		}
 
 		result := inspector.CompareConfigurations(*config1, *config2)
@@ -251,7 +271,7 @@ func main() {
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown mode: %s\n", *mode)
-		os.Exit(1)
+		return
 	}
 }
 
@@ -325,16 +345,21 @@ func printHelp() {
 }
 
 func checkHealth(enableMonitor bool, intervalSeconds int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	configs, err := loadServiceConfigs()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load service configurations: %v\n", err)
-		os.Exit(1)
+		cancel()
+		return
 	}
+	// Remove defer, call cancel explicitly before os.Exit
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create logger: %v\n", err)
+		cancel()
+		return
+	}
 	checker := registration.NewHealthChecker(logger)
 
 	if enableMonitor {
@@ -353,6 +378,7 @@ func checkHealth(enableMonitor bool, intervalSeconds int) {
 		result := checker.CheckAllServices(ctx, configs)
 		printHealthResult(result)
 	}
+	cancel()
 }
 
 func printHealthResult(result *registration.HealthCheckResult) {
@@ -427,7 +453,11 @@ func printInspectionResult(result *registration.ServiceInspectionResult, format 
 		}
 
 	default: // json
-		data, _ := json.MarshalIndent(result, "", "  ")
+		data, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to marshal inspection result: %v\n", err)
+			return
+		}
 		fmt.Println(string(data))
 	}
 }

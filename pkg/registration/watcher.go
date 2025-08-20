@@ -15,7 +15,7 @@ import (
 )
 
 // ConfigWatcher watches for changes in proto files and automatically
-// regenerates service registration configs
+// regenerates service registration configs.
 type ConfigWatcher struct {
 	logger    *zap.Logger
 	generator *DynamicServiceRegistrationGenerator
@@ -27,10 +27,10 @@ type ConfigWatcher struct {
 	debounceMs int
 }
 
-// NewConfigWatcher creates a new configuration watcher
+// NewConfigWatcher creates a new configuration watcher.
 func NewConfigWatcher(logger *zap.Logger, generator *DynamicServiceRegistrationGenerator,
-	protoPath, outputPath string) (*ConfigWatcher, error) {
-
+	protoPath, outputPath string,
+) (*ConfigWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
@@ -47,7 +47,7 @@ func NewConfigWatcher(logger *zap.Logger, generator *DynamicServiceRegistrationG
 	}, nil
 }
 
-// Start begins watching for file changes
+// Start begins watching for file changes.
 func (cw *ConfigWatcher) Start(ctx context.Context) error {
 	// Walk through proto directory and add all directories to watch
 	err := filepath.Walk(cw.protoPath, func(path string, info os.FileInfo, err error) error {
@@ -62,7 +62,6 @@ func (cw *ConfigWatcher) Start(ctx context.Context) error {
 
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to add directories to watch: %w", err)
 	}
@@ -112,7 +111,7 @@ func (cw *ConfigWatcher) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the watcher
+// Stop stops the watcher.
 func (cw *ConfigWatcher) Stop() error {
 	if cw.watcher != nil {
 		return cw.watcher.Close()
@@ -120,7 +119,7 @@ func (cw *ConfigWatcher) Stop() error {
 	return nil
 }
 
-// shouldProcessEvent determines if a file system event should trigger regeneration
+// shouldProcessEvent determines if a file system event should trigger regeneration.
 func (cw *ConfigWatcher) shouldProcessEvent(event fsnotify.Event) bool {
 	// Only process create, write, and remove events
 	if event.Op&fsnotify.Create == 0 &&
@@ -137,7 +136,7 @@ func (cw *ConfigWatcher) shouldProcessEvent(event fsnotify.Event) bool {
 	return true
 }
 
-// regenerateConfig regenerates the service registration config
+// regenerateConfig regenerates the service registration config.
 func (cw *ConfigWatcher) regenerateConfig(ctx context.Context) {
 	cw.logger.Info("Regenerating service registration config...")
 
@@ -159,7 +158,7 @@ func (cw *ConfigWatcher) regenerateConfig(ctx context.Context) {
 		zap.String("outputPath", cw.outputPath))
 }
 
-// WatcherConfig holds configuration for the config watcher
+// WatcherConfig holds configuration for the config watcher.
 type WatcherConfig struct {
 	ProtoPath  string
 	OutputPath string
@@ -168,10 +167,10 @@ type WatcherConfig struct {
 	NotifyCmd  string // Command to run after regeneration
 }
 
-// NewConfigWatcherWithConfig creates a watcher with custom configuration
+// NewConfigWatcherWithConfig creates a watcher with custom configuration.
 func NewConfigWatcherWithConfig(logger *zap.Logger, generator *DynamicServiceRegistrationGenerator,
-	config WatcherConfig) (*ConfigWatcher, error) {
-
+	config WatcherConfig,
+) (*ConfigWatcher, error) {
 	watcher, err := NewConfigWatcher(logger, generator, config.ProtoPath, config.OutputPath)
 	if err != nil {
 		return nil, err
@@ -184,7 +183,7 @@ func NewConfigWatcherWithConfig(logger *zap.Logger, generator *DynamicServiceReg
 	return watcher, nil
 }
 
-// updateKnowledgeGraph updates the knowledge graph with current service information
+// updateKnowledgeGraph updates the knowledge graph with current service information.
 func (cw *ConfigWatcher) updateKnowledgeGraph(ctx context.Context) error {
 	cw.logger.Debug("Updating knowledge graph with service registration data...")
 

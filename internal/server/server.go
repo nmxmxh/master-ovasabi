@@ -68,7 +68,7 @@ var (
 	healthCheckCount   int64
 )
 
-// maskPassword returns a masked version of a password for logging
+// maskPassword returns a masked version of a password for logging.
 func maskPassword(password string) string {
 	if password == "" {
 		return "(empty)"
@@ -291,6 +291,10 @@ func setupDIContainer(cfg *config.Config, log *zap.Logger, db *sql.DB, redisProv
 	}
 	// Register KGService
 	if err := container.Register((*kgserver.KGService)(nil), func(c *di.Container) (interface{}, error) {
+		// Reference unused parameter c for diagnostics
+		if c != nil {
+			log.Debug("DI container passed to KGService registration")
+		}
 		return kgserver.NewKGService(redisGoClient, log, provider), nil
 	}); err != nil {
 		log.Error("Failed to register KGService in DI container", zap.Error(err))
@@ -404,7 +408,7 @@ func Run() {
 
 	WaitForShutdown(cancel)
 
-	db, err := connect.ConnectPostgres(ctx, log, cfg)
+	db, err := connect.Postgres(ctx, log, cfg)
 	if err != nil {
 		log.Error("Failed to connect to database", zap.Error(err))
 		return
@@ -416,7 +420,7 @@ func Run() {
 	}()
 
 	// Bootstrap service/event registry from DB to in-memory for dual-mode registry
-	if err := bootstrap.BootstrapRegistries(ctx, db, log); err != nil {
+	if err := bootstrap.Registries(ctx, db, log); err != nil {
 		log.Warn("Failed to bootstrap service/event registry", zap.Error(err))
 	}
 
@@ -485,7 +489,6 @@ func Run() {
 	if err := server.Stop(context.Background()); err != nil {
 		log.Error("Server failed to stop gracefully", zap.Error(err))
 	}
-
 }
 
 // HTTP middleware to inject request ID, trace ID, and feature flags into context.

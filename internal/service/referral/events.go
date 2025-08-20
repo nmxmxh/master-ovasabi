@@ -11,10 +11,10 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// CanonicalEventTypeRegistry provides lookup and validation for canonical event types (action-only pattern)
+// CanonicalEventTypeRegistry provides lookup and validation for canonical event types (action-only pattern).
 var CanonicalEventTypeRegistry map[string]string
 
-// InitCanonicalEventTypeRegistry initializes the canonical event type registry from actions.txt or service_registration.json
+// InitCanonicalEventTypeRegistry initializes the canonical event type registry from actions.txt or service_registration.json.
 func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadReferralEvents()
@@ -27,7 +27,7 @@ func InitCanonicalEventTypeRegistry() {
 	}
 }
 
-// GetCanonicalEventType returns the canonical event type for a given action and state
+// GetCanonicalEventType returns the canonical event type for a given action and state.
 func GetCanonicalEventType(action, state string) string {
 	if CanonicalEventTypeRegistry == nil {
 		InitCanonicalEventTypeRegistry()
@@ -39,36 +39,47 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadReferralEvents() []string {
 	return events.LoadCanonicalEvents("referral")
 }
 
-// EventHandlerFunc defines the signature for event handlers in the referral service
+// EventHandlerFunc defines the signature for event handlers in the referral service.
 type EventHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
-// EventSubscription maps event types to their handlers
+// EventSubscription maps event types to their handlers.
 type EventSubscription struct {
 	EventTypes []string
 	Handler    EventHandlerFunc
 }
 
-// ActionHandlerFunc defines the signature for business logic handlers for each action
+// ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
-// actionHandlers maps action names (e.g., "reward_referral", "get_referral") to their business logic handlers
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
+// actionHandlers maps action names (e.g., "reward_referral", "get_referral") to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{
 	"reward_referral": handleRewardReferralAction,
 	"get_referral":    handleGetReferralAction,
 	// Add more actions here as needed
 }
 
-// RegisterActionHandler allows registration of business logic handlers for actions
+// RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
-// parseActionAndState extracts the action and state from a canonical event type
+// parseActionAndState extracts the action and state from a canonical event type.
 func parseActionAndState(eventType string) (action, state string) {
 	parts := strings.Split(eventType, ":")
 	if len(parts) >= 4 {
@@ -77,7 +88,7 @@ func parseActionAndState(eventType string) (action, state string) {
 	return "", ""
 }
 
-// HandleReferralServiceEvent is the generic event handler for all referral service actions
+// HandleReferralServiceEvent is the generic event handler for all referral service actions.
 func HandleReferralServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	eventType := event.GetEventType()
 	action, _ := parseActionAndState(eventType)
@@ -99,7 +110,7 @@ func HandleReferralServiceEvent(ctx context.Context, s *Service, event *nexusv1.
 	handler(ctx, s, event)
 }
 
-// Handler implementations for each canonical action
+// Handler implementations for each canonical action.
 func handleRewardReferralAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	if s == nil || event == nil || event.Payload == nil || event.Payload.Data == nil {
 		if s != nil && s.log != nil {
@@ -160,7 +171,7 @@ func handleGetReferralAction(ctx context.Context, s *Service, event *nexusv1.Eve
 	}
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	evts := loadReferralEvents()
 	m := make(map[string]EventHandlerFunc)
@@ -170,7 +181,7 @@ var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	return m
 }()
 
-// ReferralEventRegistry defines all event subscriptions for the referral service, using canonical event types
+// ReferralEventRegistry defines all event subscriptions for the referral service, using canonical event types.
 var ReferralEventRegistry = func() []EventSubscription {
 	evts := loadReferralEvents()
 	var subs []EventSubscription

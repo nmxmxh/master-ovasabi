@@ -23,7 +23,6 @@ func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadAdminEvents()
 	for _, evt := range evts {
-		// Example: evt = "admin:user:create:v1:completed"; key = "user:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -44,7 +43,7 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadAdminEvents() []string {
 	return events.LoadCanonicalEvents("admin")
 }
@@ -52,12 +51,23 @@ func loadAdminEvents() []string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names (e.g., "user", "role") to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
@@ -88,7 +98,7 @@ func HandleAdminServiceEvent(ctx context.Context, s *Service, event *nexusv1.Eve
 	handler(ctx, s, event)
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	evts := loadAdminEvents()
 	m := make(map[string]EventHandlerFunc)

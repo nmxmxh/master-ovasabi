@@ -15,12 +15,23 @@ import (
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
@@ -47,7 +58,7 @@ func HandleCampaignServiceEvent(ctx context.Context, s *Service, event *nexusv1.
 	handler(ctx, s, event)
 }
 
-// Example handler implementations
+// Example handler implementations.
 func handleCampaignAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	action, state := parseActionAndState(event.GetEventType())
 	switch action {
@@ -64,7 +75,9 @@ func handleCampaignAction(ctx context.Context, s *Service, event *nexusv1.EventR
 					return
 				}
 			}
-			s.CreateCampaign(ctx, &req)
+			if _, err := s.CreateCampaign(ctx, &req); err != nil {
+				s.log.Error("CreateCampaign failed", zap.Error(err))
+			}
 		}
 	case "update":
 		if state == "v1" || state == "requested" || state == "completed" {
@@ -79,7 +92,9 @@ func handleCampaignAction(ctx context.Context, s *Service, event *nexusv1.EventR
 					return
 				}
 			}
-			s.UpdateCampaign(ctx, &req)
+			if _, err := s.UpdateCampaign(ctx, &req); err != nil {
+				s.log.Error("UpdateCampaign failed", zap.Error(err))
+			}
 		}
 	case "delete":
 		if state == "v1" || state == "requested" || state == "completed" {
@@ -94,7 +109,9 @@ func handleCampaignAction(ctx context.Context, s *Service, event *nexusv1.EventR
 					return
 				}
 			}
-			s.DeleteCampaign(ctx, &req)
+			if _, err := s.DeleteCampaign(ctx, &req); err != nil {
+				s.log.Error("DeleteCampaign failed", zap.Error(err))
+			}
 		}
 	case "report":
 		// No report handler: GetReportRequest/ReportId not defined in proto. Remove stub.
@@ -109,7 +126,7 @@ func init() {
 	RegisterActionHandler("report", handleCampaignAction)
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadCampaignEvents() []string {
 	return events.LoadCanonicalEvents("campaign")
 }
@@ -120,7 +137,7 @@ type EventSubscription struct {
 	Handler    ActionHandlerFunc
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	evts := loadCampaignEvents()
 	m := make(map[string]ActionHandlerFunc)

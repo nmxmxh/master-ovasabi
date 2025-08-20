@@ -77,24 +77,24 @@ func AnalyticsOpsHandler(container *di.Container) http.HandlerFunc {
 		// Use a map for cleaner action dispatching
 		actionHandlers := map[string]func(){
 			"capture_event": func() {
-				handleAction(w, ctx, log, reqMap, &analyticspb.CaptureEventRequest{}, analyticsSvc.CaptureEvent)
+				handleAction(ctx, w, log, reqMap, &analyticspb.CaptureEventRequest{}, analyticsSvc.CaptureEvent)
 			},
-			"list_events": func() { handleAction(w, ctx, log, reqMap, &analyticspb.ListEventsRequest{}, analyticsSvc.ListEvents) },
+			"list_events": func() { handleAction(ctx, w, log, reqMap, &analyticspb.ListEventsRequest{}, analyticsSvc.ListEvents) },
 			"enrich_event_metadata": func() {
-				handleAction(w, ctx, log, reqMap, &analyticspb.EnrichEventMetadataRequest{}, analyticsSvc.EnrichEventMetadata)
+				handleAction(ctx, w, log, reqMap, &analyticspb.EnrichEventMetadataRequest{}, analyticsSvc.EnrichEventMetadata)
 			},
-			"track_event": func() { handleAction(w, ctx, log, reqMap, &analyticspb.TrackEventRequest{}, analyticsSvc.TrackEvent) },
+			"track_event": func() { handleAction(ctx, w, log, reqMap, &analyticspb.TrackEventRequest{}, analyticsSvc.TrackEvent) },
 			"batch_track_events": func() {
-				handleAction(w, ctx, log, reqMap, &analyticspb.BatchTrackEventsRequest{}, analyticsSvc.BatchTrackEvents)
+				handleAction(ctx, w, log, reqMap, &analyticspb.BatchTrackEventsRequest{}, analyticsSvc.BatchTrackEvents)
 			},
 			"get_user_events": func() {
-				handleAction(w, ctx, log, reqMap, &analyticspb.GetUserEventsRequest{}, analyticsSvc.GetUserEvents)
+				handleAction(ctx, w, log, reqMap, &analyticspb.GetUserEventsRequest{}, analyticsSvc.GetUserEvents)
 			},
 			"get_product_events": func() {
-				handleAction(w, ctx, log, reqMap, &analyticspb.GetProductEventsRequest{}, analyticsSvc.GetProductEvents)
+				handleAction(ctx, w, log, reqMap, &analyticspb.GetProductEventsRequest{}, analyticsSvc.GetProductEvents)
 			},
-			"get_report":   func() { handleAction(w, ctx, log, reqMap, &analyticspb.GetReportRequest{}, analyticsSvc.GetReport) },
-			"list_reports": func() { handleAction(w, ctx, log, reqMap, &analyticspb.ListReportsRequest{}, analyticsSvc.ListReports) },
+			"get_report":   func() { handleAction(ctx, w, log, reqMap, &analyticspb.GetReportRequest{}, analyticsSvc.GetReport) },
+			"list_reports": func() { handleAction(ctx, w, log, reqMap, &analyticspb.ListReportsRequest{}, analyticsSvc.ListReports) },
 		}
 
 		if handler, found := actionHandlers[action]; found {
@@ -109,8 +109,8 @@ func AnalyticsOpsHandler(container *di.Container) http.HandlerFunc {
 // handleAction is a generic helper to reduce boilerplate in AnalyticsOpsHandler.
 // It decodes the request from a map, calls the provided service function, and handles the response/error.
 func handleAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

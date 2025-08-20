@@ -204,8 +204,8 @@ func (r *CachedMasterRepository) updateSearchStats(ctx context.Context, pattern 
 }
 
 // Create creates a master record with cache invalidation.
-func (r *CachedMasterRepository) Create(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (int64, string, error) {
-	id, uuidStr, err := r.repo.Create(ctx, tx, entityType, name)
+func (r *CachedMasterRepository) Create(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (id int64, uuidStr string, err error) {
+	id, uuidStr, err = r.repo.Create(ctx, tx, entityType, name)
 	if err != nil {
 		return 0, "", err
 	}
@@ -215,7 +215,7 @@ func (r *CachedMasterRepository) Create(ctx context.Context, tx *sql.Tx, entityT
 		{EntityType: entityType, Pattern: "*", Exact: false},
 	})
 
-	return id, uuidStr, nil
+	return id, uuidStr, err
 }
 
 func (r *CachedMasterRepository) Get(ctx context.Context, id int64) (*Master, error) {
@@ -274,8 +274,8 @@ func (r *CachedMasterRepository) GetByUUID(ctx context.Context, id uuid.UUID) (*
 const ContextMaster = "master"
 
 // Add CreateMasterRecord to implement MasterRepository interface.
-func (r *CachedMasterRepository) CreateMasterRecord(ctx context.Context, entityType, name string) (int64, string, error) {
-	id, uuidStr, err := r.repo.CreateMasterRecord(ctx, entityType, name)
+func (r *CachedMasterRepository) CreateMasterRecord(ctx context.Context, entityType, name string) (id int64, uuidStr string, err error) {
+	id, uuidStr, err = r.repo.CreateMasterRecord(ctx, entityType, name)
 	if err != nil {
 		return 0, "", err
 	}

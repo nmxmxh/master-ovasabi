@@ -225,6 +225,7 @@ func (s *Service) DeleteContent(ctx context.Context, req *contentpb.DeleteConten
 	s.handler.Success(ctx, "delete_content", codes.OK, "content deleted", resp, content.Metadata, req.Id, nil)
 	return resp, nil
 }
+
 func (s *Service) ListContent(ctx context.Context, req *contentpb.ListContentRequest) (*contentpb.ListContentResponse, error) {
 	results, total, err := s.repo.ListContent(ctx, req.AuthorId, req.Type, req.CampaignId, int(req.Page), int(req.PageSize))
 	if err != nil {

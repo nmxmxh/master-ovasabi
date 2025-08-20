@@ -840,7 +840,9 @@ func (r *Repository) CreateChatGroupWithRequest(ctx context.Context, req *messag
 	}
 	defer func() {
 		if p := recover(); p != nil {
-			_ = tx.Rollback() // Rollback on panic
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.log.Error("failed to rollback transaction on panic", zap.Error(rbErr))
+			}
 			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 				r.log.Error("failed to rollback transaction on panic", zap.Error(rbErr))
 			}
@@ -884,7 +886,9 @@ func (r *Repository) CreateChatGroupWithRequest(ctx context.Context, req *messag
 		// Now, it's checked and handled.
 		campaignID, err = strconv.ParseInt(req.CampaignId, 10, 64)
 		if err != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				r.log.Error("failed to rollback transaction", zap.Error(rbErr))
+			}
 			return nil, err
 		}
 	}

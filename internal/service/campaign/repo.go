@@ -3,12 +3,11 @@ package campaign
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
-
-	"encoding/json"
 
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
 
@@ -45,7 +44,11 @@ func (r *Repository) SaveBroadcastEvent(ctx context.Context, event *campaignpb.B
 
 	var metadataJSON []byte
 	if event.Metadata != nil {
-		metadataJSON, _ = json.Marshal(event.Metadata)
+		var errMetaMarshal error
+		metadataJSON, errMetaMarshal = json.Marshal(event.Metadata)
+		if errMetaMarshal != nil {
+			return fmt.Errorf("failed to marshal event metadata: %w", errMetaMarshal)
+		}
 	}
 
 	var jsonPayload, binaryPayload interface{}
@@ -65,7 +68,11 @@ func (r *Repository) SaveBroadcastEvent(ctx context.Context, event *campaignpb.B
 				links = append(links, m.Url)
 			}
 		}
-		mediaLinksJSON, _ = json.Marshal(links)
+		var errMarshal error
+		mediaLinksJSON, errMarshal = json.Marshal(links)
+		if errMarshal != nil {
+			return fmt.Errorf("failed to marshal media links: %w", errMarshal)
+		}
 	}
 
 	_, err := r.GetDB().ExecContext(ctx, query,

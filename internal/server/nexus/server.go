@@ -215,7 +215,7 @@ type Server struct {
 }
 
 // NewNexusServer creates a new Nexus gRPC server with Redis event streaming.
-// NewNexusServer now accepts a Nexus repository for DB persistence
+// NewNexusServer now accepts a Nexus repository for DB persistence.
 func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repository) *Server {
 	// Load service registration config
 	registry, err := LoadServiceRegistry("config/service_registration.json")
@@ -415,7 +415,12 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 		if !ok {
 			continue
 		}
-		event, _ := recv.Interface().(*nexusv1.EventResponse)
+		eventIface := recv.Interface()
+		event, ok := eventIface.(*nexusv1.EventResponse)
+		if !ok {
+			s.log.Warn("Type assertion to *nexusv1.EventResponse failed", zap.Any("value", eventIface))
+			continue
+		}
 		if event == nil {
 			continue
 		}
@@ -441,13 +446,15 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 	}
 }
 
-// parseServiceAction extracts service and action from event type string "service:action:vX:state"
-func parseServiceAction(eventType string) (string, string) {
+// parseServiceAction extracts service and action from event type string "service:action:vX:state".
+func parseServiceAction(eventType string) (service, action string) {
 	parts := strings.Split(eventType, ":")
 	if len(parts) >= 2 {
-		return parts[0], parts[1]
+		service = parts[0]
+		action = parts[1]
+		return service, action
 	}
-	return "", ""
+	return service, action
 }
 
 func extractUserID(event *nexusv1.EventResponse) string {
@@ -500,7 +507,7 @@ func hasEventType(set map[string]struct{}, eventType string) bool {
 func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nexusv1.EventResponse, error) {
 	// --- Canonical Event Type Validation ---
 	eventType := req.EventType
-	s.log.Info("[EmitEvent] Received request", zap.String("event_type", eventType), zap.Any("payload", req.Payload), zap.Any("metadata", req.Metadata))
+	s.log.Info("[EmitEvent] Received request", zap.String("event_type", eventType))
 	if !isCanonicalEventType(eventType) && eventType != "echo" && !isHealthEventType(eventType) {
 		s.log.Warn("[EmitEvent] Non-canonical event type rejected", zap.String("event_type", eventType))
 		return &nexusv1.EventResponse{Success: false, Message: "Non-canonical event type", Metadata: req.Metadata}, nil
@@ -510,15 +517,13 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	eventID := req.EventId
 	if eventID == "" {
 		eventID = uuid.New().String()
-		s.log.Info("[EmitEvent] Generated new EventID", zap.String("event_id", eventID))
+		s.log.Debug("[EmitEvent] Generated new EventID", zap.String("event_id", eventID))
 	}
 
-	// Append state/action to eventID for uniqueness per action, but ensure only one state suffix
-	// Only if eventType is canonical (format: service:action:version:state)
+	// Ensure eventID is unique per action/state
 	parts := strings.Split(req.EventType, ":")
 	if len(parts) == 4 {
 		state := parts[3]
-		// Remove any existing state suffix (e.g., :requested, :started, :success, :failed, :completed)
 		for _, sfx := range []string{":requested", ":started", ":success", ":failed", ":completed"} {
 			if strings.HasSuffix(eventID, sfx) {
 				eventID = strings.TrimSuffix(eventID, sfx)
@@ -528,15 +533,36 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		eventID = eventID + ":" + state
 	}
 
-	// Extract context for envelope
+	// --- Parse metadata once ---
 	var traceID, userID, campaignID string
 	if span := trace.SpanFromContext(ctx); span != nil && span.SpanContext().IsValid() {
 		traceID = span.SpanContext().TraceID().String()
 		s.log.Debug("[EmitEvent] Extracted traceID", zap.String("trace_id", traceID))
 	}
+
+	// Extract userID: context first, then metadata (global struct)
 	if authCtx := contextx.Auth(ctx); authCtx != nil && authCtx.UserID != "" {
 		userID = authCtx.UserID
 		s.log.Debug("[EmitEvent] Extracted userID from context", zap.String("user_id", userID))
+	} else if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+		if global, ok := req.Metadata.ServiceSpecific.Fields["global"]; ok {
+			if globalStruct := global.GetStructValue(); globalStruct != nil {
+				if uid, ok := globalStruct.Fields["user_id"]; ok {
+					userID = uid.GetStringValue()
+				}
+			}
+		}
+	}
+
+	// Extract campaignID: only from metadata (global struct)
+	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
+		if global, ok := req.Metadata.ServiceSpecific.Fields["global"]; ok {
+			if globalStruct := global.GetStructValue(); globalStruct != nil {
+				if cid, ok := globalStruct.Fields["campaign_id"]; ok {
+					campaignID = cid.GetStringValue()
+				}
+			}
+		}
 	}
 
 	// Build canonical event envelope
@@ -549,11 +575,12 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		Payload:   req.Payload,
 	}
 
-	s.log.Info("[EmitEvent] Built event envelope", zap.String("event_type", eventType), zap.String("event_id", eventID), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("trace_id", traceID), zap.Any("envelope", envelope))
+	s.log.Debug("[EmitEvent] Built event envelope", zap.String("event_type", eventType), zap.String("event_id", eventID), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("trace_id", traceID))
 
-	// Distributed lock for deduplication
+	// --- Distributed lock for deduplication ---
+	// This lock ensures that only one instance of the server processes and publishes a given eventID within a short window (3s).
+	// Prevents duplicate event delivery in clustered deployments and under retry/replay scenarios.
 	lockKey := eventLockKey + eventID
-	s.log.Debug("[EmitEvent] Attempting to acquire event lock", zap.String("lock_key", lockKey))
 	lockAcquired, err := s.cache.GetClient().SetNX(ctx, lockKey, "1", 3*time.Second).Result()
 	if err != nil {
 		s.log.Error("[EmitEvent] Failed to acquire event lock", zap.Error(err), zap.String("event_id", eventID))
@@ -567,27 +594,14 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 
 	// Handle campaign events with campaignStateMgr
 	if s.campaignStateMgr != nil && strings.HasPrefix(req.EventType, "campaign:") {
-		switch req.EventType {
-		case "campaign:state:request":
-			s.campaignStateMgr.HandleEvent(req)
-			return &nexusv1.EventResponse{Success: true, Message: "Campaign state emitted", Metadata: req.Metadata}, nil
-		case "campaign:update:v1:requested":
-			s.campaignStateMgr.HandleEvent(req)
-			return &nexusv1.EventResponse{Success: true, Message: "Campaign update processed", Metadata: req.Metadata}, nil
-		case "campaign:feature:v1:requested":
-			s.campaignStateMgr.HandleEvent(req)
-			return &nexusv1.EventResponse{Success: true, Message: "Campaign features updated", Metadata: req.Metadata}, nil
-		case "campaign:config:v1:requested":
-			s.campaignStateMgr.HandleEvent(req)
-			return &nexusv1.EventResponse{Success: true, Message: "Campaign config updated", Metadata: req.Metadata}, nil
-		}
+		s.campaignStateMgr.HandleEvent(ctx, req)
 	}
 
 	s.log.Info("[EmitEvent] Returning response to caller", zap.String("event_id", eventID), zap.Any("response", envelope))
 	return &nexusv1.EventResponse{Success: true, Message: "Event broadcasted", Metadata: envelope.Metadata}, nil
 }
 
-// isCanonicalEventType validates event type format: {service}:{action}:v{version}:{state}
+// isCanonicalEventType validates event type format: {service}:{action}:v{version}:{state}.
 func isCanonicalEventType(eventType string) bool {
 	// Allow the special echo event type for hello world/testing
 	if eventType == "echo" {
@@ -615,7 +629,7 @@ func isCanonicalEventType(eventType string) bool {
 }
 
 // isHealthEventType validates health event type format: {service}:health:v{version}:{state}
-// Health events are privileged infrastructure events that bypass normal validation
+// Health events are privileged infrastructure events that bypass normal validation.
 func isHealthEventType(eventType string) bool {
 	parts := strings.Split(eventType, ":")
 	if len(parts) != 4 {

@@ -14,14 +14,34 @@ import (
 	"go.uber.org/zap"
 )
 
-// DynamicInspector provides runtime service inspection and registration
+// DynamicInspector provides runtime service inspection and registration.
 type DynamicInspector struct {
 	logger    *zap.Logger
 	container *di.Container
 	generator *DynamicServiceRegistrationGenerator
 }
 
-// NewDynamicInspector creates a new dynamic inspector
+// convertMethods converts ServiceRegistrationConfig to registry.ServiceMethod slice.
+func (inspector *DynamicInspector) convertMethods(config ServiceRegistrationConfig) []registry.ServiceMethod {
+	methods := make([]registry.ServiceMethod, 0, len(config.Schema.Methods)+len(config.ActionMap))
+	// Handle string slice from Schema.Methods
+	for _, methodName := range config.Schema.Methods {
+		methods = append(methods, registry.ServiceMethod{
+			Name: methodName,
+		})
+	}
+	// Optionally enrich with ActionMap if present
+	for name, action := range config.ActionMap {
+		methods = append(methods, registry.ServiceMethod{
+			Name:        name,
+			Description: action.ProtoMethod,
+			Parameters:  action.RestRequiredFields,
+		})
+	}
+	return methods
+}
+
+// NewDynamicInspector creates a new dynamic inspector.
 func NewDynamicInspector(logger *zap.Logger, container *di.Container, protoPath, srcPath string) *DynamicInspector {
 	return &DynamicInspector{
 		logger:    logger,
@@ -30,73 +50,77 @@ func NewDynamicInspector(logger *zap.Logger, container *di.Container, protoPath,
 	}
 }
 
-// InspectRegisteredServices inspects all services registered in the DI container
-func (di *DynamicInspector) InspectRegisteredServices(ctx context.Context) ([]ServiceRegistrationConfig, error) {
-	var configs []ServiceRegistrationConfig
-
-	// This would require enhanced DI container functionality to list registered services
-	// For now, we'll demonstrate with known service types
-
-	knownServices := []interface{}{
-		// These would be actual service interface types
+// InspectRegisteredServices inspects all services registered in the DI container.
+func (inspector *DynamicInspector) InspectRegisteredServices(ctx context.Context) ([]ServiceRegistrationConfig, error) {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	serviceTypes := []interface{}{
 		// (*userpb.UserServiceServer)(nil),
 		// (*notificationpb.NotificationServiceServer)(nil),
-		// etc.
 	}
-
-	for _, serviceType := range knownServices {
-		config, err := di.generator.IntrospectService(serviceType)
+	configs := make([]ServiceRegistrationConfig, 0, len(serviceTypes))
+	for _, serviceType := range serviceTypes {
+		config, err := inspector.generator.IntrospectService(serviceType)
 		if err != nil {
-			di.logger.Warn("Failed to introspect service", zap.Error(err))
+			inspector.logger.Warn("Failed to introspect service", zap.Error(err))
 			continue
 		}
 		configs = append(configs, *config)
 	}
-
 	return configs, nil
 }
 
-// AutoRegisterFromRuntime automatically registers services found at runtime
-func (di *DynamicInspector) AutoRegisterFromRuntime(ctx context.Context) error {
-	// Get all registered services from DI container
-	// This is a conceptual implementation - actual implementation would depend on
-	// enhanced DI container that can enumerate registered services
+// AutoRegisterFromRuntime automatically registers services found at runtime.
+func (inspector *DynamicInspector) AutoRegisterFromRuntime(ctx context.Context) error {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		inspector.logger.Warn("AutoRegisterFromRuntime cancelled by context", zap.Error(ctx.Err()))
+		return ctx.Err()
+	}
+	inspector.logger.Info("Starting automatic service registration from runtime")
 
-	di.logger.Info("Starting automatic service registration from runtime")
+	serviceTypes := []interface{}{}
 
-	// For demonstration, we'll register with the static registry
-	sampleService := registry.ServiceRegistration{
-		ServiceName:  "runtime-discovered",
-		Methods:      []registry.ServiceMethod{},
-		RegisteredAt: time.Now(),
-		Description:  "Auto-discovered service at runtime",
-		Version:      "v1",
-		External:     false,
+	for _, serviceType := range serviceTypes {
+		config, err := inspector.generator.IntrospectService(serviceType)
+		if err != nil || config == nil {
+			inspector.logger.Warn("Failed to introspect service", zap.Error(err))
+			continue
+		}
+		reg := registry.ServiceRegistration{
+			ServiceName:  config.Name,
+			Methods:      inspector.convertMethods(*config),
+			RegisteredAt: time.Now(),
+			Description:  fmt.Sprintf("Auto-registered service: %s", config.Name),
+			Version:      config.Version,
+			External:     false,
+		}
+		registry.RegisterService(reg)
 	}
 
-	registry.RegisterService(sampleService)
-
-	di.logger.Info("Completed automatic service registration")
+	inspector.logger.Info("Completed automatic service registration")
 	return nil
 }
 
-// GenerateConfigFromRuntime generates configuration from currently running services
-func (di *DynamicInspector) GenerateConfigFromRuntime(ctx context.Context, outputPath string) error {
-	configs, err := di.InspectRegisteredServices(ctx)
+// GenerateConfigFromRuntime generates configuration from currently running services.
+func (inspector *DynamicInspector) GenerateConfigFromRuntime(ctx context.Context, outputPath string) error {
+	configs, err := inspector.InspectRegisteredServices(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Also generate from proto files
-	protoConfigs, err := di.generator.GenerateServiceRegistrations(ctx)
+	protoConfigs, err := inspector.generator.GenerateServiceRegistrations(ctx)
 	if err != nil {
-		di.logger.Warn("Failed to generate from proto files", zap.Error(err))
+		inspector.logger.Warn("Failed to generate from proto files", zap.Error(err))
 	} else {
 		configs = append(configs, protoConfigs...)
 	}
 
 	// Remove duplicates
-	uniqueConfigs := di.removeDuplicateConfigs(configs)
+	uniqueConfigs := inspector.removeDuplicateConfigs(configs)
 
 	// Save to file
 	jsonData, err := json.MarshalIndent(uniqueConfigs, "", "  ")
@@ -104,28 +128,24 @@ func (di *DynamicInspector) GenerateConfigFromRuntime(ctx context.Context, outpu
 		return err
 	}
 
-	if err := os.WriteFile(outputPath, jsonData, 0644); err != nil {
+	if err := os.WriteFile(outputPath, jsonData, 0o600); err != nil {
 		return err
 	}
 
-	di.logger.Info("Generated service registration from runtime",
+	inspector.logger.Info("Generated service registration from runtime",
 		zap.String("output", outputPath),
 		zap.Int("services", len(uniqueConfigs)))
 
 	return nil
 }
 
-// InspectService provides detailed inspection of a specific service
-func (di *DynamicInspector) InspectService(serviceName string) (*ServiceInspectionResult, error) {
+// InspectService provides detailed inspection of a specific service.
+func (inspector *DynamicInspector) InspectService(serviceName string) (*ServiceInspectionResult, error) {
 	result := &ServiceInspectionResult{
 		ServiceName: serviceName,
 		Timestamp:   time.Now(),
 	}
 
-	// Try to resolve from DI container
-	// This is conceptual - actual implementation would need DI container enhancement
-
-	// Check if service is in static registry
 	serviceRegistry := registry.GetServiceRegistry()
 	if svc, exists := serviceRegistry[serviceName]; exists {
 		result.IsRegistered = true
@@ -142,12 +162,12 @@ func (di *DynamicInspector) InspectService(serviceName string) (*ServiceInspecti
 	}
 
 	// Add runtime information
-	result.RuntimeInfo = di.gatherRuntimeInfo(serviceName)
+	result.RuntimeInfo = inspector.gatherRuntimeInfo(serviceName)
 
 	return result, nil
 }
 
-// ServiceInspectionResult contains detailed service inspection information
+// ServiceInspectionResult contains detailed service inspection information.
 type ServiceInspectionResult struct {
 	ServiceName      string                        `json:"service_name"`
 	IsRegistered     bool                          `json:"is_registered"`
@@ -157,7 +177,7 @@ type ServiceInspectionResult struct {
 	Timestamp        time.Time                     `json:"timestamp"`
 }
 
-// MethodInfo contains method inspection information
+// MethodInfo contains method inspection information.
 type MethodInfo struct {
 	Name        string   `json:"name"`
 	Parameters  []string `json:"parameters"`
@@ -165,7 +185,7 @@ type MethodInfo struct {
 	IsExported  bool     `json:"is_exported"`
 }
 
-// RuntimeInfo contains runtime inspection information
+// RuntimeInfo contains runtime inspection information.
 type RuntimeInfo struct {
 	GoVersion     string            `json:"go_version"`
 	MemoryStats   *runtime.MemStats `json:"memory_stats,omitempty"`
@@ -173,8 +193,8 @@ type RuntimeInfo struct {
 	ProcessInfo   map[string]string `json:"process_info"`
 }
 
-// gatherRuntimeInfo gathers runtime information about the service
-func (di *DynamicInspector) gatherRuntimeInfo(serviceName string) *RuntimeInfo {
+// gatherRuntimeInfo gathers runtime information about the service.
+func (inspector *DynamicInspector) gatherRuntimeInfo(_ string) *RuntimeInfo {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
@@ -189,8 +209,8 @@ func (di *DynamicInspector) gatherRuntimeInfo(serviceName string) *RuntimeInfo {
 	}
 }
 
-// removeDuplicateConfigs removes duplicate service configurations
-func (di *DynamicInspector) removeDuplicateConfigs(configs []ServiceRegistrationConfig) []ServiceRegistrationConfig {
+// removeDuplicateConfigs removes duplicate service configurations.
+func (inspector *DynamicInspector) removeDuplicateConfigs(configs []ServiceRegistrationConfig) []ServiceRegistrationConfig {
 	seen := make(map[string]bool)
 	var result []ServiceRegistrationConfig
 
@@ -205,8 +225,8 @@ func (di *DynamicInspector) removeDuplicateConfigs(configs []ServiceRegistration
 	return result
 }
 
-// ValidateServiceRegistration validates a service registration against runtime
-func (di *DynamicInspector) ValidateServiceRegistration(config ServiceRegistrationConfig) (*ValidationResult, error) {
+// ValidateServiceRegistration validates a service registration against runtime.
+func (inspector *DynamicInspector) ValidateServiceRegistration(config ServiceRegistrationConfig) (*ValidationResult, error) {
 	result := &ValidationResult{
 		ServiceName: config.Name,
 		IsValid:     true,
@@ -246,7 +266,7 @@ func (di *DynamicInspector) ValidateServiceRegistration(config ServiceRegistrati
 	return result, nil
 }
 
-// ValidationResult contains service validation results
+// ValidationResult contains service validation results.
 type ValidationResult struct {
 	ServiceName string   `json:"service_name"`
 	IsValid     bool     `json:"is_valid"`
@@ -254,8 +274,8 @@ type ValidationResult struct {
 	Suggestions []string `json:"suggestions"`
 }
 
-// ComparateConfigurations compares two service configurations
-func (di *DynamicInspector) CompareConfigurations(config1, config2 ServiceRegistrationConfig) *ComparisonResult {
+// ComparateConfigurations compares two service configurations.
+func (inspector *DynamicInspector) CompareConfigurations(config1, config2 ServiceRegistrationConfig) *ComparisonResult {
 	result := &ComparisonResult{
 		Service1:     config1.Name,
 		Service2:     config2.Name,
@@ -309,7 +329,7 @@ func (di *DynamicInspector) CompareConfigurations(config1, config2 ServiceRegist
 	return result
 }
 
-// ComparisonResult contains service comparison results
+// ComparisonResult contains service comparison results.
 type ComparisonResult struct {
 	Service1     string   `json:"service1"`
 	Service2     string   `json:"service2"`
@@ -317,15 +337,15 @@ type ComparisonResult struct {
 	Similarities []string `json:"similarities"`
 }
 
-// OptimizeServiceRegistration suggests optimizations for a service configuration
-func (di *DynamicInspector) OptimizeServiceRegistration(config ServiceRegistrationConfig) *OptimizationSuggestions {
+// OptimizeServiceRegistration suggests optimizations for a service configuration.
+func (inspector *DynamicInspector) OptimizeServiceRegistration(config ServiceRegistrationConfig) *OptimizationSuggestions {
 	suggestions := &OptimizationSuggestions{
 		ServiceName: config.Name,
 		Suggestions: []string{},
 	}
 
 	// Check for redundant capabilities
-	if di.hasRedundantCapabilities(config.Capabilities) {
+	if inspector.hasRedundantCapabilities(config.Capabilities) {
 		suggestions.Suggestions = append(suggestions.Suggestions,
 			"Remove redundant capabilities to simplify configuration")
 	}
@@ -351,14 +371,14 @@ func (di *DynamicInspector) OptimizeServiceRegistration(config ServiceRegistrati
 	return suggestions
 }
 
-// OptimizationSuggestions contains optimization suggestions
+// OptimizationSuggestions contains optimization suggestions.
 type OptimizationSuggestions struct {
 	ServiceName string   `json:"service_name"`
 	Suggestions []string `json:"suggestions"`
 }
 
-// hasRedundantCapabilities checks for redundant capabilities
-func (di *DynamicInspector) hasRedundantCapabilities(capabilities []string) bool {
+// hasRedundantCapabilities checks for redundant capabilities.
+func (inspector *DynamicInspector) hasRedundantCapabilities(capabilities []string) bool {
 	// Simple check for obvious redundancies
 	capMap := make(map[string]bool)
 	for _, cap := range capabilities {
@@ -370,8 +390,8 @@ func (di *DynamicInspector) hasRedundantCapabilities(capabilities []string) bool
 	return false
 }
 
-// ExportServiceGraph exports the service dependency graph
-func (di *DynamicInspector) ExportServiceGraph(configs []ServiceRegistrationConfig, outputPath string) error {
+// ExportServiceGraph exports the service dependency graph.
+func (inspector *DynamicInspector) ExportServiceGraph(configs []ServiceRegistrationConfig, outputPath string) error {
 	graph := &ServiceGraph{
 		Services:     make(map[string]ServiceNode),
 		Dependencies: []Dependency{},
@@ -404,24 +424,24 @@ func (di *DynamicInspector) ExportServiceGraph(configs []ServiceRegistrationConf
 		return err
 	}
 
-	return os.WriteFile(outputPath, jsonData, 0644)
+	return os.WriteFile(outputPath, jsonData, 0o600)
 }
 
-// ServiceGraph represents the service dependency graph
+// ServiceGraph represents the service dependency graph.
 type ServiceGraph struct {
 	Services     map[string]ServiceNode `json:"services"`
 	Dependencies []Dependency           `json:"dependencies"`
 	Timestamp    time.Time              `json:"timestamp"`
 }
 
-// ServiceNode represents a service in the graph
+// ServiceNode represents a service in the graph.
 type ServiceNode struct {
 	Name         string   `json:"name"`
 	Version      string   `json:"version"`
 	Capabilities []string `json:"capabilities"`
 }
 
-// Dependency represents a service dependency
+// Dependency represents a service dependency.
 type Dependency struct {
 	From string `json:"from"`
 	To   string `json:"to"`

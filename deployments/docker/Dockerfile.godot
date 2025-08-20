@@ -1,0 +1,26 @@
+# --- Godot Headless Build Stage ---
+FROM ovasabi-go-builder:latest AS builder
+WORKDIR /app
+# Copy pre-downloaded Godot binary
+COPY godot/bin/Godot_v4.4.1-stable_linux.x86_64 /app/godot
+
+# --- Godot Headless Runtime Stage ---
+FROM debian:stable-slim AS godot-headless
+WORKDIR /godot/project
+# Install only minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libopus0 openssl fontconfig && rm -rf /var/lib/apt/lists/*
+COPY godot/bin/Godot_v4.4.1-stable_linux.x86_64 /usr/local/bin/godot
+COPY godot/project /godot/project/
+COPY config/ /godot/config/
+
+EXPOSE 6010 6011
+
+ENV GODOT_PROJECT_PATH=/godot/project \
+  GODOT_HEADLESS=true \
+  GODOT_MAX_THREADS=auto \
+  NEXUS_GRPC_ADDR=nexus:50052 \
+  LOG_LEVEL=info \
+  WS_PORT=6010 \
+  RTC_PORT=6011
+
+CMD ["godot", "--headless", "--project", "/godot/project"]

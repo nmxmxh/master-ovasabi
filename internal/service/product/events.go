@@ -44,10 +44,21 @@ func loadProductEvents() []string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 func parseActionAndState(eventType string) (action, state string) {
@@ -58,7 +69,7 @@ func parseActionAndState(eventType string) (action, state string) {
 	return "", ""
 }
 
-// Generic event handler for all product service actions
+// Generic event handler for all product service actions.
 func HandleProductServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	eventType := event.GetEventType()
 	action, _ := parseActionAndState(eventType)
@@ -79,7 +90,7 @@ func HandleProductServiceEvent(ctx context.Context, s *Service, event *nexusv1.E
 	handler(ctx, s, event)
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	InitCanonicalEventTypeRegistry()
 	m := make(map[string]ActionHandlerFunc)
@@ -89,7 +100,41 @@ var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	return m
 }()
 
-// Canonical product event handlers (cover all product actions from actions.txt)
+// Canonical product event handlers (cover all product actions from actions.txt).
+func handleGetProduct(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	var req productpb.GetProductRequest
+	if event.Payload != nil && event.Payload.Data != nil {
+		b, err := protojson.Marshal(event.Payload.Data)
+		if err == nil {
+			err = protojson.Unmarshal(b, &req)
+		}
+		if err != nil {
+			s.log.Error("Failed to unmarshal GetProductRequest payload", zap.Error(err))
+			return
+		}
+	}
+	if _, err := s.GetProduct(ctx, &req); err != nil {
+		s.log.Error("GetProduct failed", zap.Error(err))
+	}
+}
+
+func handleListProductVariants(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	var req productpb.ListProductVariantsRequest
+	if event.Payload != nil && event.Payload.Data != nil {
+		b, err := protojson.Marshal(event.Payload.Data)
+		if err == nil {
+			err = protojson.Unmarshal(b, &req)
+		}
+		if err != nil {
+			s.log.Error("Failed to unmarshal ListProductVariantsRequest payload", zap.Error(err))
+			return
+		}
+	}
+	if _, err := s.ListProductVariants(ctx, &req); err != nil {
+		s.log.Error("ListProductVariants failed", zap.Error(err))
+	}
+}
+
 func handleCreateProduct(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	var req productpb.CreateProductRequest
 	if event.Payload != nil && event.Payload.Data != nil {
@@ -102,7 +147,9 @@ func handleCreateProduct(ctx context.Context, s *Service, event *nexusv1.EventRe
 			return
 		}
 	}
-	s.CreateProduct(ctx, &req)
+	if _, err := s.CreateProduct(ctx, &req); err != nil {
+		s.log.Error("CreateProduct failed", zap.Error(err))
+	}
 }
 
 func handleUpdateProduct(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -117,7 +164,9 @@ func handleUpdateProduct(ctx context.Context, s *Service, event *nexusv1.EventRe
 			return
 		}
 	}
-	s.UpdateProduct(ctx, &req)
+	if _, err := s.UpdateProduct(ctx, &req); err != nil {
+		s.log.Error("UpdateProduct failed", zap.Error(err))
+	}
 }
 
 func handleUpdateInventory(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -132,7 +181,9 @@ func handleUpdateInventory(ctx context.Context, s *Service, event *nexusv1.Event
 			return
 		}
 	}
-	s.UpdateInventory(ctx, &req)
+	if _, err := s.UpdateInventory(ctx, &req); err != nil {
+		s.log.Error("UpdateInventory failed", zap.Error(err))
+	}
 }
 
 func handleDeleteProduct(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -147,7 +198,9 @@ func handleDeleteProduct(ctx context.Context, s *Service, event *nexusv1.EventRe
 			return
 		}
 	}
-	s.DeleteProduct(ctx, &req)
+	if _, err := s.DeleteProduct(ctx, &req); err != nil {
+		s.log.Error("DeleteProduct failed", zap.Error(err))
+	}
 }
 
 func handleListProducts(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -162,7 +215,9 @@ func handleListProducts(ctx context.Context, s *Service, event *nexusv1.EventRes
 			return
 		}
 	}
-	s.ListProducts(ctx, &req)
+	if _, err := s.ListProducts(ctx, &req); err != nil {
+		s.log.Error("ListProducts failed", zap.Error(err))
+	}
 }
 
 func handleSearchProducts(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
@@ -177,10 +232,12 @@ func handleSearchProducts(ctx context.Context, s *Service, event *nexusv1.EventR
 			return
 		}
 	}
-	s.SearchProducts(ctx, &req)
+	if _, err := s.SearchProducts(ctx, &req); err != nil {
+		s.log.Error("SearchProducts failed", zap.Error(err))
+	}
 }
 
-// Register all product action handlers (from actions.txt)
+// Register all product action handlers (from actions.txt).
 func init() {
 	RegisterActionHandler("create_product", handleCreateProduct)
 	RegisterActionHandler("update_product", handleUpdateProduct)
@@ -188,5 +245,6 @@ func init() {
 	RegisterActionHandler("list_products", handleListProducts)
 	RegisterActionHandler("search_products", handleSearchProducts)
 	RegisterActionHandler("update_inventory", handleUpdateInventory)
-	// Add more handlers here for full coverage, matching the explicit messaging pattern
+	RegisterActionHandler("get_product", handleGetProduct)
+	RegisterActionHandler("list_product_variants", handleListProductVariants)
 }

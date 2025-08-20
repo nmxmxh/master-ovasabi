@@ -94,7 +94,7 @@ func (l *logger) Info(msg string, fields ...zapcore.Field) {
 	l.zapLogger.Info(msg, fields...)
 }
 
-// Colorize output for error and warning logs in development
+// Colorize output for error and warning logs in development.
 func (l *logger) Error(msg string, fields ...zapcore.Field) {
 	if l.zapLogger.Core().Enabled(zapcore.ErrorLevel) && isDevMode() {
 		msg = "\x1b[31m" + msg + "\x1b[0m" // Red
@@ -113,7 +113,7 @@ func (l *logger) Warn(msg string, fields ...zapcore.Field) {
 	l.zapLogger.Warn(msg, fields...)
 }
 
-// isDevMode checks if the logger is in development mode (console/color output)
+// isDevMode checks if the logger is in development mode (console/color output).
 func isDevMode() bool {
 	// This is a best-effort check: if the logger config uses console encoding, assume dev mode
 	// (zap does not expose config directly, so we check the output paths and encoding via reflection)

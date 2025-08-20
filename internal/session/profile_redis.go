@@ -1,26 +1,30 @@
 package session
 
 import (
-	context "context"
 	"errors"
+	"fmt"
+
+	// ...existing imports...
+
+	context "context"
 
 	redis "github.com/nmxmxh/master-ovasabi/pkg/redis"
 )
 
 // ...existing UIState, WaitlistData, ReferralData, QuoteData, ServiceSpecific, CampaignSpecific, UnifiedProfile structs...
 
-// RedactedUIState is the minimal, privacy-aware UI state sent to the frontend
+// RedactedUIState is the minimal, privacy-aware UI state sent to the frontend.
 type RedactedUIState struct {
 	Theme              string `json:"theme"`
 	Locale             string `json:"locale"`
 	Direction          string `json:"direction"`
 	Menu               string `json:"menu,omitempty"`
-	FooterLink         string `json:"footerLink,omitempty"`
-	AnimationDirection string `json:"animationDirection,omitempty"`
+	FooterLink         string `json:"footer_link,omitempty"`
+	AnimationDirection string `json:"animation_direction,omitempty"`
 	Orientation        string `json:"orientation,omitempty"`
 	Contrast           struct {
-		PrefersHighContrast bool   `json:"prefersHighContrast"`
-		ColorContrastRatio  string `json:"colorContrastRatio,omitempty"`
+		PrefersHighContrast bool   `json:"prefers_high_contrast"`
+		ColorContrastRatio  string `json:"color_contrast_ratio,omitempty"`
 	} `json:"contrast"`
 	Viewport struct {
 		Width  int `json:"width,omitempty"`
@@ -29,11 +33,11 @@ type RedactedUIState struct {
 		DVH    int `json:"dvh,omitempty"`
 	} `json:"viewport"`
 	Motion struct {
-		PrefersReducedMotion bool `json:"prefersReducedMotion"`
+		PrefersReducedMotion bool `json:"prefers_reduced_motion"`
 	} `json:"motion"`
 }
 
-// GetRedactedUIState returns a privacy-aware, minimal UI state for frontend streaming
+// GetRedactedUIState returns a privacy-aware, minimal UI state for frontend streaming.
 func (p *UnifiedProfile) GetRedactedUIState() RedactedUIState {
 	ui := p.UIState
 	return RedactedUIState{
@@ -45,8 +49,8 @@ func (p *UnifiedProfile) GetRedactedUIState() RedactedUIState {
 		AnimationDirection: ui.AnimationDirection,
 		Orientation:        ui.Orientation,
 		Contrast: struct {
-			PrefersHighContrast bool   `json:"prefersHighContrast"`
-			ColorContrastRatio  string `json:"colorContrastRatio,omitempty"`
+			PrefersHighContrast bool   `json:"prefers_high_contrast"`
+			ColorContrastRatio  string `json:"color_contrast_ratio,omitempty"`
 		}{
 			PrefersHighContrast: ui.Contrast.PrefersHighContrast,
 			ColorContrastRatio:  ui.Contrast.ColorContrastRatio,
@@ -63,14 +67,14 @@ func (p *UnifiedProfile) GetRedactedUIState() RedactedUIState {
 			DVH:    ui.Viewport.DVH,
 		},
 		Motion: struct {
-			PrefersReducedMotion bool `json:"prefersReducedMotion"`
+			PrefersReducedMotion bool `json:"prefers_reduced_motion"`
 		}{
 			PrefersReducedMotion: ui.Motion.PrefersReducedMotion,
 		},
 	}
 }
 
-// StreamRedactedUIState fetches the profile and returns the redacted UI state for frontend
+// StreamRedactedUIState fetches the profile and returns the redacted UI state for frontend.
 func StreamRedactedUIState(ctx context.Context, sessionID string) (RedactedUIState, error) {
 	profile, err := LoadProfile(ctx, sessionID)
 	if err != nil {
@@ -88,7 +92,7 @@ const (
 
 var profileCache *redis.Cache
 
-// InitProfileCache must be called at startup with the redis.Provider
+// InitProfileCache must be called at startup with the redis.Provider.
 func InitProfileCache(provider *redis.Provider) error {
 	cache, err := provider.GetCache(context.Background(), "session")
 	if err != nil {
@@ -98,7 +102,7 @@ func InitProfileCache(provider *redis.Provider) error {
 	return nil
 }
 
-// SaveProfile persists the profile to Redis with TTL
+// SaveProfile persists the profile to Redis with TTL.
 func SaveProfile(ctx context.Context, profile *UnifiedProfile) error {
 	if profileCache == nil {
 		return errors.New("profileCache not initialized")
@@ -110,7 +114,7 @@ func SaveProfile(ctx context.Context, profile *UnifiedProfile) error {
 	return profileCache.Set(ctx, profilePrefix+profile.SessionID, "", data, redis.TTLSession)
 }
 
-// LoadProfile loads a profile from Redis, or returns nil if not found
+// LoadProfile loads a profile from Redis, or returns nil if not found.
 func LoadProfile(ctx context.Context, sessionID string) (*UnifiedProfile, error) {
 	if profileCache == nil {
 		return nil, errors.New("profileCache not initialized")
@@ -119,14 +123,14 @@ func LoadProfile(ctx context.Context, sessionID string) (*UnifiedProfile, error)
 	err := profileCache.Get(ctx, profilePrefix+sessionID, "", &profile)
 	if err != nil {
 		if err.Error() == "key not found: "+profilePrefix+sessionID {
-			return nil, nil
+			return nil, fmt.Errorf("profile not found for session: %s", sessionID)
 		}
 		return nil, err
 	}
 	return &profile, nil
 }
 
-// GetOrCreateProfile loads from Redis or creates a new guest profile
+// GetOrCreateProfile loads from Redis or creates a new guest profile.
 func GetOrCreateProfile(ctx context.Context, sessionID string) (*UnifiedProfile, error) {
 	profile, err := LoadProfile(ctx, sessionID)
 	if err != nil {
@@ -144,8 +148,8 @@ func GetOrCreateProfile(ctx context.Context, sessionID string) (*UnifiedProfile,
 			Locale:    "en",
 			Direction: "ltr",
 			Contrast: struct {
-				PrefersHighContrast bool   `json:"prefersHighContrast"`
-				ColorContrastRatio  string `json:"colorContrastRatio,omitempty"`
+				PrefersHighContrast bool   `json:"prefers_high_contrast"`
+				ColorContrastRatio  string `json:"color_contrast_ratio,omitempty"`
 			}{},
 		},
 		Privileges: []string{"guest"},
@@ -156,7 +160,7 @@ func GetOrCreateProfile(ctx context.Context, sessionID string) (*UnifiedProfile,
 	return profile, nil
 }
 
-// UpdateProfileWithFn loads, updates, and saves a profile atomically
+// UpdateProfileWithFn loads, updates, and saves a profile atomically.
 func UpdateProfileWithFn(ctx context.Context, sessionID string, updateFn func(*UnifiedProfile)) error {
 	profile, err := GetOrCreateProfile(ctx, sessionID)
 	if err != nil {
@@ -168,7 +172,7 @@ func UpdateProfileWithFn(ctx context.Context, sessionID string, updateFn func(*U
 
 // DeleteProfile removes a profile from Redis (GDPR/optimistic deletion)
 
-// MergeProfiles merges two profiles and saves the result
+// MergeProfiles merges two profiles and saves the result.
 func MergeProfilesAndSave(ctx context.Context, oldSessionID, newSessionID string) (*UnifiedProfile, error) {
 	oldP, err := GetOrCreateProfile(ctx, oldSessionID)
 	if err != nil {
@@ -201,7 +205,7 @@ func MergeProfilesAndSave(ctx context.Context, oldSessionID, newSessionID string
 	for _, p := range newP.Privileges {
 		privMap[p] = struct{}{}
 	}
-	var privs []string
+	privs := make([]string, 0, len(privMap))
 	for p := range privMap {
 		privs = append(privs, p)
 	}
@@ -269,8 +273,13 @@ func MergeProfilesAndSave(ctx context.Context, oldSessionID, newSessionID string
 }
 
 // Example: LocalizeAndStreamDialogue
-// Loads the user's locale from profile, fetches dialogue from campaign metadata, and returns the localized string
+// Loads the user's locale from profile, fetches dialogue from campaign metadata, and returns the localized string.
 func LocalizeAndStreamDialogue(ctx context.Context, profile *UnifiedProfile, dialogueKey string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
 	if profile == nil || profile.CampaignSpecific.UI == nil {
 		return "", errors.New("profile or campaign UI not set")
 	}

@@ -164,10 +164,10 @@ const EnhancedParticleSystem: React.FC = () => {
 
     // Enhanced parameters for WebGPU (optimized particle counts)
     if (renderMode.includes('WebGPU')) {
-      baseParams.galaxy.count = 750000;
-      baseParams['yin-yang'].count = 750000;
-      baseParams.wave.count = 750000;
-      baseParams.spiral.count = 750000;
+      baseParams.galaxy.count = 1000000;
+      baseParams['yin-yang'].count = 1000000;
+      baseParams.wave.count = 1000000;
+      baseParams.spiral.count = 1000000;
     }
 
     return baseParams;

@@ -98,19 +98,19 @@ func LocalizationOpsHandler(container *di.Container) http.HandlerFunc {
 					return
 				}
 				addAuditMetadata(req)
-				handleLocalizationAction(w, ctx, log, req, &localizationpb.CreateTranslationRequest{}, localizationSvc.CreateTranslation)
+				handleLocalizationAction(ctx, w, log, req, &localizationpb.CreateTranslationRequest{}, localizationSvc.CreateTranslation)
 			},
 			"get_translation": func() {
-				handleLocalizationAction(w, ctx, log, req, &localizationpb.GetTranslationRequest{}, localizationSvc.GetTranslation)
+				handleLocalizationAction(ctx, w, log, req, &localizationpb.GetTranslationRequest{}, localizationSvc.GetTranslation)
 			},
 			"list_translations": func() {
-				handleLocalizationAction(w, ctx, log, req, &localizationpb.ListTranslationsRequest{}, localizationSvc.ListTranslations)
+				handleLocalizationAction(ctx, w, log, req, &localizationpb.ListTranslationsRequest{}, localizationSvc.ListTranslations)
 			},
 			"translate": func() {
-				handleLocalizationAction(w, ctx, log, req, &localizationpb.TranslateRequest{}, localizationSvc.Translate)
+				handleLocalizationAction(ctx, w, log, req, &localizationpb.TranslateRequest{}, localizationSvc.Translate)
 			},
 			"batch_translate": func() {
-				handleLocalizationAction(w, ctx, log, req, &localizationpb.BatchTranslateRequest{}, localizationSvc.BatchTranslate)
+				handleLocalizationAction(ctx, w, log, req, &localizationpb.BatchTranslateRequest{}, localizationSvc.BatchTranslate)
 			},
 			"set_pricing_rule": func() {
 				if !checkPermission("admin", "localization_manager") {
@@ -118,13 +118,13 @@ func LocalizationOpsHandler(container *di.Container) http.HandlerFunc {
 					return
 				}
 				addAuditMetadata(req)
-				handleLocalizationAction(w, ctx, log, req, &localizationpb.SetPricingRuleRequest{}, localizationSvc.SetPricingRule)
+				handleLocalizationAction(ctx, w, log, req, &localizationpb.SetPricingRuleRequest{}, localizationSvc.SetPricingRule)
 			},
 			"get_pricing_rule": func() {
-				handleLocalizationAction(w, ctx, log, req, &localizationpb.GetPricingRuleRequest{}, localizationSvc.GetPricingRule)
+				handleLocalizationAction(ctx, w, log, req, &localizationpb.GetPricingRuleRequest{}, localizationSvc.GetPricingRule)
 			},
 			"list_pricing_rules": func() {
-				handleLocalizationAction(w, ctx, log, req, &localizationpb.ListPricingRulesRequest{}, localizationSvc.ListPricingRules)
+				handleLocalizationAction(ctx, w, log, req, &localizationpb.ListPricingRulesRequest{}, localizationSvc.ListPricingRules)
 			},
 		}
 
@@ -139,8 +139,8 @@ func LocalizationOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleLocalizationAction is a generic helper to reduce boilerplate in LocalizationOpsHandler.
 func handleLocalizationAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

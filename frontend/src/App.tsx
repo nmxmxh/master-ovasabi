@@ -8,6 +8,7 @@ import {
   useCampaignState,
   useCampaignUpdates
 } from './store/global';
+import EnhancedParticleSystem from './components/EnhancedParticleSystem';
 
 // Hook to poll window.__WASM_GLOBAL_METADATA
 function useWasmGlobalMetadata(pollInterval = 1000) {
@@ -203,6 +204,7 @@ const AppStyle = {
 };
 
 function App() {
+  // Zustand WASM/GPU function state
   console.log('[App] Component mounting/re-rendering at', new Date().toISOString());
 
   // State for particle system selection with automatic WebGPU detection
@@ -339,6 +341,7 @@ function App() {
 
   return (
     <AppStyle.Container>
+      <EnhancedParticleSystem />
       <AppStyle.Title>OVASABI Campaign Management Demo</AppStyle.Title>
       <ConnectionStatus />
       <CampaignOperations />
@@ -790,7 +793,8 @@ function LiveWasmMetadataDisplay() {
 
 // Component to show connection status with window state indicators
 function ConnectionStatus() {
-  const { connected, connecting, reconnectAttempts, isConnected } = useConnectionStatus();
+  const { connected, connecting, reconnectAttempts, isConnected, wasmReady } =
+    useConnectionStatus();
 
   // Window state tracking
   const [documentHidden, setDocumentHidden] = useState(
@@ -800,16 +804,32 @@ function ConnectionStatus() {
     typeof document !== 'undefined' ? document.hasFocus() : true
   );
 
-  const statusColor = useMemo(() => {
+  // Raw WebSocket status color
+  const wsStatusColor = useMemo(() => {
+    if (connected) return '#4CAF50'; // Green
+    if (connecting) return '#FF9800'; // Orange
+    return '#F44336'; // Red
+  }, [connected, connecting]);
+
+  // Raw WebSocket status text
+  const wsStatusText = useMemo(() => {
+    if (connected) return 'WebSocket Connected';
+    if (connecting) return 'WebSocket Connecting...';
+    return `WebSocket Disconnected (${reconnectAttempts} attempts)`;
+  }, [connected, connecting, reconnectAttempts]);
+
+  // Combined status color (WASM + WebSocket)
+  const combinedStatusColor = useMemo(() => {
     if (isConnected) return '#4CAF50'; // Green
     if (connecting) return '#FF9800'; // Orange
     return '#F44336'; // Red
   }, [isConnected, connecting]);
 
-  const statusText = useMemo(() => {
-    if (isConnected) return 'Connected';
-    if (connecting) return 'Connecting...';
-    return `Disconnected (${reconnectAttempts} attempts)`;
+  // Combined status text
+  const combinedStatusText = useMemo(() => {
+    if (isConnected) return 'System Connected (WASM + WebSocket)';
+    if (connecting) return 'System Connecting...';
+    return `System Disconnected (${reconnectAttempts} attempts)`;
   }, [isConnected, connecting, reconnectAttempts]);
 
   useEffect(() => {
@@ -843,24 +863,18 @@ function ConnectionStatus() {
         backgroundColor: '#f5f5f5',
         borderRadius: '8px',
         marginBottom: '20px',
-        border: `2px solid ${statusColor}`
+        border: `2px solid ${combinedStatusColor}`
       }}
     >
       <h3 style={{ margin: '0 0 10px 0' }}>System Status</h3>
       <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ color: statusColor, fontWeight: 'bold', fontSize: '16px' }}>
-          Status: {statusText}
+        <div style={{ color: combinedStatusColor, fontWeight: 'bold', fontSize: '16px' }}>
+          {combinedStatusText}
         </div>
-        <div>
-          WASM:{' '}
-          {typeof window !== 'undefined' &&
-          typeof window.initWebGPU === 'function' &&
-          typeof window.runGPUCompute === 'function' &&
-          typeof window.getGPUMetricsBuffer === 'function'
-            ? '✅ Ready'
-            : '❌ Not Ready'}
+        <div style={{ color: wsStatusColor, fontWeight: 'bold', fontSize: '15px' }}>
+          {wsStatusText}
         </div>
-        <div>WebSocket: {connected ? '✅ Connected' : '❌ Disconnected'}</div>
+        <div>WASM: {wasmReady ? '✅ Ready' : '❌ Not Ready'}</div>
         <div>Window: {windowFocused ? '👁️ Focused' : '😴 Unfocused'}</div>
         <div>Tab: {documentHidden ? '🙈 Hidden' : '👀 Visible'}</div>
         <div>

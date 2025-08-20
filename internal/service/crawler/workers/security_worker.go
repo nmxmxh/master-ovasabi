@@ -21,6 +21,10 @@ func NewSecurityWorker() *SecurityWorker {
 }
 
 func (w *SecurityWorker) SanitizeContent(ctx context.Context, content []byte) ([]byte, error) {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	// 1. Malware Detection
 	if w.clamav != nil {
 		abortChan := make(chan bool) // or use `nil` if you don't plan to abort

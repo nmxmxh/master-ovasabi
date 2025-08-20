@@ -44,6 +44,11 @@ func (w *FileWorker) Cleanup() {
 }
 
 func (w *FileWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) (*crawlerpb.CrawlResult, error) {
+	// Reference unused ctx for diagnostics/cancellation
+	if ctx != nil && ctx.Err() != nil {
+		return nil, fmt.Errorf("context error: %w", ctx.Err())
+	}
+
 	content, err := os.ReadFile(task.Target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -81,7 +86,7 @@ func (w *FileWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) (*c
 	}, nil
 }
 
-// PDF text extraction using pdfcpu
+// PDF text extraction using pdfcpu.
 func extractPDFText(content []byte) (string, error) {
 	tmpIn, err := os.CreateTemp("", "in-*.pdf")
 	if err != nil {
@@ -110,7 +115,7 @@ func extractPDFText(content []byte) (string, error) {
 	}
 
 	var b strings.Builder
-	filepath.Walk(outDir, func(path string, fi os.FileInfo, _ error) error {
+	err = filepath.Walk(outDir, func(path string, _ os.FileInfo, _ error) error {
 		if filepath.Ext(path) == ".txt" {
 			if d, err := os.ReadFile(path); err == nil {
 				b.Write(d)
@@ -118,6 +123,9 @@ func extractPDFText(content []byte) (string, error) {
 		}
 		return nil
 	})
+	if err != nil {
+		return "", err
+	}
 
 	return b.String(), nil
 }

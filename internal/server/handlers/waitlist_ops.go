@@ -108,59 +108,59 @@ func WaitlistOpsHandler(container *di.Container) http.HandlerFunc {
 		actionHandlers := map[string]func(){
 			"create_entry": func() {
 				// Publicly accessible for new signups
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.CreateWaitlistEntryRequest{}, waitlistSvc.CreateWaitlistEntry)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.CreateWaitlistEntryRequest{}, waitlistSvc.CreateWaitlistEntry)
 			},
 			"get_entry": func() {
 				// Allow users to check their own entries, admin can check any
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.GetWaitlistEntryRequest{}, waitlistSvc.GetWaitlistEntry)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.GetWaitlistEntryRequest{}, waitlistSvc.GetWaitlistEntry)
 			},
 			"update_entry": func() {
 				if !checkAdminPermission() {
 					return
 				}
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.UpdateWaitlistEntryRequest{}, waitlistSvc.UpdateWaitlistEntry)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.UpdateWaitlistEntryRequest{}, waitlistSvc.UpdateWaitlistEntry)
 			},
 			"list_entries": func() {
 				if !checkAdminPermission() {
 					return
 				}
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.ListWaitlistEntriesRequest{}, waitlistSvc.ListWaitlistEntries)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.ListWaitlistEntriesRequest{}, waitlistSvc.ListWaitlistEntries)
 			},
 			"get_stats": func() {
 				if !checkAdminPermission() {
 					return
 				}
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.GetWaitlistStatsRequest{}, waitlistSvc.GetWaitlistStats)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.GetWaitlistStatsRequest{}, waitlistSvc.GetWaitlistStats)
 			},
 			"invite_user": func() {
 				if !checkAdminPermission() {
 					return
 				}
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.InviteUserRequest{}, waitlistSvc.InviteUser)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.InviteUserRequest{}, waitlistSvc.InviteUser)
 			},
 			"check_username": func() {
 				// Publicly accessible for username validation
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.CheckUsernameAvailabilityRequest{}, waitlistSvc.CheckUsernameAvailability)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.CheckUsernameAvailabilityRequest{}, waitlistSvc.CheckUsernameAvailability)
 			},
 			"validate_referral": func() {
 				// Publicly accessible for referral validation
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.ValidateReferralUsernameRequest{}, waitlistSvc.ValidateReferralUsername)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.ValidateReferralUsernameRequest{}, waitlistSvc.ValidateReferralUsername)
 			},
 			"get_leaderboard": func() {
 				// Publicly accessible for leaderboard viewing
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.GetLeaderboardRequest{}, waitlistSvc.GetLeaderboard)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.GetLeaderboardRequest{}, waitlistSvc.GetLeaderboard)
 			},
 			"get_user_referrals": func() {
 				// Allow users to check their own referrals, admin can check any
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.GetReferralsByUserRequest{}, waitlistSvc.GetReferralsByUser)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.GetReferralsByUserRequest{}, waitlistSvc.GetReferralsByUser)
 			},
 			"get_location_stats": func() {
 				// Publicly accessible for location statistics
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.GetLocationStatsRequest{}, waitlistSvc.GetLocationStats)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.GetLocationStatsRequest{}, waitlistSvc.GetLocationStats)
 			},
 			"get_position": func() {
 				// Allow users to check their own position
-				handleWaitlistAction(w, ctx, log, req, &waitlistpb.GetWaitlistPositionRequest{}, waitlistSvc.GetWaitlistPosition)
+				handleWaitlistAction(ctx, w, log, req, &waitlistpb.GetWaitlistPositionRequest{}, waitlistSvc.GetWaitlistPosition)
 			},
 		}
 
@@ -175,8 +175,8 @@ func WaitlistOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleWaitlistAction is a generic helper to reduce boilerplate in WaitlistOpsHandler.
 func handleWaitlistAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

@@ -7,14 +7,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// lifecycleManager holds the global lifecycle manager
+// lifecycleManager holds the global lifecycle manager.
 var lifecycleManager *lifecycle.SimpleLifecycleManager
 
-// EnableLifecycleManagement adds minimal lifecycle support to existing server
+// EnableLifecycleManagement adds minimal lifecycle support to existing server.
 func EnableLifecycleManagement(bootstrapper *bootstrap.ServiceBootstrapper, log *zap.Logger) {
 	if bootstrapper.Lifecycle == nil {
 		bootstrapper.Lifecycle = lifecycle.NewSimpleLifecycleManager(bootstrapper.Container, log)
-		bootstrapper.Lifecycle.AddToContainer()
+		if err := bootstrapper.Lifecycle.AddToContainer(); err != nil {
+			log.Error("Failed to add lifecycle to container", zap.Error(err))
+		}
 	}
 
 	// Store global reference for shutdown
@@ -23,12 +25,12 @@ func EnableLifecycleManagement(bootstrapper *bootstrap.ServiceBootstrapper, log 
 	log.Info("Lifecycle management enabled")
 }
 
-// GetLifecycleManager returns the global lifecycle manager for cleanup registration
+// GetLifecycleManager returns the global lifecycle manager for cleanup registration.
 func GetLifecycleManager() *lifecycle.SimpleLifecycleManager {
 	return lifecycleManager
 }
 
-// GracefulShutdown executes all registered cleanup functions
+// GracefulShutdown executes all registered cleanup functions.
 func GracefulShutdown() {
 	if lifecycleManager != nil {
 		lifecycleManager.Shutdown()

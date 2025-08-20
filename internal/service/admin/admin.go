@@ -24,8 +24,7 @@ import (
 
 func handleUserAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	action, state := parseActionAndState(event.GetEventType())
-	switch action {
-	case "user":
+	if action == "user" {
 		switch state {
 		case "create":
 			var req adminpb.CreateUserRequest
@@ -39,7 +38,9 @@ func handleUserAction(ctx context.Context, svc *Service, event *nexusv1.EventRes
 					return
 				}
 			}
-			svc.CreateUser(ctx, &req)
+			if _, err := svc.CreateUser(ctx, &req); err != nil {
+				svc.log.Error("CreateUser failed", zap.Error(err))
+			}
 		case "update":
 			var req adminpb.UpdateUserRequest
 			if event.Payload != nil && event.Payload.Data != nil {
@@ -52,7 +53,9 @@ func handleUserAction(ctx context.Context, svc *Service, event *nexusv1.EventRes
 					return
 				}
 			}
-			svc.UpdateUser(ctx, &req)
+			if _, err := svc.UpdateUser(ctx, &req); err != nil {
+				svc.log.Error("UpdateUser failed", zap.Error(err))
+			}
 		case "delete":
 			var req adminpb.DeleteUserRequest
 			if event.Payload != nil && event.Payload.Data != nil {
@@ -65,15 +68,16 @@ func handleUserAction(ctx context.Context, svc *Service, event *nexusv1.EventRes
 					return
 				}
 			}
-			svc.DeleteUser(ctx, &req)
+			if _, err := svc.DeleteUser(ctx, &req); err != nil {
+				svc.log.Error("DeleteUser failed", zap.Error(err))
+			}
 		}
 	}
 }
 
 func handleRoleAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	action, state := parseActionAndState(event.GetEventType())
-	switch action {
-	case "role":
+	if action == "role" {
 		switch state {
 		case "create":
 			var req adminpb.CreateRoleRequest
@@ -87,7 +91,9 @@ func handleRoleAction(ctx context.Context, svc *Service, event *nexusv1.EventRes
 					return
 				}
 			}
-			svc.CreateRole(ctx, &req)
+			if _, err := svc.CreateRole(ctx, &req); err != nil {
+				svc.log.Error("CreateRole failed", zap.Error(err))
+			}
 		case "update":
 			var req adminpb.UpdateRoleRequest
 			if event.Payload != nil && event.Payload.Data != nil {
@@ -100,7 +106,9 @@ func handleRoleAction(ctx context.Context, svc *Service, event *nexusv1.EventRes
 					return
 				}
 			}
-			svc.UpdateRole(ctx, &req)
+			if _, err := svc.UpdateRole(ctx, &req); err != nil {
+				svc.log.Error("UpdateRole failed", zap.Error(err))
+			}
 		case "delete":
 			var req adminpb.DeleteRoleRequest
 			if event.Payload != nil && event.Payload.Data != nil {
@@ -113,29 +121,29 @@ func handleRoleAction(ctx context.Context, svc *Service, event *nexusv1.EventRes
 					return
 				}
 			}
-			svc.DeleteRole(ctx, &req)
+			if _, err := svc.DeleteRole(ctx, &req); err != nil {
+				svc.log.Error("DeleteRole failed", zap.Error(err))
+			}
 		}
 	}
 }
 
 func handleSettingsAction(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	action, state := parseActionAndState(event.GetEventType())
-	switch action {
-	case "settings":
-		switch state {
-		case "update":
-			var req adminpb.UpdateSettingsRequest
-			if event.Payload != nil && event.Payload.Data != nil {
-				b, err := protojson.Marshal(event.Payload.Data)
-				if err == nil {
-					err = protojson.Unmarshal(b, &req)
-				}
-				if err != nil {
-					svc.log.Error("Failed to unmarshal settings update event payload", zap.Error(err))
-					return
-				}
+	if action == "settings" && state == "update" {
+		var req adminpb.UpdateSettingsRequest
+		if event.Payload != nil && event.Payload.Data != nil {
+			b, err := protojson.Marshal(event.Payload.Data)
+			if err == nil {
+				err = protojson.Unmarshal(b, &req)
 			}
-			svc.UpdateSettings(ctx, &req)
+			if err != nil {
+				svc.log.Error("Failed to unmarshal settings update event payload", zap.Error(err))
+				return
+			}
+		}
+		if _, err := svc.UpdateSettings(ctx, &req); err != nil {
+			svc.log.Error("UpdateSettings failed", zap.Error(err))
 		}
 	}
 }

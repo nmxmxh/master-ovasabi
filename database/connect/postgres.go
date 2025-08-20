@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	// Blank import required for Postgres driver registration.
 	_ "github.com/lib/pq"
 	"github.com/nmxmxh/master-ovasabi/internal/config"
 	"go.uber.org/zap"
 )
 
-// ConnectPostgres establishes a connection to Postgres with retries and config tuning.
-func ConnectPostgres(ctx context.Context, log *zap.Logger, cfg *config.Config) (*sql.DB, error) {
+// Postgres establishes a connection to Postgres with retries and config tuning.
+func Postgres(ctx context.Context, log *zap.Logger, cfg *config.Config) (*sql.DB, error) {
 	maxRetries := 5
 	var db *sql.DB
 	var err error

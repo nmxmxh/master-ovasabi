@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	// Blank import for pq driver registration (required by database/sql).
 	_ "github.com/lib/pq"
 )
 

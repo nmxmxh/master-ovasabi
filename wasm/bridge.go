@@ -18,7 +18,6 @@ import (
 // These variables/functions must be declared in main.go/gpu.go and available here
 var sharedBuffer = make([]float32, 8192) // Shared animation/state buffer (32KB)
 var lastFrameTime float64
-var perfLogger *PerformanceLogger
 var pendingRequests sync.Map
 var particleWorkerPool *ParticleWorkerPool
 var memoryPools *MemoryPoolManager
@@ -326,8 +325,8 @@ fn shade(@builtin(global_invocation_id) global_id: vec3<u32>) {
 		"code": computeShaderCode,
 	}))
 
-	// --- Persistent buffer sizing for up to 10 million particles ---
-	constMaxParticles := 10000000                   // 10 million
+	// --- Persistent buffer sizing for up to 100,000 particles ---
+	constMaxParticles := 2000000                    // 2 million
 	bufferSize := constMaxParticles * 10 * 4        // bytes for all particles (10 floats per particle)
 	originalBufferSize := constMaxParticles * 3 * 4 // bytes for original positions (3 floats per particle)
 
@@ -635,11 +634,6 @@ func processGPUTaskDirect(inputData js.Value, operation float64) js.Value {
 		return js.Null()
 	}
 
-	// Debug: Log for large operations using aggregated logging
-	if inputLength > 200000 {
-		perfLogger.LogSuccess("gpu_direct_processing", int64(inputLength))
-	}
-
 	queue := gpuDevice.Get("queue")
 	queue.Call("writeBuffer", gpuInputBuffer, 0, inputData)
 
@@ -754,7 +748,6 @@ func processGPUTaskDirect(inputData js.Value, operation float64) js.Value {
 					_ = diff0 // Suppress unused variable warnings - these are for debugging
 					_ = diff1
 					_ = diff2
-					perfLogger.LogSuccess("gpu_animation_debug_sample", 1)
 				}
 			}
 
@@ -798,11 +791,6 @@ func processGPUTaskDirectWithOffset(inputData js.Value, elapsedTime float64, glo
 		return js.Null()
 	}
 
-	// Debug: Log synchronized processing info using aggregated logging
-	if inputLength > 200000 {
-		perfLogger.LogSuccess("gpu_synchronized_processing", int64(inputLength))
-	}
-
 	queue := gpuDevice.Get("queue")
 
 	// Write current positions to input buffer
@@ -826,9 +814,6 @@ func processGPUTaskDirectWithOffset(inputData js.Value, elapsedTime float64, glo
 			(*[1 << 30]byte)(unsafe.Pointer(&gpuOriginalPositions[0]))[:inputLength*4],
 		)
 		queue.Call("writeBuffer", gpuOriginalBuffer, 0, originalData)
-
-		// Use aggregated logging instead of verbose per-operation logging
-		perfLogger.LogSuccess("gpu_original_positions_init", int64(inputLength))
 	}
 
 	// Calculate delta time (limit to prevent large jumps)
@@ -1130,25 +1115,113 @@ func jsSendWasmMessage(this js.Value, args []js.Value) interface{} {
 	jsMsg := args[0]
 	wasmLog("[WASM] sendWasmMessage received from JS:", jsMsg)
 
-	// Convert JavaScript object to Go EventEnvelope at the boundary
-	event, err := jsValueToEventEnvelope(jsMsg)
-	if err != nil {
-		wasmLog("[WASM] Failed to convert JS message to EventEnvelope:", err)
+	// Forward the JS message as-is to the backend (assume correct structure)
+	if jsMsg.Type() != js.TypeObject {
+		wasmLog("[WASM] sendWasmMessage expects a JS object")
+		return nil
+	}
+	eventType := jsMsg.Get("type").String()
+	payload := jsMsg.Get("payload")
+	metadata := jsMsg.Get("metadata")
+	var payloadBytes, metadataBytes []byte
+	if payload.Type() != js.TypeUndefined {
+		payloadBytes, _ = json.Marshal(payload)
+	}
+	if metadata.Type() != js.TypeUndefined {
+		metadataBytes, _ = json.Marshal(metadata)
+	} else {
+		metadataBytes = []byte("{}")
+	}
+	wasmLog("[WASM] Forwarding EventEnvelope:", eventType)
+	emitToNexus(eventType, payloadBytes, metadataBytes)
+	// Optionally process internally
+	if handler := eventBus.GetHandler(eventType); handler != nil {
+		go handler(EventEnvelope{Type: eventType, Payload: payloadBytes, Metadata: metadataBytes})
+	} else {
+		wasmLog("[WASM] No internal handler registered for event type from JS:", eventType)
+	}
+	return nil
+}
+
+// jsSendBinary is exposed to JavaScript for sending binary data.
+// Always sends a JSON EventEnvelope with base64-encoded payload.
+func jsSendBinary(this js.Value, args []js.Value) interface{} {
+	if len(args) < 3 { // Expecting type, payload, metadata
+		wasmLog("[WASM] sendBinary requires type, payload, and metadata arguments")
 		return nil
 	}
 
-	wasmLog("[WASM] Converted to EventEnvelope:", event.Type)
+	eventType := args[0].String()
+	payloadJS := args[1]
+	metadataJS := args[2]
 
-	// Forward the event to the backend (Nexus)
-	emitToNexus(event.Type, event.Payload, event.Metadata)
-
-	// Process the properly typed event internally if a handler exists
-	if handler := eventBus.GetHandler(event.Type); handler != nil {
-		go handler(event)
+	// Convert payloadJS to []byte
+	var payloadBytes []byte
+	if payloadJS.InstanceOf(js.Global().Get("Uint8Array")) || payloadJS.InstanceOf(js.Global().Get("ArrayBuffer")) {
+		payloadBytes = make([]byte, payloadJS.Get("byteLength").Int())
+		js.CopyBytesToGo(payloadBytes, payloadJS)
+	} else if payloadJS.Type() == js.TypeString {
+		payloadBytes = []byte(payloadJS.String())
 	} else {
-		wasmLog("[WASM] No internal handler registered for event type from JS:", event.Type)
+		jsonPayload, err := json.Marshal(payloadJS.String())
+		if err != nil {
+			wasmLog("[WASM] Failed to marshal payload to JSON:", err)
+			return nil
+		}
+		payloadBytes = jsonPayload
 	}
+
+	// Encode binary payload as base64 string
+	base64Payload := base64.StdEncoding.EncodeToString(payloadBytes)
+	payloadObj := map[string]string{"data": base64Payload}
+	payloadJSON, err := json.Marshal(payloadObj)
+	if err != nil {
+		wasmLog("[WASM] Failed to marshal base64 payload object:", err)
+		return nil
+	}
+
+	// Convert metadataJS to JSON RawMessage
+	var metadataBytes json.RawMessage
+	if metadataJS.Type() == js.TypeString {
+		metadataBytes = json.RawMessage(metadataJS.String())
+	} else {
+		jsonMetadata, err := json.Marshal(metadataJS.String())
+		if err != nil {
+			wasmLog("[WASM] Failed to marshal metadata to JSON:", err)
+			return nil
+		}
+		metadataBytes = jsonMetadata
+	}
+
+	// Ensure correlation_id is present in metadata
+	var metadataMap map[string]interface{}
+	if err := json.Unmarshal(metadataBytes, &metadataMap); err == nil {
+		if _, ok := metadataMap["correlation_id"]; !ok {
+			metadataMap["correlation_id"] = generateCorrelationID()
+			metadataBytes, _ = json.Marshal(metadataMap)
+		}
+	}
+
+	// Construct the EventEnvelope
+	event := EventEnvelope{
+		Type:     eventType,
+		Payload:  payloadJSON,
+		Metadata: metadataBytes,
+	}
+
+	envelopeBytes, err := json.Marshal(event)
+	if err != nil {
+		wasmLog("[WASM] Failed to marshal EventEnvelope:", err)
+		return nil
+	}
+
+	sendWSMessage(envelopeBytes)
 	return nil
+}
+
+// Helper to generate a correlation ID
+func generateCorrelationID() string {
+	return fmt.Sprintf("corr_%d", time.Now().UnixNano())
 }
 
 // --- AI/ML Inference and Task Submission ---
@@ -1170,69 +1243,6 @@ func jsMigrateUser(this js.Value, args []js.Value) interface{} {
 	if len(args) > 0 {
 		migrateUserSession(args[0].String())
 	}
-	return nil
-}
-
-// jsSendBinary handles binary data with proper Frontend→WASM type conversion
-func jsSendBinary(this js.Value, args []js.Value) interface{} {
-	if len(args) < 3 { // Expecting type, payload, and metadata
-		wasmLog("[WASM] sendBinary requires type, payload, and metadata arguments")
-		return nil
-	}
-
-	eventType := args[0].String()
-	payloadJS := args[1]
-	metadataJS := args[2]
-
-	// Convert payload to proper Go format at the boundary
-	var payloadBytes []byte
-	if payloadJS.InstanceOf(js.Global().Get("Uint8Array")) || payloadJS.InstanceOf(js.Global().Get("ArrayBuffer")) {
-		payloadBytes = make([]byte, payloadJS.Get("byteLength").Int())
-		js.CopyBytesToGo(payloadBytes, payloadJS)
-	} else if payloadJS.Type() == js.TypeString {
-		payloadBytes = []byte(payloadJS.String())
-	} else {
-		// Convert JS object to JSON at the boundary
-		payloadGo := jsValueToGoValue(payloadJS)
-		if jsonBytes, err := json.Marshal(payloadGo); err == nil {
-			payloadBytes = jsonBytes
-		} else {
-			wasmLog("[WASM] Failed to marshal payload to JSON:", err)
-			return nil
-		}
-	}
-
-	// Convert metadata to proper Go format at the boundary
-	var metadataBytes json.RawMessage
-	if metadataJS.Type() == js.TypeString {
-		metadataBytes = json.RawMessage(metadataJS.String())
-	} else {
-		// Convert JS object to JSON at the boundary
-		metadataGo := jsValueToGoValue(metadataJS)
-		if jsonBytes, err := json.Marshal(metadataGo); err == nil {
-			metadataBytes = jsonBytes
-		} else {
-			wasmLog("[WASM] Failed to marshal metadata to JSON:", err)
-			return nil
-		}
-	}
-
-	// Construct the EventEnvelope with properly converted types
-	event := EventEnvelope{
-		Type:     eventType,
-		Payload:  payloadBytes,
-		Metadata: metadataBytes,
-	}
-
-	// Marshal and send to backend
-	envelopeBytes, err := json.Marshal(event)
-	if err != nil {
-		wasmLog("[WASM] Failed to marshal EventEnvelope:", err)
-		return nil
-	}
-
-	// Send as JSON message (dataType 0)
-	sendWSMessage(0, envelopeBytes)
 	return nil
 }
 
@@ -1258,15 +1268,10 @@ func handleGPUFrame(event EventEnvelope) {
 	// Process WebGPU frame data from event.Payload
 	wasmLog("[WASM] Received gpu_frame event. Metadata:", string(event.Metadata))
 
-	// The contract for binary data is crucial. This implementation handles two possibilities:
-	// 1. A raw binary payload (from the binary WebSocket message path).
-	// 2. A JSON payload with a base64-encoded "data" field.
+	// Only handle EventEnvelope with base64-encoded payload
 	var frameData []byte
 	var payloadMap map[string]interface{}
-
-	// Attempt to unmarshal as JSON to see if it's a structured payload.
 	if err := json.Unmarshal(event.Payload, &payloadMap); err == nil {
-		// It's JSON. Check for a base64-encoded data field.
 		if data, ok := payloadMap["data"].(string); ok {
 			decoded, err := base64.StdEncoding.DecodeString(data)
 			if err != nil {
@@ -1279,17 +1284,13 @@ func handleGPUFrame(event EventEnvelope) {
 			return
 		}
 	} else {
-		// It's not valid JSON, so we assume it's a raw binary payload.
-		frameData = event.Payload
+		wasmLog("[WASM] gpu_frame payload is not valid JSON.")
+		return
 	}
-
 	if len(frameData) == 0 {
 		wasmLog("[WASM] Received gpu_frame event with no data.")
 		return
 	}
-
-	// Pass the raw frame data to a JavaScript function that can interact with the WebGPU API.
-	// We assume a global JS function `window.processGPUFrame` exists for this purpose.
 	jsBuf := js.Global().Get("Uint8Array").New(len(frameData))
 	js.CopyBytesToJS(jsBuf, frameData)
 

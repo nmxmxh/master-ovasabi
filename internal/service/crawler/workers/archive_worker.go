@@ -106,7 +106,7 @@ func (w *ArchiveWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) 
 			return os.MkdirAll(outputPath, f.Mode())
 		}
 
-		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 			return err
 		}
 
@@ -126,7 +126,7 @@ func (w *ArchiveWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) 
 			return err
 		}
 
-		if isArchive(outputPath) && task.Depth > 1 {
+		if isArchive(ctx, outputPath) && task.Depth > 1 {
 			nestedTask := &crawlerpb.CrawlTask{
 				Uuid:   task.Uuid + "-nested",
 				Type:   task.Type,
@@ -145,7 +145,6 @@ func (w *ArchiveWorker) Process(ctx context.Context, task *crawlerpb.CrawlTask) 
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("extraction failed: %w", err)
 	}
@@ -160,7 +159,12 @@ func isDangerousPath(path string) bool {
 		"/etc/passwd", "/etc/shadow",
 	}
 	for _, pattern := range dangerousPatterns {
-		if matched, _ := filepath.Match(pattern, path); matched {
+		matched, err := filepath.Match(pattern, path)
+		if err != nil {
+			// Log or handle the error as needed
+			continue
+		}
+		if matched {
 			return true
 		}
 	}
@@ -168,7 +172,7 @@ func isDangerousPath(path string) bool {
 }
 
 // isArchive checks if a given file path points to a known archive format.
-func isArchive(filePath string) bool {
+func isArchive(ctx context.Context, filePath string) bool {
 	file, err := os.Open(filePath)
 	if err != nil {
 		// If we can't open it, we can't identify it.
@@ -176,7 +180,7 @@ func isArchive(filePath string) bool {
 	}
 	defer file.Close()
 
-	_, _, err = archiver.Identify(context.Background(), filePath, file)
+	_, _, err = archiver.Identify(ctx, filePath, file)
 	if errors.Is(err, archiver.NoMatch) {
 		return false
 	}

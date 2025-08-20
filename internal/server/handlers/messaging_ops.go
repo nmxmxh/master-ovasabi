@@ -64,8 +64,24 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 
 		actionHandlers := map[string]func(){
 			"send_message": func() {
-				senderID, _ := reqMap["sender_id"].(string)
-				campaignIDFloat, _ := reqMap["campaign_id"].(float64)
+				senderIDVal, senderIDOk := reqMap["sender_id"]
+				var senderID string
+				if senderIDOk {
+					if s, ok := senderIDVal.(string); ok {
+						senderID = s
+					} else {
+						log.Warn("Type assertion to string failed for senderID", zap.Any("senderIDVal", senderIDVal))
+					}
+				}
+				campaignIDFloatVal, campaignIDFloatOk := reqMap["campaign_id"]
+				var campaignIDFloat float64
+				if campaignIDFloatOk {
+					if f, ok := campaignIDFloatVal.(float64); ok {
+						campaignIDFloat = f
+					} else {
+						log.Warn("Type assertion to float64 failed for campaignIDFloat", zap.Any("campaignIDFloatVal", campaignIDFloatVal))
+					}
+				}
 				campaignIDStr := strconv.FormatInt(int64(campaignIDFloat), 10)
 
 				// --- Guest comment logic for campaign-based messaging ---
@@ -77,16 +93,40 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 						return
 					}
 					// Mark as guest comment in metadata
-					meta, _ := reqMap["metadata"].(map[string]interface{})
-					if meta == nil {
+					metaVal, metaOk := reqMap["metadata"]
+					var meta map[string]interface{}
+					if metaOk {
+						if m, ok := metaVal.(map[string]interface{}); ok {
+							meta = m
+						} else {
+							log.Warn("Type assertion to map[string]interface{} failed for meta (guest)", zap.Any("metaVal", metaVal))
+							meta = make(map[string]interface{})
+						}
+					} else {
 						meta = make(map[string]interface{})
 					}
-					serviceSpecific, _ := meta["service_specific"].(map[string]interface{})
-					if serviceSpecific == nil {
+					serviceSpecificVal, serviceSpecificOk := meta["service_specific"]
+					var serviceSpecific map[string]interface{}
+					if serviceSpecificOk {
+						if ss, ok := serviceSpecificVal.(map[string]interface{}); ok {
+							serviceSpecific = ss
+						} else {
+							log.Warn("Type assertion to map[string]interface{} failed for serviceSpecific (guest)", zap.Any("serviceSpecificVal", serviceSpecificVal))
+							serviceSpecific = make(map[string]interface{})
+						}
+					} else {
 						serviceSpecific = make(map[string]interface{})
 					}
-					messagingMeta, _ := serviceSpecific["messaging"].(map[string]interface{})
-					if messagingMeta == nil {
+					messagingMetaVal, messagingMetaOk := serviceSpecific["messaging"]
+					var messagingMeta map[string]interface{}
+					if messagingMetaOk {
+						if mm, ok := messagingMetaVal.(map[string]interface{}); ok {
+							messagingMeta = mm
+						} else {
+							log.Warn("Type assertion to map[string]interface{} failed for messagingMeta (guest)", zap.Any("messagingMetaVal", messagingMetaVal))
+							messagingMeta = make(map[string]interface{})
+						}
+					} else {
 						messagingMeta = make(map[string]interface{})
 					}
 
@@ -115,16 +155,40 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 						return
 					}
 					// Add audit metadata
-					meta, _ := reqMap["metadata"].(map[string]interface{})
-					if meta == nil {
+					metaVal, metaOk := reqMap["metadata"]
+					var meta map[string]interface{}
+					if metaOk {
+						if m, ok := metaVal.(map[string]interface{}); ok {
+							meta = m
+						} else {
+							log.Warn("Type assertion to map[string]interface{} failed for meta (auth)", zap.Any("metaVal", metaVal))
+							meta = make(map[string]interface{})
+						}
+					} else {
 						meta = make(map[string]interface{})
 					}
-					serviceSpecific, _ := meta["service_specific"].(map[string]interface{})
-					if serviceSpecific == nil {
+					serviceSpecificVal, serviceSpecificOk := meta["service_specific"]
+					var serviceSpecific map[string]interface{}
+					if serviceSpecificOk {
+						if ss, ok := serviceSpecificVal.(map[string]interface{}); ok {
+							serviceSpecific = ss
+						} else {
+							log.Warn("Type assertion to map[string]interface{} failed for serviceSpecific (auth)", zap.Any("serviceSpecificVal", serviceSpecificVal))
+							serviceSpecific = make(map[string]interface{})
+						}
+					} else {
 						serviceSpecific = make(map[string]interface{})
 					}
-					messagingMeta, _ := serviceSpecific["messaging"].(map[string]interface{})
-					if messagingMeta == nil {
+					messagingMetaVal, messagingMetaOk := serviceSpecific["messaging"]
+					var messagingMeta map[string]interface{}
+					if messagingMetaOk {
+						if mm, ok := messagingMetaVal.(map[string]interface{}); ok {
+							messagingMeta = mm
+						} else {
+							log.Warn("Type assertion to map[string]interface{} failed for messagingMeta (auth)", zap.Any("messagingMetaVal", messagingMetaVal))
+							messagingMeta = make(map[string]interface{})
+						}
+					} else {
 						messagingMeta = make(map[string]interface{})
 					}
 
@@ -137,43 +201,59 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 					meta["service_specific"] = serviceSpecific
 					reqMap["metadata"] = meta
 				}
-				handleMessagingAction(w, ctx, log, reqMap, &messagingpb.SendMessageRequest{}, messagingSvc.SendMessage)
+				handleMessagingAction(ctx, w, log, reqMap, &messagingpb.SendMessageRequest{}, messagingSvc.SendMessage)
 			},
 			"list_messages": func() {
-				handleMessagingAction(w, ctx, log, reqMap, &messagingpb.ListMessagesRequest{}, messagingSvc.ListMessages)
+				handleMessagingAction(ctx, w, log, reqMap, &messagingpb.ListMessagesRequest{}, messagingSvc.ListMessages)
 			},
 			"update_preferences": func() {
-				requestUserID, _ := reqMap["user_id"].(string)
+				requestUserIDVal, requestUserIDOk := reqMap["user_id"]
+				var requestUserID string
+				if requestUserIDOk {
+					if s, ok := requestUserIDVal.(string); ok {
+						requestUserID = s
+					} else {
+						log.Warn("Type assertion to string failed for requestUserID in update_preferences", zap.Any("requestUserIDVal", requestUserIDVal))
+					}
+				}
 				if isGuest || (requestUserID != userID && !httputil.IsAdmin(roles)) {
 					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: can only update your own preferences (or admin)", nil)
 					return
 				}
-				handleMessagingAction(w, ctx, log, reqMap, &messagingpb.UpdateMessagingPreferencesRequest{}, messagingSvc.UpdateMessagingPreferences)
+				handleMessagingAction(ctx, w, log, reqMap, &messagingpb.UpdateMessagingPreferencesRequest{}, messagingSvc.UpdateMessagingPreferences)
 			},
 			"list_threads": func() {
-				requestUserID, _ := reqMap["user_id"].(string)
+				requestUserIDVal, requestUserIDOk := reqMap["user_id"]
+				var requestUserID string
+				if requestUserIDOk {
+					if s, ok := requestUserIDVal.(string); ok {
+						requestUserID = s
+					} else {
+						log.Warn("Type assertion to string failed for requestUserID in list_threads", zap.Any("requestUserIDVal", requestUserIDVal))
+					}
+				}
 				if isGuest || (requestUserID != userID && !httputil.IsAdmin(roles)) {
 					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: can only list your own threads (or admin)", nil)
 					return
 				}
-				handleMessagingAction(w, ctx, log, reqMap, &messagingpb.ListThreadsRequest{}, messagingSvc.ListThreads)
+				handleMessagingAction(ctx, w, log, reqMap, &messagingpb.ListThreadsRequest{}, messagingSvc.ListThreads)
 			},
 			"add_chat_group_member": func() {
 				if !httputil.IsAdmin(roles) {
 					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: admin role required", nil)
 					return
 				}
-				handleMessagingAction(w, ctx, log, reqMap, &messagingpb.AddChatGroupMemberRequest{}, messagingSvc.AddChatGroupMember)
+				handleMessagingAction(ctx, w, log, reqMap, &messagingpb.AddChatGroupMemberRequest{}, messagingSvc.AddChatGroupMember)
 			},
 			"remove_chat_group_member": func() {
 				if !httputil.IsAdmin(roles) {
 					httputil.WriteJSONError(w, log, http.StatusForbidden, "forbidden: admin role required", nil)
 					return
 				}
-				handleMessagingAction(w, ctx, log, reqMap, &messagingpb.RemoveChatGroupMemberRequest{}, messagingSvc.RemoveChatGroupMember)
+				handleMessagingAction(ctx, w, log, reqMap, &messagingpb.RemoveChatGroupMemberRequest{}, messagingSvc.RemoveChatGroupMember)
 			},
 			"list_chat_group_members": func() {
-				handleMessagingAction(w, ctx, log, reqMap, &messagingpb.ListChatGroupMembersRequest{}, messagingSvc.ListChatGroupMembers)
+				handleMessagingAction(ctx, w, log, reqMap, &messagingpb.ListChatGroupMembersRequest{}, messagingSvc.ListChatGroupMembers)
 			},
 		}
 
@@ -188,8 +268,8 @@ func MessagingOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleMessagingAction is a generic helper to reduce boilerplate in MessagingOpsHandler.
 func handleMessagingAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

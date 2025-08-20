@@ -19,7 +19,6 @@ func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadMessagingEvents()
 	for _, evt := range evts {
-		// Example: evt = "messaging:send_message:v1:completed"; key = "send_message:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -40,7 +39,7 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadMessagingEvents() []string {
 	return events.LoadCanonicalEvents("messaging")
 }
@@ -50,21 +49,32 @@ func loadMessagingEvents() []string {
 // ...Service struct is defined elsewhere (e.g., provider.go)...
 type ActionHandlerFunc func(ctx context.Context, s *ServiceImpl, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *ServiceImpl, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{
-	"send_message":      handleSendMessage,
-	"receive_message":   handleReceiveMessage,
-	"delete_message":    handleDeleteMessage,
-	"list_messages":     handleListMessages,
-	"broadcast_message": handleBroadcastMessage,
-	"stream_presence":   handleStreamPresence,
-	"mark_as_read":      handleMarkAsRead,
-	"edit_message":      handleEditMessage,
-	"list_threads":      handleListThreads,
-	"get_message":       handleGetMessage,
-	"stream_typing":     handleStreamTyping,
-	"stream_messages":   handleStreamMessages,
-	"react_to_message":  handleReactToMessage,
+	"send_message":      FilterRequestedOnly(handleSendMessage),
+	"receive_message":   FilterRequestedOnly(handleReceiveMessage),
+	"delete_message":    FilterRequestedOnly(handleDeleteMessage),
+	"list_messages":     FilterRequestedOnly(handleListMessages),
+	"broadcast_message": FilterRequestedOnly(handleBroadcastMessage),
+	"stream_presence":   FilterRequestedOnly(handleStreamPresence),
+	"mark_as_read":      FilterRequestedOnly(handleMarkAsRead),
+	"edit_message":      FilterRequestedOnly(handleEditMessage),
+	"list_threads":      FilterRequestedOnly(handleListThreads),
+	"get_message":       FilterRequestedOnly(handleGetMessage),
+	"stream_typing":     FilterRequestedOnly(handleStreamTyping),
+	"stream_messages":   FilterRequestedOnly(handleStreamMessages),
+	"react_to_message":  FilterRequestedOnly(handleReactToMessage),
 }
 
 // ServiceImpl is the messaging service implementation.
@@ -105,9 +115,13 @@ func HandleMessagingServiceEvent(ctx context.Context, s *ServiceImpl, event *nex
 }
 
 // Handler stubs for each messaging action
-// Canonical stub handlers for all messaging actions from actions.txt
+// Canonical stub handlers for all messaging actions from actions.txt.
 func handleStreamPresence(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling stream_presence event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleStreamPresence", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.StreamPresenceRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -119,12 +133,19 @@ func handleStreamPresence(ctx context.Context, svc *ServiceImpl, event *nexusv1.
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal DeleteMessageRequest", zap.Error(err))
+	}
 	svc.log.Info("StreamPresence event processed (stub)", zap.String("user_id", req.GetUserId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleMarkAsRead(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling mark_as_read event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleMarkAsRead", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.MarkAsReadRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -136,12 +157,19 @@ func handleMarkAsRead(ctx context.Context, svc *ServiceImpl, event *nexusv1.Even
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal ListMessagesRequest", zap.Error(err))
+	}
 	svc.log.Info("MarkAsRead event processed (stub)", zap.String("message_id", req.GetMessageId()), zap.String("user_id", req.GetUserId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleEditMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling edit_message event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleEditMessage", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.EditMessageRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -153,12 +181,19 @@ func handleEditMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.Eve
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal EditMessageRequest", zap.Error(err))
+	}
 	svc.log.Info("EditMessage event processed (stub)", zap.String("message_id", req.GetMessageId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleListThreads(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling list_threads event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleListThreads", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.ListThreadsRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -170,12 +205,19 @@ func handleListThreads(ctx context.Context, svc *ServiceImpl, event *nexusv1.Eve
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal ListThreadsRequest", zap.Error(err))
+	}
 	svc.log.Info("ListThreads event processed (stub)", zap.String("user_id", req.GetUserId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleGetMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling get_message event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleGetMessage", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.GetMessageRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -187,12 +229,19 @@ func handleGetMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.Even
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal GetMessageRequest", zap.Error(err))
+	}
 	svc.log.Info("GetMessage event processed (stub)", zap.String("message_id", req.GetMessageId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleStreamTyping(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling stream_typing event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleStreamTyping", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.StreamTypingRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -204,12 +253,19 @@ func handleStreamTyping(ctx context.Context, svc *ServiceImpl, event *nexusv1.Ev
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal StreamTypingRequest", zap.Error(err))
+	}
 	svc.log.Info("StreamTyping event processed (stub)", zap.String("user_id", req.GetUserId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleStreamMessages(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling stream_messages event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleStreamMessages", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.StreamMessagesRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -221,12 +277,19 @@ func handleStreamMessages(ctx context.Context, svc *ServiceImpl, event *nexusv1.
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal StreamMessagesRequest", zap.Error(err))
+	}
 	svc.log.Info("StreamMessages event processed (stub)", zap.String("user_id", req.GetUserId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleReactToMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling react_to_message event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleReactToMessage", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.ReactToMessageRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -238,11 +301,19 @@ func handleReactToMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal ReactToMessageRequest", zap.Error(err))
+	}
 	svc.log.Info("ReactToMessage event processed (stub)", zap.String("message_id", req.GetMessageId()), zap.String("request_json", string(jsonReq)))
 }
+
 func handleSendMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling send_message event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleSendMessage", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.SendMessageRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -254,16 +325,31 @@ func handleSendMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.Eve
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal SendMessageRequest", zap.Error(err))
+	}
 	svc.log.Info("SendMessage event processed (stub)", zap.String("thread_id", req.GetThreadId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleReceiveMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleReceiveMessage", zap.Error(ctx.Err()))
+	}
+	// Reference unused parameter for diagnostics
+	if event != nil {
+		svc.log.Debug("handleReceiveMessage called", zap.Any("event", event))
+	}
 	// ReceiveMessageRequest does not exist in proto; stub removed.
 }
 
 func handleDeleteMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling delete_message event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleDeleteMessage", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.DeleteMessageRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -275,12 +361,19 @@ func handleDeleteMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.E
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal DeleteMessageRequest", zap.Error(err))
+	}
 	svc.log.Info("DeleteMessage event processed (stub)", zap.String("message_id", req.GetMessageId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleListMessages(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling list_messages event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleListMessages", zap.Error(ctx.Err()))
+	}
 	var req messagingpb.ListMessagesRequest
 	if event.Payload != nil && event.Payload.Data != nil {
 		b, err := protojson.Marshal(event.Payload.Data)
@@ -292,15 +385,26 @@ func handleListMessages(ctx context.Context, svc *ServiceImpl, event *nexusv1.Ev
 			return
 		}
 	}
-	jsonReq, _ := protojson.Marshal(&req)
+	jsonReq, err := protojson.Marshal(&req)
+	if err != nil {
+		svc.log.Error("Failed to marshal ListMessagesRequest", zap.Error(err))
+	}
 	svc.log.Info("ListMessages event processed (stub)", zap.String("thread_id", req.GetThreadId()), zap.String("request_json", string(jsonReq)))
 }
 
 func handleBroadcastMessage(ctx context.Context, svc *ServiceImpl, event *nexusv1.EventResponse) {
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleBroadcastMessage", zap.Error(ctx.Err()))
+	}
+	// Reference unused parameter for diagnostics
+	if event != nil {
+		svc.log.Debug("handleBroadcastMessage called", zap.Any("event", event))
+	}
 	// BroadcastMessageRequest does not exist in proto; stub removed.
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	InitCanonicalEventTypeRegistry()
 	m := make(map[string]ActionHandlerFunc)

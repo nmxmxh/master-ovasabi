@@ -36,27 +36,28 @@ func (a *GenericAPIAdapter) Search(ctx context.Context, req *Request) ([]*Result
 	q := url.QueryEscape(req.Query)
 	endpoint := a.Endpoint
 
-	// Special handling for ConceptNet (path-based query)
-	if a.AdapterName == "conceptnet" {
+	switch a.AdapterName {
+	case "conceptnet":
 		// ConceptNet expects the query as a path, e.g., /c/en/word
 		word := strings.ReplaceAll(strings.ToLower(req.Query), " ", "_")
 		endpoint = "https://api.conceptnet.io/c/en/" + word
-	} else if a.AdapterName == "gutendex" {
+	case "gutendex":
 		// Gutendex expects ?search=...
 		endpoint = "https://gutendex.com/books/?search=" + q
-	} else if a.AdapterName == "wikidata" {
+	case "wikidata":
 		// Wikidata expects SPARQL query in 'query' param
-		// Use recommended label search SPARQL
 		sparql := fmt.Sprintf("SELECT ?item ?itemLabel WHERE { ?item rdfs:label '%s'@en. SERVICE wikibase:label { bd:serviceParam wikibase:language 'en'. } } LIMIT 10", req.Query)
 		endpoint = "https://query.wikidata.org/sparql?format=json&query=" + url.QueryEscape(sparql)
-	} else if a.AdapterName == "openlibrary" {
+	case "openlibrary":
 		// OpenLibrary expects ?q=... and requires User-Agent header
 		endpoint = "https://openlibrary.org/search.json?q=" + q
-	} else if a.QueryKey != "" {
-		if strings.Contains(endpoint, "?") {
-			endpoint += "&" + a.QueryKey + "=" + q
-		} else {
-			endpoint += "?" + a.QueryKey + "=" + q
+	default:
+		if a.QueryKey != "" {
+			if strings.Contains(endpoint, "?") {
+				endpoint += "&" + a.QueryKey + "=" + q
+			} else {
+				endpoint += "?" + a.QueryKey + "=" + q
+			}
 		}
 	}
 
@@ -351,7 +352,7 @@ func parseNewsAPIResults(body []byte) ([]*Result, error) {
 
 // --- Register Tier 1 Adapters ---
 
-// Wikidata SPARQL ParseFunc (returns JSON, focus on entity label and URI)
+// Wikidata SPARQL ParseFunc (returns JSON, focus on entity label and URI).
 func parseWikidataResults(body []byte) ([]*Result, error) {
 	var resp struct {
 		Results struct {
@@ -363,7 +364,7 @@ func parseWikidataResults(body []byte) ([]*Result, error) {
 				ItemLabel struct {
 					Type  string `json:"type"`
 					Value string `json:"value"`
-				} `json:"itemLabel"`
+				} `json:"item_label"`
 			} `json:"bindings"`
 		} `json:"results"`
 	}
@@ -384,7 +385,7 @@ func parseWikidataResults(body []byte) ([]*Result, error) {
 	return results, nil
 }
 
-// Gutendex API ParseFunc (Project Gutenberg)
+// Gutendex API ParseFunc (Project Gutenberg).
 func parseGutendexResults(body []byte) ([]*Result, error) {
 	var resp struct {
 		Results []struct {
@@ -426,7 +427,7 @@ func parseGutendexResults(body []byte) ([]*Result, error) {
 	return results, nil
 }
 
-// ConceptNet API ParseFunc
+// ConceptNet API ParseFunc.
 func parseConceptNetResults(body []byte) ([]*Result, error) {
 	var resp struct {
 		Edges []struct {

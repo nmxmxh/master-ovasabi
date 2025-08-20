@@ -80,19 +80,6 @@ func Register(
 			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
 		}
 		health.StartHealthSubscriber(ctx, prov, log, "admin", healthDeps)
-
-		// Start centralized health monitoring system (admin coordinates health for all services)
-		monitoredServices := []string{
-			"admin", "user", "nexus", "messaging", "content",
-			"campaign", "search", "notification", "ai", "commerce",
-			"talent", "product", "ws-gateway", "media-streaming",
-		}
-		healthChecker := health.NewCentralizedHealthChecker(prov, log, monitoredServices)
-		healthChecker.StartHealthMonitoring(ctx)
-		log.With(zap.String("service", "admin")).Info("Started centralized health monitoring system",
-			zap.Strings("monitored_services", monitoredServices),
-		)
-
 		hello.StartHelloWorldLoop(ctx, prov, log, "admin")
 	}
 	return nil

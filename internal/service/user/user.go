@@ -109,6 +109,13 @@ var _ userpb.UserServiceServer = (*Service)(nil)
 
 // NewService creates a new instance of UserService with graceful handler and canonical action naming.
 func NewService(ctx context.Context, log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) userpb.UserServiceServer {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		if log != nil {
+			log.Warn("User service creation cancelled by context", zap.Error(ctx.Err()))
+		}
+		return nil
+	}
 	handler := graceful.NewHandler(log, eventEmitter, cache, "user", "v1", eventEnabled)
 	return &Service{
 		log:          log,
@@ -667,6 +674,10 @@ func (s *Service) UpdateProfile(ctx context.Context, req *userpb.UpdateProfileRe
 
 // Replace all direct metadata access/update points with migration and hooks.
 func (s *Service) updateUserMetadata(ctx context.Context, user *User, newMeta *commonpb.Metadata) error {
+	// Use context for diagnostics/cancellation (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	metadata.MigrateMetadata(newMeta)
 	user.Metadata = newMeta
 	return nil

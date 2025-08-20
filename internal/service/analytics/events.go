@@ -16,12 +16,23 @@ import (
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names (e.g., "event", "report") to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
@@ -60,7 +71,9 @@ func eventActionHandler(ctx context.Context, s *Service, event *nexusv1.EventRes
 		return
 	}
 	if event.Metadata != nil {
-		_ = metadata.SetServiceSpecificField(event.Metadata, "analytics", "event_type", req.EventType)
+		if err := metadata.SetServiceSpecificField(event.Metadata, "analytics", "event_type", req.EventType); err != nil {
+			s.log.Error("Failed to set service specific field for event_type", zap.Error(err))
+		}
 	}
 	resp, err := s.CaptureEvent(ctx, req)
 	if err != nil {
@@ -82,7 +95,9 @@ func reportActionHandler(ctx context.Context, s *Service, event *nexusv1.EventRe
 		return
 	}
 	if event.Metadata != nil {
-		_ = metadata.SetServiceSpecificField(event.Metadata, "analytics", "report_id", req.ReportId)
+		if err := metadata.SetServiceSpecificField(event.Metadata, "analytics", "report_id", req.ReportId); err != nil {
+			s.log.Error("Failed to set service specific field for report_id", zap.Error(err))
+		}
 	}
 	resp, err := s.GetReport(ctx, req)
 	if err != nil {
@@ -97,7 +112,7 @@ func init() {
 	RegisterActionHandler("report", reportActionHandler)
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadAnalyticsEvents() []string {
 	return events.LoadCanonicalEvents("analytics")
 }
@@ -108,7 +123,7 @@ type EventSubscription struct {
 	Handler    ActionHandlerFunc
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	evts := loadAnalyticsEvents()
 	m := make(map[string]ActionHandlerFunc)
@@ -145,7 +160,7 @@ func StartEventSubscribers(ctx context.Context, s *Service, provider *service.Pr
 	}
 }
 
-// Register analytics action handlers
+// Register analytics action handlers.
 func init() {
 	RegisterActionHandler("event", eventActionHandler)
 	RegisterActionHandler("report", reportActionHandler)

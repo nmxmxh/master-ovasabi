@@ -120,26 +120,26 @@ func MediaOpsHandler(container *di.Container) http.HandlerFunc {
 
 		actionHandlers := map[string]func(){
 			"start_upload": func() {
-				handleMediaAction(w, ctx, log, req, &mediapb.StartHeavyMediaUploadRequest{}, mediaSvc.StartHeavyMediaUpload)
+				handleMediaAction(ctx, w, log, req, &mediapb.StartHeavyMediaUploadRequest{}, mediaSvc.StartHeavyMediaUpload)
 			},
 			"upload_chunk": func() {
 				// protojson handles base64 decoding for bytes fields automatically.
 				// However, if the client sends a non-base64 string, protojson will return an error.
 				// The current implementation manually decodes base64, which is fine, but can be simplified.
 				// For consistency with other handlers, we'll let mapToProtoMedia handle it.
-				handleMediaAction(w, ctx, log, req, &mediapb.StreamMediaChunkRequest{}, mediaSvc.StreamMediaChunk)
+				handleMediaAction(ctx, w, log, req, &mediapb.StreamMediaChunkRequest{}, mediaSvc.StreamMediaChunk)
 			},
 			"complete_upload": func() {
-				handleMediaAction(w, ctx, log, req, &mediapb.CompleteMediaUploadRequest{}, mediaSvc.CompleteMediaUpload)
+				handleMediaAction(ctx, w, log, req, &mediapb.CompleteMediaUploadRequest{}, mediaSvc.CompleteMediaUpload)
 			},
 			"get_media": func() {
-				handleMediaAction(w, ctx, log, req, &mediapb.GetMediaRequest{}, mediaSvc.GetMedia)
+				handleMediaAction(ctx, w, log, req, &mediapb.GetMediaRequest{}, mediaSvc.GetMedia)
 			},
 			"list_user_media": func() {
-				handleMediaAction(w, ctx, log, req, &mediapb.ListUserMediaRequest{}, mediaSvc.ListUserMedia)
+				handleMediaAction(ctx, w, log, req, &mediapb.ListUserMediaRequest{}, mediaSvc.ListUserMedia)
 			},
 			"delete_media": func() {
-				handleMediaAction(w, ctx, log, req, &mediapb.DeleteMediaRequest{}, mediaSvc.DeleteMedia)
+				handleMediaAction(ctx, w, log, req, &mediapb.DeleteMediaRequest{}, mediaSvc.DeleteMedia)
 			},
 		}
 
@@ -153,8 +153,8 @@ func MediaOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleMediaAction is a generic helper to reduce boilerplate in MediaOpsHandler.
 func handleMediaAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

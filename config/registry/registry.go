@@ -2,12 +2,13 @@ package registry
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"sync"
 	"time"
 
-	// Metadata proto and handler
+	// Metadata proto and handler.
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 )
@@ -48,7 +49,7 @@ type EventRegistration struct {
 	External       bool      `json:"external,omitempty"` // True if registered by an external server
 }
 
-// In-memory registry with mutex for thread safety
+// In-memory registry with mutex for thread safety.
 var (
 	serviceRegistry = make(map[string]ServiceRegistration)
 	eventRegistry   = make(map[string]EventRegistration)
@@ -97,49 +98,51 @@ func RegisterService(svc ServiceRegistration, instance ...interface{}) {
 		// Optionally, extract method-level metadata if present in metadata["methods"]
 		if methods, ok := metaMap["methods"].(map[string]interface{}); ok {
 			for i, m := range svc.Methods {
-				if mMeta, ok := methods[m.Name].(map[string]interface{}); ok {
-					if d, ok := mMeta["description"].(string); ok {
-						svc.Methods[i].Description = d
-					}
-					if v, ok := mMeta["version"].(string); ok {
-						svc.Methods[i].Version = v
-					}
-					if tgs, ok := mMeta["tags"].([]interface{}); ok {
-						var tagStrs []string
-						for _, t := range tgs {
-							if s, ok := t.(string); ok {
-								tagStrs = append(tagStrs, s)
-							}
+				mMeta, ok := methods[m.Name].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if d, ok := mMeta["description"].(string); ok {
+					svc.Methods[i].Description = d
+				}
+				if v, ok := mMeta["version"].(string); ok {
+					svc.Methods[i].Version = v
+				}
+				if tgs, ok := mMeta["tags"].([]interface{}); ok {
+					var tagStrs []string
+					for _, t := range tgs {
+						if s, ok := t.(string); ok {
+							tagStrs = append(tagStrs, s)
 						}
-						svc.Methods[i].Tags = tagStrs
 					}
-					if p, ok := mMeta["permissions"].([]interface{}); ok {
-						var perms []string
-						for _, t := range p {
-							if s, ok := t.(string); ok {
-								perms = append(perms, s)
-							}
+					svc.Methods[i].Tags = tagStrs
+				}
+				if p, ok := mMeta["permissions"].([]interface{}); ok {
+					var perms []string
+					for _, t := range p {
+						if s, ok := t.(string); ok {
+							perms = append(perms, s)
 						}
-						svc.Methods[i].Permissions = perms
 					}
-					if af, ok := mMeta["all_fields"].([]interface{}); ok {
-						var afs []string
-						for _, t := range af {
-							if s, ok := t.(string); ok {
-								afs = append(afs, s)
-							}
+					svc.Methods[i].Permissions = perms
+				}
+				if af, ok := mMeta["all_fields"].([]interface{}); ok {
+					var afs []string
+					for _, t := range af {
+						if s, ok := t.(string); ok {
+							afs = append(afs, s)
 						}
-						svc.Methods[i].AllFields = afs
 					}
-					if rf, ok := mMeta["required_fields"].([]interface{}); ok {
-						var rfs []string
-						for _, t := range rf {
-							if s, ok := t.(string); ok {
-								rfs = append(rfs, s)
-							}
+					svc.Methods[i].AllFields = afs
+				}
+				if rf, ok := mMeta["required_fields"].([]interface{}); ok {
+					var rfs []string
+					for _, t := range rf {
+						if s, ok := t.(string); ok {
+							rfs = append(rfs, s)
 						}
-						svc.Methods[i].RequiredFields = rfs
 					}
+					svc.Methods[i].RequiredFields = rfs
 				}
 			}
 		}
@@ -186,6 +189,10 @@ func RegisterService(svc ServiceRegistration, instance ...interface{}) {
 						}
 					}
 				}
+			}
+			// nestingReduce: invert if cond, replace body with continue, move old body after
+			if m.Name == "" {
+				continue
 			}
 			svc.Methods = append(svc.Methods, ServiceMethod{
 				Name:           m.Name,
@@ -270,7 +277,7 @@ func RegisterEvent(evt EventRegistration, metaOpt ...interface{}) {
 func SaveRegistriesToDisk(dir string) error {
 	regMutex.RLock()
 	defer regMutex.RUnlock()
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	// Save services
@@ -279,7 +286,7 @@ func SaveRegistriesToDisk(dir string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(svcFile, svcData, 0644); err != nil {
+	if err := os.WriteFile(svcFile, svcData, 0o600); err != nil {
 		return err
 	}
 	// Save events
@@ -288,7 +295,7 @@ func SaveRegistriesToDisk(dir string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(evtFile, evtData, 0644)
+	return os.WriteFile(evtFile, evtData, 0o600)
 }
 
 func LoadRegistriesFromDisk(dir string) error {
@@ -297,12 +304,16 @@ func LoadRegistriesFromDisk(dir string) error {
 	// Load services
 	svcFile := dir + "/services.json"
 	if svcData, err := os.ReadFile(svcFile); err == nil {
-		_ = json.Unmarshal(svcData, &serviceRegistry)
+		if err := json.Unmarshal(svcData, &serviceRegistry); err != nil {
+			return fmt.Errorf("failed to unmarshal serviceRegistry: %w", err)
+		}
 	}
 	// Load events
 	evtFile := dir + "/events.json"
 	if evtData, err := os.ReadFile(evtFile); err == nil {
-		_ = json.Unmarshal(evtData, &eventRegistry)
+		if err := json.Unmarshal(evtData, &eventRegistry); err != nil {
+			return fmt.Errorf("failed to unmarshal eventRegistry: %w", err)
+		}
 	}
 	return nil
 }
@@ -310,19 +321,19 @@ func LoadRegistriesFromDisk(dir string) error {
 func GetServiceRegistry() map[string]ServiceRegistration {
 	regMutex.RLock()
 	defer regMutex.RUnlock()
-	copy := make(map[string]ServiceRegistration, len(serviceRegistry))
+	result := make(map[string]ServiceRegistration, len(serviceRegistry))
 	for k, v := range serviceRegistry {
-		copy[k] = v
+		result[k] = v
 	}
-	return copy
+	return result
 }
 
 func GetEventRegistry() map[string]EventRegistration {
 	regMutex.RLock()
 	defer regMutex.RUnlock()
-	copy := make(map[string]EventRegistration, len(eventRegistry))
+	result := make(map[string]EventRegistration, len(eventRegistry))
 	for k, v := range eventRegistry {
-		copy[k] = v
+		result[k] = v
 	}
-	return copy
+	return result
 }

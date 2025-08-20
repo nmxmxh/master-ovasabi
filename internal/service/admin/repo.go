@@ -133,7 +133,9 @@ func (r *Repository) CreateRole(ctx context.Context, role *adminpb.Role) (*admin
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				fmt.Printf("failed to rollback transaction: %v\n", rbErr)
+			}
 			panic(r) // Re-throw panic
 		}
 	}()
@@ -147,7 +149,9 @@ func (r *Repository) CreateRole(ctx context.Context, role *adminpb.Role) (*admin
 
 	metadataJSON, err := marshalMetadata(role.Metadata)
 	if err != nil {
-		_ = tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			fmt.Printf("failed to rollback transaction: %v\n", rbErr)
+		}
 		return nil, fmt.Errorf("failed to marshal role metadata: %w", err)
 	}
 	row := tx.QueryRowContext(ctx, `
@@ -162,6 +166,9 @@ func (r *Repository) CreateRole(ctx context.Context, role *adminpb.Role) (*admin
 	var permissions []string
 	var returnedMetadataJSON sql.NullString
 	if err := row.Scan(&createdRole.Id, &masterID, &masterUUID, &createdRole.Name, pq.Array(&permissions), &returnedMetadataJSON); err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			fmt.Printf("failed to rollback transaction: %v\n", rbErr)
+		}
 		return nil, err
 	}
 

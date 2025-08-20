@@ -27,10 +27,6 @@ var globalSetupOnce sync.Once
 // worker processes particle tasks concurrently
 func (pool *ParticleWorkerPool) worker(id int) {
 	defer pool.wg.Done()
-
-	// Aggregate worker startup logging instead of per-worker
-	perfLogger.LogSuccess("worker_startup", 1)
-
 	for {
 		select {
 		case task := <-pool.tasks:
@@ -56,75 +52,77 @@ func (pool *ParticleWorkerPool) worker(id int) {
 // processParticleChunk handles CPU-based particle processing for a chunk
 func (pool *ParticleWorkerPool) processParticleChunk(task ParticleTask, workerID int) ParticleResult {
 	_ = workerID // workerID available for debugging/logging if needed
+	// --- Refactored: 10-value-per-particle format ---
+	// Data format: position(3) + velocity(3) + phase(1) + intensity(1) + type(1) + id(1) = 10 values per particle
+	valuesPerParticle := 10
 	chunkSize := task.EndIndex - task.StartIndex
+	// Defensive: chunkSize must be multiple of valuesPerParticle
+	if chunkSize <= 0 || chunkSize%valuesPerParticle != 0 {
+		wasmError("[WASM] Invalid particle chunk size for compute: ", chunkSize, " (must be >0 and multiple of ", valuesPerParticle, ")")
+		return ParticleResult{
+			ID:                 task.ID,
+			ChunkIndex:         task.ChunkIndex,
+			ProcessedPositions: nil,
+			StartIndex:         task.StartIndex,
+			EndIndex:           task.EndIndex,
+			MemoryUsed:         0,
+		}
+	}
 	processedPositions := memoryPools.GetFloat32Buffer(chunkSize)
 
-	// Advanced particle physics processing
-	// Data format: position(3) + velocity(3) + time(1) + intensity(1) = 8 values per particle
-	valuesPerParticle := 8
-	for i := task.StartIndex; i < task.EndIndex; i += valuesPerParticle {
-		particleIndex := i / valuesPerParticle
-
-		// Extract particle data (8 values per particle)
+	for i := task.StartIndex; i+valuesPerParticle <= task.EndIndex && i+9 < len(task.Positions); i += valuesPerParticle {
+		particleIndex := (i - task.StartIndex) / valuesPerParticle
+		// Defensive: check bounds for input slice (all accesses i..i+9)
+		if i < 0 || i+9 >= len(task.Positions) {
+			wasmError("[WASM] Particle data index out of bounds: ", i, "-", i+9, " with length ", len(task.Positions))
+			break
+		}
+		// Extract particle data (10 values per particle)
 		x, y, z := task.Positions[i], task.Positions[i+1], task.Positions[i+2]
 		vx, vy, vz := task.Positions[i+3], task.Positions[i+4], task.Positions[i+5]
-		time := task.Positions[i+6]
+		phase := task.Positions[i+6]
 		intensity := task.Positions[i+7]
+		ptype := task.Positions[i+8]
+		pid := task.Positions[i+9]
 
-		// Calculate animation based on mode and integrate velocity
-		var newX, newY, newZ float32
-		var newVx, newVy, newVz float32 = vx, vy, vz // Start with current velocity
+		// --- Animation logic matching WGSL shader ---
+		var newX, newY, newZ float32 = x, y, z
+		var newVx, newVy, newVz float32 = vx, vy, vz
 
-		switch int(task.AnimationMode) {
+		globalTime := float32(time.Now().UnixNano())/1e9 + float32(particleIndex)*0.001
+		animationMode := int(task.AnimationMode)
+
+		switch animationMode {
 		case 1: // Galaxy rotation
-			radius := math.Sqrt(float64(x*x + z*z))
+			angle := float32(globalTime) * 0.1
+			radius := float32(math.Sqrt(float64(x*x + z*z)))
 			if radius > 0.001 {
-				angle := math.Atan2(float64(z), float64(x))
-				rotSpeed := 0.5 * (1.0 + radius*0.01) * float64(intensity) // Use intensity as multiplier
-				newAngle := angle + task.DeltaTime*rotSpeed
-
-				newX = float32(radius * math.Cos(newAngle))
-				newY = y + float32(math.Sin(task.DeltaTime+float64(particleIndex)*0.01)*0.05)
-				newZ = float32(radius * math.Sin(newAngle))
-
-				// Update velocity based on position change
-				newVx = (newX - x) / float32(task.DeltaTime)
-				newVz = (newZ - z) / float32(task.DeltaTime)
-			} else {
-				newX, newY, newZ = x, y, z
+				newX = x*float32(math.Cos(float64(angle))) - z*float32(math.Sin(float64(angle)))
+				newZ = x*float32(math.Sin(float64(angle))) + z*float32(math.Cos(float64(angle)))
+				newY = y
+				newVx = (newX - x) / 0.016
+				newVz = (newZ - z) / 0.016
 			}
-
 		case 2: // Wave motion
-			wavePhase := task.DeltaTime*5.0 + float64(x)*0.2 + float64(z)*0.2
-			amplitude := (0.4 + math.Sin(float64(particleIndex)*0.1)*0.15) * float64(intensity)
-
-			newX = x
-			newY = y + float32(math.Sin(wavePhase)*amplitude)
-			newZ = z
-
-			// Update Y velocity
-			newVy = (newY - y) / float32(task.DeltaTime)
-
+			wave := float32(math.Sin(float64(x)*2.0+float64(globalTime)*5.0+float64(phase))) * 0.3
+			newY = y + wave*intensity*(1.0+ptype*0.2)
+			newVx = vx
+			newVy = (newY - y) / 0.016
+			newVz = vz
 		default: // Spiral motion
-			radius := math.Sqrt(float64(x*x + z*z))
+			radius := float32(math.Sqrt(float64(x*x + z*z)))
 			if radius > 0.001 {
-				angle := math.Atan2(float64(z), float64(x))
-				spiralPhase := task.DeltaTime*1.2 + float64(particleIndex)*0.02
-
-				newX = float32(radius * math.Cos(angle+spiralPhase))
-				newY = y + float32(math.Sin(spiralPhase+radius*0.1)*0.15*float64(intensity))
-				newZ = float32(radius * math.Sin(angle+spiralPhase))
-
-				// Update velocity
-				newVx = (newX - x) / float32(task.DeltaTime)
-				newVy = (newY - y) / float32(task.DeltaTime)
-				newVz = (newZ - z) / float32(task.DeltaTime)
-			} else {
-				newX, newY, newZ = x, y, z
+				angle := float32(globalTime) * 0.2
+				newX = x*float32(math.Cos(float64(angle))) - z*float32(math.Sin(float64(angle)))
+				newZ = x*float32(math.Sin(float64(angle))) + z*float32(math.Cos(float64(angle)))
+				newY = y + float32(math.Sin(float64(globalTime)+float64(phase)))*0.1
+				newVx = (newX - x) / 0.016
+				newVy = (newY - y) / 0.016
+				newVz = (newZ - z) / 0.016
 			}
 		}
 
-		// Store updated particle data (8 values per particle)
+		// Store updated particle data (10 values per particle)
 		resultIndex := i - task.StartIndex
 		processedPositions[resultIndex] = newX        // Position X
 		processedPositions[resultIndex+1] = newY      // Position Y
@@ -132,8 +130,10 @@ func (pool *ParticleWorkerPool) processParticleChunk(task ParticleTask, workerID
 		processedPositions[resultIndex+3] = newVx     // Velocity X
 		processedPositions[resultIndex+4] = newVy     // Velocity Y
 		processedPositions[resultIndex+5] = newVz     // Velocity Z
-		processedPositions[resultIndex+6] = time      // Time (preserved)
-		processedPositions[resultIndex+7] = intensity // Intensity (preserved)
+		processedPositions[resultIndex+6] = phase     // Phase
+		processedPositions[resultIndex+7] = intensity // Intensity
+		processedPositions[resultIndex+8] = ptype     // Type
+		processedPositions[resultIndex+9] = pid       // ID
 	}
 
 	return ParticleResult{
@@ -153,7 +153,6 @@ const (
 
 var (
 	userID       string
-	userIDOnce   sync.Once
 	ws           js.Value
 	messageMutex sync.Mutex
 	messageQueue = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
@@ -162,25 +161,49 @@ var (
 	eventBus     *WASMEventBus // Our internal WASM event bus
 
 	// Threading configuration
-	enableThreading string = "true" // Can be overridden by ldflags
-	maxWorkers      int    = 0      // Will be set based on threading support
+	enableThreading       string = "true" // Can be overridden by ldflags
+	maxWorkers            int    = 0      // Will be set based on threading support
+	wsReconnectInProgress bool            // Prevents redundant reconnection attempts
 )
 
 func notifyFrontendReady() {
-	// Set global flag for readiness
+	// Set global flags for readiness and connection
 	js.Global().Set("wasmReady", js.ValueOf(true))
+	js.Global().Set("wsConnected", js.ValueOf(true))
 	// Fire custom JS event for listeners (frontend, workers)
 	if !js.Global().Get("window").IsUndefined() && !js.Global().Get("window").IsNull() {
 		js.Global().Get("window").Call("dispatchEvent", js.Global().Get("CustomEvent").New("wasmReady"))
 	}
+	// Call window.onWasmReady with status object
 	if handler := js.Global().Get("onWasmReady"); handler.Type() == js.TypeFunction {
-		handler.Invoke()
+		status := js.Global().Get("Object").New()
+		status.Set("wasmReady", true)
+		status.Set("connected", true)
+		handler.Invoke(status)
 	} else {
 		wasmLog("[WASM] onWasmReady called but no handler registered")
 	}
 }
 
 // --- Type Definitions ---
+// Robust WASM readiness signaling: always dispatch on window if available
+func signalWasmReady() {
+	win := js.Global().Get("window")
+	if !win.IsUndefined() && !win.IsNull() {
+		win.Set("wasmReady", js.ValueOf(true))
+		if win.Get("dispatchEvent").Type() == js.TypeFunction {
+			readyEvent := win.Get("CustomEvent").New("wasmReady")
+			win.Call("dispatchEvent", readyEvent)
+		}
+	} else {
+		js.Global().Set("wasmReady", js.ValueOf(true))
+		if js.Global().Get("dispatchEvent").Type() == js.TypeFunction {
+			readyEvent := js.Global().Get("CustomEvent").New("wasmReady")
+			js.Global().Call("dispatchEvent", readyEvent)
+		}
+	}
+}
+
 type wsMessage struct {
 	dataType int // 0=JSON, 1=Binary
 	payload  []byte
@@ -195,12 +218,25 @@ type computeTask struct {
 func init() {
 	// Configure Go runtime for WASM threading
 	if enableThreading == "true" {
-		runtime.GOMAXPROCS(runtime.NumCPU()) // Utilize all available cores
-		maxWorkers = runtime.NumCPU()
-		if maxWorkers > 8 {
-			maxWorkers = 8 // Cap at 8 workers for WASM efficiency in threaded mode
+		numCPU := runtime.NumCPU()
+		jsCores := 0
+		jsCoresVal := js.Global().Get("navigator").Get("hardwareConcurrency")
+		if !jsCoresVal.IsUndefined() && !jsCoresVal.IsNull() && jsCoresVal.Type() == js.TypeNumber {
+			jsCores = jsCoresVal.Int()
 		}
-		wasmLog("[INIT] Threading enabled, max workers:", maxWorkers)
+		detectedCores := numCPU
+		if jsCores > 0 {
+			detectedCores = jsCores
+		}
+		maxWorkers = detectedCores / 4
+		if maxWorkers < 1 {
+			maxWorkers = 1
+		}
+		if maxWorkers > 4 {
+			maxWorkers = 4
+		}
+		runtime.GOMAXPROCS(maxWorkers)
+		wasmLog("[INIT] Threading enabled, detected cores:", detectedCores, "max workers:", maxWorkers, "(quarter of available cores, capped at 4)")
 	} else {
 		runtime.GOMAXPROCS(1) // Single-threaded mode
 		maxWorkers = 1
@@ -209,10 +245,6 @@ func init() {
 
 	// Initialize start time for animation calculations
 	startTime = time.Now()
-
-	// Initialize performance logger (30 second intervals)
-	perfLogger = NewPerformanceLogger(30 * time.Second)
-
 	// Initialize concurrent processing infrastructure
 	initializeConcurrentProcessing()
 }
@@ -262,7 +294,8 @@ func processComputeTaskQueue() {
 
 		processingTime := float64(time.Since(startTime).Nanoseconds()) / 1e6
 		// Use aggregated logging for compute queue tasks
-		perfLogger.LogSuccess("compute_queue_"+task.Type, int64(len(task.Data)))
+		// perfLogger.LogSuccess("compute_queue_"+task.Type, int64(len(task.Data)))
+		wasmLog("[WASM][POST-START] Compute queue processed task:", task.Type, "length:", len(task.Data))
 
 		// Invoke callback if provided
 		if task.Callback.Type() == js.TypeFunction {
@@ -315,44 +348,17 @@ func processTransformComputeTask(task ComputeTask) {
 	wasmLog("[TRANSFORM-COMPUTE] Processing transform task:", task.ID)
 }
 
-// processMessages handles incoming WebSocket messages and performs Backend→WASM type conversion
 func processMessages() {
 	for msg := range messageQueue {
-		switch msg.dataType {
-		case 0: // JSON from backend - convert to proper EventEnvelope
-			var event EventEnvelope
-			if err := json.Unmarshal(msg.payload, &event); err == nil {
-				// Forward properly typed event to frontend via WASM→Frontend boundary
-				forwardEventToFrontend(event)
-
-				// Process internally in WASM
-				if handler := eventBus.GetHandler(event.Type); handler != nil {
-					go handler(event)
-				}
-			} else {
-				wasmError("[WASM] Error unmarshaling JSON from backend:", err, string(msg.payload))
-			}
-
-		case 1: // Binary from backend - convert to EventEnvelope
-			if len(msg.payload) < 5 { // Version (1 byte) + Type (4 bytes)
-				wasmWarn("[WASM] Binary message too short")
-				continue
-			}
-
-			msgType := string(msg.payload[1:5])
-			event := EventEnvelope{
-				Type:     msgType,
-				Payload:  msg.payload[5:],
-				Metadata: json.RawMessage(`{}`),
-			}
-
-			// Forward to frontend
-			forwardEventToFrontend(event)
-
-			// Process internally in WASM
+		var event EventEnvelope
+		if err := json.Unmarshal(msg.payload, &event); err == nil {
 			if handler := eventBus.GetHandler(event.Type); handler != nil {
 				go handler(event)
+			} else {
+				wasmLog("[WASM] No handler registered for event type:", event.Type)
 			}
+		} else {
+			wasmLog("[WASM] Error unmarshaling EventEnvelope:", err)
 		}
 	}
 }
@@ -366,31 +372,17 @@ func forwardEventToFrontend(event EventEnvelope) {
 	}
 }
 
-// --- Compute Scheduler ---
-func processComputeTasks() {
-	for task := range computeQueue {
-		task.fn()
-		if task.callback.Truthy() {
-			task.callback.Invoke()
-		}
-	}
-}
-
 // migrateUserSession handles guest->authenticated transition
 func migrateUserSession(newID string) {
-	storage := js.Global().Get("sessionStorage")
-	if !storage.Truthy() {
-		return
-	}
-
-	// Preserve guest ID for backend merging
+	// Only WASM updates userID and window.userID
 	guestID := userID
-
-	// Update to authenticated ID everywhere
-	storage.Call("setItem", "auth_id", newID)
-	storage.Call("removeItem", "guest_id")
 	userID = newID
 	js.Global().Set("userID", js.ValueOf(userID))
+
+	// Notify JS/TS via bridge if handler exists
+	if handler := js.Global().Get("onUserIDChanged"); handler.Type() == js.TypeFunction {
+		handler.Invoke(js.ValueOf(userID))
+	}
 
 	// Propagate to media streaming (if available)
 	if js.Global().Get("mediaStreaming").Truthy() && js.Global().Get("mediaStreaming").Get("setPeerId").Type() == js.TypeFunction {
@@ -398,14 +390,14 @@ func migrateUserSession(newID string) {
 		wasmLog("[WASM] Media streaming peerId updated to:", userID)
 	}
 
-	// Notify backend
-	msg := map[string]string{
-		"type":     "migrate",
-		"new_id":   newID,
-		"guest_id": guestID,
+	// Notify backend using EventEnvelope
+	event := EventEnvelope{
+		Type:     "migrate",
+		Payload:  mustMarshal(map[string]string{"new_id": newID, "guest_id": guestID}),
+		Metadata: json.RawMessage(`{}`),
 	}
-	data, _ := json.Marshal(msg)
-	sendWSMessage(0, data)
+	envelopeBytes, _ := json.Marshal(event)
+	sendWSMessage(envelopeBytes)
 
 	wasmLog("[WASM] Migrated to authenticated ID:", newID)
 }
@@ -416,7 +408,7 @@ func submitGPUTask(fn func(), callback js.Value) {
 }
 
 // --- Networking Utilities ---
-func sendWSMessage(dataType int, payload []byte) {
+func sendWSMessage(payload []byte) {
 	messageMutex.Lock()
 	defer messageMutex.Unlock()
 
@@ -424,14 +416,13 @@ func sendWSMessage(dataType int, payload []byte) {
 		return
 	}
 
-	switch dataType {
-	case 0: // JSON
-		ws.Call("send", string(payload))
-	case 1: // Binary
-		arr := js.Global().Get("Uint8Array").New(len(payload))
-		js.CopyBytesToJS(arr, payload)
-		ws.Call("send", arr)
-	}
+	// Always send JSON EventEnvelope, never raw binary
+	ws.Call("send", string(payload))
+}
+
+func mustMarshal(v interface{}) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return json.RawMessage(b)
 }
 
 // --- Message Registration API ---
@@ -565,73 +556,131 @@ func genericEventHandler(event EventEnvelope) {
 	// This handler is for logging or internal WASM processing.
 }
 
-// startHeartbeat sends periodic echo events to maintain connection
-func startHeartbeat() {
-	ticker := time.NewTicker(300 * time.Second) // Send heartbeat every 300 seconds
-	defer ticker.Stop()
+// --- User Management ---
+func initUserSession() {
+	storage := js.Global().Get("localStorage")
+	userID = ""
 
-	for range ticker.C {
-		// Only send heartbeat if WebSocket is connected and defined
-		if !ws.IsUndefined() && !ws.IsNull() {
-			readyState := ws.Get("readyState")
-			if !readyState.IsUndefined() && readyState.Int() == 1 {
-				echoEvent := map[string]interface{}{
-					"type": "echo",
-					"payload": map[string]interface{}{
-						"message":   "Periodic heartbeat",
-						"timestamp": time.Now().Format(time.RFC3339),
-						"source":    "wasm-client",
-						"sequence":  time.Now().Unix(),
-					},
-					"metadata": map[string]interface{}{
-						"service_specific": map[string]interface{}{
-							"echo": map[string]interface{}{
-								"service":   "wasm-client",
-								"message":   "Periodic heartbeat",
-								"timestamp": time.Now().Format(time.RFC3339),
-								"purpose":   "connection-maintenance",
-							},
-						},
-					},
-				}
-				if echoJSON, err := json.Marshal(echoEvent); err == nil {
-					sendWSMessage(0, echoJSON)
-					wasmLog("[WASM] Sent heartbeat echo event")
-				} else {
-					wasmLog("[WASM] Failed to marshal heartbeat echo event:", err)
-				}
-			}
-		}
-		// If ws is not available, do not block shutdown or other operations
-		if wasmShuttingDown {
-			wasmLog("[WASM] Heartbeat loop detected shutdown, exiting...")
+	if storage.Truthy() {
+		// Check for existing authenticated session
+		if authID := storage.Call("getItem", "auth_id"); authID.Truthy() {
+			userID = authID.String()
+			wasmLog("[WASM] Loaded authenticated ID:", userID)
 			return
 		}
+
+		// Fallback to guest ID (persisted across tabs/sessions)
+		guestID := storage.Call("getItem", "guest_id")
+		if guestID.Truthy() {
+			userID = guestID.String()
+			wasmLog("[WASM] Loaded guest ID:", userID)
+			return
+		}
+
+		// Generate new guest ID if not present
+		randVal := js.Global().Get("Math").Call("random")
+		str := js.Global().Get("Number").Get("prototype").Get("toString").Call("call", randVal, 36)
+		userID = "guest_" + str.String()[2:10]
+		storage.Call("setItem", "guest_id", userID)
+		wasmLog("[WASM] Generated new guest ID:", userID)
+		return
 	}
+
+	// Defensive fallback if localStorage is not available
+	randVal := js.Global().Get("Math").Call("random")
+	str := js.Global().Get("Number").Get("prototype").Get("toString").Call("call", randVal, 36)
+	userID = "guest_" + str.String()[2:10]
+	wasmLog("[WASM] Generated new guest ID (no localStorage):", userID)
 }
 
-// main initializes the WASM client with canonical event system
 func main() {
-	// --- Optimized userID and WASM export logic ---
+	wasmLog("[WASM][EXPORTS] Attaching WASM exports to js.Global()...")
 	global := js.Global()
-	storage := global.Get("sessionStorage")
-	userID = ""
 	document := global.Get("document")
 	isMainThread := !document.IsUndefined() && document.Truthy()
+
+	// --- Account/User Setup ---
 	if isMainThread {
-		authID := storage.Call("getItem", "authID")
-		guestID := storage.Call("getItem", "guestID")
-		if !authID.IsUndefined() && !authID.IsNull() && authID.String() != "" {
-			userID = authID.String()
-		} else if !guestID.IsUndefined() && !guestID.IsNull() && guestID.String() != "" {
-			userID = guestID.String()
-		} else {
-			userID = "guest_" + time.Now().Format("20060102150405")
-			storage.Call("setItem", "guestID", userID)
-		}
-		js.Global().Set("userID", js.ValueOf(userID))
+		globalSetupOnce.Do(func() {
+			// --- Singleton initializations ---
+
+			// --- WASM Exports (safe in main) ---
+			var exports = []struct {
+				name string
+				fn   interface{}
+			}{
+				{"runConcurrentCompute", js.FuncOf(runConcurrentCompute)},
+				{"submitComputeTask", js.FuncOf(submitComputeTask)},
+				{"runGPUCompute", js.FuncOf(runGPUCompute)},
+				{"runGPUComputeWithOffset", js.FuncOf(runGPUComputeWithOffset)},
+				{"sendWasmMessage", js.FuncOf(jsSendWasmMessage)},
+				{"jsRegisterPendingRequest", js.FuncOf(jsRegisterPendingRequest)},
+				{"infer", js.FuncOf(jsInfer)},
+				{"migrateUser", js.FuncOf(jsMigrateUser)},
+				{"sendBinary", js.FuncOf(jsSendBinary)},
+				{"reconnectWebSocket", js.FuncOf(jsReconnectWebSocket)},
+				{"submitGPUTask", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					if len(args) < 2 || !args[0].InstanceOf(js.Global().Get("Function")) || !args[1].InstanceOf(js.Global().Get("Function")) {
+						return nil
+					}
+					taskFunc, callbackFunc := args[0], args[1]
+					submitGPUTask(func() { taskFunc.Invoke() }, callbackFunc)
+					return nil
+				})},
+				{"getGPUBackend", js.FuncOf(getGPUBackend)},
+				{"initWebGPU", js.FuncOf(initWebGPU)},
+				{"getGPUMetricsBuffer", js.FuncOf(getGPUMetricsBuffer)},
+				{"getGPUComputeBuffer", js.FuncOf(getGPUComputeBuffer)},
+				{"getSharedBuffer", js.FuncOf(getSharedBuffer)},
+				{"getCurrentOutputBuffer", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					return js.Global().Get("gpuOutputBuffer")
+				})},
+			}
+
+			initUserSession()
+			initWebSocket()
+			eventBus = NewWASMEventBus()
+			eventBus.RegisterHandler("gpu_frame", handleGPUFrame)
+			eventBus.RegisterHandler("state_update", handleStateUpdate)
+			registerAllCanonicalEventHandlers()
+			mediaStreamingClient = NewMediaStreamingClient()
+			ExposeMediaStreamingAPI()
+
+			// Build export summary for debugging
+			exportSummary := make(map[string]string)
+			for _, exp := range exports {
+				js.Global().Set(exp.name, exp.fn)
+				typ := js.Global().Get(exp.name).Type().String()
+				exportSummary[exp.name] = typ
+			}
+			// Attach summary to global for frontend inspection
+			summaryJSON, _ := json.Marshal(exportSummary)
+			js.Global().Set("__WASM_GLOBAL_METADATA", js.Global().Get("JSON").Call("parse", string(summaryJSON)))
+			js.Global().Set("getWasmExportSummary", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+				return js.Global().Get("__WASM_GLOBAL_METADATA")
+			}))
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						wasmError("[WASM][PANIC] processMessages goroutine crashed:", r)
+					}
+				}()
+				processMessages()
+			}()
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						wasmError("[WASM][PANIC] handleGracefulShutdown goroutine crashed:", r)
+					}
+				}()
+				handleGracefulShutdown()
+			}()
+			wasmLog("[WASM][INIT] main() completed all sync.Once guarded initializations, entering main loop")
+			signalWasmReady()
+		})
 	} else {
-		for i := 0; i < 100; i++ {
+		// Worker: fetch userID only from WASM global, DO NOT initialize WebSocket or processMessages
+		for range make([]int, 20) {
 			id := js.Global().Get("userID")
 			if !id.IsUndefined() && !id.IsNull() && id.String() != "" {
 				userID = id.String()
@@ -639,47 +688,8 @@ func main() {
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
-		if userID == "" {
-			userID = "guest_" + time.Now().Format("20060102150405")
-			js.Global().Set("userID", js.ValueOf(userID))
-		}
+		// Workers must NOT call initWebSocket or cleanupWebSocket
 	}
-	// --- Export WASM compute functions for both main and worker contexts (no redundancy) ---
-	js.Global().Set("runConcurrentCompute", js.FuncOf(runConcurrentCompute))
-	js.Global().Set("submitComputeTask", js.FuncOf(submitComputeTask))
-	js.Global().Set("runGPUCompute", js.FuncOf(runGPUCompute))
-	js.Global().Set("runGPUComputeWithOffset", js.FuncOf(runGPUComputeWithOffset))
-	js.Global().Set("jsSendWasmMessage", js.FuncOf(jsSendWasmMessage))
-	js.Global().Set("jsRegisterPendingRequest", js.FuncOf(jsRegisterPendingRequest))
-	js.Global().Set("infer", js.FuncOf(jsInfer))
-	js.Global().Set("migrateUser", js.FuncOf(jsMigrateUser))
-	js.Global().Set("sendBinary", js.FuncOf(jsSendBinary))
-	js.Global().Set("reconnectWebSocket", js.FuncOf(jsReconnectWebSocket))
-	js.Global().Set("submitGPUTask", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		if len(args) < 2 || !args[0].InstanceOf(js.Global().Get("Function")) || !args[1].InstanceOf(js.Global().Get("Function")) {
-			return nil
-		}
-		taskFunc, callbackFunc := args[0], args[1]
-		submitGPUTask(func() { taskFunc.Invoke() }, callbackFunc)
-		return nil
-	}))
-	js.Global().Set("getGPUBackend", js.FuncOf(getGPUBackend))
-	js.Global().Set("initWebGPU", js.FuncOf(initWebGPU))
-	js.Global().Set("getGPUMetricsBuffer", js.FuncOf(getGPUMetricsBuffer))
-	js.Global().Set("getGPUComputeBuffer", js.FuncOf(getGPUComputeBuffer))
-	js.Global().Set("getSharedBuffer", js.FuncOf(getSharedBuffer))
-	// Expose current output buffer for direct frontend access (WebGPU rendering)
-	js.Global().Set("getCurrentOutputBuffer", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		return js.Global().Get("gpuOutputBuffer")
-	}))
-	eventBus = NewWASMEventBus()
-	eventBus.RegisterHandler("gpu_frame", handleGPUFrame)
-	eventBus.RegisterHandler("state_update", handleStateUpdate)
-	registerAllCanonicalEventHandlers()
-	mediaStreamingClient = NewMediaStreamingClient()
-	ExposeMediaStreamingAPI()
-	go handleGracefulShutdown()
-	go startHeartbeat() // Enable periodic heartbeat events
-	js.Global().Set("go_syncCleanup", js.FuncOf(jsSyncCleanup))
+
 	select {}
 }

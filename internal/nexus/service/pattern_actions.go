@@ -50,10 +50,23 @@ func NewActionRegistry() ActionRegistry {
 				{Name: "metadata", Source: SourceStatic, ExpectedType: reflect.TypeOf(map[string]interface{}{}), Required: true},
 			},
 			Execute: func(ctx context.Context, pe *PatternExecutor, params map[string]interface{}) (interface{}, error) {
-				parentID := params["parent_id"].(int64)
-				childID := params["child_id"].(int64)
-				relType := nexus.RelationType(params["type"].(string))
-				metadata := params["metadata"].(map[string]interface{})
+				parentID, ok := params["parent_id"].(int64)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for parent_id")
+				}
+				childID, ok := params["child_id"].(int64)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for child_id")
+				}
+				typeStr, ok := params["type"].(string)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for type")
+				}
+				relType := nexus.RelationType(typeStr)
+				metadata, ok := params["metadata"].(map[string]interface{})
+				if !ok {
+					return nil, fmt.Errorf("invalid type for metadata")
+				}
 				return pe.nexusRepo.CreateRelationship(ctx, parentID, childID, relType, metadata)
 			},
 		},
@@ -63,8 +76,15 @@ func NewActionRegistry() ActionRegistry {
 				{Name: "type", Source: SourceStatic, ExpectedType: reflect.TypeOf(""), Required: true},
 			},
 			Execute: func(ctx context.Context, pe *PatternExecutor, params map[string]interface{}) (interface{}, error) {
-				masterID := params["master_id"].(int64)
-				relType := nexus.RelationType(params["type"].(string))
+				masterID, ok := params["master_id"].(int64)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for master_id")
+				}
+				typeStr, ok := params["type"].(string)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for type")
+				}
+				relType := nexus.RelationType(typeStr)
 				return pe.nexusRepo.ListRelationships(ctx, masterID, relType)
 			},
 		},
@@ -80,12 +100,28 @@ func NewActionRegistry() ActionRegistry {
 				{Name: "payload", Source: SourceStatic, ExpectedType: reflect.TypeOf(map[string]interface{}{}), Required: true},
 			},
 			Execute: func(ctx context.Context, pe *PatternExecutor, params map[string]interface{}) (interface{}, error) {
+				masterID, ok := params["master_id"].(int64)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for master_id")
+				}
+				entityTypeStr, ok := params["entity_type"].(string)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for entity_type")
+				}
+				eventType, ok := params["event_type"].(string)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for event_type")
+				}
+				payload, ok := params["payload"].(map[string]interface{})
+				if !ok {
+					return nil, fmt.Errorf("invalid type for payload")
+				}
 				event := &nexus.Event{
 					ID:         uuid.New(),
-					MasterID:   params["master_id"].(int64),
-					EntityType: repository.EntityType(params["entity_type"].(string)),
-					EventType:  params["event_type"].(string),
-					Payload:    params["payload"].(map[string]interface{}),
+					MasterID:   masterID,
+					EntityType: repository.EntityType(entityTypeStr),
+					EventType:  eventType,
+					Payload:    payload,
 					Status:     "pending",
 					CreatedAt:  time.Now(),
 				}
@@ -102,8 +138,14 @@ func NewActionRegistry() ActionRegistry {
 				{Name: "depth", Source: SourceStatic, ExpectedType: reflect.TypeOf(0), Required: true},
 			},
 			Execute: func(ctx context.Context, pe *PatternExecutor, params map[string]interface{}) (interface{}, error) {
-				masterID := params["master_id"].(int64)
-				depth := params["depth"].(int)
+				masterID, ok := params["master_id"].(int64)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for master_id")
+				}
+				depth, ok := params["depth"].(int)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for depth")
+				}
 				return pe.nexusRepo.GetEntityGraph(ctx, masterID, depth)
 			},
 		},
@@ -113,8 +155,14 @@ func NewActionRegistry() ActionRegistry {
 				{Name: "to_id", Source: SourceInput, ExpectedType: reflect.TypeOf(int64(0)), Required: true},
 			},
 			Execute: func(ctx context.Context, pe *PatternExecutor, params map[string]interface{}) (interface{}, error) {
-				fromID := params["from_id"].(int64)
-				toID := params["to_id"].(int64)
+				fromID, ok := params["from_id"].(int64)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for from_id")
+				}
+				toID, ok := params["to_id"].(int64)
+				if !ok {
+					return nil, fmt.Errorf("invalid type for to_id")
+				}
 				return pe.nexusRepo.FindPath(ctx, fromID, toID)
 			},
 		},
@@ -164,7 +212,7 @@ func ExtractAndValidateParams(handler ActionHandler, input, staticParams map[str
 // This is necessary because JSON unmarshaling treats all numbers as float64.
 func convertType(value interface{}, targetType reflect.Type) (interface{}, error) {
 	if value == nil {
-		return nil, nil
+		return nil, fmt.Errorf("value is nil; cannot convert to %s", targetType)
 	}
 
 	sourceType := reflect.TypeOf(value)
@@ -174,7 +222,10 @@ func convertType(value interface{}, targetType reflect.Type) (interface{}, error
 
 	// Special handling for numbers from JSON (float64)
 	if sourceType.Kind() == reflect.Float64 {
-		floatVal := value.(float64)
+		floatVal, ok := value.(float64)
+		if !ok {
+			return nil, fmt.Errorf("expected float64, got %T", value)
+		}
 		switch targetType.Kind() {
 		case reflect.Int:
 			if floatVal == float64(int(floatVal)) {

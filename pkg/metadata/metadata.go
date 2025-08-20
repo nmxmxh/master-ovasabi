@@ -114,7 +114,7 @@ type Handler struct{}
 // EnrichMetadata sets global fields and service-specific fields in a commonpb.Metadata.
 // globalFields: map of global key/value pairs (e.g., correlation_id, user_id)
 // serviceName: namespace for service-specific fields (e.g., "gateway", "search")
-// serviceFields: map of service-specific key/value pairs
+// serviceFields: map of service-specific key/value pairs.
 func (Handler) EnrichMetadata(meta *commonpb.Metadata, globalFields map[string]string, serviceName string, serviceFields map[string]interface{}) *commonpb.Metadata {
 	if meta == nil {
 		meta = &commonpb.Metadata{}

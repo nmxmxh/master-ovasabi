@@ -7,10 +7,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
+	// Blank import for pq driver registration (required by database/sql).
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -71,18 +73,20 @@ func SeedCampaign() (bool, error) {
 	// Try to get admin user by username and master_id
 	row := db.QueryRowContext(ctx, "SELECT master_id, master_uuid FROM service_user_master WHERE username = $1", adminUsername)
 	err = row.Scan(&masterID, &masterUUID)
-	if err == sql.ErrNoRows {
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
 		// Check if master record exists for admin user
 		masterRow := db.QueryRowContext(ctx, "SELECT id, uuid FROM master WHERE name = $1 AND type = $2", adminUsername, "user")
 		errMaster := masterRow.Scan(&masterID, &masterUUID)
-		if errMaster == sql.ErrNoRows {
+		switch {
+		case errMaster == sql.ErrNoRows:
 			// Create master record for admin user
 			err = db.QueryRowContext(ctx, `INSERT INTO master (uuid, name, type, description, version, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW()) RETURNING id, uuid`, adminUsername, "user", "Default admin user", "1.0.0").Scan(&masterID, &masterUUID)
 			if err != nil {
 				fmt.Printf("[seed_campaign][ERROR] Failed to create master record for admin user: %v\n", err)
 				return false, err
 			}
-		} else if errMaster != nil {
+		case errMaster != nil:
 			fmt.Printf("[seed_campaign][ERROR] Failed to query master record for admin user: %v\n", errMaster)
 			return false, errMaster
 		}
@@ -95,16 +99,15 @@ func SeedCampaign() (bool, error) {
 		}
 		// Create admin user record with password_hash and status (use integer for status)
 		_, err = db.ExecContext(ctx, `INSERT INTO service_user_master (master_id, master_uuid, username, email, password_hash, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`, masterID, masterUUID, adminUsername, adminEmail, passwordHash, 1)
-
 		if err != nil {
 			fmt.Printf("[seed_campaign][ERROR] Failed to create admin user: %v\n", err)
 			return false, err
 		}
 		fmt.Printf("[seed_campaign] Created default admin user: %s (%s)\n", adminUsername, masterUUID)
-	} else if err != nil {
+	case err != nil:
 		fmt.Printf("[seed_campaign][ERROR] Failed to query admin user: %v\n", err)
 		return false, err
-	} else {
+	default:
 		fmt.Printf("[seed_campaign] Found existing admin user: %s (%s)\n", adminUsername, masterUUID)
 	}
 

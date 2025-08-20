@@ -21,6 +21,12 @@ COPY Makefile ./Makefile
 COPY tools/ ./tools/
 COPY scripts/ ./scripts/
 
+
+# --- Godot Builder Context ---
+COPY godot/project /godot/project/
+COPY config/ /godot/config/
+# .env is not copied; environment variables are injected via docker-compose
+
 # Copy API definitions and generate protobuf code.
 # This step is only re-run if the .proto files change.
 COPY api/ ./api/

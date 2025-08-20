@@ -84,21 +84,21 @@ func AdminOpsHandler(container *di.Container) http.HandlerFunc {
 
 		// Use a map for cleaner action dispatching, following the composable handler pattern.
 		actionHandlers := map[string]func(){
-			"create_user":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.CreateUserRequest{}, adminSvc.CreateUser) },
-			"update_user":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.UpdateUserRequest{}, adminSvc.UpdateUser) },
-			"delete_user":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.DeleteUserRequest{}, adminSvc.DeleteUser) },
-			"get_user":       func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.GetUserRequest{}, adminSvc.GetUser) },
-			"list_users":     func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.ListUsersRequest{}, adminSvc.ListUsers) },
-			"create_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.CreateRoleRequest{}, adminSvc.CreateRole) },
-			"update_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.UpdateRoleRequest{}, adminSvc.UpdateRole) },
-			"delete_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.DeleteRoleRequest{}, adminSvc.DeleteRole) },
-			"list_roles":     func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.ListRolesRequest{}, adminSvc.ListRoles) },
-			"assign_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.AssignRoleRequest{}, adminSvc.AssignRole) },
-			"revoke_role":    func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.RevokeRoleRequest{}, adminSvc.RevokeRole) },
-			"get_audit_logs": func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.GetAuditLogsRequest{}, adminSvc.GetAuditLogs) },
-			"get_settings":   func() { handleAdminAction(w, ctx, log, reqMap, &adminpb.GetSettingsRequest{}, adminSvc.GetSettings) },
+			"create_user":    func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.CreateUserRequest{}, adminSvc.CreateUser) },
+			"update_user":    func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.UpdateUserRequest{}, adminSvc.UpdateUser) },
+			"delete_user":    func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.DeleteUserRequest{}, adminSvc.DeleteUser) },
+			"get_user":       func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.GetUserRequest{}, adminSvc.GetUser) },
+			"list_users":     func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.ListUsersRequest{}, adminSvc.ListUsers) },
+			"create_role":    func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.CreateRoleRequest{}, adminSvc.CreateRole) },
+			"update_role":    func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.UpdateRoleRequest{}, adminSvc.UpdateRole) },
+			"delete_role":    func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.DeleteRoleRequest{}, adminSvc.DeleteRole) },
+			"list_roles":     func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.ListRolesRequest{}, adminSvc.ListRoles) },
+			"assign_role":    func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.AssignRoleRequest{}, adminSvc.AssignRole) },
+			"revoke_role":    func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.RevokeRoleRequest{}, adminSvc.RevokeRole) },
+			"get_audit_logs": func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.GetAuditLogsRequest{}, adminSvc.GetAuditLogs) },
+			"get_settings":   func() { handleAdminAction(ctx, w, log, reqMap, &adminpb.GetSettingsRequest{}, adminSvc.GetSettings) },
 			"update_settings": func() {
-				handleAdminAction(w, ctx, log, reqMap, &adminpb.UpdateSettingsRequest{}, adminSvc.UpdateSettings)
+				handleAdminAction(ctx, w, log, reqMap, &adminpb.UpdateSettingsRequest{}, adminSvc.UpdateSettings)
 			},
 		}
 
@@ -113,8 +113,8 @@ func AdminOpsHandler(container *di.Container) http.HandlerFunc {
 // handleAdminAction is a generic helper to reduce boilerplate in AdminOpsHandler.
 // It decodes the request from a map, calls the provided service function, and handles the response/error.
 func handleAdminAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

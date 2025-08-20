@@ -101,42 +101,42 @@ func ContentOpsHandler(container *di.Container) http.HandlerFunc {
 					handlePermissionError(w, log, err)
 					return
 				}
-				handleContentAction(w, ctx, log, req, &contentpb.CreateContentRequest{}, contentSvc.CreateContent)
+				handleContentAction(ctx, w, log, req, &contentpb.CreateContentRequest{}, contentSvc.CreateContent)
 			},
 			"update_content": func() {
 				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
 					handlePermissionError(w, log, err)
 					return
 				}
-				handleContentAction(w, ctx, log, req, &contentpb.UpdateContentRequest{}, contentSvc.UpdateContent)
+				handleContentAction(ctx, w, log, req, &contentpb.UpdateContentRequest{}, contentSvc.UpdateContent)
 			},
 			"delete_content": func() {
 				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
 					handlePermissionError(w, log, err)
 					return
 				}
-				handleContentAction(w, ctx, log, req, &contentpb.DeleteContentRequest{}, contentSvc.DeleteContent)
+				handleContentAction(ctx, w, log, req, &contentpb.DeleteContentRequest{}, contentSvc.DeleteContent)
 			},
 			"get_content": func() {
 				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
 					handlePermissionError(w, log, err)
 					return
 				}
-				handleContentAction(w, ctx, log, req, &contentpb.GetContentRequest{}, contentSvc.GetContent)
+				handleContentAction(ctx, w, log, req, &contentpb.GetContentRequest{}, contentSvc.GetContent)
 			},
 			"list_content": func() {
 				if err := checkCampaignContentPermission(ctx, container, req, authCtx); err != nil {
 					handlePermissionError(w, log, err)
 					return
 				}
-				handleContentAction(w, ctx, log, req, &contentpb.ListContentRequest{}, contentSvc.ListContent)
+				handleContentAction(ctx, w, log, req, &contentpb.ListContentRequest{}, contentSvc.ListContent)
 			},
 			"add_reaction": func() {
 				if isGuest {
 					httputil.WriteJSONError(w, log, http.StatusUnauthorized, "unauthorized", nil)
 					return
 				}
-				handleContentAction(w, ctx, log, req, &contentpb.AddReactionRequest{}, contentSvc.AddReaction)
+				handleContentAction(ctx, w, log, req, &contentpb.AddReactionRequest{}, contentSvc.AddReaction)
 			},
 			"add_comment": func() {
 				var authorID string
@@ -171,7 +171,7 @@ func ContentOpsHandler(container *di.Container) http.HandlerFunc {
 					req["metadata"] = metaMap
 				}
 
-				handleContentAction(w, ctx, log, req, &contentpb.AddCommentRequest{}, contentSvc.AddComment)
+				handleContentAction(ctx, w, log, req, &contentpb.AddCommentRequest{}, contentSvc.AddComment)
 			},
 			"moderate_content": func() {
 				if isGuest {
@@ -179,7 +179,7 @@ func ContentOpsHandler(container *di.Container) http.HandlerFunc {
 					return
 				}
 				// Additional permission check for moderators can be added here if needed
-				handleContentAction(w, ctx, log, req, &contentpb.ModerateContentRequest{}, contentSvc.ModerateContent)
+				handleContentAction(ctx, w, log, req, &contentpb.ModerateContentRequest{}, contentSvc.ModerateContent)
 			},
 		}
 
@@ -193,8 +193,8 @@ func ContentOpsHandler(container *di.Container) http.HandlerFunc {
 
 // handleContentAction is a generic helper to reduce boilerplate in ContentOpsHandler.
 func handleContentAction[T proto.Message, U proto.Message](
-	w http.ResponseWriter,
 	ctx context.Context,
+	w http.ResponseWriter,
 	log *zap.Logger,
 	reqMap map[string]interface{},
 	req T,

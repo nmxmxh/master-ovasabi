@@ -9,7 +9,10 @@ import (
 )
 
 func main() {
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatalf("Failed to initialize zap logger: %v", err)
+	}
 	gen := registration.NewDynamicServiceRegistrationGenerator(
 		logger,
 		"api/protos", // proto path

@@ -127,7 +127,8 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		metaBytes, err := json.Marshal(metadata.ProtoToMap(normMeta))
 		if err != nil {
 			s.log.Error("failed to marshal metadata", zap.Error(err))
-			return nil, graceful.ToStatusError(s.handler.Error(ctx, "security.marshal_metadata_error", codes.Internal, "failed to marshal metadata", err, nil, principal))
+			s.handler.Error(ctx, "marshal_metadata", codes.Internal, "failed to marshal metadata", err, nil, principal)
+			return nil, graceful.ToStatusError(err)
 		}
 		master := &Master{
 			Type:     "user",
@@ -136,20 +137,21 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		}
 		_, masterUUID, err := s.repo.CreateMaster(ctx, master)
 		if err != nil {
-			err = s.handler.Error(ctx, "security.create_master_error", codes.Internal, "failed to create master", err, nil, principal)
+			s.handler.Error(ctx, "create_master", codes.Internal, "failed to create master", err, nil, principal)
 			return nil, graceful.ToStatusError(err)
 		}
 		var masterBigintID int64
 		row := s.repo.GetDB().QueryRowContext(ctx, `SELECT master_id FROM service_security_master WHERE uuid = $1`, masterUUID)
 		if err := row.Scan(&masterBigintID); err != nil {
-			err = s.handler.Error(ctx, "fetch_master_id", codes.Internal, "failed to fetch master_id for new security master", err, nil, principal)
+			s.handler.Error(ctx, "fetch_master_id", codes.Internal, "failed to fetch master_id for new security master", err, nil, principal)
 			return nil, graceful.ToStatusError(err)
 		}
 		normCred := metadata.MapToProto(map[string]interface{}{"service_specific": map[string]interface{}{"security": cred}})
 		credBytes, err := json.Marshal(metadata.ProtoToMap(normCred))
 		if err != nil {
 			s.log.Error("failed to marshal metadata", zap.Error(err))
-			return nil, graceful.ToStatusError(s.handler.Error(ctx, "security.marshal_metadata_error", codes.Internal, "failed to marshal metadata", err, nil, principal))
+			s.handler.Error(ctx, "marshal_metadata", codes.Internal, "failed to marshal metadata", err, nil, principal)
+			return nil, graceful.ToStatusError(err)
 		}
 		identity = &Identity{
 			MasterID:     masterBigintID,
@@ -161,7 +163,7 @@ func (s *Service) Authenticate(ctx context.Context, req *securitypb.Authenticate
 		}
 		_, err = s.repo.CreateIdentity(ctx, identity)
 		if err != nil {
-			err = s.handler.Error(ctx, "security.create_identity_error", codes.Internal, "failed to create identity", err, nil, principal)
+			s.handler.Error(ctx, "create_identity", codes.Internal, "failed to create identity", err, nil, principal)
 			return nil, graceful.ToStatusError(err)
 		}
 	}

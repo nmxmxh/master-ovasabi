@@ -42,7 +42,7 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadNotificationEvents() []string {
 	return events.LoadCanonicalEvents("notification")
 }
@@ -50,12 +50,23 @@ func loadNotificationEvents() []string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
+}
+
 // actionHandlers maps action names to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{}
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
 // parseActionAndState extracts the action and state from a canonical event type.
@@ -83,6 +94,10 @@ func HandleNotificationServiceEvent(ctx context.Context, s *Service, event *nexu
 
 func handleSendSMS(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling send_sms event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleSendSMS", zap.Error(ctx.Err()))
+	}
 	// Example: Validate payload and call SMS provider
 	var phone, message string
 	if event.Payload != nil && event.Payload.Data != nil {
@@ -104,6 +119,10 @@ func handleSendSMS(ctx context.Context, svc *Service, event *nexusv1.EventRespon
 
 func handleSendEmail(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling send_email event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleSendEmail", zap.Error(ctx.Err()))
+	}
 	var to, subject, body string
 	if event.Payload != nil && event.Payload.Data != nil {
 		fields := event.Payload.Data.GetFields()
@@ -127,6 +146,10 @@ func handleSendEmail(ctx context.Context, svc *Service, event *nexusv1.EventResp
 
 func handleBroadcastEvent(ctx context.Context, svc *Service, event *nexusv1.EventResponse) {
 	svc.log.Info("Handling broadcast_event event", zap.Any("event", event))
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		svc.log.Warn("Context error in handleBroadcastEvent", zap.Error(ctx.Err()))
+	}
 	var channel, message string
 	if event.Payload != nil && event.Payload.Data != nil {
 		fields := event.Payload.Data.GetFields()
@@ -145,14 +168,14 @@ func handleBroadcastEvent(ctx context.Context, svc *Service, event *nexusv1.Even
 	svc.log.Info("Broadcast event sent successfully", zap.String("channel", channel))
 }
 
-// Register handlers for canonical actions
+// Register handlers for canonical actions.
 func init() {
 	RegisterActionHandler("send_sms", handleSendSMS)
 	RegisterActionHandler("send_email", handleSendEmail)
 	RegisterActionHandler("broadcast_event", handleBroadcastEvent)
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	evts := loadNotificationEvents()
 	m := make(map[string]EventHandlerFunc)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -78,8 +79,8 @@ func runProtoc(protoFile, protoDir, outDir string, openAPI bool) error {
 		}, args...)
 	}
 
-	// Create command with clean environment
-	cmd := exec.Command("protoc", args...)
+	// Create command with clean environment and context
+	cmd := exec.CommandContext(context.Background(), "protoc", args...)
 	cmd.Env = []string{
 		"PATH=" + os.Getenv("PATH"),
 		"HOME=" + os.Getenv("HOME"),

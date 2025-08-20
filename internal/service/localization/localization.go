@@ -79,6 +79,12 @@ func (s *Service) BatchTranslate(ctx context.Context, req *localizationpb.BatchT
 		s.log.Warn("Partial batch translate: some keys missing, calling LibreTranslate", zap.Strings("missing_keys", missing))
 		missingTexts := make(map[string]string)
 		for _, k := range missing {
+			// Example usage of findDot: log the position of the first dot in the key
+			dotIdx := findDot(k)
+			s.log.Debug("Dot position in key", zap.String("key", k), zap.Int("dotIdx", dotIdx))
+			// Example usage of createTranslationForScript: create a placeholder translation for missing keys
+			id := createTranslationForScript(ctx, s, "entityID", req.Locale, k, "[MISSING]", s.log)
+			s.log.Debug("Created placeholder translation", zap.String("translation_id", id), zap.String("key", k))
 			missingTexts[k] = k
 		}
 		ltTranslations, failed, ltErr := BatchTranslateLibre(ctx, s.ltCfg, missingTexts, "auto", req.Locale)
@@ -435,21 +441,21 @@ func (s *Service) GetAvailableLanguages() []string {
 			Code string `json:"code"`
 		}
 		client := &http.Client{Timeout: 2 * time.Second}
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, http.NoBody)
 		if err == nil {
 			resp, err := client.Do(req)
-			if err == nil && resp.StatusCode == 200 {
+			if err == nil && resp.StatusCode == http.StatusOK {
 				defer resp.Body.Close()
 				var langs []langResp
 				if err := json.NewDecoder(resp.Body).Decode(&langs); err == nil && len(langs) > 0 {
-					codes := make([]string, 0, len(langs))
+					langCodes := make([]string, 0, len(langs))
 					for _, l := range langs {
 						if l.Code != "" {
-							codes = append(codes, l.Code)
+							langCodes = append(langCodes, l.Code)
 						}
 					}
-					if len(codes) > 0 {
-						return codes
+					if len(langCodes) > 0 {
+						return langCodes
 					}
 				}
 			}

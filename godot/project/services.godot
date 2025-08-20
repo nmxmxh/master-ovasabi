@@ -1,0 +1,159 @@
+# OVASABI Service Registration - Godot Friendly Format
+# This file is auto-generated from service_registration.json for use in Godot projects.
+
+[services]
+# name, version, health_check, metrics, capabilities, dependencies
+admin = {
+    version = "v1",
+    health_check = "/health/admin",
+    metrics = "/metrics/admin",
+    capabilities = ["admin", "user_mgmt", "authorization", "metadata_enrichment"],
+    dependencies = ["user", "security"]
+}
+ai = {
+    version = "v1",
+    health_check = "/health/ai",
+    metrics = "/metrics/ai",
+    capabilities = [],
+    dependencies = ["content", "analytics"]
+}
+analytics = {
+    version = "v1",
+    health_check = "/health/analytics",
+    metrics = "/metrics/analytics",
+    capabilities = ["analytics", "metadata_enrichment"],
+    dependencies = ["user"]
+}
+campaign = {
+    version = "v1",
+    health_check = "/health/campaign",
+    metrics = "/metrics/campaign",
+    capabilities = [],
+    dependencies = []
+}
+commerce = {
+    version = "v1",
+    health_check = "/health/commerce",
+    metrics = "/metrics/commerce",
+    capabilities = ["commerce", "metadata_enrichment"],
+    dependencies = ["analytics"]
+}
+content = {
+    version = "v1",
+    health_check = "/health/content",
+    metrics = "/metrics/content",
+    capabilities = ["content", "metadata_enrichment"],
+    dependencies = ["search", "analytics"]
+}
+contentmoderation = {
+    version = "v1",
+    health_check = "/health/contentmoderation",
+    metrics = "/metrics/contentmoderation",
+    capabilities = ["moderation", "metadata_enrichment"],
+    dependencies = []
+}
+crawler = {
+    version = "v1",
+    health_check = "/health/crawler",
+    metrics = "/metrics/crawler",
+    capabilities = [],
+    dependencies = []
+}
+localization = {
+    version = "v1",
+    health_check = "/health/localization",
+    metrics = "/metrics/localization",
+    capabilities = [],
+    dependencies = []
+}
+media = {
+    version = "v1",
+    health_check = "/health/media",
+    metrics = "/metrics/media",
+    capabilities = ["media", "metadata_enrichment"],
+    dependencies = ["content", "user"]
+}
+messaging = {
+    version = "v1",
+    health_check = "/health/messaging",
+    metrics = "/metrics/messaging",
+    capabilities = ["messaging", "metadata_enrichment"],
+    dependencies = ["analytics"]
+}
+nexus = {
+    version = "v1",
+    health_check = "/health/nexus",
+    metrics = "/metrics/nexus",
+    capabilities = ["orchestration", "metadata_enrichment"],
+    dependencies = ["analytics"]
+}
+centralized_health = {
+    version = "v1",
+    health_check = "/health/centralized-health",
+    metrics = "/metrics/centralized-health",
+    capabilities = ["health_monitoring", "service_discovery", "health_dashboard", "metadata_enrichment"],
+    dependencies = ["nexus"]
+}
+notification = {
+    version = "v1",
+    health_check = "/health/notification",
+    metrics = "/metrics/notification",
+    capabilities = ["notification", "metadata_enrichment"],
+    dependencies = ["analytics"]
+}
+product = {
+    version = "v1",
+    health_check = "/health/product",
+    metrics = "/metrics/product",
+    capabilities = [],
+    dependencies = ["search"]
+}
+referral = {
+    version = "v1",
+    health_check = "/health/referral",
+    metrics = "/metrics/referral",
+    capabilities = ["referral", "metadata_enrichment"],
+    dependencies = []
+}
+scheduler = {
+    version = "v1",
+    health_check = "/health/scheduler",
+    metrics = "/metrics/scheduler",
+    capabilities = ["scheduler", "metadata_enrichment"],
+    dependencies = []
+}
+search = {
+    version = "v1",
+    health_check = "/health/search",
+    metrics = "/metrics/search",
+    capabilities = ["search", "metadata_enrichment"],
+    dependencies = []
+}
+security = {
+    version = "v1",
+    health_check = "/health/security",
+    metrics = "/metrics/security",
+    capabilities = ["authentication", "authorization", "metadata_enrichment"],
+    dependencies = ["user", "search", "analytics"]
+}
+talent = {
+    version = "v1",
+    health_check = "/health/talent",
+    metrics = "/metrics/talent",
+    capabilities = [],
+    dependencies = ["user", "search"]
+}
+user = {
+    version = "v1",
+    health_check = "/health/user",
+    metrics = "/metrics/user",
+    capabilities = ["authentication", "referral", "user_mgmt", "admin", "authorization", "metadata_enrichment"],
+    dependencies = ["notification", "security", "analytics", "search", "content"]
+}
+waitlist = {
+    version = "v1",
+    health_check = "/health/waitlist",
+    metrics = "/metrics/waitlist",
+    capabilities = [],
+    dependencies = ["user"]
+}

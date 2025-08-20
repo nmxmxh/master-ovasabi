@@ -71,7 +71,10 @@ func GetTaskType(meta *commonpb.Metadata) string {
 		return ""
 	}
 
-	taskType, _ := details[TaskType].(string)
+	taskType, ok := details[TaskType].(string)
+	if !ok {
+		return ""
+	}
 	return taskType
 }
 
@@ -88,6 +91,9 @@ func GetVideoAudioPath(meta *commonpb.Metadata) string {
 		return ""
 	}
 
-	audioPath, _ := videoMeta[VideoAudioPath].(string)
+	audioPath, ok := videoMeta[VideoAudioPath].(string)
+	if !ok {
+		return ""
+	}
 	return audioPath
 }

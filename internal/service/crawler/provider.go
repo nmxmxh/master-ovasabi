@@ -10,8 +10,8 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
-	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/health"
+	"github.com/nmxmxh/master-ovasabi/pkg/hello"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"go.uber.org/zap"
 )
@@ -50,14 +50,17 @@ func Register(
 	eventEnabled bool,
 	provider interface{},
 ) error {
-	repository := NewRepository(db, log, masterRepo)
-	cache, err := redisProvider.GetCache(ctx, "contentmoderation")
-	if repository == nil {
+	repoInstance := NewRepository(db, log, masterRepo)
+	cache, errCache := redisProvider.GetCache(ctx, "contentmoderation")
+	if errCache != nil {
+		log.Warn("Failed to get Redis cache for contentmoderation", zap.Error(errCache))
+	}
+	if repoInstance == nil {
 		return fmt.Errorf("failed to create crawler repository")
 	}
 
 	// Canonical event emitter injection: inject raw events.EventEmitter into the service struct.
-	crawlerService, err := NewService(ctx, log, repository, cache, eventEmitter, eventEnabled, map[crawlerpb.TaskType]WorkerFactory{})
+	crawlerService, err := NewService(ctx, log, repoInstance, cache, eventEmitter, eventEnabled, map[crawlerpb.TaskType]WorkerFactory{})
 	if err != nil {
 		return fmt.Errorf("failed to create crawler service: %w", err)
 	}
@@ -91,7 +94,7 @@ func Register(
 			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
 		}
 		health.StartHealthSubscriber(ctx, prov, log, "crawler", healthDeps)
-		
+
 		hello.StartHelloWorldLoop(ctx, prov, log, "crawler")
 	}
 

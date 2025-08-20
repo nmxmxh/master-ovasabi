@@ -86,7 +86,7 @@ func (s *Service) RegisterPattern(ctx context.Context, req *nexusv1.RegisterPatt
 	}
 	metadata.MigrateMetadata(req.Metadata)
 	if err := s.repo.RegisterPattern(ctx, req, userID, req.CampaignId); err != nil {
-		return &nexusv1.RegisterPatternResponse{Success: false, Error: err.Error()}, nil
+		return &nexusv1.RegisterPatternResponse{Success: false, Error: err.Error()}, err
 	}
 	return &nexusv1.RegisterPatternResponse{Success: true, Metadata: req.Metadata}, nil
 }
@@ -139,7 +139,7 @@ func (s *Service) Feedback(ctx context.Context, req *nexusv1.FeedbackRequest) (*
 	}
 	metadata.MigrateMetadata(req.Metadata)
 	if err := s.repo.Feedback(ctx, req); err != nil {
-		return &nexusv1.FeedbackResponse{Success: false, Error: err.Error()}, nil
+		return &nexusv1.FeedbackResponse{Success: false, Error: err.Error()}, err
 	}
 	return &nexusv1.FeedbackResponse{Success: true, Metadata: req.Metadata}, nil
 }
@@ -165,11 +165,11 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 		}
 		defBytes, err := protojson.Marshal(rawDef)
 		if err != nil {
-			return &nexusv1.HandleOpsResponse{Success: false, Message: "Failed to marshal definition", Metadata: req.Metadata}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: "Failed to marshal definition", Metadata: req.Metadata}, err
 		}
 		var patternDef commonpb.IntegrationPattern
 		if err := protojson.Unmarshal(defBytes, &patternDef); err != nil {
-			return &nexusv1.HandleOpsResponse{Success: false, Message: "Failed to unmarshal definition", Metadata: req.Metadata}, nil
+			return &nexusv1.HandleOpsResponse{Success: false, Message: "Failed to unmarshal definition", Metadata: req.Metadata}, err
 		}
 		if patternID == "" || patternType == "" || version == "" || origin == "" {
 			return &nexusv1.HandleOpsResponse{Success: false, Message: "Missing required pattern fields", Metadata: req.Metadata}, nil
@@ -244,7 +244,10 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 
 	// Save to eventRepo for persistence
 	if s.eventRepo != nil {
-		masterID, _ := strconv.ParseInt(req.EntityId, 10, 64)
+		masterID, err := strconv.ParseInt(req.EntityId, 10, 64)
+		if err != nil {
+			s.log.Error("Failed to parse EntityId to int64", zap.Error(err))
+		}
 		entityType := ""
 		if parts := strings.Split(req.EventType, "."); len(parts) > 0 {
 			entityType = parts[0]
@@ -357,7 +360,7 @@ func (s *Service) broadcastToSubscribers(subscribers []chan *nexusv1.EventRespon
 	}
 }
 
-// GetEventSequence returns the current event sequence number for debugging/monitoring
+// GetEventSequence returns the current event sequence number for debugging/monitoring.
 func (s *Service) GetEventSequence() uint64 {
 	s.eventMutex.Lock()
 	defer s.eventMutex.Unlock()

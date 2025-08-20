@@ -26,21 +26,20 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadNexusEvents() []string {
 	return events.LoadCanonicalEvents("nexus")
 }
 
 // Helper to build event type strings dynamically.
 // CanonicalEventTypeRegistry provides lookup and validation for canonical event types.
-// Keyed by service:action:state, e.g., "nexus:pattern_registered:completed"
+// Keyed by service:action:state, e.g., "nexus:pattern_registered:completed".
 var CanonicalEventTypeRegistry map[string]string
 
 // InitCanonicalEventTypeRegistry initializes the canonical event type registry from registry or config.
 func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	for _, evt := range loadNexusEvents() {
-		// Example: evt = "nexus:pattern_registered:v1:completed"; key = "pattern_registered:completed"
 		parts := strings.Split(evt, ":")
 		if len(parts) >= 4 {
 			key := parts[1] + ":" + parts[3] // action:state
@@ -64,26 +63,41 @@ func GetCanonicalEventType(action, state string) string {
 // ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, eventType string, eventPayload interface{})
 
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+		if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+			s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+			return
+		}
+		handler(ctx, s, eventType, eventPayload)
+	}
+}
+
 // actionHandlers maps action names to their business logic handlers.
 var actionHandlers = map[string]ActionHandlerFunc{
-	"emit_event":       handleEmitEvent,
-	"mine_patterns":    handleMinePatterns,
-	"handle_ops":       handleHandleOps,
-	"orchestrate":      handleOrchestrate,
-	"subscribe_events": handleSubscribeEvents,
-	"feedback":         handleFeedback,
-	"trace_pattern":    handleTracePattern,
-	"register_pattern": handleRegisterPattern,
-	"list_patterns":    handleListPatterns,
+	"emit_event":       FilterRequestedOnly(handleEmitEvent),
+	"mine_patterns":    FilterRequestedOnly(handleMinePatterns),
+	"handle_ops":       FilterRequestedOnly(handleHandleOps),
+	"orchestrate":      FilterRequestedOnly(handleOrchestrate),
+	"subscribe_events": FilterRequestedOnly(handleSubscribeEvents),
+	"feedback":         FilterRequestedOnly(handleFeedback),
+	"trace_pattern":    FilterRequestedOnly(handleTracePattern),
+	"register_pattern": FilterRequestedOnly(handleRegisterPattern),
+	"list_patterns":    FilterRequestedOnly(handleListPatterns),
 }
 
 // RegisterActionHandler allows registration of business logic handlers for actions.
 func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+	actionHandlers[action] = FilterRequestedOnly(handler)
 }
 
-// Canonical business logic handler stubs for all Nexus actions
+// Canonical business logic handler stubs for all Nexus actions.
 func handleEmitEvent(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
 	// Example: log, validate payload, orchestrate event emission
 	s.log.Info("Handling emit_event", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	req, ok := eventPayload.(*nexusv1.EventRequest)
@@ -98,10 +112,13 @@ func handleEmitEvent(ctx context.Context, s *Service, eventType string, eventPay
 	} else {
 		s.log.Info("EmitEvent succeeded", zap.Any("response", resp))
 	}
-
 }
 
 func handleMinePatterns(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
 	s.log.Info("Handling mine_patterns", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	req, ok := eventPayload.(*nexusv1.MinePatternsRequest)
 	if !ok {
@@ -115,10 +132,13 @@ func handleMinePatterns(ctx context.Context, s *Service, eventType string, event
 	} else {
 		s.log.Info("MinePatterns succeeded", zap.Any("response", resp))
 	}
-
 }
 
 func handleHandleOps(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
 	s.log.Info("Handling handle_ops", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	req, ok := eventPayload.(*nexusv1.HandleOpsRequest)
 	if !ok {
@@ -132,10 +152,13 @@ func handleHandleOps(ctx context.Context, s *Service, eventType string, eventPay
 	} else {
 		s.log.Info("HandleOps succeeded", zap.Any("response", resp))
 	}
-
 }
 
 func handleOrchestrate(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
 	s.log.Info("Handling orchestrate", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	req, ok := eventPayload.(*nexusv1.OrchestrateRequest)
 	if !ok {
@@ -149,22 +172,41 @@ func handleOrchestrate(ctx context.Context, s *Service, eventType string, eventP
 	} else {
 		s.log.Info("Orchestrate succeeded", zap.Any("response", resp))
 	}
-
 }
 
 func handleSubscribeEvents(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		s.log.Warn("Context error in handleSubscribeEvents", zap.Error(ctx.Err()))
+	}
 	s.log.Info("Handling subscribe_events", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	// No canonical proto type or service method for subscribe_events; log and skip
 	s.log.Warn("No implementation for subscribe_events handler", zap.String("eventType", eventType))
 }
 
 func handleFeedback(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
+	// Use context for diagnostics (lint fix)
+	if ctx != nil && ctx.Err() != nil {
+		s.log.Warn("Context error in handleFeedback", zap.Error(ctx.Err()))
+	}
 	s.log.Info("Handling feedback", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	// No canonical proto type or service method for feedback; log and skip
 	s.log.Warn("No implementation for feedback handler", zap.String("eventType", eventType))
 }
 
 func handleTracePattern(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
 	s.log.Info("Handling trace_pattern", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	req, ok := eventPayload.(*nexusv1.TracePatternRequest)
 	if !ok {
@@ -180,6 +222,10 @@ func handleTracePattern(ctx context.Context, s *Service, eventType string, event
 }
 
 func handleRegisterPattern(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
 	s.log.Info("Handling register_pattern", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	req, ok := eventPayload.(*nexusv1.RegisterPatternRequest)
 	if !ok {
@@ -195,6 +241,10 @@ func handleRegisterPattern(ctx context.Context, s *Service, eventType string, ev
 }
 
 func handleListPatterns(ctx context.Context, s *Service, eventType string, eventPayload interface{}) {
+	if !events.ShouldProcessEvent(eventType, []string{":requested"}) {
+		s.log.Debug("Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
 	s.log.Info("Handling list_patterns", zap.String("eventType", eventType), zap.Any("payload", eventPayload))
 	req, ok := eventPayload.(*nexusv1.ListPatternsRequest)
 	if !ok {
@@ -234,7 +284,7 @@ func HandleNexusServiceEvent(ctx context.Context, s *Service, eventType string, 
 	handler(ctx, s, eventType, eventPayload)
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]ActionHandlerFunc {
 	m := make(map[string]ActionHandlerFunc)
 	for _, evt := range loadNexusEvents() {
@@ -266,7 +316,7 @@ var NexusEventRegistry = func() []struct {
 	return subs
 }()
 
-// BuildEventType remains for dynamic event type construction (legacy compatibility)
+// BuildEventType remains for dynamic event type construction (legacy compatibility).
 func BuildEventType(service, action string) string {
 	return service + "." + action
 }

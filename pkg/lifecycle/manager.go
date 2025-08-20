@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Resource represents any component that needs lifecycle management
+// Resource represents any component that needs lifecycle management.
 type Resource interface {
 	// Name returns a unique identifier for the resource
 	Name() string
@@ -23,7 +23,7 @@ type Resource interface {
 	Health() error
 }
 
-// Manager provides centralized lifecycle management for all resources
+// Manager provides centralized lifecycle management for all resources.
 type Manager struct {
 	resources    map[string]Resource
 	dependencies map[string][]string // resource -> dependencies
@@ -34,7 +34,7 @@ type Manager struct {
 	wg           sync.WaitGroup
 }
 
-// NewManager creates a new lifecycle manager
+// NewManager creates a new lifecycle manager.
 func NewManager(log *zap.Logger) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
@@ -46,7 +46,7 @@ func NewManager(log *zap.Logger) *Manager {
 	}
 }
 
-// Register adds a resource to the manager with optional dependencies
+// Register adds a resource to the manager with optional dependencies.
 func (m *Manager) Register(resource Resource, dependencies ...string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -61,7 +61,7 @@ func (m *Manager) Register(resource Resource, dependencies ...string) error {
 	return nil
 }
 
-// Start launches all resources in dependency order
+// Start launches all resources in dependency order.
 func (m *Manager) Start(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -80,7 +80,7 @@ func (m *Manager) Start(ctx context.Context) error {
 				zap.String("resource", name),
 				zap.Error(err))
 			// Stop already started resources
-			m.stopResources(order[:indexOf(order, name)])
+			m.stopResources(ctx, order[:indexOf(order, name)])
 			return fmt.Errorf("failed to start resource %s: %w", name, err)
 		}
 	}
@@ -89,7 +89,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop gracefully shuts down all resources in reverse dependency order
+// Stop gracefully shuts down all resources in reverse dependency order.
 func (m *Manager) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -137,7 +137,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 	}
 }
 
-// Health checks all registered resources
+// Health checks all registered resources.
 func (m *Manager) Health() map[string]error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -149,7 +149,7 @@ func (m *Manager) Health() map[string]error {
 	return health
 }
 
-// ScheduleCleanup schedules a cleanup function to run during shutdown
+// ScheduleCleanup schedules a cleanup function to run during shutdown.
 func (m *Manager) ScheduleCleanup(name string, cleanup func() error) {
 	m.wg.Add(1)
 	go func() {
@@ -166,12 +166,12 @@ func (m *Manager) ScheduleCleanup(name string, cleanup func() error) {
 	}()
 }
 
-// ShutdownContext returns a context that is cancelled when shutdown begins
+// ShutdownContext returns a context that is cancelled when shutdown begins.
 func (m *Manager) ShutdownContext() context.Context {
 	return m.shutdownCtx
 }
 
-// resolveDependencies returns resources in startup order
+// resolveDependencies returns resources in startup order.
 func (m *Manager) resolveDependencies() ([]string, error) {
 	var order []string
 	visited := make(map[string]bool)
@@ -210,14 +210,14 @@ func (m *Manager) resolveDependencies() ([]string, error) {
 	return order, nil
 }
 
-// stopResources stops a list of resources
-func (m *Manager) stopResources(names []string) {
+// stopResources stops a list of resources.
+func (m *Manager) stopResources(ctx context.Context, names []string) {
 	for i := len(names) - 1; i >= 0; i-- {
 		name := names[i]
 		resource := m.resources[name]
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := resource.Stop(ctx); err != nil {
+		rctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		if err := resource.Stop(rctx); err != nil {
 			m.log.Error("Failed to stop resource during rollback",
 				zap.String("resource", name),
 				zap.Error(err))
@@ -226,7 +226,7 @@ func (m *Manager) stopResources(names []string) {
 	}
 }
 
-// Helper function to find index
+// Helper function to find index.
 func indexOf(slice []string, item string) int {
 	for i, s := range slice {
 		if s == item {

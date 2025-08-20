@@ -11,10 +11,10 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// CanonicalEventTypeRegistry provides lookup and validation for canonical event types (action-only pattern)
+// CanonicalEventTypeRegistry provides lookup and validation for canonical event types (action-only pattern).
 var CanonicalEventTypeRegistry map[string]string
 
-// InitCanonicalEventTypeRegistry initializes the canonical event type registry from actions.txt or service_registration.json
+// InitCanonicalEventTypeRegistry initializes the canonical event type registry from actions.txt or service_registration.json.
 func InitCanonicalEventTypeRegistry() {
 	CanonicalEventTypeRegistry = make(map[string]string)
 	evts := loadSchedulerEvents()
@@ -27,7 +27,7 @@ func InitCanonicalEventTypeRegistry() {
 	}
 }
 
-// GetCanonicalEventType returns the canonical event type for a given action and state
+// GetCanonicalEventType returns the canonical event type for a given action and state.
 func GetCanonicalEventType(action, state string) string {
 	if CanonicalEventTypeRegistry == nil {
 		InitCanonicalEventTypeRegistry()
@@ -39,32 +39,43 @@ func GetCanonicalEventType(action, state string) string {
 	return ""
 }
 
-// Use generic canonical loader for event types
+// Use generic canonical loader for event types.
 func loadSchedulerEvents() []string {
 	return events.LoadCanonicalEvents("scheduler")
 }
 
-// EventHandlerFunc defines the signature for event handlers in the scheduler service
+// EventHandlerFunc defines the signature for event handlers in the scheduler service.
 type EventHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
-// EventSubscription maps event types to their handlers
+// EventSubscription maps event types to their handlers.
 type EventSubscription struct {
 	EventTypes []string
 	Handler    EventHandlerFunc
 }
 
-// ActionHandlerFunc defines the signature for business logic handlers for each action
+// ActionHandlerFunc defines the signature for business logic handlers for each action.
 type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
 
-// actionHandlers maps action names to their business logic handlers
-var actionHandlers = map[string]ActionHandlerFunc{}
-
-// RegisterActionHandler allows registration of business logic handlers for actions
-func RegisterActionHandler(action string, handler ActionHandlerFunc) {
-	actionHandlers[action] = handler
+// Wraps a handler so it only processes :requested events.
+func FilterRequestedOnly(handler ActionHandlerFunc) ActionHandlerFunc {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested"}) {
+			// Optionally log: ignoring non-requested event
+			return
+		}
+		handler(ctx, s, event)
+	}
 }
 
-// parseActionAndState extracts the action and state from a canonical event type
+// actionHandlers maps action names to their business logic handlers.
+var actionHandlers = map[string]ActionHandlerFunc{}
+
+// RegisterActionHandler allows registration of business logic handlers for actions.
+func RegisterActionHandler(action string, handler ActionHandlerFunc) {
+	actionHandlers[action] = FilterRequestedOnly(handler)
+}
+
+// parseActionAndState extracts the action and state from a canonical event type.
 func parseActionAndState(eventType string) (action, state string) {
 	parts := strings.Split(eventType, ":")
 	if len(parts) >= 4 {
@@ -73,7 +84,7 @@ func parseActionAndState(eventType string) (action, state string) {
 	return "", ""
 }
 
-// HandleSchedulerServiceEvent is the generic event handler for all scheduler service actions
+// HandleSchedulerServiceEvent is the generic event handler for all scheduler service actions.
 func HandleSchedulerServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	eventType := event.GetEventType()
 	action, _ := parseActionAndState(eventType)
@@ -94,7 +105,7 @@ func HandleSchedulerServiceEvent(ctx context.Context, s *Service, event *nexusv1
 	handler(ctx, s, event)
 }
 
-// Handler implementations for each canonical scheduler action
+// Handler implementations for each canonical scheduler action.
 func handleCreateJobAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	if s == nil || event == nil || event.Payload == nil || event.Payload.Data == nil {
 		if s != nil && s.log != nil {
@@ -277,7 +288,7 @@ func handleDeleteJobAction(ctx context.Context, s *Service, event *nexusv1.Event
 	}
 }
 
-// Register all canonical event types to the generic handler
+// Register all canonical event types to the generic handler.
 var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	evts := loadSchedulerEvents()
 	m := make(map[string]EventHandlerFunc)
@@ -287,7 +298,7 @@ var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	return m
 }()
 
-// SchedulerEventRegistry defines all event subscriptions for the scheduler service, using canonical event types
+// SchedulerEventRegistry defines all event subscriptions for the scheduler service, using canonical event types.
 var SchedulerEventRegistry = func() []EventSubscription {
 	evts := loadSchedulerEvents()
 	var subs []EventSubscription
@@ -321,4 +332,13 @@ func StartEventSubscribers(ctx context.Context, s *Service) {
 			}
 		}(sub)
 	}
+}
+
+func init() {
+	RegisterActionHandler("create_job", handleCreateJobAction)
+	RegisterActionHandler("update_job", handleUpdateJobAction)
+	RegisterActionHandler("run_job", handleRunJobAction)
+	RegisterActionHandler("list_jobs", handleListJobsAction)
+	RegisterActionHandler("list_job_runs", handleListJobRunsAction)
+	RegisterActionHandler("delete_job", handleDeleteJobAction)
 }

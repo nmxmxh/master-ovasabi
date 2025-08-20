@@ -91,8 +91,6 @@ func (pool *ParticleWorkerPool) Start() {
 	}
 
 	pool.active = true
-	// Only log worker pool startup once, not per worker
-	perfLogger.LogSuccess("worker_pool_startup", int64(pool.workers))
 }
 
 // Stop gracefully shuts down the worker pool
@@ -172,9 +170,6 @@ func (pool *ParticleWorkerPool) ProcessParticlesConcurrently(
 	for _, result := range results {
 		copy(output[result.StartIndex:result.EndIndex], result.ProcessedPositions)
 		memoryPools.PutFloat32Buffer(result.ProcessedPositions)
-	}
-	if totalProcessingTime > 0 {
-		perfLogger.LogSuccess("worker_pool_concurrent_processing", int64(len(results)*chunkSize))
 	}
 	return output
 }
