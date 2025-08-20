@@ -1115,25 +1115,29 @@ func jsSendWasmMessage(this js.Value, args []js.Value) interface{} {
 	jsMsg := args[0]
 	wasmLog("[WASM] sendWasmMessage received from JS:", jsMsg)
 
-	// Forward the JS message as-is to the backend (assume correct structure)
+	// Only accept JS object
 	if jsMsg.Type() != js.TypeObject {
 		wasmLog("[WASM] sendWasmMessage expects a JS object")
 		return nil
 	}
+
+	// Extract event fields
 	eventType := jsMsg.Get("type").String()
 	payload := jsMsg.Get("payload")
 	metadata := jsMsg.Get("metadata")
-	var payloadBytes, metadataBytes []byte
-	if payload.Type() != js.TypeUndefined {
-		payloadBytes, _ = json.Marshal(payload)
-	}
-	if metadata.Type() != js.TypeUndefined {
-		metadataBytes, _ = json.Marshal(metadata)
-	} else {
-		metadataBytes = []byte("{}")
-	}
-	wasmLog("[WASM] Forwarding EventEnvelope:", eventType)
+
+	// Convert payload and metadata to Go values, then marshal once
+	payloadGo := jsValueToGoValue(payload)
+	metadataGo := jsValueToGoValue(metadata)
+	payloadBytes, _ := json.Marshal(payloadGo)
+	metadataBytes, _ := json.Marshal(metadataGo)
+
+	// Log for debugging
+	wasmLog("[WASM] Forwarding EventEnvelope:", eventType, "Payload:", string(payloadBytes), "Metadata:", string(metadataBytes))
+
+	// Forward to backend
 	emitToNexus(eventType, payloadBytes, metadataBytes)
+
 	// Optionally process internally
 	if handler := eventBus.GetHandler(eventType); handler != nil {
 		go handler(EventEnvelope{Type: eventType, Payload: payloadBytes, Metadata: metadataBytes})
