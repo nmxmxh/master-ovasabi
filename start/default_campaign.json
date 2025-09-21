@@ -60,6 +60,109 @@
         "dashboard": {
           "welcome": "Your creative journey starts here.",
           "actions": ["View Campaigns", "Invite Friends", "Track Progress"]
+        },
+        "design_system": {
+          "theme": {
+            "primary_color": "#007bff",
+            "secondary_color": "#6c757d",
+            "accent_color": "#28a745",
+            "background_color": "#ffffff",
+            "text_color": "#212529",
+            "border_radius": "8px",
+            "font_family": "Inter, system-ui, sans-serif",
+            "spacing_unit": "8px"
+          },
+          "components": {
+            "hero_section": {
+              "type": "hero",
+              "props": {
+                "title": "Welcome to OVASABI Studios",
+                "subtitle": "The home of creative innovation",
+                "background_image": "/images/hero-bg.jpg",
+                "cta_text": "Get Started",
+                "cta_action": "navigate_to_signup"
+              }
+            },
+            "feature_cards": {
+              "type": "feature_grid",
+              "props": {
+                "title": "Our Features",
+                "cards": [
+                  {
+                    "icon": "broadcast",
+                    "title": "Real-time Broadcasting",
+                    "description": "Connect with your audience instantly"
+                  },
+                  {
+                    "icon": "waitlist",
+                    "title": "Waitlist Management",
+                    "description": "Build anticipation and manage demand"
+                  },
+                  {
+                    "icon": "referral",
+                    "title": "Referral System",
+                    "description": "Grow your community through referrals"
+                  }
+                ]
+              }
+            },
+            "content_blocks": [
+              {
+                "id": "intro_text",
+                "type": "text_block",
+                "props": {
+                  "heading": "Discover Campaigns",
+                  "content": "Join the waitlist and connect with top talent in our creative ecosystem.",
+                  "alignment": "center",
+                  "max_width": "600px"
+                }
+              },
+              {
+                "id": "image_showcase",
+                "type": "image_with_caption",
+                "props": {
+                  "image_url": "/images/showcase.jpg",
+                  "caption": "Our creative workspace",
+                  "alt_text": "OVASABI Studios workspace"
+                }
+              },
+              {
+                "id": "testimonial",
+                "type": "testimonial",
+                "props": {
+                  "quote": "OVASABI has transformed how we approach creative projects.",
+                  "author": "Sarah Johnson",
+                  "role": "Creative Director",
+                  "company": "Design Co"
+                }
+              }
+            ]
+          },
+          "layout": {
+            "header": {
+              "logo": "/images/logo.svg",
+              "navigation": [
+                { "label": "Home", "path": "/" },
+                { "label": "Campaigns", "path": "/campaigns" },
+                { "label": "About", "path": "/about" }
+              ],
+              "cta_button": {
+                "text": "Join Now",
+                "action": "signup"
+              }
+            },
+            "footer": {
+              "links": [
+                { "label": "Privacy Policy", "path": "/privacy" },
+                { "label": "Terms of Service", "path": "/terms" },
+                { "label": "Contact", "path": "/contact" }
+              ],
+              "social_links": {
+                "twitter": "https://twitter.com/ovasabi",
+                "linkedin": "https://linkedin.com/company/ovasabi"
+              }
+            }
+          }
         }
       },
       "scripts": {

@@ -1,6 +1,8 @@
 // Enhanced Compute Manager for OVASABI Architecture
 // Coordinates between main thread, Web Workers, WASM concurrency, and WebGPU
 
+import { generateTaskId } from '../../utils/cryptoIds';
+
 export interface ComputeTask {
   id: string;
   data: Float32Array;
@@ -80,8 +82,9 @@ class EnhancedComputeManager {
   private adaptiveQuality: boolean = true;
   private targetFPS: number = 60;
   private lastOptimization: number = 0;
-  private taskIdCounter: number = 0; // Optimized ID generation
+  // Note: taskIdCounter removed as we now use secure crypto-based ID generation
   private performanceBuffer: CircularBuffer<PerformanceMetrics>;
+  private workerCapabilities: Map<number, any> = new Map();
 
   constructor(workerCount?: number) {
     this.workerCount = workerCount || Math.min(navigator.hardwareConcurrency || 2, 2);
@@ -118,8 +121,10 @@ class EnhancedComputeManager {
 
   private async initializeWasm(): Promise<void> {
     try {
-      // Check if WASM module is available globally
-      if (typeof window !== 'undefined' && (window as any).runConcurrentCompute) {
+      // Wait for WASM to be ready via event or polling fallback
+      const wasmReady = await this.waitForWasmReady();
+
+      if (wasmReady) {
         this.wasmModule = window;
         this.capabilities.wasm = true;
 
@@ -129,11 +134,114 @@ class EnhancedComputeManager {
           this.capabilities.wasmWorkers = status.workers;
         }
 
-        console.log('[COMPUTE-MANAGER] WASM module connected');
+        // Check for enhanced worker pool
+        const enhancedStatus = (window as any).getEnhancedWorkerPoolStatus?.();
+        if (enhancedStatus && enhancedStatus.initialized) {
+          this.capabilities.wasmWorkers = enhancedStatus.workers || this.capabilities.wasmWorkers;
+        }
+
+        // Initialize WebGPU in workers for better performance
+        console.log('[COMPUTE-MANAGER] Initializing WebGPU in worker context...');
+        try {
+          const webgpuManager = await import('../gpu/WebGPUManager');
+          const manager = webgpuManager.webGPUManager;
+          const webgpuReady = await manager.initialize();
+          if (webgpuReady) {
+            this.capabilities.webgpu = true;
+            console.log('[COMPUTE-MANAGER] WebGPU initialized successfully in worker');
+          }
+        } catch (error) {
+          console.warn('[COMPUTE-MANAGER] WebGPU initialization failed in worker:', error);
+        }
+
+        console.log('[COMPUTE-MANAGER] WASM module connected with enhanced features');
+      } else {
+        console.warn('[COMPUTE-MANAGER] WASM not available after waiting');
       }
     } catch (error) {
       console.warn('[COMPUTE-MANAGER] WASM initialization failed:', error);
     }
+  }
+
+  private async waitForWasmReady(): Promise<boolean> {
+    return new Promise(resolve => {
+      let resolved = false;
+
+      // First, check if WASM is already ready
+      const hasWasmFunctions =
+        typeof window !== 'undefined' &&
+        typeof (window as any).runConcurrentCompute === 'function' &&
+        typeof (window as any).runGPUCompute === 'function' &&
+        typeof (window as any).getGPUMetricsBuffer === 'function';
+
+      if (hasWasmFunctions) {
+        console.log('[COMPUTE-MANAGER] WASM functions already available');
+        resolve(true);
+        return;
+      }
+
+      // Listen for wasmReady event (preferred method)
+      const onWasmReady = () => {
+        if (resolved) return;
+        resolved = true;
+        window.removeEventListener('wasmReady', onWasmReady);
+        console.log('[COMPUTE-MANAGER] WASM ready via event');
+        resolve(true);
+      };
+
+      window.addEventListener('wasmReady', onWasmReady);
+
+      // Fallback: polling if event doesn't come within reasonable time
+      const maxAttempts = 30; // 3 seconds total
+      let attempts = 0;
+
+      const checkWasm = () => {
+        if (resolved) return;
+
+        attempts++;
+
+        // Check if WASM functions are available
+        const hasWasmFunctions =
+          typeof window !== 'undefined' &&
+          typeof (window as any).runConcurrentCompute === 'function' &&
+          typeof (window as any).runGPUCompute === 'function' &&
+          typeof (window as any).getGPUMetricsBuffer === 'function';
+
+        if (hasWasmFunctions) {
+          if (!resolved) {
+            resolved = true;
+            window.removeEventListener('wasmReady', onWasmReady);
+            console.log(
+              '[COMPUTE-MANAGER] WASM functions detected via polling after',
+              attempts,
+              'attempts'
+            );
+            resolve(true);
+          }
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          if (!resolved) {
+            resolved = true;
+            window.removeEventListener('wasmReady', onWasmReady);
+            console.warn(
+              '[COMPUTE-MANAGER] WASM functions not available after',
+              maxAttempts,
+              'attempts'
+            );
+            resolve(false);
+          }
+          return;
+        }
+
+        // Check again in 100ms
+        setTimeout(checkWasm, 100);
+      };
+
+      // Start polling after a short delay to give the event a chance
+      setTimeout(checkWasm, 100);
+    });
   }
 
   private async initializeWorkers(): Promise<void> {
@@ -180,6 +288,29 @@ class EnhancedComputeManager {
         console.log(`[COMPUTE-MANAGER] Worker ${workerIndex} status:`, data);
         break;
 
+      case 'status':
+        // Handle status messages from workers
+        console.log(`[COMPUTE-MANAGER] Worker ${workerIndex} status update:`, data);
+        break;
+
+      case 'worker-capabilities':
+        // Handle worker capabilities messages
+        console.log(`[COMPUTE-MANAGER] Worker ${workerIndex} capabilities:`, data);
+        // Update worker capabilities in our tracking
+        if (data.capabilities) {
+          this.workerCapabilities.set(workerIndex, data.capabilities);
+          console.log(
+            `[COMPUTE-MANAGER] Updated worker ${workerIndex} capabilities:`,
+            data.capabilities
+          );
+        }
+        break;
+
+      case 'wasm-call-request':
+        // Handle WASM function call request from worker
+        this.handleWASMCallRequest(workerIndex, event.data);
+        break;
+
       default:
         console.warn('[COMPUTE-MANAGER] Unknown worker message:', type);
     }
@@ -187,6 +318,80 @@ class EnhancedComputeManager {
 
   private handleWorkerError(error: ErrorEvent, workerIndex: number): void {
     console.error(`[COMPUTE-MANAGER] Worker ${workerIndex} error:`, error);
+  }
+
+  private async handleWASMCallRequest(workerIndex: number, data: any): Promise<void> {
+    const { callId, functionName, args } = data;
+    const worker = this.workers[workerIndex];
+
+    if (!worker) {
+      console.error(`[COMPUTE-MANAGER] Worker ${workerIndex} not found for WASM call`);
+      return;
+    }
+
+    try {
+      // Call the WASM function on the main thread
+      let result;
+
+      switch (functionName) {
+        case 'runConcurrentCompute':
+          if (typeof window.runConcurrentCompute === 'function') {
+            result = await new Promise(resolve => {
+              window.runConcurrentCompute!(
+                args[0],
+                args[1],
+                args[2],
+                (resultData: any, metadata: any) => {
+                  resolve({ result: resultData, metadata });
+                }
+              );
+            });
+          } else {
+            throw new Error('runConcurrentCompute not available');
+          }
+          break;
+
+        case 'runGPUCompute':
+          if (typeof window.runGPUCompute === 'function') {
+            result = await new Promise((resolve, reject) => {
+              const success = window.runGPUCompute!(args[0], args[1], (resultData: any) => {
+                resolve(resultData);
+              });
+              if (!success) {
+                reject(new Error('runGPUCompute failed to start'));
+              }
+            });
+          } else {
+            throw new Error('runGPUCompute not available');
+          }
+          break;
+
+        case 'submitComputeTask':
+          if (typeof window.submitComputeTask === 'function') {
+            result = window.submitComputeTask(args[0], args[1], args[2], args[3]);
+          } else {
+            throw new Error('submitComputeTask not available');
+          }
+          break;
+
+        default:
+          throw new Error(`Unknown WASM function: ${functionName}`);
+      }
+
+      // Send response back to worker
+      worker.postMessage({
+        type: 'wasm-call-response',
+        callId,
+        result
+      });
+    } catch (error) {
+      // Send error response back to worker
+      worker.postMessage({
+        type: 'wasm-call-response',
+        callId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 
   private handleTaskResult(result: any): void {
@@ -222,8 +427,8 @@ class EnhancedComputeManager {
   }
 
   private generateTaskId(): string {
-    // Optimized ID generation using counter + timestamp
-    return `task_${Date.now()}_${++this.taskIdCounter}`;
+    // Use secure crypto-based ID generation for better security
+    return generateTaskId();
   }
 
   private startPerformanceMonitoring(): void {
@@ -340,8 +545,11 @@ class EnhancedComputeManager {
 
     const startTime = performance.now();
 
+    // Convert Float32Array to JS-compatible format
+    const jsData = new Float32Array(task.data);
+
     const success = this.wasmModule.runConcurrentCompute(
-      task.data,
+      jsData,
       task.params.deltaTime || 0.016667,
       task.params.animationMode || 1.0,
       (result: Float32Array, metadata: any) => {
@@ -372,8 +580,11 @@ class EnhancedComputeManager {
 
     const startTime = performance.now();
 
+    // Convert Float32Array to JS-compatible format
+    const jsData = new Float32Array(task.data);
+
     const success = this.wasmModule.runGPUCompute(
-      task.data,
+      jsData,
       task.params.deltaTime || 0.016667,
       (result: Float32Array) => {
         const processingTime = performance.now() - startTime;

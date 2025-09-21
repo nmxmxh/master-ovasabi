@@ -7,8 +7,9 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
-	"sync"
+	"fmt"
 	"syscall/js"
+	"time"
 )
 
 // Utility functions and shared helpers.
@@ -53,123 +54,128 @@ func emitToNexus(eventType string, payload interface{}, metadata json.RawMessage
 		wasmWarn("[NEXUS EMIT] Attempted to emit event from worker thread. Event emission is restricted to main thread.", eventType)
 		return
 	}
-	// Validate metadata and correlation_id
-	var metaMap map[string]interface{}
-	if err := json.Unmarshal(metadata, &metaMap); err != nil {
-		wasmError("[NEXUS ERROR] Invalid metadata (not JSON object):", err)
-		return
-	}
-	if _, ok := metaMap["correlation_id"]; !ok {
-		wasmWarn("[NEXUS WARN] Event missing correlation_id in metadata:", eventType)
-	}
 
-	// Flatten payload: if payload is a map and contains a 'metadata' field, remove it
-	var normalizedPayload interface{} = payload
-	if m, ok := payload.(map[string]interface{}); ok {
-		if _, hasMeta := m["metadata"]; hasMeta {
-			delete(m, "metadata")
-			normalizedPayload = m
+	// Ensure payload is wrapped in a 'data' field for canonical envelope
+	var canonicalPayload map[string]interface{}
+	switch v := payload.(type) {
+	case map[string]interface{}:
+		// If already has 'data' field, use as-is
+		if _, ok := v["data"]; ok {
+			canonicalPayload = v
+		} else {
+			canonicalPayload = map[string]interface{}{"data": v}
+		}
+	default:
+		canonicalPayload = map[string]interface{}{"data": v}
+	}
+	payloadBytes, _ := json.Marshal(canonicalPayload)
+	// Ensure metadata is a structured object, not empty or a string
+	var canonicalMetadata map[string]interface{}
+	if len(metadata) == 0 {
+		canonicalMetadata = map[string]interface{}{}
+	} else {
+		if err := json.Unmarshal(metadata, &canonicalMetadata); err != nil {
+			// If metadata is not valid JSON, fallback to empty object
+			canonicalMetadata = map[string]interface{}{}
 		}
 	}
-
-	// Update global metadata and expose to JS
-	updateGlobalMetadata(metadata)
-
+	// Optionally, add required subfields if missing (e.g., versioning, campaign, user)
+	// Example: if _, ok := canonicalMetadata["versioning"]; !ok { canonicalMetadata["versioning"] = map[string]interface{}{} }
+	metadataBytes, _ := json.Marshal(canonicalMetadata)
 	env := EventEnvelope{
 		Type:     eventType,
-		Metadata: metadata,
+		Payload:  payloadBytes,
+		Metadata: metadataBytes,
 	}
-	if normalizedPayload != nil {
-		if b, err := json.Marshal(normalizedPayload); err == nil {
-			env.Payload = b
+
+	// Use the established userID global and ID generation pattern from main.go
+	currentUserID := userID
+	if currentUserID == "" {
+		currentUserID = "guest_unknown"
+	}
+
+	// Try to get campaign ID from incoming metadata, fallback to default
+	currentCampaignID := "0" // Default campaign
+	if len(metadata) > 0 {
+		var metaMap map[string]interface{}
+		if err := json.Unmarshal(metadata, &metaMap); err == nil {
+			if globalContext, ok := metaMap["global_context"].(map[string]interface{}); ok {
+				if campaignID, ok := globalContext["campaign_id"].(string); ok && campaignID != "" {
+					currentCampaignID = campaignID
+				}
+			}
 		}
 	}
 
-	// Marshal the envelope to JSON for sending over WebSocket (Nexus bus)
-	envelopeBytes, err := json.Marshal(env)
-	if err != nil {
-		wasmError("[NEXUS ERROR] Failed to marshal EventEnvelope:", err)
-		return
-	}
+	// Generate other IDs using the established pattern
+	sessionID := generateSessionID()
+	deviceID := generateDeviceID()
+	correlationID := generateCorrelationID()
 
-	// Send to Nexus event bus via WebSocket
-	sendWSMessage(envelopeBytes)
-	wasmLog("[NEXUS EMIT]", env.Type, string(env.Payload))
-}
-
-// updateGlobalMetadata updates the global metadata and exposes it to JS as window.__WASM_GLOBAL_METADATA
-func updateGlobalMetadata(metadata json.RawMessage) {
-	var metaObj interface{}
-	if err := json.Unmarshal(metadata, &metaObj); err == nil {
-		js.Global().Set("__WASM_GLOBAL_METADATA", goValueToJSValue(metaObj))
-		js.Global().Get("console").Call("log", "[WASM] Set window.__WASM_GLOBAL_METADATA:", js.Global().Get("__WASM_GLOBAL_METADATA"))
-	} else {
-		js.Global().Get("console").Call("log", "[WASM] Failed to unmarshal metadata for __WASM_GLOBAL_METADATA:", err)
-	}
-}
-
-// GetFloat32Buffer retrieves a buffer from the appropriate pool
-func (m *MemoryPoolManager) GetFloat32Buffer(size int) []float32 {
-	// Find the smallest pool that can accommodate the size
-	m.mutex.RLock()
-
-	var bestSize int = 0
-	for poolSize := range m.float32Pools {
-		if poolSize >= size && (bestSize == 0 || poolSize < bestSize) {
-			bestSize = poolSize
-		}
-	}
-
-	if bestSize > 0 {
-		pool := m.float32Pools[bestSize]
-		m.mutex.RUnlock()
-
-		buf := pool.Get().([]float32)
-		return buf[:size] // Return slice of exact size needed
-	}
-
-	m.mutex.RUnlock()
-
-	// No suitable pool found, create buffer directly
-	return make([]float32, size)
-}
-
-// PutFloat32Buffer returns a buffer to the appropriate pool
-func (m *MemoryPoolManager) PutFloat32Buffer(buf []float32) {
-	if len(buf) == 0 {
-		return
-	}
-
-	bufCap := cap(buf)
-
-	m.mutex.RLock()
-	pool, exists := m.float32Pools[bufCap]
-	m.mutex.RUnlock()
-
-	if exists {
-		// Reset slice to full capacity before returning to pool
-		fullBuf := buf[:bufCap]
-		// Clear the buffer to prevent memory leaks
-		for i := range fullBuf {
-			fullBuf[i] = 0
-		}
-		pool.Put(fullBuf)
-	}
-	// If no matching pool, let GC handle it
-}
-
-// createFloat32Pool creates a memory pool for a specific buffer size
-func (m *MemoryPoolManager) createFloat32Pool(size int) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	if _, exists := m.float32Pools[size]; exists {
-		return
-	}
-
-	m.float32Pools[size] = &sync.Pool{
-		New: func() interface{} {
-			return make([]float32, size)
+	// Create canonical envelope format for WebSocket gateway using established pattern
+	canonicalEnvelope := map[string]interface{}{
+		"type":           eventType,
+		"correlation_id": correlationID,
+		"timestamp":      time.Now().Format(time.RFC3339),
+		"version":        "1.0.0",
+		"environment":    "production",
+		"source":         "wasm",
+		"metadata": map[string]interface{}{
+			"global_context": map[string]interface{}{
+				"user_id":        currentUserID,
+				"campaign_id":    currentCampaignID,
+				"correlation_id": correlationID,
+				"session_id":     sessionID,
+				"device_id":      deviceID,
+				"source":         "wasm",
+			},
+			"envelope_version": "1.0.0",
+			"environment":      "production",
 		},
+		"payload": canonicalPayload,
 	}
+
+	envelopeBytes, err := json.Marshal(canonicalEnvelope)
+	if err != nil {
+		wasmError("[NEXUS ERROR] Failed to marshal canonical envelope:", err)
+		return
+	}
+	sendWSMessage(envelopeBytes)
+	wasmLog("[NEXUS EMIT] EventEnvelope:", env)
+	wasmLog("[NEXUS EMIT] eventType:", eventType)
+	wasmLog("[NEXUS EMIT] payload (type):", fmt.Sprintf("%T", payload), "payload (raw):", payload)
+	wasmLog("[NEXUS EMIT] metadata (type):", fmt.Sprintf("%T", metadata), "metadata (raw):", metadata)
+	wasmLog("[NEXUS EMIT] marshaled envelope:", string(envelopeBytes))
+}
+
+// MemoryPoolManager methods are defined in memorypool.go
+
+func jsValueToMap(v js.Value) map[string]interface{} {
+	result := make(map[string]interface{})
+	keys := js.Global().Get("Object").Call("keys", v)
+	length := keys.Get("length").Int()
+	wasmLog("[WASM] jsValueToMap: processing object with", length, "keys")
+
+	for i := 0; i < length; i++ {
+		key := keys.Index(i).String()
+		val := v.Get(key)
+		wasmLog("[WASM] jsValueToMap: processing key", key, "type:", val.Type().String())
+
+		if val.Type() == js.TypeObject && !val.IsNull() {
+			result[key] = jsValueToMap(val)
+		} else if val.Type() == js.TypeString {
+			result[key] = val.String()
+		} else if val.Type() == js.TypeNumber {
+			result[key] = val.Float()
+		} else if val.Type() == js.TypeBoolean {
+			result[key] = val.Bool()
+		} else if val.IsNull() {
+			result[key] = nil
+		} else {
+			result[key] = val.String() // fallback
+		}
+	}
+
+	wasmLog("[WASM] jsValueToMap: result has", len(result), "keys")
+	return result
 }

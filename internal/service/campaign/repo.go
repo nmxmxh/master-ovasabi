@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"strconv"
 	"strings"
 	"time"
 
@@ -198,10 +200,10 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 	query := `
 		INSERT INTO service_campaign_main (
 			master_id, master_uuid, slug, title, description,
-			ranking_formula, metadata, start_date, end_date,
+			ranking_formula, status, metadata, start_date, end_date,
 			created_at, updated_at, owner_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 		) RETURNING id, created_at, updated_at`
 
 	now := time.Now()
@@ -212,6 +214,7 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 		campaign.Title,
 		campaign.Description,
 		campaign.RankingFormula,
+		campaign.Status,
 		metadataJSON,
 		campaign.StartDate,
 		campaign.EndDate,
@@ -229,7 +232,7 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 		}
 		return nil, err
 	}
-	campaign.ID = id
+	campaign.ID = strconv.FormatInt(id, 10)
 	campaign.CreatedAt = createdAt
 	campaign.UpdatedAt = updatedAt
 
@@ -242,7 +245,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 	query := `
 		SELECT 
 			id, master_id, master_uuid, slug, title, description,
-			ranking_formula, metadata, start_date, end_date,
+			ranking_formula, status, metadata, start_date, end_date,
 			created_at, updated_at, owner_id
 		FROM service_campaign_main
 		WHERE slug = $1`
@@ -256,6 +259,7 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 		&campaign.Title,
 		&campaign.Description,
 		&campaign.RankingFormula,
+		&campaign.Status,
 		&metadataStr,
 		&campaign.StartDate,
 		&campaign.EndDate,
@@ -284,7 +288,15 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 	if campaign.Metadata.ServiceSpecific == nil {
 		campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 	}
-	campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaign.ID))
+	// Convert string ID to number for campaign_id
+	if campaignID, err := strconv.ParseInt(campaign.ID, 10, 64); err == nil {
+		campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaignID))
+	} else {
+		// Fallback: use hash of ID as number
+		hash := fnv.New32a()
+		hash.Write([]byte(campaign.ID))
+		campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(hash.Sum32()))
+	}
 
 	return campaign, nil
 }
@@ -308,17 +320,19 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 			title = $1,
 			description = $2,
 			ranking_formula = $3,
-			metadata = $4,
-			start_date = $5,
-			end_date = $6,
-			updated_at = $7,
-			owner_id = $8
-		WHERE id = $9`
+			status = $4,
+			metadata = $5,
+			start_date = $6,
+			end_date = $7,
+			updated_at = $8,
+			owner_id = $9
+		WHERE id = $10`
 
 	result, err := r.GetDB().ExecContext(ctx, query,
 		campaign.Title,
 		campaign.Description,
 		campaign.RankingFormula,
+		campaign.Status,
 		metadataJSON,
 		campaign.StartDate,
 		campaign.EndDate,
@@ -369,14 +383,20 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 	query := `
 		SELECT 
 			id, master_id, master_uuid, slug, title, description,
-			ranking_formula, metadata, start_date, end_date,
+			ranking_formula, status, metadata, start_date, end_date,
 			created_at, updated_at, owner_id
 		FROM service_campaign_main
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2`
 
+	r.GetLogger().Info("Fetching campaigns from database",
+		zap.Int("limit", limit),
+		zap.Int("offset", offset),
+		zap.String("query", query))
+
 	rows, err := r.GetDB().QueryContext(ctx, query, limit, offset)
 	if err != nil {
+		r.GetLogger().Error("Failed to query campaigns from database", zap.Error(err))
 		return nil, err
 	}
 	defer func() {
@@ -397,6 +417,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 			&campaign.Title,
 			&campaign.Description,
 			&campaign.RankingFormula,
+			&campaign.Status,
 			&metadataStr,
 			&campaign.StartDate,
 			&campaign.EndDate,
@@ -407,6 +428,7 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		if err != nil {
 			return nil, err
 		}
+
 		// Always set serviceSpecific to campaign_id only, as err is always nil here
 		campaign.Metadata = &commonpb.Metadata{} // Initialize metadata
 		if metadataStr != "" {
@@ -420,7 +442,15 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		if campaign.Metadata.ServiceSpecific == nil {
 			campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 		}
-		campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaign.ID))
+		// Convert UUID string to number for campaign_id
+		if campaignID, err := strconv.ParseInt(campaign.ID, 10, 64); err == nil {
+			campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaignID))
+		} else {
+			// Fallback: use hash of UUID as number
+			hash := fnv.New32a()
+			hash.Write([]byte(campaign.ID))
+			campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(hash.Sum32()))
+		}
 		campaigns = append(campaigns, campaign)
 	}
 
@@ -428,15 +458,25 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		return nil, err
 	}
 
+	r.GetLogger().Info("Successfully fetched campaigns from database",
+		zap.Int("count", len(campaigns)),
+		zap.Any("campaign_names", func() []string {
+			names := make([]string, len(campaigns))
+			for i, c := range campaigns {
+				names[i] = c.Slug
+			}
+			return names
+		}()))
+
 	return campaigns, nil
 }
 
 // ListActiveWithinWindow returns campaigns with status=active and now between start/end.
 func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) ([]*Campaign, error) {
 	query := `
-		SELECT id, master_id, master_uuid, slug, title, description, ranking_formula, metadata, start_date, end_date, created_at, updated_at, owner_id
+		SELECT id, master_id, master_uuid, slug, title, description, ranking_formula, status, metadata, start_date, end_date, created_at, updated_at, owner_id
 		FROM service_campaign_main
-		WHERE (metadata->'service_specific'->'campaign'->>'status') = 'active'
+		WHERE status = 'active'
 		AND start_date <= $1 AND end_date >= $1
 		ORDER BY created_at DESC`
 	rows, err := r.GetDB().QueryContext(ctx, query, now)
@@ -462,6 +502,7 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 			&campaign.Title,
 			&campaign.Description,
 			&campaign.RankingFormula,
+			&campaign.Status,
 			&metadataStr,
 			&campaign.StartDate,
 			&campaign.EndDate,
@@ -472,6 +513,7 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 		if err != nil {
 			return nil, err
 		}
+
 		// Always set serviceSpecific to campaign_id only, as err is always nil here
 		campaign.Metadata = &commonpb.Metadata{} // Initialize metadata
 		if metadataStr != "" {
@@ -485,7 +527,15 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 		if campaign.Metadata.ServiceSpecific == nil {
 			campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 		}
-		campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaign.ID))
+		// Convert UUID string to number for campaign_id
+		if campaignID, err := strconv.ParseInt(campaign.ID, 10, 64); err == nil {
+			campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(campaignID))
+		} else {
+			// Fallback: use hash of UUID as number
+			hash := fnv.New32a()
+			hash.Write([]byte(campaign.ID))
+			campaign.Metadata.ServiceSpecific.Fields["campaign_id"] = structpb.NewNumberValue(float64(hash.Sum32()))
+		}
 		campaigns = append(campaigns, campaign)
 	}
 
@@ -498,13 +548,14 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 
 // (move from shared repository types if needed).
 type Campaign struct {
-	ID             int64  `db:"id"`
+	ID             string `db:"id"` // UUID in database
 	MasterID       int64  `db:"master_id"`
 	MasterUUID     string `db:"master_uuid"`
-	Slug           string `db:"slug"`
-	Title          string `db:"title"`
+	Slug           string `db:"slug"`  // Maps to proto slug field
+	Title          string `db:"title"` // Maps to proto title field
 	Description    string `db:"description"`
-	RankingFormula string `db:"ranking_formula"`
+	RankingFormula string `db:"ranking_formula"` // Maps to proto ranking_formula field
+	Status         string `db:"status"`          // Maps to proto status field
 	OwnerID        string `db:"owner_id" json:"owner_id"`
 	Metadata       *commonpb.Metadata
 	StartDate      time.Time `db:"start_date"`

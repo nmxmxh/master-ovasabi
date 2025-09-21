@@ -4,13 +4,15 @@
 package main
 
 import (
+	"encoding/json"
 	"sync"
 )
 
 type EventEnvelope struct {
-	Type     string `json:"type"`
-	Payload  []byte `json:"payload"`
-	Metadata []byte `json:"metadata"`
+	Type          string          `json:"type"`
+	CorrelationID string          `json:"correlation_id"`
+	Payload       json.RawMessage `json:"payload"`
+	Metadata      json.RawMessage `json:"metadata"`
 }
 
 type WASMEventBus struct {
@@ -35,4 +37,15 @@ func (eb *WASMEventBus) GetHandler(msgType string) func(EventEnvelope) {
 	eb.RLock()
 	defer eb.RUnlock()
 	return eb.handlers[msgType]
+}
+
+func (eb *WASMEventBus) GetRegisteredHandlers() map[string]func(EventEnvelope) {
+	eb.RLock()
+	defer eb.RUnlock()
+	// Return a copy to avoid race conditions
+	handlers := make(map[string]func(EventEnvelope))
+	for k, v := range eb.handlers {
+		handlers[k] = v
+	}
+	return handlers
 }

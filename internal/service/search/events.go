@@ -90,8 +90,17 @@ func parseActionAndState(eventType string) string {
 // HandleSearchServiceEvent is the generic event handler for all search service actions.
 func HandleSearchServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
 	eventType := event.GetEventType()
-	s.log.Info("[SearchService] Received event", zap.String("event_type", eventType), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+	s.log.Info("[SearchService] Received event", zap.String("event_type", eventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+
+	// Use the existing ShouldProcessEvent utility to filter for :requested events
+	allowedSuffixes := []string{":requested"}
+	if !events.ShouldProcessEvent(eventType, allowedSuffixes) {
+		s.log.Debug("[SearchService] Ignoring non-requested event", zap.String("event_type", eventType))
+		return
+	}
+
 	action := parseActionAndState(eventType)
+	s.log.Info("[SearchService] Parsed action", zap.String("action", action), zap.String("event_type", eventType))
 	handler, ok := actionHandlers[action]
 	if !ok {
 		s.log.Warn("No handler for action", zap.String("action", action), zap.String("event_type", eventType))
@@ -109,10 +118,16 @@ func HandleSearchServiceEvent(ctx context.Context, s *Service, event *nexusv1.Ev
 
 // Use generic canonical loader for event types.
 func loadSearchEvents() []string {
-	return events.LoadCanonicalEvents("search")
+	events := events.LoadCanonicalEvents("search")
+	// Debug logging to see what events are loaded
+	if len(events) == 0 {
+		// This will be logged at the package level, but we can add more context here
+	}
+	return events
 }
 
 // Register all canonical event types to the generic handler.
+// The handler itself will filter for :requested events using the existing ShouldProcessEvent utility.
 var eventTypeToHandler = func() map[string]EventHandlerFunc {
 	events := loadSearchEvents()
 	m := make(map[string]EventHandlerFunc)
@@ -128,11 +143,14 @@ var SearchEventRegistry = func() []EventSubscription {
 	events := loadSearchEvents()
 	var subs []EventSubscription
 	for _, evt := range events {
-		if handler, ok := eventTypeToHandler[evt]; ok {
-			subs = append(subs, EventSubscription{
-				EventTypes: []string{evt},
-				Handler:    handler,
-			})
+		// Only subscribe to :requested events, not :success or :failed events
+		if strings.HasSuffix(evt, ":requested") {
+			if handler, ok := eventTypeToHandler[evt]; ok {
+				subs = append(subs, EventSubscription{
+					EventTypes: []string{evt},
+					Handler:    handler,
+				})
+			}
 		}
 	}
 	return subs
@@ -145,12 +163,17 @@ func StartEventSubscribers(ctx context.Context, s *Service, log *zap.Logger) {
 		return
 	}
 	for _, sub := range SearchEventRegistry {
+		// Capture the loop variable to avoid closure issues
+		sub := sub
 		go func() {
+			log.Info("Subscribing to search events", zap.Strings("eventTypes", sub.EventTypes))
 			err := s.provider.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
 				sub.Handler(ctx, s, event)
 			})
 			if err != nil {
 				log.Error("Failed to subscribe to search events", zap.Strings("eventTypes", sub.EventTypes), zap.Error(err))
+			} else {
+				log.Info("Successfully subscribed to search events", zap.Strings("eventTypes", sub.EventTypes))
 			}
 		}()
 	}

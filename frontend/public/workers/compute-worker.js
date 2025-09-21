@@ -1,5 +1,5 @@
 // Enhanced Compute Worker for OVASABI Architecture
-// Optimized for performance with memory pooling and efficient processing
+// Focused on compute operations with proper separation from WASM bridge
 
 class ComputeWorker {
   log(...args) {
@@ -15,8 +15,8 @@ class ComputeWorker {
     console.error(`[COMPUTE-WORKER][${this.workerId}]${context}`, ...args);
   }
   getContext() {
-    // Add more context for logs: WASM/WebGPU status, paused, degradation, etc.
-    return ` [wasm:${this.capabilities.wasm ? 'on' : 'off'}|webgpu:${this.capabilities.webgpu ? 'on' : 'off'}|paused:${this.isPaused ? 'yes' : 'no'}|degradation:${this.performanceMetrics.degradationLevel}]`;
+    // Simplified context for compute worker
+    return ` [wasm:${this.capabilities.wasm ? 'on' : 'off'}|webgpu:${this.capabilities.webgpu ? 'on' : 'off'}|paused:${this.isPaused ? 'yes' : 'no'}]`;
   }
   constructor() {
     this.capabilities = {
@@ -78,7 +78,7 @@ class ComputeWorker {
     self.addEventListener('wasmReady', () => {
       this.wasmReady = true;
       this.log('WASM module is ready (event received)');
-      this.setupWASMBridgeIntegration(); // Ensure bridge setup after WASM is ready
+      this.setupWASMIntegration(); // Setup WASM integration after WASM is ready
     });
     this.initialize();
     this.setupErrorHandling();
@@ -95,7 +95,7 @@ class ComputeWorker {
     });
     try {
       await this.initializeModules();
-      // Bridge setup now handled by wasmReady event
+      // WASM integration setup handled by wasmReady event
       this.log('✅ Initialization complete');
     } catch (error) {
       this.error('Initialization failed:', error);
@@ -276,50 +276,25 @@ class ComputeWorker {
     }, 100);
   }
 
-  // Setup WASM Bridge integration for advanced features
-  setupWASMBridgeIntegration() {
-    // Expose all compute methods and fallback logic
-    this.wasmBridge = {
-      getSharedBuffer: typeof self.getSharedBuffer === 'function' ? self.getSharedBuffer : null,
-      getGPUMetricsBuffer:
-        typeof self.getGPUMetricsBuffer === 'function' ? self.getGPUMetricsBuffer : null,
-      getGPUComputeBuffer:
-        typeof self.getGPUComputeBuffer === 'function' ? self.getGPUComputeBuffer : null,
-      submitComputeTask:
-        typeof self.submitComputeTask === 'function' ? self.submitComputeTask : null,
-      benchmarkConcurrentVsGPU:
-        typeof self.benchmarkConcurrentVsGPU === 'function' ? self.benchmarkConcurrentVsGPU : null,
-      runConcurrentCompute:
-        typeof self.runConcurrentCompute === 'function' ? self.runConcurrentCompute : null,
-      runGPUCompute: typeof self.runGPUCompute === 'function' ? self.runGPUCompute : null,
-      compute: typeof self.compute === 'function' ? self.compute : null
-    };
-    // Robust WASM function detection
-    const required = [
-      'runConcurrentCompute',
-      'submitComputeTask',
-      'runGPUCompute',
-      'runGPUComputeWithOffset',
-      'jsSendWasmMessage',
-      'jsRegisterPendingRequest'
-    ];
-    const missing = required.filter(fn => typeof self[fn] !== 'function');
-    if (missing.length) {
-      this.warn('Missing WASM functions:', missing);
-      // Optionally retry detection after a short delay
-      setTimeout(() => this.setupWASMBridgeIntegration(), 100);
-      return;
-    }
-    this.log(
-      '✅ WASM Bridge integration checked. Available methods:',
-      Object.keys(this.wasmBridge).filter(k => this.wasmBridge[k])
-    );
-    // Notify frontend of available compute methods and fallback status
+  // Setup WASM integration for compute operations
+  setupWASMIntegration() {
+    // Workers don't have direct access to WASM functions from main thread
+    // Instead, we'll communicate with the main thread for WASM operations
+    this.log('Setting up WASM integration via main thread communication...');
+
+    // WASM is available via main thread communication
+    this.capabilities.wasm = true;
+    this.capabilities.wasmViaMainThread = true;
+
+    this.log('✅ WASM integration set up via main thread communication');
+
+    // Notify main thread of capabilities
     self.postMessage({
-      type: 'worker-methods',
-      methods: Object.keys(this.wasmBridge).filter(k => this.wasmBridge[k]),
-      capabilities: this.capabilities
+      type: 'worker-capabilities',
+      capabilities: this.capabilities,
+      wasmViaMainThread: true
     });
+
     // Process any queued tasks after WASM is ready
     if (this.taskQueue && this.taskQueue.length) {
       this.log('Processing queued tasks after WASM ready');
@@ -327,6 +302,33 @@ class ComputeWorker {
         this.processComputeTask(this.taskQueue.shift());
       }
     }
+  }
+
+  // Call WASM function via main thread communication
+  async callWASMFunction(functionName, args) {
+    return new Promise((resolve, reject) => {
+      const callId = `wasm_call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Store the callback for when we get the response
+      this.wasmCallbacks = this.wasmCallbacks || new Map();
+      this.wasmCallbacks.set(callId, { resolve, reject });
+
+      // Send request to main thread
+      self.postMessage({
+        type: 'wasm-call-request',
+        callId,
+        functionName,
+        args: args
+      });
+
+      // Set timeout to avoid hanging
+      setTimeout(() => {
+        if (this.wasmCallbacks.has(callId)) {
+          this.wasmCallbacks.delete(callId);
+          reject(new Error(`WASM call timeout: ${functionName}`));
+        }
+      }, 10000); // 10 second timeout
+    });
   }
 
   // Memory pool management with adaptive sizing
@@ -393,21 +395,21 @@ class ComputeWorker {
       this.log('Initialized successfully', {
         wasm: this.capabilities.wasm,
         webgpu: this.capabilities.webgpu,
-        wasmBridge: !!this.wasmBridge,
+        javascript: this.capabilities.javascript,
         concurrency: navigator.hardwareConcurrency || 4
       });
 
-      // Run performance benchmarks if WASM bridge is available
-      if (this.wasmBridge && this.wasmBridge.benchmarkConcurrentVsGPU) {
+      // Run performance benchmarks if WASM functions are available
+      if (this.capabilities.wasm && typeof self.runConcurrentCompute === 'function') {
         this.runPerformanceBenchmarks();
       }
 
       self.postMessage({
         type: 'worker-ready',
         capabilities: {
-          wasm: !!this.wasmModule,
-          webgpu: !!this.gpuDevice,
-          wasmBridge: !!this.wasmBridge,
+          wasm: this.capabilities.wasm,
+          webgpu: this.capabilities.webgpu,
+          javascript: this.capabilities.javascript,
           concurrency: navigator.hardwareConcurrency || 4
         }
       });
@@ -424,110 +426,82 @@ class ComputeWorker {
     // Load WASM module in worker context with proper integration
     try {
       this.log('Loading wasm_exec.js...');
-      importScripts('/wasm_exec.js');
-      this.log('wasm_exec.js loaded. Initializing Go runtime...');
+
+      // Try to load wasm_exec.js with error handling
+      try {
+        importScripts('/wasm_exec.js');
+        this.log('wasm_exec.js loaded. Initializing Go runtime...');
+      } catch (importError) {
+        this.warn('Failed to import wasm_exec.js:', importError);
+        this.capabilities.wasm = false;
+        return;
+      }
+
       const go = new Go();
       let result;
+
       try {
         this.log('Attempting streaming WASM instantiation...');
-        result = await WebAssembly.instantiateStreaming(fetch('/main.wasm'), go.importObject);
+        result = await WebAssembly.instantiateStreaming(
+          fetch(`/main.wasm?v=${Date.now()}`),
+          go.importObject
+        );
         this.log('Streaming instantiation succeeded.');
       } catch (streamError) {
         this.warn('Streaming instantiation failed, trying manual fetch:', streamError);
+
         let wasmUrl = '/main.threads.wasm';
         let wasmResponse;
+
         try {
           this.log('Trying to fetch main.threads.wasm...');
-          wasmResponse = await fetch(wasmUrl);
+          wasmResponse = await fetch(`${wasmUrl}?v=${Date.now()}`);
           if (!wasmResponse.ok) throw new Error('main.threads.wasm not found');
           this.log('main.threads.wasm fetched.');
         } catch (e) {
           this.warn('main.threads.wasm not available, falling back to main.wasm:', e.message);
           wasmUrl = '/main.wasm';
-          wasmResponse = await fetch(wasmUrl);
+          wasmResponse = await fetch(`${wasmUrl}?v=${Date.now()}`);
           this.log('main.wasm fetched.');
         }
+
         const wasmBytes = await wasmResponse.arrayBuffer();
         const wasmModule = await WebAssembly.compile(wasmBytes);
         result = await WebAssembly.instantiate(wasmModule, go.importObject);
         this.log('Manual WASM instantiation succeeded.');
       }
+
       this.log('Running Go program...');
       go.run(result.instance);
-      this.log('Go program started. Waiting for wasmReady event to complete WASM setup...');
-      // WASM bridge setup and capability enabling will be handled by the wasmReady event handler.
+      this.log('Go program started. Checking for WASM functions...');
+
+      // Workers don't have direct access to WASM functions - they communicate with main thread
+      this.log('Worker WASM initialization complete, setting up main thread communication...');
+      this.wasmReady = true;
+      this.setupWASMIntegration();
     } catch (error) {
       console.warn('[COMPUTE-WORKER] WASM integration failed:', error);
       this.capabilities.wasm = false;
+      this.setupWASMIntegration();
     }
   }
 
   async initializeWebGPU() {
-    if ('gpu' in navigator && navigator.gpu) {
-      try {
-        this.log('Requesting WebGPU adapter...');
-        const adapter = await navigator.gpu.requestAdapter();
-        if (!adapter) {
-          this.warn('WebGPU adapter not available in worker context');
-          self.postMessage({
-            type: 'worker-warning',
-            message: 'WebGPU adapter not available in worker context'
-          });
-          this.capabilities.webgpu = false;
-          return;
-        }
-        const limits = adapter.limits || {};
-        const maxBufferSize =
-          typeof limits.maxBufferSize === 'number' ? limits.maxBufferSize : 268435456;
-        const maxStorageBufferBindingSize =
-          typeof limits.maxStorageBufferBindingSize === 'number'
-            ? limits.maxStorageBufferBindingSize
-            : 134217728;
-        this.log('Requesting WebGPU device with limits:', {
-          maxBufferSize,
-          maxStorageBufferBindingSize
-        });
-        const device = await adapter.requestDevice({
-          requiredLimits: {
-            maxBufferSize: Math.max(maxBufferSize, 4294967296),
-            maxStorageBufferBindingSize: maxStorageBufferBindingSize
-          }
-        });
-        if (!device) {
-          this.warn('WebGPU device not available in worker context');
-          self.postMessage({
-            type: 'worker-warning',
-            message: 'WebGPU device not available in worker context'
-          });
-          this.capabilities.webgpu = false;
-          return;
-        }
-        this.gpuDevice = device;
-        this.maxBufferSize = device.limits.maxBufferSize;
-        this.log('WebGPU device acquired', {
-          maxBufferSize: this.maxBufferSize,
-          deviceLimits: device.limits
-        });
-        this.capabilities.webgpu = true;
-      } catch (error) {
-        this.warn('WebGPU not available in worker:', error);
-        self.postMessage({
-          type: 'worker-warning',
-          message: 'WebGPU not available in worker: ' + error.message
-        });
-        this.capabilities.webgpu = false;
-      }
-    } else {
-      this.warn('navigator.gpu not available in worker context');
-      self.postMessage({
-        type: 'worker-warning',
-        message: 'navigator.gpu not available in worker context'
-      });
-      this.capabilities.webgpu = false;
-    }
+    // Skip WebGPU initialization in workers to prevent "external Instance reference" errors
+    // WebGPU should only be initialized in the main thread to avoid conflicts
+    this.log('Skipping WebGPU initialization in worker - handled by main thread');
+    this.capabilities.webgpu = false;
+
+    // Notify main thread that worker is ready without WebGPU
+    self.postMessage({
+      type: 'worker-ready',
+      capabilities: this.capabilities,
+      message: 'Worker ready without WebGPU (centralized in main thread)'
+    });
+    return;
   }
 
-  // Refactored: Only delegate compute to WASM via bridge, never process/shade/animate in JS
+  // Process compute tasks with WASM or JavaScript fallback
   async processComputeTask(task) {
     if (this.isPaused) {
       this.warn('Worker is paused, cannot process task.', { taskId: task && task.id });
@@ -537,95 +511,122 @@ class ComputeWorker {
         metadata: { method: 'error' }
       };
     }
-    if (!this.wasmReady) {
-      this.log('WASM not ready, queuing task', { taskId: task && task.id });
-      this.taskQueue.push(task);
-      return;
-    }
-    if (
-      !task ||
-      typeof task !== 'object' ||
-      !task.data ||
-      typeof task.data.length !== 'number' ||
-      !task.params
-    ) {
+
+    if (!task || typeof task !== 'object' || !task.data || typeof task.data.length !== 'number') {
       this.error('processComputeTask called with invalid task:', task);
-      self.postMessage({
-        type: 'worker-error',
-        error: 'processComputeTask called with invalid task object',
-        originalMessage: task
-      });
       return {
-        id: null,
+        id: task?.id || null,
         error: 'Invalid task object',
         metadata: { method: 'error' }
       };
     }
-    // Documented format: { id, data: Float32Array, params: { deltaTime, animationMode } }
-    this.log('Forwarding compute task to WASM', {
-      taskId: task.id || null,
-      dataLength: task.data.length,
-      params: task.params
+
+    const taskId = task.id || `task-${Date.now()}`;
+    const dataLength = task.data.length;
+    const params = task.params || { deltaTime: 0.016667, animationMode: 1.0 };
+
+    this.log('Processing compute task', {
+      taskId,
+      dataLength,
+      params,
+      wasmReady: this.wasmReady
     });
-    // Always delegate to WASM via bridge
+
     try {
-      if (typeof self.runConcurrentCompute === 'function') {
-        // Use runConcurrentCompute for all tasks
-        return await new Promise((resolve, reject) => {
-          self.runConcurrentCompute(
-            task.data,
-            task.params.deltaTime || 0.016667,
-            task.params.animationMode || 1.0,
-            function (result, metadata) {
-              resolve({
-                id: task.id,
-                data: result,
-                metadata: metadata || {}
-              });
-            }
-          );
-        });
+      // Try WASM first if available (via main thread communication)
+      if (this.capabilities.wasm && this.capabilities.wasmViaMainThread) {
+        return await this.processWithWASMViaMainThread(taskId, task.data, params);
       } else {
-        this.error('WASM bridge runConcurrentCompute not available');
-        return {
-          id: task.id,
-          error: 'WASM bridge runConcurrentCompute not available',
-          metadata: { method: 'error' }
-        };
+        // Fallback to JavaScript
+        return await this.processWithJavaScript(taskId, task.data, params);
       }
     } catch (error) {
-      this.error('Task processing failed (WASM bridge):', error, { taskId: task.id });
+      this.error('Task processing failed:', error, { taskId });
       return {
-        id: task.id,
+        id: taskId,
         error: error.message,
         metadata: { method: 'error' }
       };
     }
   }
 
-  // Removed: All WebGPU compute logic. Only WASM should handle compute/shading/animation.
-  async processWithWebGPU(task) {
-    this.error('processWithWebGPU should not be called. All compute is delegated to WASM.');
-    return {
-      id: task.id,
-      error: 'processWithWebGPU not supported. Use WASM bridge.',
-      metadata: { method: 'error' }
-    };
+  async processWithWASM(taskId, data, params) {
+    return new Promise((resolve, reject) => {
+      try {
+        self.runConcurrentCompute(
+          data,
+          params.deltaTime,
+          params.animationMode,
+          (result, metadata) => {
+            resolve({
+              id: taskId,
+              data: result,
+              metadata: { ...metadata, method: 'wasm' }
+            });
+          }
+        );
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
-  // Removed: All JS compute logic. Only WASM should handle compute/shading/animation.
-  async processWithJavaScript(task) {
-    this.error('processWithJavaScript should not be called. All compute is delegated to WASM.');
+  async processWithWASMViaMainThread(taskId, data, params) {
+    try {
+      const result = await this.callWASMFunction('runConcurrentCompute', [
+        data,
+        params.deltaTime,
+        params.animationMode
+      ]);
+
+      return {
+        id: taskId,
+        data: result.result || result,
+        metadata: {
+          ...(result.metadata || {}),
+          method: 'wasm-via-main-thread'
+        }
+      };
+    } catch (error) {
+      this.warn('WASM via main thread failed, falling back to JavaScript:', error.message);
+      return await this.processWithJavaScript(taskId, data, params);
+    }
+  }
+
+  async processWithJavaScript(taskId, data, params) {
+    const result = data.slice();
+    const particleCount = result.length / 3;
+    const deltaTime = params.deltaTime || 0.016667;
+
+    // Simple JavaScript particle physics
+    for (let i = 0; i < particleCount; i++) {
+      const i3 = i * 3;
+
+      // Basic orbital motion
+      const x = result[i3];
+      const z = result[i3 + 2];
+      const radius = Math.sqrt(x * x + z * z);
+
+      if (radius > 0.001) {
+        const angle = Math.atan2(z, x) + deltaTime * 0.5;
+        result[i3] = radius * Math.cos(angle);
+        result[i3 + 2] = radius * Math.sin(angle);
+      }
+
+      // Add vertical oscillation
+      result[i3 + 1] += Math.sin(Date.now() * 0.001 + i * 0.1) * 0.01;
+    }
+
     return {
-      id: task.id,
-      error: 'processWithJavaScript not supported. Use WASM bridge.',
-      metadata: { method: 'error' }
+      id: taskId,
+      data: result,
+      metadata: { method: 'javascript', particleCount }
     };
   }
 
   // Run performance benchmarks to determine optimal processing method
   async runPerformanceBenchmarks() {
-    if (!this.wasmBridge || !this.wasmBridge.benchmarkConcurrentVsGPU) {
+    if (!this.capabilities.wasm || typeof self.runConcurrentCompute !== 'function') {
       return;
     }
     this.log('Running performance benchmarks...');
@@ -820,6 +821,31 @@ class ComputeWorker {
         case 'resume':
           this.isPaused = false;
           self.postMessage({ type: 'worker-resumed' });
+          break;
+        case 'status':
+          // Respond to status request
+          self.postMessage({
+            type: 'worker-status',
+            capabilities: this.capabilities,
+            isPaused: this.isPaused,
+            isProcessing: this.isProcessing,
+            taskQueueLength: this.taskQueue.length,
+            activeTasks: this.activeTasks.size,
+            performanceMetrics: this.performanceMetrics
+          });
+          break;
+        case 'wasm-call-response':
+          // Handle WASM function call response from main thread
+          if (this.wasmCallbacks && this.wasmCallbacks.has(event.data.callId)) {
+            const { resolve, reject } = this.wasmCallbacks.get(event.data.callId);
+            this.wasmCallbacks.delete(event.data.callId);
+
+            if (event.data.error) {
+              reject(new Error(event.data.error));
+            } else {
+              resolve(event.data.result);
+            }
+          }
           break;
         default:
           this.warn('Unknown message type:', type, event.data);

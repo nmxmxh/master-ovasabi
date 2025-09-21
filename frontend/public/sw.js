@@ -93,28 +93,56 @@ const CACHE_STRATEGIES = {
   workers: isDevelopment ? 'network-first' : 'cache-first'
 };
 
-// Install event - cache static assets
+// Install event - cache static assets with error handling
 self.addEventListener('install', event => {
   console.log('[SW] Installing service worker...');
 
   event.waitUntil(
     Promise.all([
-      // Cache static assets
+      // Cache static assets with individual error handling
       caches.open(STATIC_CACHE).then(cache => {
         console.log('[SW] Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
+        return cache.addAll(STATIC_ASSETS).catch(error => {
+          console.warn('[SW] Some static assets failed to cache:', error);
+          // Cache individual assets that exist
+          return Promise.allSettled(
+            STATIC_ASSETS.map(asset =>
+              cache.add(asset).catch(err => {
+                console.warn(`[SW] Failed to cache ${asset}:`, err);
+                return null;
+              })
+            )
+          );
+        });
       }),
 
       // Cache WASM files separately for better performance
       caches.open(WASM_CACHE).then(cache => {
         console.log('[SW] Caching WASM assets');
-        return cache.addAll(['/main.wasm', '/main.threads.wasm', '/wasm_exec.js']);
+        return cache.addAll(['/main.wasm', '/main.threads.wasm', '/wasm_exec.js']).catch(error => {
+          console.warn('[SW] Some WASM assets failed to cache:', error);
+          // Cache individual WASM assets that exist
+          return Promise.allSettled(
+            ['/main.wasm', '/main.threads.wasm', '/wasm_exec.js'].map(asset =>
+              cache.add(asset).catch(err => {
+                console.warn(`[SW] Failed to cache WASM ${asset}:`, err);
+                return null;
+              })
+            )
+          );
+        });
       })
-    ]).then(() => {
-      console.log('[SW] Installation complete');
-      // Skip waiting to activate immediately
-      return self.skipWaiting();
-    })
+    ])
+      .then(() => {
+        console.log('[SW] Installation complete');
+        // Skip waiting to activate immediately
+        return self.skipWaiting();
+      })
+      .catch(error => {
+        console.error('[SW] Installation failed:', error);
+        // Still skip waiting even if caching failed
+        return self.skipWaiting();
+      })
   );
 });
 
@@ -189,8 +217,13 @@ async function handleWASMRequest(request) {
       try {
         const networkResponse = await fetch(request);
         if (networkResponse.ok) {
-          await cache.put(request, networkResponse.clone());
-          console.log('[SW] Updated WASM cache in development:', request.url);
+          try {
+            await cache.put(request, networkResponse.clone());
+            console.log('[SW] Updated WASM cache in development:', request.url);
+          } catch (cacheError) {
+            console.warn('[SW] Failed to cache WASM response:', cacheError);
+            // Continue without caching - the response is still valid
+          }
         }
         response = networkResponse;
       } catch (networkError) {
@@ -208,21 +241,31 @@ async function handleWASMRequest(request) {
       } else {
         const networkResponse = await fetch(request);
         if (networkResponse.ok) {
-          await cache.put(request, networkResponse.clone());
+          try {
+            await cache.put(request, networkResponse.clone());
+          } catch (cacheError) {
+            console.warn('[SW] Failed to cache WASM response:', cacheError);
+            // Continue without caching - the response is still valid
+          }
         }
         response = networkResponse;
       }
     }
     // Ensure correct MIME type for .wasm files
-    if (request.url.endsWith('.wasm') && response) {
-      const newHeaders = new Headers(response.headers);
-      newHeaders.set('Content-Type', 'application/wasm');
-      const body = await response.arrayBuffer();
-      return new Response(body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: newHeaders
-      });
+    if (request.url.endsWith('.wasm') && response && response.ok) {
+      try {
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('Content-Type', 'application/wasm');
+        const body = await response.arrayBuffer();
+        return new Response(body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: newHeaders
+        });
+      } catch (error) {
+        console.warn('[SW] Failed to process WASM response:', error);
+        return response; // Return original response if processing fails
+      }
     }
     return response;
   } catch (error) {
@@ -385,12 +428,14 @@ async function handleNavigationRequest(request) {
     }
 
     // Ultimate fallback to offline page
-    return (
-      cache.match('/offline.html') ||
-      new Response('<h1>Offline</h1><p>Please check your connection and try again.</p>', {
-        headers: { 'Content-Type': 'text/html' }
-      })
-    );
+    const offlinePage = await cache.match('/offline.html');
+    if (offlinePage) {
+      return offlinePage;
+    }
+
+    return new Response('<h1>Offline</h1><p>Please check your connection and try again.</p>', {
+      headers: { 'Content-Type': 'text/html' }
+    });
   }
 }
 
@@ -401,7 +446,68 @@ self.addEventListener('sync', event => {
   if (event.tag === 'background-sync-api') {
     event.waitUntil(syncPendingRequests());
   }
+
+  if (event.tag === 'background-sync-state') {
+    event.waitUntil(syncStateToIndexedDB());
+  }
 });
+
+// Background sync for state management
+async function syncStateToIndexedDB() {
+  try {
+    console.log('[SW] Syncing state to IndexedDB...');
+
+    // Get state from WASM if available
+    if (typeof self.initializeState === 'function') {
+      const state = await self.initializeState();
+      if (state) {
+        // Store in IndexedDB
+        const db = await openIndexedDB();
+        if (db) {
+          const transaction = db.transaction(['userSessions'], 'readwrite');
+          const store = transaction.objectStore('userSessions');
+          await store.put({
+            userId: state.user_id,
+            sessionId: state.session_id,
+            deviceId: state.device_id,
+            timestamp: state.timestamp,
+            sessionType: state.is_temporary ? 'guest' : 'authenticated',
+            metadata: state.metadata || {},
+            computeStats: {
+              totalTasks: 0,
+              avgProcessingTime: 0,
+              peakThroughput: 0
+            }
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[SW] Failed to sync state to IndexedDB:', error);
+  }
+}
+
+// Open IndexedDB for state management
+async function openIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('OvasabiStateDB', 1);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
+
+      // Create userSessions store if it doesn't exist
+      if (!db.objectStoreNames.contains('userSessions')) {
+        const store = db.createObjectStore('userSessions', { keyPath: 'userId' });
+        store.createIndex('sessionId', 'sessionId');
+        store.createIndex('timestamp', 'timestamp');
+        store.createIndex('sessionType', 'sessionType');
+      }
+    };
+  });
+}
 
 // Push notifications
 self.addEventListener('push', event => {

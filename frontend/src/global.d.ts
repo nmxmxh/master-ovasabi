@@ -29,10 +29,36 @@ declare global {
     __WASM_GLOBAL_METADATA?: any;
     userID?: string;
     wasmReady?: boolean;
+    // WebGPU functions
+    initWebGPU?: () => boolean;
+    getWebGPUDevice?: () => any;
+    checkWebGPUAvailability?: () => any;
+    getWasmWebGPUStatus?: () => any;
+    checkWebGPUDeviceValidity?: () => boolean;
+    getGPUBackend?: () => any;
+    getGPUMetricsBuffer?: () => ArrayBuffer;
+    getGPUComputeBuffer?: () => ArrayBuffer;
+    runGPUCompute?: (inputData: Float32Array, operation: number, callback: Function) => boolean;
+    runGPUComputeWithOffset?: (
+      inputData: Float32Array,
+      elapsedTime: number,
+      globalParticleOffset: number,
+      callback: Function
+    ) => boolean;
+    runConcurrentCompute?: (
+      inputData: Float32Array,
+      deltaTime: number,
+      animationMode: number,
+      callback: Function
+    ) => boolean;
   }
 
   interface GlobalState {
-    switchCampaign: (campaignId: number, slug?: string, onResponse?: (event: any) => void) => void;
+    switchCampaign: (
+      campaignId: number | string,
+      slug?: string,
+      onResponse?: (event: any) => void
+    ) => void;
     // ...existing properties...
   }
 }

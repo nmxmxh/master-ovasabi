@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
@@ -74,30 +75,42 @@ func (b *Service) initEventBus() {
 		b.handler.Error(context.Background(), "bridge.outbound_subscribe_error", codes.Unavailable, "Failed to subscribe to bridge.outbound", err, nil, "bridge.outbound")
 		return
 	}
-	// Subscribe to canonical and custom event types for orchestration
-	eventTypes := []string{"search", "messaging", "content", "talent", "product", "campaign", "search:search:v1:success"}
+	// Subscribe to canonical event types for orchestration
+	// Note: Avoid subscribing to both generic and specific event types to prevent duplication
+	eventTypes := []string{"campaign"} // Only subscribe to service-level events, not specific success events
 	for _, eventType := range eventTypes {
 		err := b.eventBus.Subscribe(eventType, func(ctx context.Context, event *nexuspb.EventRequest) {
-			envelope := &events.EventEnvelope{
-				ID:        event.EntityId,
-				Type:      eventType, // Use actual event type for custom events
-				Metadata:  event.Metadata,
-				Payload:   event.Payload,
-				Timestamp: time.Now().Unix(),
-			}
-			if b.log != nil {
-				b.log.Info("Received event for broadcast", zap.String("type", eventType), zap.String("id", event.EntityId))
-			}
-			_, err := b.handler.EventEmitter.EmitEventEnvelope(ctx, envelope)
-			if b.log != nil {
-				if err != nil {
-					b.log.Error("failed to emit orchestration event",
-						zap.String("type", eventType),
-						zap.String("id", event.EntityId),
-						zap.Error(err))
-				} else if b.log != nil {
-					b.log.Info("Emitted canonical OrchestrationEvent",
-						zap.String("type", eventType),
+			// Only process orchestration events, not campaign service events to avoid loops
+			// Campaign service events should be handled by their respective services directly
+			if strings.HasPrefix(event.EventType, "orchestration:") {
+				envelope := &events.EventEnvelope{
+					ID:        event.EntityId,
+					Type:      event.EventType, // Use actual event type
+					Metadata:  event.Metadata,
+					Payload:   event.Payload,
+					Timestamp: time.Now().Unix(),
+				}
+				if b.log != nil {
+					b.log.Info("Received orchestration event for broadcast", zap.String("type", event.EventType), zap.String("id", event.EntityId))
+				}
+				_, err := b.handler.EventEmitter.EmitEventEnvelope(ctx, envelope)
+				if b.log != nil {
+					if err != nil {
+						b.log.Error("failed to emit orchestration event",
+							zap.String("type", event.EventType),
+							zap.String("id", event.EntityId),
+							zap.Error(err))
+					} else {
+						b.log.Info("Emitted canonical OrchestrationEvent",
+							zap.String("type", event.EventType),
+							zap.String("id", event.EntityId))
+					}
+				}
+			} else {
+				// Log but don't re-emit campaign service events to prevent duplication
+				if b.log != nil {
+					b.log.Debug("Skipping campaign service event to prevent duplication",
+						zap.String("type", event.EventType),
 						zap.String("id", event.EntityId))
 				}
 			}

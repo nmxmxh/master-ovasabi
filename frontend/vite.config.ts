@@ -18,11 +18,23 @@ const coopCoepHeaders = [
 ];
 
 // Plugin to set COOP/COEP headers for all responses (HTML, JS, WASM, etc.)
+// Excludes HMR WebSocket connections to prevent connection issues
 function coopCoepPlugin(): PluginOption {
   return {
     name: 'set-coop-coep-headers',
     configureServer(server) {
-      server.middlewares.use((_, res: ServerResponse, next) => {
+      server.middlewares.use((req, res: ServerResponse, next) => {
+        // Skip COOP/COEP headers for HMR WebSocket connections
+        if (
+          req.url?.includes('/__vite_ping') ||
+          req.url?.includes('/__vite_hmr') ||
+          req.url?.includes('?t=') || // Vite timestamp parameter
+          req.headers.upgrade === 'websocket'
+        ) {
+          next();
+          return;
+        }
+
         for (const [key, value] of coopCoepHeaders) {
           res.setHeader(key, value);
         }
@@ -78,11 +90,17 @@ export default defineConfig({
   },
   server: {
     port: Number(process.env.VITE_PORT) || 5173,
+    host: true, // Allow external connections
     cors: {
       origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
       credentials: true
     },
     open: true,
+    // HMR configuration to fix WebSocket issues
+    hmr: {
+      port: 5174, // Use a different port for HMR WebSocket
+      host: 'localhost'
+    },
     // Proxy configuration for local development
     proxy: {
       // Proxy API requests to Go backend (default: 8080)
@@ -91,7 +109,7 @@ export default defineConfig({
         changeOrigin: true,
         ws: false
       },
-      // Proxy WebSocket requests to ws-gateway (default: 8090)
+      // Proxy WebSocket requests to ws-gateway (default: 8091)
       '/ws': {
         target: 'ws://localhost:8090',
         ws: true,

@@ -1,5 +1,31 @@
 
 extends Node
+
+# Helper function to create properly formatted CanonicalEventEnvelope
+func create_canonical_event(event_type: String, campaign_id: String, user_id: String = "godot", payload_data: Dictionary = {}) -> Dictionary:
+    var correlation_id = "godot_" + event_type.replace(":", "_") + "_" + str(int(Time.get_unix_time_from_system()))
+    return {
+        "type": event_type,
+        "correlation_id": correlation_id,
+        "timestamp": Time.get_datetime_string_from_system(true, true).replace(" ", "T") + "Z",
+        "version": "1.0.0",
+        "environment": "development",
+        "source": "backend",
+        "payload": payload_data,
+        "metadata": {
+            "global_context": {
+                "user_id": user_id,
+                "campaign_id": campaign_id,
+                "correlation_id": correlation_id,
+                "session_id": "godot_session_" + str(int(Time.get_unix_time_from_system())),
+                "device_id": "godot_device_" + str(int(Time.get_unix_time_from_system())),
+                "source": "backend"
+            },
+            "envelope_version": "1.0.0",
+            "environment": "development"
+        }
+    }
+
 # Helper: Build backend-compatible metadata structure for campaign events
 func build_campaign_metadata(campaign_id: String, user_id: String = "godot", campaign_slug: String = "") -> Dictionary:
     var metadata = {
@@ -33,11 +59,12 @@ func init_bridge():
     if nexus_client:
         print("[nexus_bridge] NexusClient found, requesting campaign state for:", campaign_ids)
         for campaign_id in campaign_ids:
-            var event = {
-                "type": "campaign:state:v1:request",
-                "payload": {},
-                "metadata": build_campaign_metadata(campaign_id)
-            }
+            var event = create_canonical_event(
+                "campaign:state:v1:request",
+                campaign_id,
+                "godot",
+                {}
+            )
             if nexus_client.has_method("send_event"):
                 nexus_client.send_event(campaign_id, event)
             elif nexus_client.has_method("emit_event"):
@@ -78,11 +105,12 @@ func forward_particle_buffer(campaign_ids = []):
         campaign_ids = active_campaigns.keys()
     if nexus_client:
         for campaign_id in campaign_ids:
-            var event = {
-                "type": "particle:update:v1:success",
-                "payload": {"buffer": particle_buffer},
-                "metadata": build_campaign_metadata(campaign_id)
-            }
+            var event = create_canonical_event(
+                "particle:update:v1:success",
+                campaign_id,
+                "godot",
+                {"buffer": particle_buffer}
+            )
             if nexus_client.has_method("send_event"):
                 nexus_client.send_event(campaign_id, event)
             elif nexus_client.has_method("emit_event"):

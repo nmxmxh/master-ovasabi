@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
 	nexusrepo "github.com/nmxmxh/master-ovasabi/internal/service/nexus"
@@ -161,7 +162,7 @@ func (b *RedisEventBus) listen() {
 			b.log.Error("Failed to unmarshal event", zap.Error(err))
 			continue
 		}
-		b.log.Info("[RedisEventBus] Received event from Redis", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+		b.log.Debug("[RedisEventBus] Received event from Redis", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
 		// Enqueue event for delivery by worker pool
 		select {
 		case b.deliverQ <- &event:
@@ -187,7 +188,7 @@ func (b *RedisEventBus) Unsubscribe(ch chan *nexusv1.EventResponse) {
 }
 
 func (b *RedisEventBus) Publish(event *nexusv1.EventResponse) {
-	b.log.Info("[RedisEventBus] Publishing event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+	b.log.Debug("[RedisEventBus] Publishing event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
 	data, err := json.Marshal(event)
 	if err != nil {
 		b.log.Error("Failed to marshal event", zap.Error(err))
@@ -271,13 +272,17 @@ func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repo
 
 // PublishEvent allows other parts of the system to publish events to all subscribers.
 func (s *Server) PublishEvent(event *nexusv1.EventResponse) {
-	s.log.Info("[Nexus] PublishEvent", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+	s.log.Debug("[Nexus] PublishEvent", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
 	service, action := parseServiceAction(event.EventType)
 	key := service + ":" + action
+
+	// Publish to specific service bus if available, otherwise use default
 	if bus, ok := s.eventBuses[key]; ok {
 		bus.Publish(event)
+		s.log.Debug("[Nexus] Published to specific bus", zap.String("service", service), zap.String("action", action))
 	} else {
 		s.eventBus.Publish(event) // fallback to default
+		s.log.Debug("[Nexus] Published to default bus", zap.String("service", service), zap.String("action", action))
 	}
 }
 
@@ -347,17 +352,41 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 	var channels []chan *nexusv1.EventResponse
 	var unsubFuncs []func()
 	if len(req.EventTypes) > 0 {
+		// Track which buses we've already subscribed to to avoid duplicates
+		subscribedBuses := make(map[string]bool)
+
 		for _, et := range req.EventTypes {
 			service, action := parseServiceAction(et)
 			key := service + ":" + action
-			if bus, ok := s.eventBuses[key]; ok {
-				ch := bus.Subscribe()
-				channels = append(channels, ch)
-				unsubFuncs = append(unsubFuncs, func() { bus.Unsubscribe(ch) })
+
+			// For campaign events, always use the default bus to avoid duplicates
+			// since CampaignStateManager only publishes to the default bus
+			if strings.HasPrefix(et, "campaign:") {
+				if !subscribedBuses["default"] {
+					ch := s.eventBus.Subscribe()
+					channels = append(channels, ch)
+					unsubFuncs = append(unsubFuncs, func() { s.eventBus.Unsubscribe(ch) })
+					subscribedBuses["default"] = true
+					s.log.Debug("[Nexus] Subscribed to default bus for campaign event", zap.String("event_type", et))
+				}
+			} else if bus, ok := s.eventBuses[key]; ok {
+				// For non-campaign events, use specific bus if available
+				if !subscribedBuses[key] {
+					ch := bus.Subscribe()
+					channels = append(channels, ch)
+					unsubFuncs = append(unsubFuncs, func() { bus.Unsubscribe(ch) })
+					subscribedBuses[key] = true
+					s.log.Debug("[Nexus] Subscribed to specific bus", zap.String("service_action", key), zap.String("event_type", et))
+				}
 			} else {
-				ch := s.eventBus.Subscribe()
-				channels = append(channels, ch)
-				unsubFuncs = append(unsubFuncs, func() { s.eventBus.Unsubscribe(ch) })
+				// Fallback to default bus for unknown event types
+				if !subscribedBuses["default"] {
+					ch := s.eventBus.Subscribe()
+					channels = append(channels, ch)
+					unsubFuncs = append(unsubFuncs, func() { s.eventBus.Unsubscribe(ch) })
+					subscribedBuses["default"] = true
+					s.log.Debug("[Nexus] Subscribed to default bus for unknown event type", zap.String("event_type", et))
+				}
 			}
 		}
 	} else {
@@ -424,7 +453,26 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 		if event == nil {
 			continue
 		}
+		s.log.Debug("Nexus received event",
+			zap.String("event_type", event.EventType),
+			zap.String("event_id", event.EventId),
+			zap.Strings("subscribed_types", func() []string {
+				types := make([]string, 0, len(eventTypeSet))
+				for t := range eventTypeSet {
+					types = append(types, t)
+				}
+				return types
+			}()))
 		if len(eventTypeSet) > 0 && !hasEventType(eventTypeSet, event.EventType) {
+			s.log.Debug("Event filtered out by event type",
+				zap.String("event_type", event.EventType),
+				zap.Strings("subscribed_types", func() []string {
+					types := make([]string, 0, len(eventTypeSet))
+					for t := range eventTypeSet {
+						types = append(types, t)
+					}
+					return types
+				}()))
 			continue
 		}
 		if filterUserID != "" {
@@ -458,43 +506,25 @@ func parseServiceAction(eventType string) (service, action string) {
 }
 
 func extractUserID(event *nexusv1.EventResponse) string {
-	if event == nil || event.Payload == nil || event.Payload.Data == nil {
+	if event == nil {
 		return ""
 	}
-	if v, ok := event.Payload.Data.Fields["user_id"]; ok {
-		return v.GetStringValue()
-	}
-	// Try metadata.service_specific.global.user_id
-	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
-		if global, ok := event.Metadata.ServiceSpecific.Fields["global"]; ok {
-			if globalStruct := global.GetStructValue(); globalStruct != nil {
-				if v, ok := globalStruct.Fields["user_id"]; ok {
-					return v.GetStringValue()
-				}
-			}
-		}
-	}
-	return ""
+
+	// Use unified metadata extractor for consistent extraction
+	extractor := NewUnifiedMetadataExtractor(nil) // No logger needed for simple extraction
+	ids := extractor.ExtractFromEventResponse(event)
+	return ids.UserID
 }
 
 func extractCampaignID(event *nexusv1.EventResponse) string {
-	if event == nil || event.Payload == nil || event.Payload.Data == nil {
+	if event == nil {
 		return ""
 	}
-	if v, ok := event.Payload.Data.Fields["campaign_id"]; ok {
-		return v.GetStringValue()
-	}
-	// Try metadata.service_specific.global.campaign_id
-	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
-		if global, ok := event.Metadata.ServiceSpecific.Fields["global"]; ok {
-			if globalStruct := global.GetStructValue(); globalStruct != nil {
-				if v, ok := globalStruct.Fields["campaign_id"]; ok {
-					return v.GetStringValue()
-				}
-			}
-		}
-	}
-	return ""
+
+	// Use unified metadata extractor for consistent extraction
+	extractor := NewUnifiedMetadataExtractor(nil) // No logger needed for simple extraction
+	ids := extractor.ExtractFromEventResponse(event)
+	return ids.CampaignID
 }
 
 // hasEventType checks if the event type is in the set.
@@ -505,12 +535,16 @@ func hasEventType(set map[string]struct{}, eventType string) bool {
 
 // EmitEvent receives an event from a client and broadcasts it to all subscribers.
 func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nexusv1.EventResponse, error) {
-	// --- Canonical Event Type Validation ---
+	// --- Unified Event Type Validation ---
 	eventType := req.EventType
 	s.log.Info("[EmitEvent] Received request", zap.String("event_type", eventType))
-	if !isCanonicalEventType(eventType) && eventType != "echo" && !isHealthEventType(eventType) {
-		s.log.Warn("[EmitEvent] Non-canonical event type rejected", zap.String("event_type", eventType))
-		return &nexusv1.EventResponse{Success: false, Message: "Non-canonical event type", Metadata: req.Metadata}, nil
+
+	validator := NewEventTypeValidator()
+	if !validator.IsValidEventType(eventType) {
+		s.log.Warn("[EmitEvent] Invalid event type rejected",
+			zap.String("event_type", eventType),
+			zap.String("category", validator.GetEventTypeCategory(eventType)))
+		return &nexusv1.EventResponse{Success: false, Message: "Invalid event type", Metadata: req.Metadata}, nil
 	}
 
 	// Generate EventId if missing
@@ -520,18 +554,8 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		s.log.Debug("[EmitEvent] Generated new EventID", zap.String("event_id", eventID))
 	}
 
-	// Ensure eventID is unique per action/state
-	parts := strings.Split(req.EventType, ":")
-	if len(parts) == 4 {
-		state := parts[3]
-		for _, sfx := range []string{":requested", ":started", ":success", ":failed", ":completed"} {
-			if strings.HasSuffix(eventID, sfx) {
-				eventID = strings.TrimSuffix(eventID, sfx)
-				break
-			}
-		}
-		eventID = eventID + ":" + state
-	}
+	// Keep original eventID - don't modify it with state suffixes
+	// The eventID should remain stable for correlation tracking
 
 	// --- Parse metadata once ---
 	var traceID, userID, campaignID string
@@ -565,6 +589,34 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		}
 	}
 
+	// Validate and clean payload if validator is available
+	var validatedPayload *commonpb.Payload
+	if s.payloadValidator != nil && req.Payload != nil && req.Payload.Data != nil {
+		// Only validate request events, not success/failed events
+		// Success events contain response data that shouldn't be filtered by request schemas
+		if strings.HasSuffix(eventType, ":requested") || strings.HasSuffix(eventType, ":started") {
+			// Validate and clean payload against service-specific schema
+			cleanedData, err := s.payloadValidator.ValidateAndCleanPayload(eventType, req.Payload.Data)
+			if err != nil {
+				s.log.Warn("[EmitEvent] Payload validation failed",
+					zap.String("event_type", eventType),
+					zap.Error(err))
+				// Continue with original payload - validation is advisory
+				validatedPayload = req.Payload
+			} else {
+				// Use cleaned payload
+				validatedPayload = &commonpb.Payload{Data: cleanedData}
+			}
+		} else {
+			// Skip validation for success/failed events - they contain response data
+			s.log.Debug("[EmitEvent] Skipping payload validation for response event",
+				zap.String("event_type", eventType))
+			validatedPayload = req.Payload
+		}
+	} else {
+		validatedPayload = req.Payload
+	}
+
 	// Build canonical event envelope
 	envelope := &nexusv1.EventResponse{
 		Success:   true,
@@ -572,11 +624,21 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		EventType: eventType,
 		Message:   eventType,
 		Metadata:  req.Metadata,
-		Payload:   req.Payload,
+		Payload:   validatedPayload,
 	}
 
 	s.log.Debug("[EmitEvent] Built event envelope", zap.String("event_type", eventType), zap.String("event_id", eventID), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("trace_id", traceID))
 
+	// --- Campaign-First Architecture: Delegate campaign events to CampaignStateManager ---
+	if s.campaignStateMgr != nil && strings.HasPrefix(req.EventType, "campaign:") {
+		s.log.Debug("[EmitEvent] Delegating campaign event to CampaignStateManager", zap.String("event_type", eventType), zap.String("event_id", eventID))
+		s.campaignStateMgr.HandleEvent(ctx, req)
+		// CampaignStateManager handles all campaign event publishing via feedbackBus
+		// No need to publish generically for campaign events
+		return &nexusv1.EventResponse{Success: true, Message: "Event delegated to campaign manager", Metadata: envelope.Metadata}, nil
+	}
+
+	// --- Generic event handling for non-campaign events ---
 	// --- Distributed lock for deduplication ---
 	// This lock ensures that only one instance of the server processes and publishes a given eventID within a short window (3s).
 	// Prevents duplicate event delivery in clustered deployments and under retry/replay scenarios.
@@ -586,68 +648,17 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		s.log.Error("[EmitEvent] Failed to acquire event lock", zap.Error(err), zap.String("event_id", eventID))
 	}
 	if lockAcquired {
-		s.log.Info("[EmitEvent] Lock acquired, publishing event", zap.String("event_id", eventID))
+		s.log.Debug("[EmitEvent] Lock acquired, publishing event", zap.String("event_id", eventID))
 		s.PublishEvent(envelope)
 	} else {
-		s.log.Info("[EmitEvent] Event already published by another instance, skipping", zap.String("event_id", eventID))
+		s.log.Debug("[EmitEvent] Event already published by another instance, skipping", zap.String("event_id", eventID))
 	}
 
-	// Handle campaign events with campaignStateMgr
-	if s.campaignStateMgr != nil && strings.HasPrefix(req.EventType, "campaign:") {
-		s.campaignStateMgr.HandleEvent(ctx, req)
+	s.log.Debug("[EmitEvent] Returning response to caller", zap.String("event_id", eventID))
+	// Set Success=false if event type ends with ':failed', else true
+	success := true
+	if strings.HasSuffix(req.EventType, ":failed") {
+		success = false
 	}
-
-	s.log.Info("[EmitEvent] Returning response to caller", zap.String("event_id", eventID), zap.Any("response", envelope))
-	return &nexusv1.EventResponse{Success: true, Message: "Event broadcasted", Metadata: envelope.Metadata}, nil
-}
-
-// isCanonicalEventType validates event type format: {service}:{action}:v{version}:{state}.
-func isCanonicalEventType(eventType string) bool {
-	// Allow the special echo event type for hello world/testing
-	if eventType == "echo" {
-		return true
-	}
-	// Allow all campaign events to pass through
-	if strings.HasPrefix(eventType, "campaign:") {
-		return true
-	}
-	parts := strings.Split(eventType, ":")
-	if len(parts) != 4 {
-		return false
-	}
-	// service: non-empty, action: non-empty, version: v[0-9]+, state: controlled vocab
-	service, action, version, state := parts[0], parts[1], parts[2], parts[3]
-	if service == "" || action == "" {
-		return false
-	}
-	if !strings.HasPrefix(version, "v") || len(version) < 2 {
-		return false
-	}
-	allowedStates := map[string]struct{}{"requested": {}, "started": {}, "success": {}, "failed": {}, "completed": {}}
-	_, ok := allowedStates[state]
-	return ok
-}
-
-// isHealthEventType validates health event type format: {service}:health:v{version}:{state}
-// Health events are privileged infrastructure events that bypass normal validation.
-func isHealthEventType(eventType string) bool {
-	parts := strings.Split(eventType, ":")
-	if len(parts) != 4 {
-		return false
-	}
-	// Format: {service}:health:v{version}:{state}
-	service, action, version, state := parts[0], parts[1], parts[2], parts[3]
-	if service == "" || action != "health" {
-		return false
-	}
-	if !strings.HasPrefix(version, "v") || len(version) < 2 {
-		return false
-	}
-	// Health events allow additional states beyond the standard canonical states
-	healthStates := map[string]struct{}{
-		"requested": {}, "success": {}, "failed": {},
-		"heartbeat": {}, // Health-specific state for periodic heartbeats
-	}
-	_, ok := healthStates[state]
-	return ok
+	return &nexusv1.EventResponse{Success: success, Message: "Event broadcasted", Metadata: envelope.Metadata}, nil
 }

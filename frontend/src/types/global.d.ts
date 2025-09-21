@@ -1,4 +1,4 @@
-import type { EventEnvelope } from '../store/global';
+import type { EventEnvelope } from '../store/types/events';
 
 declare global {
   interface Window {

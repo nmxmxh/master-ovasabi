@@ -148,13 +148,13 @@ func (s *Server) subscribeToNexusEvents(ctx context.Context, campaignID int64, m
 			event, err := stream.Recv()
 			if err != nil {
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					s.logger.Info("Nexus event subscription stopped.", zap.Error(err))
+					s.logger.Debug("Nexus event subscription stopped", zap.Error(err))
 				} else if err.Error() != "EOF" {
 					s.logger.Error("Nexus event subscription closed with error", zap.Error(err))
 				}
 				return
 			}
-			s.logger.Info("Orchestration event received from Nexus", zap.Any("event", event))
+			s.logger.Debug("Orchestration event received from Nexus", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
 			s.handleOrchestrationEvent(ctx, event, cID)
 		}
 	}(campaignID)
@@ -211,7 +211,7 @@ func (s *Server) handleOrchestrationEvent(ctx context.Context, event *nexusv1.Ev
 
 	switch command.Action {
 	case "broadcast_message":
-		s.logger.Info("Broadcasting message to room via orchestration", zap.String("roomKey", roomKey), zap.Any("data", command.Data))
+		s.logger.Debug("Broadcasting message to room via orchestration", zap.String("roomKey", roomKey))
 		msg := Message{Type: "system_broadcast", Data: command.Data, CampaignID: room.CampaignID, ContextID: room.ContextID}
 		room.broadcastMessage(msg, nil) // Broadcast to all, no sender to exclude
 	case "force_disconnect":
@@ -290,7 +290,7 @@ func (p *Peer) onDataChannelMessage(ctx context.Context, msg []byte) {
 	p.Room.mu.Unlock()
 	// This should broadcast the *full* updated state, not just the partial update
 	p.Room.broadcastPartialUpdate(update, p)
-	p.logger.Info("State updated", zap.String("campaignID", p.Room.CampaignID), zap.String("contextID", p.Room.ContextID), zap.String("peerID", p.ID), zap.Any("update", update))
+	p.logger.Debug("State updated", zap.String("campaignID", p.Room.CampaignID), zap.String("contextID", p.Room.ContextID), zap.String("peerID", p.ID))
 
 	if p.nexusClient != nil {
 		meta := p.Metadata
@@ -307,16 +307,16 @@ func (p *Peer) readPump(ctx context.Context) {
 	for {
 		messageType, msgBytes, err := p.Conn.ReadMessage()
 		if err != nil {
-			p.logger.Warn("WebSocket read error", zap.Error(err), zap.String("peerID", p.ID))
+			p.logger.Debug("WebSocket read error", zap.Error(err), zap.String("peerID", p.ID))
 			return
 		}
 		if messageType != websocket.TextMessage {
-			p.logger.Warn("Received non-text WebSocket message", zap.Int("messageType", messageType), zap.String("peerID", p.ID))
+			p.logger.Debug("Received non-text WebSocket message", zap.Int("messageType", messageType), zap.String("peerID", p.ID))
 			continue
 		}
 		var msg Message
 		if err := json.Unmarshal(msgBytes, &msg); err != nil {
-			p.logger.Error("Failed to unmarshal incoming WebSocket message", zap.Error(err), zap.String("peerID", p.ID), zap.ByteString("message", msgBytes))
+			p.logger.Error("Failed to unmarshal incoming WebSocket message", zap.Error(err), zap.String("peerID", p.ID))
 			continue
 		}
 		switch msg.Type {
@@ -376,7 +376,7 @@ func (p *Peer) readPump(ctx context.Context) {
 						continue
 					}
 					if err := p.PeerConnection.AddICECandidate(candidate); err != nil {
-						p.logger.Error("Failed to add ICE candidate", zap.Error(err), zap.String("peerID", p.ID))
+						p.logger.Debug("Failed to add ICE candidate", zap.Error(err), zap.String("peerID", p.ID))
 					}
 				}
 			}
@@ -400,12 +400,12 @@ func (p *Peer) writePump() {
 
 		msgBytes, err = json.Marshal(msg)
 		if err != nil {
-			p.logger.Error("Failed to marshal message for WebSocket", zap.Error(err), zap.Any("message", msg))
+			p.logger.Error("Failed to marshal message for WebSocket", zap.Error(err), zap.String("peerID", p.ID))
 			continue
 		}
 
 		if err := p.Conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-			p.logger.Error("Failed to write WebSocket message", zap.Error(err), zap.String("peerID", p.ID))
+			p.logger.Debug("Failed to write WebSocket message", zap.Error(err), zap.String("peerID", p.ID))
 			// If writing fails, the connection might be broken, so stop trying to send.
 			return
 		}
@@ -505,7 +505,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	peerID := r.URL.Query().Get("peer")
 	if campaignID == "" || peerID == "" {
 		http.Error(w, "campaign and peer required", http.StatusBadRequest)
-		s.logger.Warn("Missing campaign or peer ID in WebSocket request", zap.String("remoteAddr", r.RemoteAddr))
+		s.logger.Debug("Missing campaign or peer ID in WebSocket request", zap.String("remoteAddr", r.RemoteAddr))
 		return
 	}
 	conn, err := s.upgrader.Upgrade(w, r, nil)
@@ -556,7 +556,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	<-peer.Done // 2. Wait for writePump to finish sending any buffered messages.
 	if err := conn.Close(); err != nil {
-		s.logger.Error("Failed to close WebSocket connection", zap.Error(err), zap.String("peerID", peerID))
+		s.logger.Debug("Failed to close WebSocket connection", zap.Error(err), zap.String("peerID", peerID))
 	}
 }
 
