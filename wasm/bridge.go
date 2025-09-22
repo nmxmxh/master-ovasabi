@@ -1158,21 +1158,6 @@ func jsValueToEventEnvelope(jsVal js.Value) (EventEnvelope, error) {
 	return event, fmt.Errorf("unsupported JavaScript value type: %s", jsVal.Type().String())
 }
 
-// jsValueToMap converts a JS object to a Go map[string]interface{}
-func jsValueToMap(v js.Value) map[string]interface{} {
-	if v.Type() != js.TypeObject {
-		return make(map[string]interface{})
-	}
-	
-	result := make(map[string]interface{})
-	keys := js.Global().Get("Object").Call("keys", v)
-	for i := 0; i < keys.Length(); i++ {
-		key := keys.Index(i).String()
-		result[key] = jsValueToGoValue(v.Get(key))
-	}
-	return result
-}
-
 // jsValueToGoValue recursively converts a JS value to a Go interface{}
 func jsValueToGoValue(v js.Value) interface{} {
 	switch v.Type() {
