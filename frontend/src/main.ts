@@ -220,6 +220,7 @@ function startWasmAndComputeWorker() {
 
 // Single WASM initialization to prevent conflicts with GPU setup
 let wasmStartAttempted = false;
+let wasmInitializationInProgress = false;
 
 // Streamlined service worker registration
 function registerServiceWorker() {
@@ -259,19 +260,27 @@ function registerServiceWorker() {
 registerServiceWorker();
 
 function attemptWasmStart() {
-  if (wasmStartAttempted) {
-    console.log('[WASM-LOADER] WASM start already attempted, skipping');
+  if (wasmStartAttempted || wasmInitializationInProgress) {
+    console.log('[WASM-LOADER] WASM start already attempted or in progress, skipping');
+    return;
+  }
+
+  // Additional check: if WASM is already ready, don't start again
+  if (typeof window !== 'undefined' && (window as any).wasmReady) {
+    console.log('[WASM-LOADER] WASM already ready, skipping initialization');
     return;
   }
 
   wasmStartAttempted = true;
-  // Starting WASM initialization
+  wasmInitializationInProgress = true;
+  console.log('[WASM-LOADER] Starting WASM initialization...');
 
   try {
     startWasmAndComputeWorker();
   } catch (error) {
     console.error('[WASM-LOADER] Error starting WASM:', error);
     wasmStartAttempted = false; // Reset on failure to allow retry
+    wasmInitializationInProgress = false;
   }
 }
 
@@ -306,6 +315,9 @@ if ('serviceWorker' in navigator) {
 window.addEventListener('wasmReady', () => {
   // Only start polling after wasmReady event
   // WASM ready event received
+
+  // Clear initialization progress flag
+  wasmInitializationInProgress = false;
 
   // Clear any cached user IDs from localStorage to ensure fresh WASM user ID
   if (typeof window !== 'undefined' && window.localStorage) {

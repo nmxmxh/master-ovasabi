@@ -282,11 +282,35 @@ export const useEventStore = create<EventStore>()(
             }
           }
 
+          // Extract correlation ID from multiple sources
+          let extractedCorrelationId = msg.correlation_id || msg.correlationId;
+          if (
+            !extractedCorrelationId &&
+            parsedPayload &&
+            typeof parsedPayload === 'object' &&
+            'correlationId' in parsedPayload
+          ) {
+            extractedCorrelationId = parsedPayload.correlationId;
+          }
+          if (!extractedCorrelationId) {
+            extractedCorrelationId = `corr_${Date.now()}`;
+          }
+
+          console.log('[EventStore] Correlation ID extraction:', {
+            fromMsg: msg.correlation_id || msg.correlationId,
+            fromPayload:
+              parsedPayload && typeof parsedPayload === 'object'
+                ? parsedPayload.correlationId
+                : 'not_object',
+            final: extractedCorrelationId,
+            msgType: msg.type
+          });
+
           const event: EventEnvelope = {
             type: msg.type,
             payload: parsedPayload,
             metadata: msg.metadata || {},
-            correlation_id: msg.correlation_id || msg.correlationId || `corr_${Date.now()}`,
+            correlation_id: extractedCorrelationId,
             timestamp: msg.timestamp || new Date().toISOString(),
             version: msg.version || '1.0.0',
             environment: msg.environment || 'development',

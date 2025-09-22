@@ -64,11 +64,12 @@ type IngressEvent struct {
 
 // WSClient represents a WebSocket client connection with its metadata.
 type WSClient struct {
-	conn       *websocket.Conn
-	send       chan []byte // buffered outgoing channel for raw bytes
-	campaignID string
-	userID     string
-	done       chan struct{} // signals connection closure
+	conn          *websocket.Conn
+	send          chan []byte // buffered outgoing channel for raw bytes
+	campaignID    string
+	userID        string
+	correlationID string        // stores the original correlation ID for response matching
+	done          chan struct{} // signals connection closure
 }
 
 // ClientMap stores active WebSocket clients.
@@ -426,32 +427,50 @@ func processEvent(event *nexuspb.EventResponse) {
 	eventID := event.EventId
 	eventType := event.EventType
 
-	// Try to match by event ID first, then by correlation ID
+	log.Debug("[WS-GATEWAY] Processing event",
+		zap.String("event_id", eventID),
+		zap.String("event_type", eventType))
+
+	// Match by correlation ID from metadata (primary method)
 	var entry pendingRequestEntry
 	var found bool
 
-	// First try: match by event ID
-	if entry, found = pendingRequests.LoadAndDelete(eventID); found {
-		log.Debug("[WS-GATEWAY] Matched by event ID", zap.String("event_id", eventID))
-	} else {
-		// Second try: extract correlation ID from event ID and match
-		// Event ID format: "campaign_list:userID:correlationID" or similar
+	// First try: extract correlation ID from metadata
+	if event.Metadata != nil && event.Metadata.GlobalContext != nil {
+		correlationID := event.Metadata.GlobalContext.CorrelationId
+		if correlationID != "" {
+			if entry, found = pendingRequests.LoadAndDelete(correlationID); found {
+				log.Debug("[WS-GATEWAY] Matched by metadata correlation ID", zap.String("correlation_id", correlationID), zap.String("event_id", eventID))
+			}
+		}
+	}
+
+	// Second try: extract correlation ID from payload
+	if !found && event.Payload != nil && event.Payload.Data != nil {
+		payloadMap := event.Payload.GetData().AsMap()
+		if correlationID, ok := payloadMap["correlationId"].(string); ok && correlationID != "" {
+			if entry, found = pendingRequests.LoadAndDelete(correlationID); found {
+				log.Debug("[WS-GATEWAY] Matched by payload correlation ID", zap.String("correlation_id", correlationID), zap.String("event_id", eventID))
+			}
+		}
+	}
+
+	// Third try: extract correlation ID from event ID (legacy support)
+	// Event ID format: "campaign_list:userID:correlationID" or similar
+	if !found {
 		parts := strings.Split(eventID, ":")
 		if len(parts) >= 3 {
 			correlationID := parts[len(parts)-1] // Last part is usually correlation ID
 			if entry, found = pendingRequests.LoadAndDelete(correlationID); found {
-				log.Debug("[WS-GATEWAY] Matched by correlation ID", zap.String("correlation_id", correlationID), zap.String("event_id", eventID))
+				log.Debug("[WS-GATEWAY] Matched by event ID correlation ID", zap.String("correlation_id", correlationID), zap.String("event_id", eventID))
 			}
 		}
+	}
 
-		// Third try: extract correlation ID from metadata
-		if !found && event.Metadata != nil && event.Metadata.GlobalContext != nil {
-			correlationID := event.Metadata.GlobalContext.CorrelationId
-			if correlationID != "" {
-				if entry, found = pendingRequests.LoadAndDelete(correlationID); found {
-					log.Debug("[WS-GATEWAY] Matched by metadata correlation ID", zap.String("correlation_id", correlationID), zap.String("event_id", eventID))
-				}
-			}
+	// Fourth try: match by event ID directly (fallback)
+	if !found {
+		if entry, found = pendingRequests.LoadAndDelete(eventID); found {
+			log.Debug("[WS-GATEWAY] Matched by event ID", zap.String("event_id", eventID))
 		}
 	}
 
@@ -460,14 +479,17 @@ func processEvent(event *nexuspb.EventResponse) {
 			payloadMap := event.Payload.GetData().AsMap()
 			payloadMap["source"] = "nexus"
 
-			// Extract correlation ID from event ID or metadata
-			correlationID := ""
-			parts := strings.Split(eventID, ":")
-			if len(parts) >= 3 {
-				correlationID = parts[len(parts)-1] // Last part is usually correlation ID
-			}
-			if correlationID == "" && event.Metadata != nil && event.Metadata.GlobalContext != nil {
-				correlationID = event.Metadata.GlobalContext.CorrelationId
+			// Use the stored correlation ID from the client first, then fallback to extraction
+			correlationID := entry.client.correlationID
+			if correlationID == "" {
+				// Fallback: extract correlation ID from event ID or metadata
+				parts := strings.Split(eventID, ":")
+				if len(parts) >= 3 {
+					correlationID = parts[len(parts)-1] // Last part is usually correlation ID
+				}
+				if correlationID == "" && event.Metadata != nil && event.Metadata.GlobalContext != nil {
+					correlationID = event.Metadata.GlobalContext.CorrelationId
+				}
 			}
 
 			wsEvent := WebSocketEvent{
@@ -974,6 +996,13 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 
 		// Extract routing information from validated metadata
 		correlationID := envelope.Metadata.GetGlobalContext().GetCorrelationId()
+
+		// Store the original correlation ID for response matching
+		// This ensures we can match responses back to the original requests
+		if correlationID != "" {
+			// Store the correlation ID in the client for later use
+			c.correlationID = correlationID
+		}
 
 		// Only store pending requests for non-Godot events or specific event types
 		// Godot events are typically one-way broadcasts, not request/response patterns

@@ -19,6 +19,9 @@ interface CampaignProviderProps {
 
 // Removed verbose logging
 
+// Global loading state to prevent multiple instances from loading simultaneously
+let globalLoadingState = false;
+
 export function CampaignProvider({ children }: CampaignProviderProps) {
   const { emitEvent } = useEventStore();
   const { metadata } = useMetadataStore();
@@ -50,6 +53,18 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
       return;
     }
 
+    // Additional check: if we're already in the process of loading, don't start another load
+    if (loading) {
+      console.log('[CampaignProvider] Already loading, skipping duplicate request');
+      return;
+    }
+
+    // Global loading state check to prevent multiple instances
+    if (globalLoadingState) {
+      console.log('[CampaignProvider] Global loading in progress, skipping duplicate');
+      return;
+    }
+
     // Clear any existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -57,6 +72,8 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
     }
 
     try {
+      // Set global loading state
+      globalLoadingState = true;
       isLoadingRef.current = true;
       setLoading(true);
       setError(null);
@@ -79,6 +96,8 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
           isLoadingRef.current = false;
           hasLoadedRef.current = true;
           setIsInitialized(true);
+          // Clear global loading state
+          globalLoadingState = false;
         }
       };
 
@@ -159,6 +178,8 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
         setLoading(false);
         isLoadingRef.current = false;
         timeoutRef.current = null;
+        // Clear global loading state on timeout
+        globalLoadingState = false;
       }, 10000);
     } catch (err) {
       // Clear timeout if there's an error
@@ -171,6 +192,8 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
       setError('Failed to load campaigns');
       setLoading(false);
       isLoadingRef.current = false;
+      // Clear global loading state on error
+      globalLoadingState = false;
     }
   }, [emitEvent, metadata, updateCampaignsFromResponse]);
 

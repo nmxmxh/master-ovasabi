@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
@@ -120,9 +121,12 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 			state := m.PrepareStateForUser(campaignID, userID)
 			structData := meta.NewStructFromMap(state, nil)
 			eventType := "campaign:state:v1:success"
-			// Extract or create correlation ID
+			// Extract or create correlation ID - preserve original correlation ID
 			var correlationID string
-			if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
+			if event.Metadata != nil && event.Metadata.GlobalContext != nil {
+				correlationID = event.Metadata.GlobalContext.CorrelationId
+			}
+			if correlationID == "" && event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
 				if v, ok := event.Metadata.ServiceSpecific.Fields["correlation_id"]; ok && v != nil {
 					correlationID = v.GetStringValue()
 				}
@@ -132,16 +136,31 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 					correlationID = v.GetStringValue()
 				}
 			}
+
+			// Debug logging for correlation ID extraction
+			m.log.Info("Campaign state correlation ID extraction",
+				zap.String("extracted_correlation_id", correlationID),
+				zap.String("event_type", event.EventType),
+				zap.String("user_id", userID),
+				zap.String("campaign_id", campaignID),
+				zap.Bool("has_global_context", event.Metadata != nil && event.Metadata.GlobalContext != nil),
+				zap.Bool("has_service_specific", event.Metadata != nil && event.Metadata.ServiceSpecific != nil),
+				zap.Bool("has_payload_data", event.Payload != nil && event.Payload.Data != nil))
+			// Only generate a new correlation ID if absolutely necessary (should not happen in normal flow)
 			if correlationID == "" {
-				// Generate a new correlation ID if missing
-				correlationID = "corrid:" + campaignID + ":" + userID + ":" + time.Now().UTC().Format("20060102T150405.000Z")
+				m.log.Warn("No correlation ID found in campaign state request, generating fallback",
+					zap.String("event_type", event.EventType),
+					zap.String("user_id", userID),
+					zap.String("campaign_id", campaignID))
+				correlationID = "corr_" + fmt.Sprintf("%d", time.Now().UnixNano())
 			}
 
 			// Add routing information to the state
-			stateWithRouting := make(map[string]any, len(state)+2)
+			stateWithRouting := make(map[string]any, len(state)+3)
 			maps.Copy(stateWithRouting, state)
 			stateWithRouting["user_id"] = userID
 			stateWithRouting["campaign_id"] = campaignID
+			stateWithRouting["correlationId"] = correlationID // Include correlation ID for request/response matching
 			structData = meta.NewStructFromMap(stateWithRouting, nil)
 			if userID == "godot" {
 				eventType = "campaign:state:v1:godot_update"
@@ -158,7 +177,7 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 				}
 				eventResp := &nexusv1.EventResponse{
 					Success:   true,
-					EventId:   correlationID,
+					EventId:   uuid.New().String(), // Generate proper EventId
 					EventType: eventType,
 					Message:   "godot_state_update",
 					Metadata:  event.Metadata,
@@ -173,7 +192,7 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 			// Always emit to feedback bus for request/response
 			eventResp := &nexusv1.EventResponse{
 				Success:   true,
-				EventId:   correlationID,
+				EventId:   uuid.New().String(), // Generate proper EventId
 				EventType: eventType,
 				Message:   "state_init",
 				Metadata:  event.Metadata,
@@ -483,7 +502,7 @@ func (m *CampaignStateManager) UpdateState(campaignID, userID string, update map
 
 	event := &nexusv1.EventResponse{
 		Success:   true,
-		EventId:   eventID,
+		EventId:   uuid.New().String(), // Generate proper EventId
 		EventType: "campaign:state:v1:success",
 		Message:   "state_updated",
 		Metadata:  metadata,
@@ -806,7 +825,7 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 		campaigns = append(campaigns, campaignData)
 	}
 
-	// Extract correlationId from metadata or payload
+	// Extract correlationId from metadata or payload - preserve original correlation ID
 	var correlationID string
 	if event.Metadata != nil && event.Metadata.GlobalContext != nil {
 		correlationID = event.Metadata.GlobalContext.CorrelationId
@@ -820,6 +839,24 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 		if v, ok := event.Payload.Data.Fields["correlationId"]; ok && v != nil {
 			correlationID = v.GetStringValue()
 		}
+	}
+
+	// Debug logging for correlation ID extraction
+	m.log.Info("Campaign list correlation ID extraction",
+		zap.String("extracted_correlation_id", correlationID),
+		zap.String("event_type", event.EventType),
+		zap.String("user_id", userID),
+		zap.String("campaign_id", campaignID),
+		zap.Bool("has_global_context", event.Metadata != nil && event.Metadata.GlobalContext != nil),
+		zap.Bool("has_service_specific", event.Metadata != nil && event.Metadata.ServiceSpecific != nil),
+		zap.Bool("has_payload_data", event.Payload != nil && event.Payload.Data != nil))
+	// Only generate a new correlation ID if absolutely necessary (should not happen in normal flow)
+	if correlationID == "" {
+		m.log.Warn("No correlation ID found in campaign list request, generating fallback",
+			zap.String("event_type", event.EventType),
+			zap.String("user_id", userID),
+			zap.String("campaign_id", campaignID))
+		correlationID = "corr_" + fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 
 	// Convert campaigns to proper JSON-serializable format
@@ -839,8 +876,8 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 		"limit":         payload.Limit,
 		"offset":        payload.Offset,
 		"user_id":       userID,
-		"campaign_id":   campaignID, // Add campaign_id for proper routing
-		"correlationId": correlationID,
+		"campaign_id":   campaignID,    // Add campaign_id for proper routing
+		"correlationId": correlationID, // Include correlation ID for request/response matching
 		"source":        "nexus",
 	}
 
@@ -867,7 +904,7 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 
 	response := &nexusv1.EventResponse{
 		Success:   true,
-		EventId:   eventID,
+		EventId:   uuid.New().String(), // Generate proper EventId
 		EventType: "campaign:list:v1:success",
 		Message:   "campaign_list_retrieved",
 		Metadata:  event.Metadata,
@@ -1202,7 +1239,7 @@ func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *
 	// Send campaign switch success event
 	switchSuccessEvent := &nexusv1.EventResponse{
 		Success:   true,
-		EventId:   switchEventID,
+		EventId:   uuid.New().String(), // Generate proper EventId
 		EventType: "campaign:switch:v1:success",
 		Message:   "campaign_switched",
 		Metadata:  event.Metadata,
@@ -1491,13 +1528,6 @@ func (m *CampaignStateManager) persistToDBSyncWithCampaign(ctx context.Context, 
 // sendFailureEvent sends a failure event when database persistence fails
 func (m *CampaignStateManager) sendFailureEvent(campaignID, userID, errorMessage string, metadata *commonpb.Metadata) {
 	// Generate unique event ID for failure event
-	m.counterMutex.Lock()
-	m.eventCounter++
-	counter := m.eventCounter
-	m.counterMutex.Unlock()
-
-	eventID := fmt.Sprintf("state_update_failed:%s:%s:%d:%d", campaignID, userID, time.Now().UnixNano(), counter)
-
 	// Create failure event
 	stateWithRouting := make(map[string]any, 3)
 	stateWithRouting["user_id"] = userID
@@ -1506,7 +1536,7 @@ func (m *CampaignStateManager) sendFailureEvent(campaignID, userID, errorMessage
 
 	event := &nexusv1.EventResponse{
 		Success:   false,
-		EventId:   eventID,
+		EventId:   uuid.New().String(), // Generate proper EventId
 		EventType: "campaign:state:v1:failed",
 		Message:   "state_update_failed",
 		Metadata:  metadata,
