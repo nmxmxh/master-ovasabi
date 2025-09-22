@@ -1,3 +1,5 @@
+# Ignore large Godot binary
+godot/bin/Godot_v4.4.1-stable_linux.x86_64
 # Ignore Godot engine binaries
 godot/bin/Godot_v*.stable_linux.x86_64
 # Exclude all GGUF model files
