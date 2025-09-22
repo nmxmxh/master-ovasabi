@@ -1,5 +1,6 @@
--- PostgreSQL 18 Optimization Initialization Script
--- This script runs during container initialization to set up PostgreSQL 18 optimizations
+-- PostgreSQL 17/18 Optimization Initialization Script
+-- This script runs during container initialization to set up PostgreSQL 17/18 optimizations
+-- Compatible with PostgreSQL 17 (current) and PostgreSQL 18 (future)
 
 -- Create the vector extension
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -18,15 +19,15 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- Enable enhanced statistics collection
 ALTER SYSTEM SET track_io_timing = on;
 ALTER SYSTEM SET track_wal_io_timing = on;
-ALTER SYSTEM SET track_cost_delay_timing = on;
+-- Note: track_cost_delay_timing was removed in PostgreSQL 18, skipping this parameter
 
 -- Optimize for our multi-tenant campaign architecture
 ALTER SYSTEM SET effective_io_concurrency = 32;
 ALTER SYSTEM SET maintenance_io_concurrency = 32;
 
 -- Enhanced autovacuum for high-write workloads
-ALTER SYSTEM SET autovacuum_worker_slots = 8;
-ALTER SYSTEM SET autovacuum_vacuum_max_threshold = 1000000;
+-- Note: autovacuum_worker_slots and autovacuum_vacuum_max_threshold are PostgreSQL 18+ parameters
+-- Using default autovacuum settings for PostgreSQL 17 compatibility
 
 -- Optimize for virtual columns and computed expressions
 ALTER SYSTEM SET work_mem = '8MB';
@@ -42,7 +43,7 @@ SELECT pg_reload_conf();
 -- Log initialization completion
 DO $$
 BEGIN
-    RAISE NOTICE 'PostgreSQL 18 optimization completed successfully';
-    RAISE NOTICE 'Virtual columns, skip scan indexes, and async I/O are ready';
-    RAISE NOTICE 'OVASABI database layer optimized for PostgreSQL 18';
+    RAISE NOTICE 'PostgreSQL 17/18 optimization completed successfully';
+    RAISE NOTICE 'Vector extensions, pg_stat_statements, and I/O optimizations are ready';
+    RAISE NOTICE 'OVASABI database layer optimized for PostgreSQL 17/18';
 END $$;

@@ -62,7 +62,24 @@ func Register(
 
 	// Log canonical event types at registration (for observability and validation)
 	eventTypes := loadSearchEvents()
-	log.Info("Canonical event types for search service", zap.Strings("eventTypes", eventTypes))
+	log.Info("Canonical event types for search service", zap.Strings("eventTypes", eventTypes), zap.Int("count", len(eventTypes)))
+
+	// Debug: Log the specific events we're looking for
+	expectedEvents := []string{"search:search:v1:requested", "search:suggest:v1:requested", "search:list_searchable_fields:v1:requested"}
+	for _, expected := range expectedEvents {
+		found := false
+		for _, actual := range eventTypes {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if found {
+			log.Info("Found expected event type", zap.String("event", expected))
+		} else {
+			log.Warn("Missing expected event type", zap.String("event", expected))
+		}
+	}
 
 	// Register gRPC server interface
 	if err := container.Register((*searchpb.SearchServiceServer)(nil), func(_ *di.Container) (interface{}, error) {

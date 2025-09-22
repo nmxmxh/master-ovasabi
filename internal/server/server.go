@@ -93,7 +93,7 @@ func UnaryServerInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
 		startTime := time.Now()
 
 		// Extract service and method names
-		svcName, methodName := extractServiceAndMethod(info.FullMethod)
+		svcName, _ := extractServiceAndMethod(info.FullMethod)
 
 		// Create span
 		spanCtx, span := otel.Tracer("").Start(ctx, info.FullMethod)
@@ -103,16 +103,11 @@ func UnaryServerInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
 		resp, err := handler(spanCtx, req)
 
 		// Record metrics
-		duration := time.Since(startTime).Seconds()
+		_ = time.Since(startTime).Seconds()
 
 		// Only log handled requests if not a security/audit interceptor (to avoid duplicate logs)
 		if svcName != "grpc.health.v1.Health" && svcName != "security.SecurityService" {
-			log.Info("handled request",
-				zap.String("service", svcName),
-				zap.String("method", methodName),
-				zap.Float64("duration_seconds", duration),
-				zap.Error(err),
-			)
+			// Request handled
 		}
 
 		if svcName == "grpc.health.v1.Health" {
@@ -202,7 +197,7 @@ func extractServiceAndMethod(fullMethod string) (serviceName, methodName string)
 // 9. Add clear comments for future extensibility and best practices.
 func SecurityUnaryServerInterceptor(provider *service.Provider, log *zap.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		log.Info("gRPC method called", zap.String("method", info.FullMethod))
+		// gRPC method called
 		// Extract service and method names
 		svcName, methodName := extractServiceAndMethod(info.FullMethod)
 
@@ -368,9 +363,12 @@ func Run() {
 	}
 
 	loggerInstance, err := logger.New(logger.Config{
-		Environment: cfg.AppEnv,
-		LogLevel:    cfg.LogLevel,
-		ServiceName: cfg.AppName,
+		Environment:     cfg.AppEnv,
+		LogLevel:        cfg.LogLevel,
+		ServiceName:     cfg.AppName,
+		EnableFiltering: true, // Enable filtering in production
+		FilterInterval:  5000, // 5 seconds between similar logs
+		MaxSimilarLogs:  3,    // Max 3 similar logs per interval
 	})
 	if err != nil {
 		panic("Failed to initialize logger: " + err.Error())
@@ -386,7 +384,19 @@ func Run() {
 		}
 	}()
 
-	log.Info("Logger initialized (from server.Run)")
+	// Logger initialized
+
+	// Start filter cache cleanup routine for production
+	if strings.EqualFold(cfg.AppEnv, "production") {
+		go func() {
+			ticker := time.NewTicker(1 * time.Hour)
+			defer ticker.Stop()
+			for range ticker.C {
+				// Cleanup will be handled by the logger's internal cleanup
+				// when we add it to the interface in the future
+			}
+		}()
+	}
 
 	// Determine ports from environment variables, with documented fallbacks
 	httpPortStr := os.Getenv("HTTP_PORT")

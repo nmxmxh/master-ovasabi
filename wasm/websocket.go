@@ -9,28 +9,91 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"syscall/js"
 	"time"
 )
 
 var lastReconnectAttempt time.Time
+var currentCampaignID string // Global variable to store current campaign ID
 
 const reconnectGlobalCooldown = 20 * time.Second
+
+// updateWasmMetadata updates the global WASM metadata
+func updateWasmMetadata(key string, value interface{}) {
+	metadata := js.Global().Get("__WASM_GLOBAL_METADATA")
+	if metadata.Truthy() {
+		wasmLog("[WASM] Debug: Updating metadata key:", key, "with value:", value)
+		metadata.Set(key, js.ValueOf(value))
+		wasmLog("[WASM] Debug: Metadata updated successfully")
+	} else {
+		wasmLog("[WASM] Debug: __WASM_GLOBAL_METADATA not found, cannot update")
+	}
+}
 
 // --- WebSocket Management ---
 // --- WebSocket Management ---
 func getWebSocketURL() string {
 	campaignId := "0" // Default fallback
+
+	// First try to use the global variable if set
+	if currentCampaignID != "" {
+		campaignId = currentCampaignID
+		wasmLog("[WASM] Using campaign ID from global variable:", campaignId)
+	}
 	if js.Global().Get("__WASM_GLOBAL_METADATA").Truthy() {
 		metadata := js.Global().Get("__WASM_GLOBAL_METADATA")
-		if metadata.Get("campaign").Truthy() && metadata.Get("campaign").Get("campaignId").Truthy() {
-			campaignId = fmt.Sprintf("%v", metadata.Get("campaign").Get("campaignId"))
-			wasmLog("[WASM] Using campaign ID from global metadata:", campaignId)
+		wasmLog("[WASM] Debug: Full metadata object:", metadata)
+
+		// Check if campaign object exists
+		campaignObj := metadata.Get("campaign")
+		if campaignObj.Truthy() {
+			wasmLog("[WASM] Debug: Campaign object found:", campaignObj)
+
+			// Try to get campaignId with better error handling
+			campaignIdValue := campaignObj.Get("campaignId")
+			if campaignIdValue.Truthy() {
+				campaignId = fmt.Sprintf("%v", campaignIdValue)
+				currentCampaignID = campaignId // Update global variable
+				wasmLog("[WASM] Using campaign ID from global metadata:", campaignId)
+			} else {
+				wasmLog("[WASM] Debug: campaignId field not found or falsy in campaign object")
+
+				// Fallback: try to access campaignId directly from metadata
+				directCampaignId := metadata.Get("campaignId")
+				if directCampaignId.Truthy() {
+					campaignId = fmt.Sprintf("%v", directCampaignId)
+					currentCampaignID = campaignId // Update global variable
+					wasmLog("[WASM] Using campaign ID from direct metadata access:", campaignId)
+				}
+			}
+		} else {
+			wasmLog("[WASM] Debug: Campaign object not found in metadata")
+
+			// Fallback: try to access campaignId directly from metadata
+			directCampaignId := metadata.Get("campaignId")
+			if directCampaignId.Truthy() {
+				campaignId = fmt.Sprintf("%v", directCampaignId)
+				currentCampaignID = campaignId // Update global variable
+				wasmLog("[WASM] Using campaign ID from direct metadata access:", campaignId)
+			}
 		}
+	} else {
+		wasmLog("[WASM] Debug: __WASM_GLOBAL_METADATA not found")
 	}
-	userId := "guest_0"
-	if js.Global().Get("userID").Truthy() {
-		userId = js.Global().Get("userID").String()
+	userId := userID // Use the global userID variable instead of hardcoded guest_0
+	if userId == "" {
+		// Fallback: try to get from global
+		if js.Global().Get("userID").Truthy() {
+			userId = js.Global().Get("userID").String()
+		} else {
+			// Generate a proper crypto hash guest ID
+			randVal := js.Global().Get("Math").Call("random")
+			str := js.Global().Get("Number").Get("prototype").Get("toString").Call("call", randVal, 36)
+			cryptoId := generateCryptoHash(str.String() + time.Now().String())
+			userId = "guest_" + cryptoId
+			wasmLog("[WASM] getWebSocketURL: Generated fallback guest ID:", userId)
+		}
 	}
 	location := js.Global().Get("location")
 	protocol := "ws:"
@@ -50,8 +113,15 @@ func initWebSocket() {
 	if userID == "" {
 		if js.Global().Get("userID").Truthy() {
 			userID = js.Global().Get("userID").String()
+			wasmLog("[WASM] WebSocket: Using userID from global:", userID)
 		} else {
-			userID = "guest_0"
+			// Generate a proper crypto hash guest ID instead of hardcoded guest_0
+			randVal := js.Global().Get("Math").Call("random")
+			str := js.Global().Get("Number").Get("prototype").Get("toString").Call("call", randVal, 36)
+			cryptoId := generateCryptoHash(str.String() + time.Now().String())
+			userID = "guest_" + cryptoId
+			js.Global().Set("userID", js.ValueOf(userID))
+			wasmLog("[WASM] WebSocket: Generated new guest ID:", userID)
 		}
 	}
 	wsUrl := getWebSocketURL()
@@ -76,7 +146,7 @@ func initWebSocket() {
 	}()
 	if creationErr != nil {
 		wasmError("[WASM][ERROR] WebSocket creation failed, aborting initWebSocket.")
-		notifyFrontendReady() // Notify frontend of failure
+		notifyFrontendConnectionStatus(false, "websocket_creation_failed") // Notify connection failure
 		return
 	}
 	ws = wsVal
@@ -85,22 +155,27 @@ func initWebSocket() {
 		wasmLog("[WASM][DEBUG] WebSocket readyState after creation:", ws.Get("readyState"))
 	} else {
 		wasmError("[WASM][ERROR] WebSocket instance is null after creation!")
-		notifyFrontendReady() // Notify frontend of failure
+		notifyFrontendConnectionStatus(false, "websocket_null_instance") // Notify connection failure
 		return
 	}
 	configureWebSocketCallbacks()
 }
 
 func reconnectWebSocket() {
+	reconnectWebSocketWithCooldown(true)
+}
+
+func reconnectWebSocketWithCooldown(checkCooldown bool) {
 	now := time.Now()
-	if now.Sub(lastReconnectAttempt) < reconnectGlobalCooldown {
+	if checkCooldown && now.Sub(lastReconnectAttempt) < reconnectGlobalCooldown {
 		wasmLog("[WASM] Reconnect attempt suppressed due to global cooldown.")
 		return
 	}
 	lastReconnectAttempt = now
-	if !ws.IsNull() {
-		ws.Call("close")
-	}
+
+	// Gracefully close existing connection
+	gracefulCloseWebSocket()
+
 	wasmLog("[WASM] Attempting WebSocket reconnection...")
 	maxAttempts := 3
 	delays := []time.Duration{1 * time.Second, 1500 * time.Millisecond, 3 * time.Second}
@@ -108,9 +183,12 @@ func reconnectWebSocket() {
 		initWebSocket()
 		// Wait a bit for connection to open
 		time.Sleep(500 * time.Millisecond)
-		if !ws.IsNull() && ws.Get("readyState").Int() == 1 {
-			wasmLog("[WASM] WebSocket reconnected successfully.")
-			return
+		if !ws.IsNull() && !ws.IsUndefined() {
+			readyState := ws.Get("readyState")
+			if !readyState.IsNull() && !readyState.IsUndefined() && readyState.Int() == 1 {
+				wasmLog("[WASM] WebSocket reconnected successfully.")
+				return
+			}
 		}
 		if attempt < maxAttempts {
 			wasmLog("[WASM][RETRY] WebSocket not open, retrying in ", delays[attempt-1], " (attempt ", attempt+1, " / ", maxAttempts, ")")
@@ -119,6 +197,38 @@ func reconnectWebSocket() {
 			wasmLog("[WASM][RETRY] Max attempts reached, giving up. Will retry on window status change.")
 		}
 	}
+}
+
+// gracefulCloseWebSocket performs a clean WebSocket closure
+func gracefulCloseWebSocket() {
+	if ws.IsNull() || ws.IsUndefined() {
+		wasmLog("[WASM] No WebSocket to close gracefully.")
+		return
+	}
+
+	readyState := ws.Get("readyState")
+	if readyState.IsNull() || readyState.IsUndefined() {
+		wasmLog("[WASM] WebSocket readyState is null/undefined, cannot close gracefully")
+		return
+	}
+
+	readyStateInt := readyState.Int()
+	wasmLog("[WASM] Gracefully closing WebSocket, current state:", readyStateInt)
+
+	// Only close if connection is open or connecting
+	if readyStateInt == 0 || readyStateInt == 1 {
+		// Set a flag to indicate we're closing gracefully
+		js.Global().Set("__WASM_GRACEFUL_CLOSE", js.ValueOf(true))
+
+		// Close with a proper close code and reason
+		ws.Call("close", 1000, "campaign_switch") // 1000 = normal closure
+
+		// Wait briefly for the close to complete and frontend to process
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// Clean up the connection
+	cleanupWebSocket()
 }
 
 func jsReconnectWebSocket(this js.Value, args []js.Value) interface{} {
@@ -146,22 +256,178 @@ func configureWebSocketCallbacks() {
 			"readyState:", ws.Get("readyState"),
 			"url:", url,
 			"event:", args[0])
-		notifyFrontendReady() // Notify JS/React that WASM is ready and connected
+
+		// Update WASM metadata with connection status
+		updateWasmMetadata("webSocketConnected", true)
+		updateWasmMetadata("webSocketURL", url)
+		updateWasmMetadata("webSocketReadyState", ws.Get("readyState").Int())
+
+		notifyFrontendConnectionStatus(true, "websocket_opened") // Notify connection status
+
+		// Process any queued outgoing messages
+		go processOutgoingQueue()
+
 		return nil
 	}))
 
 	ws.Set("onmessage", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		wasmLog("[WASM] WebSocket onmessage event.", "readyState:", ws.Get("readyState"), "event args:", args)
-		msg := args[0].Get("data")
+		event := args[0]
+		msg := event.Get("data")
+
 		go func() {
-			switch {
-			case msg.InstanceOf(js.Global().Get("ArrayBuffer")):
-				buf := make([]byte, msg.Get("byteLength").Int())
-				js.CopyBytesToGo(buf, msg)
-				messageQueue <- wsMessage{dataType: 1, payload: buf}
-			default:
-				messageQueue <- wsMessage{dataType: 0, payload: []byte(msg.String())}
+			defer func() {
+				if r := recover(); r != nil {
+					wasmLog("[WASM] Panic in onmessage handler, falling back to string processing:", r)
+					// Fallback to string processing
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					wasmLog("[WASM] Adding string message to queue (fallback), size:", len(msgStr), "->", len(decompressed))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				}
+			}()
+
+			// Debug: Log the message type and properties (defensive)
+			jsMsgType := msg.Type().String()
+			constructorName := "unknown"
+
+			// Only try to get constructor info if msg is an object
+			if jsMsgType == "object" {
+				if constructor := msg.Get("constructor"); !constructor.IsNull() && !constructor.IsUndefined() {
+					if name := constructor.Get("name"); !name.IsNull() && !name.IsUndefined() {
+						constructorName = name.String()
+					}
+				}
+			} else {
+				constructorName = jsMsgType
 			}
+			// wasmError("[WASM] Message received - JS Type:", jsMsgType, "Constructor:", constructorName)
+
+			// Determine message type based on data type (not event.type which is always "message")
+			if jsMsgType == "string" {
+				// This is a text message from WebSocket Gateway
+				// wasmError("[WASM] Processing text message from WebSocket")
+				msgStr := msg.String()
+				decompressed := Decompress([]byte(msgStr))
+				// wasmError("[WASM] Adding text message to queue, size:", len(msgStr), "->", len(decompressed))
+				messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				return
+			} else if jsMsgType == "object" && constructorName == "ArrayBuffer" {
+				// This is a binary message from WebSocket Gateway (compressed)
+				// wasmError("[WASM] Processing binary message from WebSocket")
+				// Process as ArrayBuffer - continue to ArrayBuffer check below
+			} else {
+				// Fallback: Handle as string message
+				// wasmError("[WASM] Processing string message (fallback)")
+				msgStr := msg.String()
+				decompressed := Decompress([]byte(msgStr))
+				// wasmError("[WASM] Adding string message to queue, size:", len(msgStr), "->", len(decompressed))
+				messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				return
+			}
+
+			// Check if it's an ArrayBuffer (for binary messages)
+			if msg.InstanceOf(js.Global().Get("ArrayBuffer")) {
+				// wasmError("[WASM] Processing ArrayBuffer message - JS Type:", jsMsgType)
+				byteLength := msg.Get("byteLength")
+				if byteLength.IsNull() || byteLength.IsUndefined() {
+					wasmLog("[WASM] ArrayBuffer has no byteLength, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+					return
+				}
+
+				buf := make([]byte, byteLength.Int())
+				// Add defensive check before CopyBytesToGo
+				if byteLength.Int() > 0 && byteLength.Int() < 1000000 { // Reasonable size limit
+					// Create a Uint8Array view of the ArrayBuffer (no data copying)
+					uint8Array := js.Global().Get("Uint8Array").New(msg)
+					js.CopyBytesToGo(buf, uint8Array)
+					// Decompress binary message if needed
+					decompressed := Decompress(buf)
+					// wasmError("[WASM] Adding ArrayBuffer message to queue, size:", len(buf), "->", len(decompressed))
+					messageQueue <- wsMessage{dataType: 1, payload: decompressed}
+				} else {
+					wasmLog("[WASM] ArrayBuffer size out of bounds, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				}
+				return
+			}
+
+			// Check if it's a Uint8Array
+			if msg.InstanceOf(js.Global().Get("Uint8Array")) {
+				wasmLog("[WASM] Processing Uint8Array message")
+				length := msg.Get("length")
+				if length.IsNull() || length.IsUndefined() {
+					wasmLog("[WASM] Uint8Array has no length, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+					return
+				}
+				buf := make([]byte, length.Int())
+				// Add defensive check before CopyBytesToGo
+				if length.Int() > 0 && length.Int() < 1000000 { // Reasonable size limit
+					js.CopyBytesToGo(buf, msg)
+					// Decompress binary message if needed
+					decompressed := Decompress(buf)
+					wasmLog("[WASM] Adding Uint8Array message to queue, size:", len(buf), "->", len(decompressed))
+					messageQueue <- wsMessage{dataType: 1, payload: decompressed}
+				} else {
+					wasmLog("[WASM] Uint8Array size out of bounds, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				}
+				return
+			}
+
+			// Check if it's a Blob
+			if msg.InstanceOf(js.Global().Get("Blob")) {
+				wasmLog("[WASM] Blob message received, converting to string for now")
+				msgStr := msg.String()
+				decompressed := Decompress([]byte(msgStr))
+				wasmLog("[WASM] Adding Blob->string message to queue, size:", len(msgStr), "->", len(decompressed))
+				messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				return
+			}
+
+			// Check if it's a Uint8ClampedArray (common with WebSocket binary data)
+			if msg.InstanceOf(js.Global().Get("Uint8ClampedArray")) {
+				wasmLog("[WASM] Processing Uint8ClampedArray message")
+				length := msg.Get("length")
+				if length.IsNull() || length.IsUndefined() {
+					wasmLog("[WASM] Uint8ClampedArray has no length, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+					return
+				}
+				buf := make([]byte, length.Int())
+				// Add defensive check before CopyBytesToGo
+				if length.Int() > 0 && length.Int() < 1000000 { // Reasonable size limit
+					js.CopyBytesToGo(buf, msg)
+					// Decompress binary message if needed
+					decompressed := Decompress(buf)
+					wasmLog("[WASM] Adding Uint8ClampedArray message to queue, size:", len(buf), "->", len(decompressed))
+					messageQueue <- wsMessage{dataType: 1, payload: decompressed}
+				} else {
+					wasmLog("[WASM] Uint8ClampedArray size out of bounds, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				}
+				return
+			}
+
+			// Default: Handle as string message
+			wasmLog("[WASM] Processing string message (default)")
+			msgStr := msg.String()
+			decompressed := Decompress([]byte(msgStr))
+			wasmLog("[WASM] Adding string message to queue, size:", len(msgStr), "->", len(decompressed))
+			messageQueue <- wsMessage{dataType: 0, payload: decompressed}
 		}()
 		return nil
 	}))
@@ -177,7 +443,25 @@ func configureWebSocketCallbacks() {
 		}
 		readyState := ws.Get("readyState").Int()
 		wasmLog(errMsg, "readyState:", readyState, "event args:", args, "error object:", errorDetails)
-		notifyFrontendReady() // Notify frontend of error
+
+		// Check for specific error types
+		if len(args) > 0 {
+			errorStr := args[0].String()
+			if strings.Contains(errorStr, "404") || strings.Contains(errorStr, "Not Found") {
+				wasmError("[WASM] WebSocket endpoint not found (404) - check if ws-gateway is running")
+			} else if strings.Contains(errorStr, "500") || strings.Contains(errorStr, "Internal Server Error") {
+				wasmError("[WASM] WebSocket server error (500) - check ws-gateway logs")
+			} else if strings.Contains(errorStr, "connection refused") || strings.Contains(errorStr, "ECONNREFUSED") {
+				wasmError("[WASM] WebSocket connection refused - check if ws-gateway is running on correct port")
+			}
+		}
+
+		// Update WASM metadata with error status
+		updateWasmMetadata("webSocketConnected", false)
+		updateWasmMetadata("webSocketError", errorDetails)
+		updateWasmMetadata("webSocketReadyState", readyState)
+
+		notifyFrontendConnectionStatus(false, "websocket_error") // Notify connection error
 		return nil
 	}))
 
@@ -200,7 +484,46 @@ func configureWebSocketCallbacks() {
 			"reason:", reason,
 			"wasClean:", wasClean,
 			"event:", args[0])
+
+		// Update WASM metadata with close status
+		updateWasmMetadata("webSocketConnected", false)
+		updateWasmMetadata("webSocketCloseCode", code)
+		updateWasmMetadata("webSocketCloseReason", reason)
+		updateWasmMetadata("webSocketWasClean", wasClean)
+		updateWasmMetadata("webSocketReadyState", readyState)
+
+		// Determine close reason for better status reporting
+		closeReason := "websocket_closed"
+		if code != nil {
+			codeInt := code.(js.Value).Int()
+			switch codeInt {
+			case 1000:
+				// Check if this was a graceful campaign switch
+				if reason != nil && reason.(js.Value).String() == "campaign_switch" {
+					closeReason = "campaign_switch"
+					wasmLog("[WASM] WebSocket closed gracefully for campaign switch")
+				} else {
+					closeReason = "normal_closure"
+				}
+			case 1001:
+				closeReason = "going_away"
+			case 1002:
+				closeReason = "protocol_error"
+			case 1003:
+				closeReason = "unsupported_data"
+			case 1006:
+				closeReason = "abnormal_closure"
+			case 1011:
+				closeReason = "server_error"
+			default:
+				closeReason = fmt.Sprintf("close_code_%d", codeInt)
+			}
+		}
+
 		// Notify frontend about connection loss
+		notifyFrontendConnectionStatus(false, closeReason)
+
+		// Legacy notification for backward compatibility
 		if onMsgHandler := js.Global().Get("onWasmMessage"); onMsgHandler.Type() == js.TypeFunction {
 			closeEvent := js.Global().Get("Object").New()
 			closeEvent.Set("type", "connection:closed")
@@ -238,4 +561,60 @@ func cleanupWebSocket() {
 		wasmLog("[WASM] cleanupWebSocket: connection already closed or closing. readyState:", readyState)
 	}
 	ws = js.Null()
+}
+
+// handleCampaignSwitch processes campaign switch notifications from the server
+func handleCampaignSwitch(oldCampaignID, newCampaignID, reason string) {
+	wasmLog("[WASM] Campaign switch required:", oldCampaignID, "->", newCampaignID, "reason:", reason)
+
+	// Update global metadata with new campaign ID
+	updateWasmMetadata("campaign", map[string]interface{}{
+		"campaignId":    newCampaignID,
+		"last_switched": time.Now().UTC().Format(time.RFC3339),
+		"switch_reason": reason,
+	})
+
+	// Also update the global variable as a backup
+	currentCampaignID = newCampaignID
+	wasmLog("[WASM] Updated global campaign ID variable:", currentCampaignID)
+
+	// Verify metadata update was successful
+	wasmLog("[WASM] Verifying metadata update...")
+	if js.Global().Get("__WASM_GLOBAL_METADATA").Truthy() {
+		metadata := js.Global().Get("__WASM_GLOBAL_METADATA")
+		campaignObj := metadata.Get("campaign")
+		if campaignObj.Truthy() {
+			campaignIdValue := campaignObj.Get("campaignId")
+			if campaignIdValue.Truthy() {
+				verifiedCampaignId := fmt.Sprintf("%v", campaignIdValue)
+				wasmLog("[WASM] Metadata verification successful. Campaign ID:", verifiedCampaignId)
+			} else {
+				wasmError("[WASM] Metadata verification failed: campaignId not found")
+			}
+		} else {
+			wasmError("[WASM] Metadata verification failed: campaign object not found")
+		}
+	}
+
+	// Notify frontend about the campaign switch
+	if handler := js.Global().Get("onCampaignSwitchRequired"); handler.Type() == js.TypeFunction {
+		switchEvent := js.ValueOf(map[string]interface{}{
+			"old_campaign_id": oldCampaignID,
+			"new_campaign_id": newCampaignID,
+			"reason":          reason,
+			"timestamp":       time.Now().UTC().Format(time.RFC3339),
+		})
+		handler.Invoke(switchEvent)
+	}
+
+	// Note: Don't reconnect immediately here - wait for the switch event to be processed
+	// The switch event will trigger the reconnection with the updated campaign ID
+	wasmLog("[WASM] Campaign switch metadata updated, waiting for switch event to trigger reconnection...")
+
+	// Add a minimal delay to ensure the switch event is processed before reconnecting
+	go func() {
+		time.Sleep(25 * time.Millisecond)
+		wasmLog("[WASM] Triggering reconnection after campaign switch...")
+		reconnectWebSocket()
+	}()
 }

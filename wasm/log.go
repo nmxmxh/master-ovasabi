@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"syscall/js"
 	"time"
@@ -429,6 +430,28 @@ func isMainThread() bool {
 }
 
 func wasmLog(args ...interface{}) {
+	// Only log critical events - no filtering overhead
+	if len(args) == 0 {
+		return
+	}
+
+	// Convert first argument to string for critical check
+	firstArg := fmt.Sprintf("%v", args[0])
+
+	// Only log critical events
+	if !strings.Contains(firstArg, "ERROR") &&
+		!strings.Contains(firstArg, "WARN") &&
+		!strings.Contains(firstArg, "❌") &&
+		!strings.Contains(firstArg, "✅") &&
+		!strings.Contains(firstArg, "Initialization") &&
+		!strings.Contains(firstArg, "Failed") &&
+		!strings.Contains(firstArg, "Critical") &&
+		!strings.Contains(firstArg, "Panic") &&
+		!strings.Contains(firstArg, "Exception") &&
+		!strings.Contains(firstArg, "Fatal") {
+		return
+	}
+
 	var strArgs []interface{}
 	for _, arg := range args {
 		strArgs = append(strArgs, fmt.Sprintf("%v", arg))

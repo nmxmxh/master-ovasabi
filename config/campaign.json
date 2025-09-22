@@ -1,21 +1,21 @@
 [
   {
-    "slug": "ovasabi_website",
-    "title": "Ovasabi Studios Website Launch",
-    "description": "Official launch campaign for Ovasabi Studios, featuring onboarding, waitlist, referral, leaderboard, and broadcast features.",
-    "ranking_formula": "score + referrals * 10",
+    "slug": "twitter_clone",
+    "title": "Twitter Clone - Social Media Platform",
+    "description": "A comprehensive social media platform featuring real-time microblogging, multimedia sharing, live audio conversations, and advanced engagement tools. Built with modern web technologies and designed for seamless user experience across all devices.",
+    "ranking_formula": "engagement_score + followers * 0.1 + verified_bonus",
     "owner_id": "admin",
-    "start_date": "2025-08-01T00:00:00Z",
+    "start_date": "2025-01-01T00:00:00Z",
     "end_date": "9999-12-31T23:59:59Z",
     "metadata": {
       "features": [
-        "waitlist",
-        "referral",
-        "leaderboard",
-        "broadcast",
-        "site_onboarding",
-        "lead_capture",
-        "user_journey"
+        "messaging",
+        "media",
+        "notification",
+        "analytics",
+        "search",
+        "localization",
+        "contentmoderation"
       ],
       "service_specific": {
         "campaign": {
@@ -183,13 +183,51 @@
                 "p": "Ovasabi's architecture is designed for adaptability, transparency, and growth. It empowers creators and clients alike."
               }
             ]
-          }
-        },
-        "localization": {
-          "scripts": {
-            "architecture_overview": {
-              "sections": ["Talent Network", "INOS Core", "Market Interface"],
-              "description": "INOS automates orchestration, makes systems self-aware, and turns talent, logic, and outcomes into programmable infrastructure."
+          },
+          "ui_components": {
+            "architecture_header": {
+              "type": "Box",
+              "description": "Architecture campaign header with INOS branding",
+              "chakra_props": {
+                "bg": "#1F2937",
+                "color": "white",
+                "p": 6,
+                "textAlign": "center",
+                "borderRadius": "4px",
+                "border": "2px solid #374151",
+                "boxShadow": "0 4px 8px rgba(0,0,0,0.1)"
+              }
+            },
+            "architecture_card": {
+              "type": "Box",
+              "description": "Architecture feature card with INOS details",
+              "chakra_props": {
+                "bg": "white",
+                "p": 8,
+                "borderRadius": "4px",
+                "border": "2px solid #E5E7EB",
+                "minHeight": "280px",
+                "display": "flex",
+                "flexDirection": "column",
+                "justifyContent": "space-between",
+                "_hover": {
+                  "shadow": "0 6px 16px rgba(0,0,0,0.15)",
+                  "transform": "translateY(-3px)",
+                  "borderColor": "#3B82F6"
+                },
+                "transition": "all 0.3s"
+              }
+            },
+            "architecture_grid": {
+              "type": "Grid",
+              "description": "Architecture features grid layout",
+              "chakra_props": {
+                "templateColumns": "repeat(auto-fit, minmax(300px, 1fr))",
+                "gap": 6,
+                "p": 8,
+                "maxW": "1200px",
+                "mx": "auto"
+              }
             }
           }
         }
@@ -207,6 +245,1392 @@
       "audit": {
         "last_modified": "2025-08-01T00:00:00Z",
         "history": ["2025-08-01T00:00:00Z: Architecture campaign created"]
+      }
+    }
+  },
+  {
+    "slug": "amazon_clone",
+    "title": "Amazon Clone - E-commerce Platform",
+    "description": "A comprehensive e-commerce platform featuring product catalog, shopping cart, payment processing, order management, and advanced recommendation systems. Built for scalability and user experience.",
+    "ranking_formula": "sales_volume + customer_rating + inventory_level",
+    "owner_id": "admin",
+    "start_date": "2025-01-01T00:00:00Z",
+    "end_date": "9999-12-31T23:59:59Z",
+    "metadata": {
+      "features": [
+        "commerce",
+        "product",
+        "analytics",
+        "search",
+        "notification",
+        "referral",
+        "localization"
+      ],
+      "service_specific": {
+        "campaign": {
+          "status": "active",
+          "focus": "e_commerce",
+          "platform_type": "marketplace",
+          "target_audience": "sellers, buyers, businesses, consumers",
+          "theme": {
+            "primary_color": "#FF9900",
+            "secondary_color": "#232F3E",
+            "accent_color": "#146EB4",
+            "background_color": "#FFFFFF",
+            "text_color": "#0F1111",
+            "border_color": "#DDD",
+            "hover_color": "#F7F7F7",
+            "font_family": "Amazon Ember, Arial, sans-serif",
+            "border_radius": "4px",
+            "shadow": "0 2px 4px rgba(0, 0, 0, 0.1)"
+          },
+          "ui_components": {
+            "amazon_header": {
+              "type": "Box",
+              "description": "Amazon-style header with logo, search bar, and account menu",
+              "chakra_props": {
+                "bg": "#0F1111",
+                "color": "white",
+                "p": 4,
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "space-between",
+                "position": "sticky",
+                "top": 0,
+                "zIndex": 1000,
+                "borderRadius": "0px",
+                "boxShadow": "0 2px 4px rgba(0,0,0,0.1)"
+              }
+            },
+            "search_bar": {
+              "type": "InputGroup",
+              "description": "Amazon-style search bar with categories dropdown",
+              "chakra_props": {
+                "maxW": "600px",
+                "mx": "auto",
+                "display": "flex",
+                "alignItems": "center"
+              }
+            },
+            "product_grid": {
+              "type": "Grid",
+              "description": "Amazon-style product grid with 4-column layout",
+              "chakra_props": {
+                "templateColumns": "repeat(4, 1fr)",
+                "gap": 4,
+                "p": 6,
+                "maxW": "1400px",
+                "mx": "auto"
+              }
+            },
+            "product_card": {
+              "type": "Box",
+              "description": "Amazon-style product card with image, title, price, and rating",
+              "chakra_props": {
+                "bg": "white",
+                "border": "2px solid #DDD",
+                "borderRadius": "4px",
+                "p": 6,
+                "cursor": "pointer",
+                "position": "relative",
+                "minHeight": "320px",
+                "display": "flex",
+                "flexDirection": "column",
+                "justifyContent": "space-between",
+                "_hover": {
+                  "shadow": "0 4px 12px rgba(0,0,0,0.15)",
+                  "transform": "translateY(-2px)",
+                  "borderColor": "#FF9500"
+                },
+                "transition": "all 0.2s"
+              }
+            },
+            "shopping_cart": {
+              "type": "Box",
+              "description": "Amazon-style shopping cart with item count and checkout",
+              "chakra_props": {
+                "bg": "white",
+                "border": "1px solid #DDD",
+                "borderRadius": "8px",
+                "p": 4,
+                "position": "sticky",
+                "top": "80px",
+                "w": "300px",
+                "h": "fit-content"
+              }
+            },
+            "prime_badge": {
+              "type": "Box",
+              "description": "Amazon Prime delivery badge",
+              "chakra_props": {
+                "bg": "#00A8E1",
+                "color": "white",
+                "px": 2,
+                "py": 1,
+                "borderRadius": "4px",
+                "fontSize": "xs",
+                "fontWeight": "bold",
+                "textTransform": "uppercase"
+              }
+            },
+            "price_display": {
+              "type": "Box",
+              "description": "Amazon-style price with strikethrough and savings",
+              "chakra_props": {
+                "display": "flex",
+                "alignItems": "center",
+                "gap": 2,
+                "fontSize": "lg",
+                "fontWeight": "bold"
+              }
+            },
+            "rating_stars": {
+              "type": "Box",
+              "description": "Amazon-style 5-star rating display",
+              "chakra_props": {
+                "display": "flex",
+                "alignItems": "center",
+                "gap": 1,
+                "color": "#FFA500"
+              }
+            },
+            "add_to_cart": {
+              "type": "Button",
+              "description": "Amazon-style 'Add to Cart' button",
+              "chakra_props": {
+                "bg": "#FFD700",
+                "color": "#0F1111",
+                "border": "1px solid #FFD700",
+                "borderRadius": "4px",
+                "px": 4,
+                "py": 2,
+                "fontWeight": "bold",
+                "w": "full",
+                "_hover": { "bg": "#FFC107" },
+                "transition": "all 0.2s"
+              }
+            },
+            "buy_now": {
+              "type": "Button",
+              "description": "Amazon-style 'Buy Now' button",
+              "chakra_props": {
+                "bg": "#FF9500",
+                "color": "white",
+                "border": "1px solid #FF9500",
+                "borderRadius": "4px",
+                "px": 4,
+                "py": 2,
+                "fontWeight": "bold",
+                "w": "full",
+                "_hover": { "bg": "#E6850E" },
+                "transition": "all 0.2s"
+              }
+            }
+          },
+          "service_configs": {
+            "commerce": {
+              "enabled": true,
+              "description": "E-commerce functionality with payment processing",
+              "config": {
+                "payment_methods": [
+                  "credit_card",
+                  "debit_card",
+                  "paypal",
+                  "apple_pay",
+                  "google_pay",
+                  "amazon_pay"
+                ],
+                "currency": "USD",
+                "tax_calculation": true,
+                "shipping_calculator": true,
+                "inventory_management": true,
+                "order_tracking": true,
+                "return_management": true,
+                "wishlist": true,
+                "gift_cards": true,
+                "subscriptions": true,
+                "bulk_orders": true
+              }
+            },
+            "product": {
+              "enabled": true,
+              "description": "Product catalog and management system",
+              "config": {
+                "catalog_size": 1000000,
+                "categories": [
+                  "electronics",
+                  "books",
+                  "clothing",
+                  "home",
+                  "sports",
+                  "beauty",
+                  "automotive",
+                  "toys"
+                ],
+                "inventory_tracking": true,
+                "product_variants": true,
+                "reviews_system": true,
+                "rating_system": true,
+                "product_comparison": true,
+                "recommendation_engine": true,
+                "search_filters": true,
+                "sorting_options": true
+              }
+            },
+            "analytics": {
+              "enabled": true,
+              "description": "E-commerce analytics and insights",
+              "config": {
+                "track_events": [
+                  "product_viewed",
+                  "cart_added",
+                  "purchase_completed",
+                  "search_performed",
+                  "category_viewed"
+                ],
+                "conversion_tracking": true,
+                "abandoned_cart_recovery": true,
+                "customer_behavior_analysis": true,
+                "sales_reporting": true,
+                "inventory_analytics": true,
+                "recommendation_analytics": true
+              }
+            },
+            "search": {
+              "enabled": true,
+              "description": "Advanced product search and discovery",
+              "config": {
+                "search_fields": [
+                  "title",
+                  "description",
+                  "brand",
+                  "category",
+                  "tags",
+                  "specifications"
+                ],
+                "fuzzy_search": true,
+                "search_suggestions": true,
+                "autocomplete": true,
+                "search_filters": true,
+                "sorting_options": ["price", "rating", "newest", "popularity"],
+                "search_analytics": true
+              }
+            }
+          }
+        }
+      },
+      "scheduling": {
+        "start": "2025-01-01T00:00:00Z",
+        "end": "9999-12-31T23:59:59Z",
+        "ws_frequency": "5s"
+      },
+      "versioning": {
+        "version": "1.0.0",
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      "audit": {
+        "last_modified": "2025-01-01T00:00:00Z",
+        "history": ["2025-01-01T00:00:00Z: Amazon clone campaign created"]
+      }
+    }
+  },
+  {
+    "slug": "medium_clone",
+    "title": "Medium Clone - Publishing Platform",
+    "description": "A comprehensive content publishing platform featuring rich text editor, article management, community engagement, and monetization tools. Designed for writers, journalists, and content creators.",
+    "ranking_formula": "claps + reads + followers * 0.5 + publication_bonus",
+    "owner_id": "admin",
+    "start_date": "2025-01-01T00:00:00Z",
+    "end_date": "9999-12-31T23:59:59Z",
+    "metadata": {
+      "features": [
+        "content",
+        "media",
+        "analytics",
+        "search",
+        "notification",
+        "localization",
+        "messaging"
+      ],
+      "service_specific": {
+        "campaign": {
+          "status": "active",
+          "focus": "content_publishing",
+          "platform_type": "blogging",
+          "target_audience": "writers, journalists, bloggers, content_creators, readers",
+          "theme": {
+            "primary_color": "#00AB6C",
+            "secondary_color": "#292929",
+            "accent_color": "#03A87C",
+            "background_color": "#FFFFFF",
+            "text_color": "#292929",
+            "border_color": "#E6E6E6",
+            "hover_color": "#F7F7F7",
+            "font_family": "charter, Georgia, Cambria, 'Times New Roman', Times, serif",
+            "border_radius": "8px",
+            "shadow": "0 1px 3px rgba(0, 0, 0, 0.1)"
+          },
+          "ui_components": {
+            "hero_section": {
+              "type": "hero",
+              "title": "Write, read, and connect with ideas that matter",
+              "subtitle": "Join millions of readers and writers on Medium",
+              "cta_text": "Start writing",
+              "background_image": "/images/medium-hero.jpg"
+            },
+            "article_editor": {
+              "type": "editor",
+              "placeholder": "Tell your story...",
+              "height": "600px"
+            },
+            "article_card": {
+              "type": "card",
+              "title": "Sample Article",
+              "excerpt": "This is a sample article excerpt that demonstrates the Medium-style card layout with proper typography and spacing.",
+              "author": "John Doe",
+              "claps": 42
+            },
+            "reading_list": {
+              "type": "card",
+              "title": "Reading List",
+              "excerpt": "Your saved articles and bookmarks will appear here",
+              "author": "Medium",
+              "claps": 0
+            },
+            "clap_button": {
+              "type": "button",
+              "text": "👏 Clap",
+              "variant": "primary"
+            },
+            "author_card": {
+              "type": "card",
+              "title": "Author Profile",
+              "excerpt": "Follow this author to see more of their stories",
+              "author": "Jane Smith",
+              "claps": 128
+            },
+            "publication_badge": {
+              "type": "text",
+              "content": "PUBLICATION",
+              "size": "12px",
+              "weight": "bold",
+              "color": "#00AB6C"
+            },
+            "article_meta": {
+              "type": "text",
+              "content": "5 min read • Published 2 days ago",
+              "size": "14px",
+              "color": "#757575"
+            },
+            "highlight_button": {
+              "type": "button",
+              "text": "Highlight",
+              "variant": "secondary"
+            },
+            "bookmark_button": {
+              "type": "button",
+              "text": "🔖 Bookmark",
+              "variant": "secondary"
+            },
+            "share_button": {
+              "type": "button",
+              "text": "Share",
+              "variant": "secondary"
+            },
+            "write_button": {
+              "type": "button",
+              "text": "Write",
+              "variant": "primary"
+            }
+          },
+          "ui_content": {
+            "hero_section": {
+              "title": "Write, read, and connect with ideas that matter",
+              "subtitle": "Join millions of readers and writers on Medium",
+              "cta_text": "Start writing",
+              "background_image": "/images/medium-hero.jpg"
+            },
+            "editor_interface": {
+              "placeholder": "Tell your story...",
+              "toolbar_items": [
+                "bold",
+                "italic",
+                "underline",
+                "link",
+                "image",
+                "quote",
+                "code",
+                "heading"
+              ],
+              "publish_options": {
+                "draft": "Save as draft",
+                "publish": "Publish now",
+                "schedule": "Schedule for later"
+              }
+            },
+            "article_metadata": {
+              "reading_time": "5 min read",
+              "publish_date": "Published on",
+              "tags": ["technology", "writing", "creativity"],
+              "engagement": {
+                "claps": 42,
+                "responses": 8,
+                "bookmarks": 12
+              }
+            }
+          },
+          "service_configs": {
+            "content": {
+              "enabled": true,
+              "description": "Content management and publishing system",
+              "config": {
+                "article_formats": ["markdown", "rich_text", "html"],
+                "max_article_length": 50000,
+                "draft_system": true,
+                "auto_save": true,
+                "version_control": true,
+                "collaborative_editing": true,
+                "publication_system": true,
+                "series_creation": true,
+                "tagging_system": true,
+                "seo_optimization": true,
+                "custom_domains": true,
+                "import_tool": true
+              }
+            },
+            "media": {
+              "enabled": true,
+              "description": "Media management and optimization",
+              "config": {
+                "supported_formats": ["jpg", "png", "gif", "mp4", "pdf"],
+                "max_file_size": "10MB",
+                "image_optimization": true,
+                "responsive_images": true,
+                "alt_text_required": true,
+                "media_library": true,
+                "compression": true
+              }
+            },
+            "analytics": {
+              "enabled": true,
+              "description": "Content analytics and engagement tracking",
+              "config": {
+                "track_events": [
+                  "article_read",
+                  "clap_given",
+                  "comment_added",
+                  "bookmark_created",
+                  "share_clicked"
+                ],
+                "reading_time_calculation": true,
+                "engagement_metrics": true,
+                "audience_insights": true,
+                "content_performance": true,
+                "trending_articles": true,
+                "author_analytics": true
+              }
+            },
+            "messaging": {
+              "enabled": true,
+              "description": "Community messaging and engagement",
+              "config": {
+                "comments_system": true,
+                "responses": true,
+                "highlights": true,
+                "mentions": true,
+                "direct_messages": true,
+                "notifications": true,
+                "moderation_tools": true
+              }
+            }
+          }
+        }
+      },
+      "scheduling": {
+        "start": "2025-01-01T00:00:00Z",
+        "end": "9999-12-31T23:59:59Z",
+        "ws_frequency": "10s"
+      },
+      "versioning": {
+        "version": "1.0.0",
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      "audit": {
+        "last_modified": "2025-01-01T00:00:00Z",
+        "history": ["2025-01-01T00:00:00Z: Medium clone campaign created"]
+      }
+    }
+  },
+  {
+    "slug": "instagram_clone",
+    "title": "Instagram Clone - Photo Sharing Platform",
+    "description": "A comprehensive photo and video sharing platform featuring stories, reels, IGTV, messaging, and shopping. Built for visual content creators and social media enthusiasts.",
+    "ranking_formula": "likes + comments + shares + story_views + engagement_rate",
+    "owner_id": "admin",
+    "start_date": "2025-01-01T00:00:00Z",
+    "end_date": "9999-12-31T23:59:59Z",
+    "metadata": {
+      "features": [
+        "media",
+        "messaging",
+        "notification",
+        "analytics",
+        "search",
+        "localization",
+        "commerce"
+      ],
+      "service_specific": {
+        "campaign": {
+          "status": "active",
+          "focus": "photo_sharing",
+          "platform_type": "social_media",
+          "target_audience": "photographers, influencers, brands, content_creators, general_users",
+          "theme": {
+            "primary_color": "#E4405F",
+            "secondary_color": "#262626",
+            "accent_color": "#8E3A59",
+            "background_color": "#FAFAFA",
+            "text_color": "#262626",
+            "border_color": "#DBDBDB",
+            "hover_color": "#F5F5F5",
+            "font_family": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            "border_radius": "12px",
+            "shadow": "0 2px 8px rgba(0, 0, 0, 0.1)"
+          },
+          "ui_components": {
+            "instagram_header": {
+              "type": "Box",
+              "description": "Instagram-style header with logo, search, and navigation icons",
+              "chakra_props": {
+                "bg": "white",
+                "borderBottom": "1px solid #DBDBDB",
+                "p": 4,
+                "position": "sticky",
+                "top": 0,
+                "zIndex": 1000,
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "space-between",
+                "maxW": "935px",
+                "mx": "auto"
+              }
+            },
+            "story_creator": {
+              "type": "Box",
+              "description": "Instagram-style story creation with camera icon",
+              "chakra_props": {
+                "bg": "white",
+                "borderRadius": "12px",
+                "p": 4,
+                "cursor": "pointer",
+                "border": "2px solid #E4405F",
+                "textAlign": "center",
+                "w": "66px",
+                "h": "66px",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "_hover": { "bg": "#F5F5F5" },
+                "transition": "all 0.2s"
+              }
+            },
+            "feed_grid": {
+              "type": "Grid",
+              "description": "Instagram-style 3-column photo feed grid",
+              "chakra_props": {
+                "templateColumns": "repeat(3, 1fr)",
+                "gap": 2,
+                "w": "full",
+                "maxW": "935px",
+                "mx": "auto",
+                "p": 2
+              }
+            },
+            "post_modal": {
+              "type": "Modal",
+              "description": "Instagram-style full-screen post modal",
+              "chakra_props": {
+                "size": "xl",
+                "isCentered": true,
+                "closeOnOverlayClick": true,
+                "scrollBehavior": "inside",
+                "bg": "white",
+                "borderRadius": "8px"
+              }
+            },
+            "story_ring": {
+              "type": "Box",
+              "description": "Instagram-style circular story with gradient border",
+              "chakra_props": {
+                "w": "66px",
+                "h": "66px",
+                "borderRadius": "full",
+                "border": "2px solid",
+                "borderColor": "#E4405F",
+                "p": "2px",
+                "cursor": "pointer",
+                "position": "relative",
+                "_hover": { "transform": "scale(1.05)" },
+                "transition": "all 0.2s"
+              }
+            },
+            "like_button": {
+              "type": "Button",
+              "description": "Instagram-style heart like button",
+              "chakra_props": {
+                "bg": "transparent",
+                "border": "none",
+                "p": 2,
+                "minW": "40px",
+                "h": "40px",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "_hover": { "bg": "transparent" },
+                "transition": "all 0.2s",
+                "color": "#262626",
+                "fontSize": "20px"
+              }
+            },
+            "comment_section": {
+              "type": "Box",
+              "description": "Instagram-style comments with emoji picker",
+              "chakra_props": {
+                "bg": "white",
+                "p": 4,
+                "borderTop": "1px solid #DBDBDB",
+                "maxW": "935px",
+                "mx": "auto"
+              }
+            },
+            "explore_grid": {
+              "type": "Grid",
+              "description": "Instagram-style explore page grid",
+              "chakra_props": {
+                "templateColumns": "repeat(3, 1fr)",
+                "gap": 1,
+                "w": "full",
+                "maxW": "935px",
+                "mx": "auto",
+                "p": 2
+              }
+            },
+            "post_card": {
+              "type": "Box",
+              "description": "Instagram-style post card with image and actions",
+              "chakra_props": {
+                "bg": "white",
+                "border": "2px solid #DBDBDB",
+                "borderRadius": "4px",
+                "overflow": "hidden",
+                "mb": 6,
+                "maxW": "614px",
+                "mx": "auto",
+                "minHeight": "400px",
+                "display": "flex",
+                "flexDirection": "column",
+                "_hover": {
+                  "shadow": "0 4px 12px rgba(0,0,0,0.1)",
+                  "transform": "translateY(-2px)",
+                  "borderColor": "#E4405F"
+                },
+                "transition": "all 0.2s"
+              }
+            },
+            "post_actions": {
+              "type": "Box",
+              "description": "Instagram-style post action buttons (like, comment, share)",
+              "chakra_props": {
+                "display": "flex",
+                "alignItems": "center",
+                "gap": 4,
+                "p": 3,
+                "borderBottom": "1px solid #DBDBDB"
+              }
+            },
+            "post_caption": {
+              "type": "Box",
+              "description": "Instagram-style post caption with username",
+              "chakra_props": {
+                "p": 3,
+                "fontSize": "sm",
+                "lineHeight": "1.4"
+              }
+            },
+            "story_highlights": {
+              "type": "Box",
+              "description": "Instagram-style story highlights bar",
+              "chakra_props": {
+                "display": "flex",
+                "gap": 2,
+                "p": 4,
+                "overflowX": "auto",
+                "bg": "white",
+                "borderBottom": "1px solid #DBDBDB"
+              }
+            },
+            "direct_message": {
+              "type": "Button",
+              "description": "Instagram-style DM button",
+              "chakra_props": {
+                "bg": "transparent",
+                "border": "none",
+                "p": 2,
+                "minW": "40px",
+                "h": "40px",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "_hover": { "bg": "transparent" },
+                "transition": "all 0.2s",
+                "color": "#262626",
+                "fontSize": "20px"
+              }
+            },
+            "share_button": {
+              "type": "Button",
+              "description": "Instagram-style share button",
+              "chakra_props": {
+                "bg": "transparent",
+                "border": "none",
+                "p": 2,
+                "minW": "40px",
+                "h": "40px",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "_hover": { "bg": "transparent" },
+                "transition": "all 0.2s",
+                "color": "#262626",
+                "fontSize": "20px"
+              }
+            },
+            "bookmark_button": {
+              "type": "Button",
+              "description": "Instagram-style bookmark button",
+              "chakra_props": {
+                "bg": "transparent",
+                "border": "none",
+                "p": 2,
+                "minW": "40px",
+                "h": "40px",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "_hover": { "bg": "transparent" },
+                "transition": "all 0.2s",
+                "color": "#262626",
+                "fontSize": "20px"
+              }
+            },
+            "camera_button": {
+              "type": "Button",
+              "description": "Instagram-style camera button for stories",
+              "chakra_props": {
+                "bg": "transparent",
+                "border": "2px solid #E4405F",
+                "borderRadius": "full",
+                "p": 3,
+                "minW": "66px",
+                "h": "66px",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "_hover": { "bg": "#F5F5F5" },
+                "transition": "all 0.2s",
+                "color": "#E4405F",
+                "fontSize": "24px"
+              }
+            }
+          },
+          "ui_content": {
+            "hero_section": {
+              "title": "Capture and share the world's moments",
+              "subtitle": "Create an account or log in to Instagram",
+              "cta_text": "Sign up",
+              "background_image": "/images/instagram-hero.jpg"
+            },
+            "story_interface": {
+              "camera_options": ["photo", "video", "boomerang", "layout", "superzoom"],
+              "filters": [
+                "normal",
+                "clarendon",
+                "gingham",
+                "moon",
+                "lark",
+                "reyes",
+                "juno",
+                "slumber",
+                "crema",
+                "ludwig",
+                "aden",
+                "perpetua",
+                "amaro",
+                "mayfair",
+                "rise",
+                "valencia",
+                "xpro2",
+                "sierra",
+                "willow",
+                "lo-fi",
+                "inkwell",
+                "nashville"
+              ],
+              "text_tools": ["font", "color", "background", "alignment"],
+              "sticker_options": [
+                "location",
+                "mention",
+                "hashtag",
+                "time",
+                "weather",
+                "music",
+                "poll",
+                "question",
+                "countdown",
+                "quiz"
+              ]
+            },
+            "post_creation": {
+              "aspect_ratios": ["1:1", "4:5", "16:9", "9:16"],
+              "editing_tools": [
+                "crop",
+                "rotate",
+                "brightness",
+                "contrast",
+                "saturation",
+                "warmth",
+                "highlights",
+                "shadows",
+                "vignette",
+                "tilt_shift"
+              ],
+              "caption_placeholder": "Write a caption...",
+              "hashtag_suggestions": true,
+              "location_tagging": true,
+              "alt_text": true
+            },
+            "engagement_metrics": {
+              "likes": 1247,
+              "comments": 89,
+              "shares": 23,
+              "saves": 156,
+              "views": 5432
+            }
+          },
+          "service_configs": {
+            "media": {
+              "enabled": true,
+              "description": "Photo and video sharing with editing tools",
+              "config": {
+                "supported_formats": ["jpg", "png", "mp4", "mov", "gif"],
+                "max_file_size": "100MB",
+                "filters": [
+                  "vintage",
+                  "black_white",
+                  "sepia",
+                  "blur",
+                  "dramatic",
+                  "portrait",
+                  "landscape"
+                ],
+                "stories_duration": 24,
+                "reels_max_duration": 90,
+                "igtv_max_duration": 3600,
+                "image_editing": true,
+                "video_editing": true,
+                "crop_tools": true,
+                "brightness_contrast": true,
+                "saturation_adjustment": true
+              }
+            },
+            "messaging": {
+              "enabled": true,
+              "description": "Direct messaging and communication",
+              "config": {
+                "direct_messages": true,
+                "group_chats": true,
+                "message_types": ["text", "image", "video", "voice", "sticker", "gif"],
+                "disappearing_messages": true,
+                "message_reactions": true,
+                "typing_indicators": true,
+                "read_receipts": true,
+                "message_requests": true
+              }
+            },
+            "analytics": {
+              "enabled": true,
+              "description": "Instagram-style analytics and insights",
+              "config": {
+                "track_events": [
+                  "post_viewed",
+                  "like_given",
+                  "comment_added",
+                  "story_viewed",
+                  "profile_visited",
+                  "follow_action"
+                ],
+                "engagement_metrics": true,
+                "reach_analytics": true,
+                "impression_tracking": true,
+                "audience_insights": true,
+                "content_performance": true,
+                "hashtag_analytics": true,
+                "story_analytics": true
+              }
+            },
+            "commerce": {
+              "enabled": true,
+              "description": "Shopping and e-commerce features",
+              "config": {
+                "product_tags": true,
+                "shopping_cart": true,
+                "checkout_process": true,
+                "payment_integration": true,
+                "inventory_management": true,
+                "order_tracking": true,
+                "seller_tools": true,
+                "product_catalog": true
+              }
+            }
+          }
+        }
+      },
+      "scheduling": {
+        "start": "2025-01-01T00:00:00Z",
+        "end": "9999-12-31T23:59:59Z",
+        "ws_frequency": "3s"
+      },
+      "versioning": {
+        "version": "1.0.0",
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      "audit": {
+        "last_modified": "2025-01-01T00:00:00Z",
+        "history": ["2025-01-01T00:00:00Z: Instagram clone campaign created"]
+      }
+    }
+  },
+  {
+    "slug": "blog_site",
+    "title": "Blog Site - Content Management Platform",
+    "description": "A comprehensive blog platform featuring article management, categories, tags, comments, RSS feeds, and SEO optimization. Designed for bloggers, content creators, and businesses.",
+    "ranking_formula": "page_views + comments + shares + time_on_page + bounce_rate",
+    "owner_id": "admin",
+    "start_date": "2025-01-01T00:00:00Z",
+    "end_date": "9999-12-31T23:59:59Z",
+    "metadata": {
+      "features": ["content", "search", "analytics", "localization", "messaging"],
+      "service_specific": {
+        "campaign": {
+          "status": "active",
+          "focus": "blogging",
+          "platform_type": "cms",
+          "target_audience": "bloggers, content_creators, businesses, journalists, writers",
+          "theme": {
+            "primary_color": "#2563EB",
+            "secondary_color": "#1F2937",
+            "accent_color": "#3B82F6",
+            "background_color": "#FFFFFF",
+            "text_color": "#1F2937",
+            "border_color": "#E5E7EB",
+            "hover_color": "#F9FAFB",
+            "font_family": "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            "border_radius": "6px",
+            "shadow": "0 1px 3px rgba(0, 0, 0, 0.1)"
+          },
+          "ui_components": {
+            "blog_header": {
+              "type": "Box",
+              "description": "Blog header with logo, navigation, and search",
+              "chakra_props": {
+                "bg": "white",
+                "borderBottom": "1px solid #E5E7EB",
+                "p": 4,
+                "position": "sticky",
+                "top": 0,
+                "zIndex": 1000,
+                "boxShadow": "0 1px 3px rgba(0,0,0,0.1)",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "space-between",
+                "maxW": "1200px",
+                "mx": "auto"
+              }
+            },
+            "post_editor": {
+              "type": "Box",
+              "description": "Blog post editor with markdown support",
+              "chakra_props": {
+                "bg": "white",
+                "p": 8,
+                "maxW": "800px",
+                "mx": "auto",
+                "minH": "600px",
+                "borderRadius": "8px",
+                "border": "1px solid #E5E7EB",
+                "fontFamily": "Inter, system-ui, sans-serif"
+              }
+            },
+            "post_card": {
+              "type": "Box",
+              "description": "Blog post card with featured image and metadata",
+              "chakra_props": {
+                "bg": "white",
+                "p": 8,
+                "borderRadius": "4px",
+                "shadow": "0 2px 6px rgba(0,0,0,0.1)",
+                "cursor": "pointer",
+                "minHeight": "320px",
+                "display": "flex",
+                "flexDirection": "column",
+                "justifyContent": "space-between",
+                "_hover": {
+                  "shadow": "0 6px 16px rgba(0,0,0,0.15)",
+                  "transform": "translateY(-3px)",
+                  "borderColor": "#2563EB"
+                },
+                "border": "2px solid #E5E7EB",
+                "transition": "all 0.3s",
+                "overflow": "hidden"
+              }
+            },
+            "category_list": {
+              "type": "VStack",
+              "description": "Blog category sidebar with post counts",
+              "chakra_props": {
+                "spacing": 3,
+                "w": "280px",
+                "p": 6,
+                "bg": "#F9FAFB",
+                "borderRadius": "8px",
+                "border": "1px solid #E5E7EB",
+                "position": "sticky",
+                "top": "100px"
+              }
+            },
+            "tag_cloud": {
+              "type": "Flex",
+              "description": "Blog tag cloud with weighted font sizes",
+              "chakra_props": {
+                "wrap": "wrap",
+                "gap": 3,
+                "p": 6,
+                "justifyContent": "center",
+                "bg": "#F9FAFB",
+                "borderRadius": "8px",
+                "border": "1px solid #E5E7EB"
+              }
+            },
+            "comment_section": {
+              "type": "Box",
+              "description": "Blog comments with nested replies",
+              "chakra_props": {
+                "bg": "white",
+                "p": 8,
+                "borderRadius": "8px",
+                "border": "1px solid #E5E7EB",
+                "mt": 8,
+                "maxW": "800px",
+                "mx": "auto"
+              }
+            },
+            "search_bar": {
+              "type": "InputGroup",
+              "description": "Blog search with autocomplete",
+              "chakra_props": {
+                "maxW": "500px",
+                "mx": "auto",
+                "bg": "white",
+                "borderRadius": "8px",
+                "border": "1px solid #E5E7EB"
+              }
+            },
+            "pagination": {
+              "type": "HStack",
+              "description": "Blog pagination with page numbers",
+              "chakra_props": {
+                "spacing": 2,
+                "justifyContent": "center",
+                "mt": 12,
+                "p": 4
+              }
+            },
+            "author_bio": {
+              "type": "Box",
+              "description": "Author bio card with social links",
+              "chakra_props": {
+                "bg": "#F9FAFB",
+                "p": 8,
+                "borderRadius": "8px",
+                "border": "1px solid #E5E7EB",
+                "textAlign": "center",
+                "maxW": "400px",
+                "mx": "auto"
+              }
+            },
+            "related_posts": {
+              "type": "Grid",
+              "description": "Related posts grid with thumbnails",
+              "chakra_props": {
+                "templateColumns": "repeat(auto-fit, minmax(300px, 1fr))",
+                "gap": 6,
+                "mt": 12,
+                "maxW": "1200px",
+                "mx": "auto"
+              }
+            },
+            "featured_image": {
+              "type": "Box",
+              "description": "Blog post featured image",
+              "chakra_props": {
+                "w": "full",
+                "h": "300px",
+                "bg": "#F3F4F6",
+                "borderRadius": "8px",
+                "overflow": "hidden",
+                "mb": 6,
+                "position": "relative"
+              }
+            },
+            "post_meta": {
+              "type": "Box",
+              "description": "Blog post metadata (date, author, reading time)",
+              "chakra_props": {
+                "display": "flex",
+                "alignItems": "center",
+                "gap": 4,
+                "color": "#6B7280",
+                "fontSize": "sm",
+                "mb": 4
+              }
+            },
+            "reading_progress": {
+              "type": "Box",
+              "description": "Blog reading progress bar",
+              "chakra_props": {
+                "position": "fixed",
+                "top": 0,
+                "left": 0,
+                "w": "100%",
+                "h": "3px",
+                "bg": "#E5E7EB",
+                "zIndex": 1001
+              }
+            },
+            "social_share": {
+              "type": "Box",
+              "description": "Blog social sharing buttons",
+              "chakra_props": {
+                "display": "flex",
+                "gap": 3,
+                "p": 4,
+                "bg": "#F9FAFB",
+                "borderRadius": "8px",
+                "border": "1px solid #E5E7EB",
+                "justifyContent": "center"
+              }
+            },
+            "newsletter_signup": {
+              "type": "Box",
+              "description": "Blog newsletter signup form",
+              "chakra_props": {
+                "bg": "#2563EB",
+                "color": "white",
+                "p": 8,
+                "borderRadius": "8px",
+                "textAlign": "center",
+                "maxW": "600px",
+                "mx": "auto",
+                "mt": 12
+              }
+            },
+            "table_of_contents": {
+              "type": "Box",
+              "description": "Blog table of contents sidebar",
+              "chakra_props": {
+                "bg": "#F9FAFB",
+                "p": 6,
+                "borderRadius": "8px",
+                "border": "1px solid #E5E7EB",
+                "w": "250px",
+                "position": "sticky",
+                "top": "100px",
+                "maxH": "400px",
+                "overflowY": "auto"
+              }
+            }
+          },
+          "ui_content": {
+            "hero_section": {
+              "title": "Share your thoughts with the world",
+              "subtitle": "Create, publish, and engage with your audience",
+              "cta_text": "Start writing",
+              "background_image": "/images/blog-hero.jpg"
+            },
+            "editor_interface": {
+              "placeholder": "Start writing your post...",
+              "toolbar_items": [
+                "bold",
+                "italic",
+                "underline",
+                "strikethrough",
+                "link",
+                "image",
+                "video",
+                "quote",
+                "code",
+                "heading1",
+                "heading2",
+                "heading3",
+                "bullet_list",
+                "numbered_list",
+                "blockquote",
+                "code_block"
+              ],
+              "publish_options": {
+                "draft": "Save as draft",
+                "publish": "Publish now",
+                "schedule": "Schedule for later",
+                "private": "Publish privately"
+              },
+              "seo_fields": {
+                "meta_title": "SEO Title",
+                "meta_description": "Meta Description",
+                "slug": "URL Slug",
+                "featured_image": "Featured Image"
+              }
+            },
+            "post_metadata": {
+              "author": "John Doe",
+              "publish_date": "Published on",
+              "reading_time": "5 min read",
+              "category": "Technology",
+              "tags": ["react", "javascript", "web-development"],
+              "engagement": {
+                "views": 1234,
+                "likes": 89,
+                "comments": 12,
+                "shares": 23
+              }
+            },
+            "navigation_items": [
+              { "label": "Home", "path": "/" },
+              { "label": "Blog", "path": "/blog" },
+              { "label": "Categories", "path": "/categories" },
+              { "label": "Tags", "path": "/tags" },
+              { "label": "About", "path": "/about" },
+              { "label": "Contact", "path": "/contact" }
+            ],
+            "sidebar_widgets": [
+              {
+                "type": "recent_posts",
+                "title": "Recent Posts",
+                "count": 5
+              },
+              {
+                "type": "categories",
+                "title": "Categories",
+                "show_count": true
+              },
+              {
+                "type": "tags",
+                "title": "Popular Tags",
+                "count": 20
+              },
+              {
+                "type": "newsletter",
+                "title": "Subscribe to Newsletter",
+                "placeholder": "Enter your email"
+              }
+            ]
+          },
+          "service_configs": {
+            "content": {
+              "enabled": true,
+              "description": "Content management and publishing system",
+              "config": {
+                "article_formats": ["markdown", "html", "rich_text"],
+                "max_article_length": 10000,
+                "draft_system": true,
+                "auto_save": true,
+                "version_control": true,
+                "scheduled_publishing": true,
+                "category_management": true,
+                "tag_system": true,
+                "seo_optimization": true,
+                "meta_descriptions": true,
+                "custom_urls": true,
+                "rss_feeds": true,
+                "sitemap_generation": true
+              }
+            },
+            "search": {
+              "enabled": true,
+              "description": "Advanced search and discovery",
+              "config": {
+                "search_fields": ["title", "content", "tags", "author", "category"],
+                "fuzzy_search": true,
+                "search_suggestions": true,
+                "autocomplete": true,
+                "search_filters": true,
+                "sorting_options": ["relevance", "date", "popularity", "alphabetical"],
+                "search_analytics": true,
+                "search_highlighting": true
+              }
+            },
+            "analytics": {
+              "enabled": true,
+              "description": "Blog analytics and performance tracking",
+              "config": {
+                "track_events": [
+                  "article_read",
+                  "search_performed",
+                  "category_viewed",
+                  "comment_added",
+                  "share_clicked"
+                ],
+                "page_view_tracking": true,
+                "bounce_rate_analysis": true,
+                "time_on_page": true,
+                "traffic_sources": true,
+                "popular_content": true,
+                "reader_engagement": true,
+                "conversion_tracking": true
+              }
+            },
+            "messaging": {
+              "enabled": true,
+              "description": "Comment system and reader engagement",
+              "config": {
+                "comments_system": true,
+                "comment_moderation": true,
+                "comment_replies": true,
+                "email_notifications": true,
+                "spam_protection": true,
+                "user_registration": true,
+                "social_login": true,
+                "newsletter_signup": true
+              }
+            }
+          }
+        }
+      },
+      "scheduling": {
+        "start": "2025-01-01T00:00:00Z",
+        "end": "9999-12-31T23:59:59Z",
+        "ws_frequency": "15s"
+      },
+      "versioning": {
+        "version": "1.0.0",
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      "audit": {
+        "last_modified": "2025-01-01T00:00:00Z",
+        "history": ["2025-01-01T00:00:00Z: Blog site campaign created"]
       }
     }
   }

@@ -137,41 +137,37 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 	}
 
 	// Define canonical event types for emission
+	canonicalSuccess := GetCanonicalEventType("search", "success")
+	if canonicalSuccess == "" {
+		// Fallback to hardcoded canonical event type
+		canonicalSuccess = "search:search:v1:success"
+		s.log.Debug("Using fallback canonical event type", zap.String("event_type", canonicalSuccess))
+	}
+
+	// Emit started event first
 	canonicalStarted := GetCanonicalEventType("search", "started")
 	if canonicalStarted == "" {
-		s.log.Warn("Failed to resolve canonical event type for search:started")
-		// fallback value for canonicalStarted is not used
+		canonicalStarted = "search:search:v1:started"
 	}
-	var req searchpb.SearchRequest
-	if event.Payload.Data != nil {
-		// Pre-process campaign_id: if string and convertible to int, convert; if not, fail gracefully
-		fields := event.Payload.Data.Fields
-		if v, ok := fields["campaign_id"]; ok {
-			switch val := v.Kind.(type) {
-			case *structpb.Value_StringValue:
-				// Try to convert string to int64
-				if val.StringValue == "0" {
-					fields["campaign_id"] = structpb.NewNumberValue(0)
-				} else if cid, err := strconv.ParseInt(val.StringValue, 10, 64); err == nil {
-					fields["campaign_id"] = structpb.NewNumberValue(float64(cid))
-				} else {
-					s.handler.Error(ctx, "search", codes.InvalidArgument, "Invalid campaign_id: must be int64 or '0'", nil, event.Metadata, event.EventId)
-					return
-				}
-			case *structpb.Value_NumberValue:
-				// Already a number, do nothing
-			}
-		}
 
-		b, err := protojson.Marshal(event.Payload.Data)
-		if err == nil {
-			err = protojson.Unmarshal(b, &req)
-			if err != nil {
-				s.log.Warn("failed to unmarshal search request from event payload", zap.Error(err))
-				s.handler.Error(ctx, "search", codes.InvalidArgument, "Failed to unmarshal search request: "+err.Error(), err, event.Metadata, event.EventId)
-				return
-			}
-		}
+	// Extract search parameters directly from the validated payload
+	// The Nexus should have already validated and cleaned the payload
+	if event.Payload.Data == nil {
+		s.handler.Error(ctx, "search", codes.InvalidArgument, "Missing payload data in search request", nil, event.Metadata, event.EventId)
+		return
+	}
+
+	// Extract search parameters directly from the structpb.Struct
+	payloadMap := event.Payload.Data.AsMap()
+
+	// Build SearchRequest directly from the payload data
+	req := searchpb.SearchRequest{
+		Query:      getStringFromMap(payloadMap, "query"),
+		Types:      getStringSliceFromMap(payloadMap, "types"),
+		PageSize:   getInt32FromMap(payloadMap, "page_size", 20),
+		PageNumber: getInt32FromMap(payloadMap, "page_number", 1),
+		CampaignId: getInt64FromMap(payloadMap, "campaign_id", 0),
+		Metadata:   event.Metadata,
 	}
 
 	meta := req.GetMetadata()
@@ -199,6 +195,7 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 	case "within":
 		resp, err = s.WithinSearch(ctx, &req)
 	case "federated":
+		fallthrough
 	default:
 		fedReq := &Request{
 			Query:    req.GetQuery(),
@@ -207,7 +204,10 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 		}
 		results, ferr := s.FederatedSearch(ctx, fedReq)
 		// Always push results forward, even if partial or error
-		// Removed results logging for inspection clarity
+		s.log.Info("[handleSearchAction] FederatedSearch completed",
+			zap.Int("result_count", len(results)),
+			zap.Error(ferr),
+			zap.String("query", req.GetQuery()))
 		protos := make([]*searchpb.SearchResult, 0, len(results))
 		for _, r := range results {
 			fields := make(map[string]interface{})
@@ -230,6 +230,8 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 			PageNumber: req.GetPageNumber(),
 			PageSize:   req.GetPageSize(),
 		}
+		// Assign the federated search error to err for proper error handling
+		err = ferr
 		// Optionally, log or attach error details to metadata for frontend display
 		// If you want to include error details in the response, you can add a ServiceSpecific field:
 		if ferr != nil && meta != nil && meta.ServiceSpecific != nil {
@@ -239,10 +241,30 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 		}
 	}
 
-	// Only call HandleServiceError for true system errors (not adapter errors)
+	// Handle errors based on search type
 	if err != nil {
-		s.handler.Error(ctx, "search", codes.Internal, "event-driven search failed", err, meta, event.EventId)
-		return
+		// For federated search, we want to return partial results even if some adapters fail
+		// Only fail completely if it's a system error (not adapter errors)
+		if searchType == "federated" || searchType == "default" {
+			// Check if this is an adapter error (partial failure) or system error
+			if strings.Contains(err.Error(), "adapter errors:") {
+				// This is a partial failure - we have some results but some adapters failed
+				// Log the error but continue with the results we have
+				s.log.Warn("[handleSearchAction] Federated search completed with partial results",
+					zap.Error(err),
+					zap.Int("results_count", len(resp.GetResults())),
+					zap.String("query", req.GetQuery()))
+				// Continue to emit success event with partial results
+			} else {
+				// This is a system error - fail completely
+				s.handler.Error(ctx, "search", codes.Internal, "event-driven search failed", err, meta, event.EventId)
+				return
+			}
+		} else {
+			// For internal/within search, any error is a system error
+			s.handler.Error(ctx, "search", codes.Internal, "event-driven search failed", err, meta, event.EventId)
+			return
+		}
 	}
 
 	// --- Canonical Metadata Merging ---
@@ -251,26 +273,32 @@ func handleSearchAction(ctx context.Context, s *Service, event *nexusv1.EventRes
 		meta = metadata.MergeMetadata(meta, event.Metadata)
 	}
 
-	// --- Payload Serialization ---
-	var completedPayload *structpb.Struct
+	// --- Prepare Response Payload ---
+	// Use SearchResponse directly like other services, no need for manual serialization
+	var completedPayload *searchpb.SearchResponse
 	if resp != nil {
-		b, err := protojson.Marshal(resp)
-		if err == nil {
-			completedPayload = &structpb.Struct{}
-			if err := protojson.Unmarshal(b, completedPayload); err != nil {
-				s.log.Error("Failed to unmarshal completedPayload", zap.Error(err))
-			}
+		completedPayload = resp
+		s.log.Info("[handleSearchAction] Using SearchResponse directly",
+			zap.Int("results_count", len(resp.Results)),
+			zap.Int32("total", resp.Total),
+			zap.Int32("page_number", resp.PageNumber),
+			zap.Int32("page_size", resp.PageSize))
+	} else {
+		// Create a minimal response if resp is nil to prevent nil payload issues
+		s.log.Warn("[handleSearchAction] Response is nil, creating minimal response")
+		completedPayload = &searchpb.SearchResponse{
+			Results:    []*searchpb.SearchResult{},
+			Total:      0,
+			PageNumber: req.GetPageNumber(),
+			PageSize:   req.GetPageSize(),
 		}
 	}
 
-	// Abbreviate completedPayload and metadata for logging
+	// Abbreviate completedPayload for logging
 	completedPreview := "nil"
-	if completedPayload != nil && completedPayload.Fields != nil {
-		keys := make([]string, 0, len(completedPayload.Fields))
-		for k := range completedPayload.Fields {
-			keys = append(keys, k)
-		}
-		completedPreview = "fields: [" + strings.Join(keys, ",") + "]"
+	if completedPayload != nil {
+		completedPreview = fmt.Sprintf("SearchResponse{results:%d, total:%d, page:%d, size:%d}",
+			len(completedPayload.Results), completedPayload.Total, completedPayload.PageNumber, completedPayload.PageSize)
 	}
 	metaPreview2 := "nil"
 	if meta != nil && meta.ServiceSpecific != nil {
@@ -1480,4 +1508,57 @@ func (s *Service) validateSearchRequest(_ context.Context, req *searchpb.SearchR
 		return fmt.Errorf("query cannot be empty")
 	}
 	return nil
+}
+
+// Helper functions for extracting values from map[string]interface{}
+func getStringFromMap(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+func getStringSliceFromMap(m map[string]interface{}, key string) []string {
+	if val, ok := m[key]; ok {
+		if slice, ok := val.([]interface{}); ok {
+			result := make([]string, 0, len(slice))
+			for _, v := range slice {
+				if str, ok := v.(string); ok {
+					result = append(result, str)
+				}
+			}
+			return result
+		}
+	}
+	return []string{}
+}
+
+func getInt32FromMap(m map[string]interface{}, key string, defaultValue int32) int32 {
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case int32:
+			return v
+		case int:
+			return int32(v)
+		case float64:
+			return int32(v)
+		}
+	}
+	return defaultValue
+}
+
+func getInt64FromMap(m map[string]interface{}, key string, defaultValue int64) int64 {
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case int64:
+			return v
+		case int:
+			return int64(v)
+		case float64:
+			return int64(v)
+		}
+	}
+	return defaultValue
 }

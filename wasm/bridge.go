@@ -946,6 +946,93 @@ func notifyGPUReady() {
 	}
 }
 
+// getWebGPUDevice returns the current WebGPU device for frontend access
+func getWebGPUDevice(this js.Value, args []js.Value) interface{} {
+	gpuMutex.Lock()
+	defer gpuMutex.Unlock()
+
+	if !gpuInitialized || gpuDevice.IsNull() {
+		return js.Null()
+	}
+
+	return gpuDevice
+}
+
+// checkWebGPUAvailability checks if WebGPU is available in the browser
+func checkWebGPUAvailability(this js.Value, args []js.Value) interface{} {
+	navigator := js.Global().Get("navigator")
+	gpu := navigator.Get("gpu")
+
+	available := gpu.Truthy()
+
+	return js.ValueOf(map[string]interface{}{
+		"available":   available,
+		"backend":     gpuBackend,
+		"initialized": gpuInitialized,
+	})
+}
+
+// getWasmWebGPUStatus returns comprehensive WebGPU status for debugging
+func getWasmWebGPUStatus(this js.Value, args []js.Value) interface{} {
+	gpuMutex.Lock()
+	defer gpuMutex.Unlock()
+
+	status := map[string]interface{}{
+		"initialized":        gpuInitialized,
+		"backend":            gpuBackend,
+		"deviceAvailable":    !gpuDevice.IsNull(),
+		"adapterAvailable":   !gpuAdapter.IsNull(),
+		"pipelineAvailable":  !gpuPipeline.IsNull(),
+		"bindGroupAvailable": !gpuBindGroup.IsNull(),
+		"timestamp":          time.Now().Unix(),
+	}
+
+	// Add buffer status
+	if gpuInitialized {
+		status["buffers"] = map[string]interface{}{
+			"inputBuffer":    !gpuInputBuffer.IsNull(),
+			"outputBufferA":  !gpuOutputBufferA.IsNull(),
+			"outputBufferB":  !gpuOutputBufferB.IsNull(),
+			"originalBuffer": !gpuOriginalBuffer.IsNull(),
+			"stagingBuffer":  !gpuStagingBuffer.IsNull(),
+			"paramsBuffer":   !gpuParamsBuffer.IsNull(),
+			"pingPongState":  gpuOutputPingPong,
+		}
+	}
+
+	// Add capabilities if available
+	if caps := js.Global().Get("__WASM_GPU_CAPABILITIES"); caps.Truthy() {
+		status["capabilities"] = caps
+	}
+
+	return js.ValueOf(status)
+}
+
+// checkWebGPUDeviceValidity checks if the current WebGPU device is still valid
+func checkWebGPUDeviceValidity() bool {
+	gpuMutex.Lock()
+	defer gpuMutex.Unlock()
+
+	if !gpuInitialized || gpuDevice.IsNull() {
+		return false
+	}
+
+	// Check if device is still valid by checking its state
+	// WebGPU devices can become invalid due to context loss, etc.
+	state := gpuDevice.Get("lost")
+	if state.Truthy() {
+		// Device is lost, check if it's still pending
+		promise := state.Get("promise")
+		if promise.Truthy() {
+			// Device is lost but promise is still pending
+			// This means the device is in a lost state
+			return false
+		}
+	}
+
+	return true
+}
+
 // goEventToJSValue converts Go EventEnvelope to proper JavaScript object
 func goEventToJSValue(event EventEnvelope) js.Value {
 	jsObj := js.Global().Get("Object").New()
@@ -1071,6 +1158,21 @@ func jsValueToEventEnvelope(jsVal js.Value) (EventEnvelope, error) {
 	return event, fmt.Errorf("unsupported JavaScript value type: %s", jsVal.Type().String())
 }
 
+// jsValueToMap converts a JS object to a Go map[string]interface{}
+func jsValueToMap(v js.Value) map[string]interface{} {
+	if v.Type() != js.TypeObject {
+		return make(map[string]interface{})
+	}
+	
+	result := make(map[string]interface{})
+	keys := js.Global().Get("Object").Call("keys", v)
+	for i := 0; i < keys.Length(); i++ {
+		key := keys.Index(i).String()
+		result[key] = jsValueToGoValue(v.Get(key))
+	}
+	return result
+}
+
 // jsValueToGoValue recursively converts a JS value to a Go interface{}
 func jsValueToGoValue(v js.Value) interface{} {
 	switch v.Type() {
@@ -1121,29 +1223,67 @@ func jsSendWasmMessage(this js.Value, args []js.Value) interface{} {
 		return nil
 	}
 
-	// Extract event fields
+	// Check if this is a canonical event envelope (has correlation_id, version, environment, source)
+	correlationID := jsMsg.Get("correlation_id")
+	version := jsMsg.Get("version")
+	environment := jsMsg.Get("environment")
+	source := jsMsg.Get("source")
+
+	if correlationID.Type() != js.TypeUndefined && version.Type() != js.TypeUndefined &&
+		environment.Type() != js.TypeUndefined && source.Type() != js.TypeUndefined {
+		// This is a canonical event envelope - forward it directly to the backend
+		wasmLog("[WASM] Received canonical event envelope, forwarding directly")
+
+		// Convert JS object to Go map first, then marshal to JSON
+		envelopeMap := jsValueToMap(jsMsg)
+		wasmLog("[WASM] Converted JS object to map:", envelopeMap)
+		wasmLog("[WASM] Map keys:", func() []string {
+			keys := make([]string, 0, len(envelopeMap))
+			for k := range envelopeMap {
+				keys = append(keys, k)
+			}
+			return keys
+		}())
+
+		envelopeBytes, err := json.Marshal(envelopeMap)
+		if err != nil {
+			wasmError("[WASM] Failed to marshal canonical envelope:", err)
+			return nil
+		}
+
+		wasmLog("[WASM] Marshaled envelope bytes length:", len(envelopeBytes))
+		wasmLog("[WASM] Marshaled envelope content:", string(envelopeBytes))
+
+		// Send the canonical envelope directly to the WebSocket
+		sendWSMessage(envelopeBytes)
+		wasmLog("[WASM] Forwarded canonical envelope to WebSocket")
+		return nil
+	}
+
+	// Legacy handling for non-canonical events
+	wasmLog("[WASM] Received legacy event format, converting to canonical")
 	eventType := jsMsg.Get("type").String()
 	payload := jsMsg.Get("payload")
 	metadata := jsMsg.Get("metadata")
 
-	// Convert payload and metadata to Go values, then marshal once
-	payloadGo := jsValueToGoValue(payload)
-	metadataGo := jsValueToGoValue(metadata)
-	payloadBytes, _ := json.Marshal(payloadGo)
-	metadataBytes, _ := json.Marshal(metadataGo)
-
-	// Log for debugging
-	wasmLog("[WASM] Forwarding EventEnvelope:", eventType, "Payload:", string(payloadBytes), "Metadata:", string(metadataBytes))
-
-	// Forward to backend
-	emitToNexus(eventType, payloadBytes, metadataBytes)
-
-	// Optionally process internally
-	if handler := eventBus.GetHandler(eventType); handler != nil {
-		go handler(EventEnvelope{Type: eventType, Payload: payloadBytes, Metadata: metadataBytes})
+	// Convert payload to interface{} for proper handling
+	var payloadInterface interface{}
+	if payload.Type() != js.TypeUndefined {
+		payloadInterface = payload
 	} else {
-		wasmLog("[WASM] No internal handler registered for event type from JS:", eventType)
+		payloadInterface = map[string]interface{}{}
 	}
+
+	// Convert metadata to json.RawMessage
+	var metadataBytes json.RawMessage
+	if metadata.Type() != js.TypeUndefined {
+		metadataBytes, _ = json.Marshal(metadata)
+	} else {
+		metadataBytes = []byte("{}")
+	}
+
+	wasmLog("[WASM] Forwarding legacy EventEnvelope:", eventType)
+	emitToNexus(eventType, payloadInterface, metadataBytes)
 	return nil
 }
 
@@ -1221,11 +1361,6 @@ func jsSendBinary(this js.Value, args []js.Value) interface{} {
 
 	sendWSMessage(envelopeBytes)
 	return nil
-}
-
-// Helper to generate a correlation ID
-func generateCorrelationID() string {
-	return fmt.Sprintf("corr_%d", time.Now().UnixNano())
 }
 
 // --- AI/ML Inference and Task Submission ---

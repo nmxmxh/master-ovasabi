@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { wasmGPU, wasmSendMessage } from '../lib/wasmBridge';
-import { useGlobalStore } from '../store/global';
+import { useConnectionStatus, useEmitEvent, useEventHistory } from '../store';
 
 interface ComputeStreamConfig {
   streamToBackend: boolean;
@@ -32,7 +32,8 @@ export function useComputeStreaming(config: ComputeStreamConfig) {
     backendConnected: false
   });
 
-  const { isConnected, emitEvent } = useGlobalStore();
+  const { isConnected } = useConnectionStatus();
+  const emitEvent = useEmitEvent();
   const intervalRef = useRef<number | undefined>(undefined);
   const metricsRef = useRef({ packets: 0, bytes: 0, startTime: Date.now() });
 
@@ -120,7 +121,7 @@ export function useComputeStreaming(config: ComputeStreamConfig) {
 
   // Start streaming
   const startStreaming = () => {
-    if (!config.streamToBackend || !isConnected()) return;
+    if (!config.streamToBackend || !isConnected) return;
 
     const intervalMs = 1000 / config.updateFrequency;
     intervalRef.current = window.setInterval(streamComputeData, intervalMs);
@@ -144,7 +145,7 @@ export function useComputeStreaming(config: ComputeStreamConfig) {
 
   // Effect to manage streaming based on connection state
   useEffect(() => {
-    const connected = isConnected();
+    const connected = isConnected;
     setStreamState(prev => ({ ...prev, backendConnected: connected }));
 
     if (connected && config.streamToBackend) {
@@ -154,7 +155,7 @@ export function useComputeStreaming(config: ComputeStreamConfig) {
     }
 
     return () => stopStreaming();
-  }, [isConnected(), config.streamToBackend, config.updateFrequency]);
+  }, [isConnected, config.streamToBackend, config.updateFrequency]);
 
   return {
     streamState,
@@ -169,26 +170,21 @@ export function useComputeStreaming(config: ComputeStreamConfig) {
  * Allows backend to control WASM compute model and WebGPU operations
  */
 export function useBackendComputeControl() {
-  useEffect(() => {
-    // Register handler for backend compute commands
-    const unsubscribe = useGlobalStore.subscribe(
-      state => state.events,
-      events => {
-        const computeEvents = events.filter(
-          e =>
-            e.type.startsWith('compute:control:') ||
-            e.type.startsWith('gpu:control:') ||
-            e.type.startsWith('render:control:')
-        );
+  const events = useEventHistory();
 
-        computeEvents.forEach(event => {
-          handleBackendComputeCommand(event);
-        });
-      }
+  useEffect(() => {
+    // Process compute events
+    const computeEvents = events.filter(
+      e =>
+        e.type.startsWith('compute:control:') ||
+        e.type.startsWith('gpu:control:') ||
+        e.type.startsWith('render:control:')
     );
 
-    return unsubscribe;
-  }, []);
+    computeEvents.forEach(event => {
+      handleBackendComputeCommand(event);
+    });
+  }, [events]);
 
   const handleBackendComputeCommand = (event: any) => {
     const { type, payload } = event;

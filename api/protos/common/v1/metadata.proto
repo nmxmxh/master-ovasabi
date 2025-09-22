@@ -75,6 +75,7 @@ message Metadata {
   google.protobuf.Timestamp last_accessed = 17;
   string nexus_channel = 18;
   string source_uri = 19;
+
   
   // --- Scheduler Optimizations ---
   message SchedulerConfig {
@@ -84,4 +85,19 @@ message Metadata {
     string retention_policy = 4;          // e.g., "post-process", "temp-only"
   }
   SchedulerConfig scheduler = 20;
+
+    // Add new fields for WebSocket consistency
+    message GlobalContext {
+      string user_id = 1;
+      string campaign_id = 2;
+      string correlation_id = 3;
+      string session_id = 4;
+      string device_id = 5;
+      string source = 6; // frontend, backend, wasm
+    }
+    GlobalContext global_context = 21;
+    
+    // Add event envelope versioning
+    string envelope_version = 22;
+    string environment = 23;
 }

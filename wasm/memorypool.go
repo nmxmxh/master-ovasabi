@@ -67,6 +67,72 @@ func optimizeMemoryPools(this js.Value, args []js.Value) interface{} {
 	})
 }
 
+// createFloat32Pool creates a memory pool for a specific buffer size
+func (m *MemoryPoolManager) createFloat32Pool(size int) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	if _, exists := m.float32Pools[size]; exists {
+		return
+	}
+
+	m.float32Pools[size] = &sync.Pool{
+		New: func() interface{} {
+			return make([]float32, size)
+		},
+	}
+}
+
+// GetFloat32Buffer retrieves a buffer from the appropriate pool
+func (m *MemoryPoolManager) GetFloat32Buffer(size int) []float32 {
+	// Find the smallest pool that can accommodate the size
+	m.mutex.RLock()
+
+	var bestSize int = 0
+	for poolSize := range m.float32Pools {
+		if poolSize >= size && (bestSize == 0 || poolSize < bestSize) {
+			bestSize = poolSize
+		}
+	}
+
+	if bestSize > 0 {
+		pool := m.float32Pools[bestSize]
+		m.mutex.RUnlock()
+
+		buf := pool.Get().([]float32)
+		return buf[:size] // Return slice of exact size needed
+	}
+
+	m.mutex.RUnlock()
+
+	// No suitable pool found, create buffer directly
+	return make([]float32, size)
+}
+
+// PutFloat32Buffer returns a buffer to the appropriate pool
+func (m *MemoryPoolManager) PutFloat32Buffer(buf []float32) {
+	if len(buf) == 0 {
+		return
+	}
+
+	bufCap := cap(buf)
+
+	m.mutex.RLock()
+	pool, exists := m.float32Pools[bufCap]
+	m.mutex.RUnlock()
+
+	if exists {
+		// Reset slice to full capacity before returning to pool
+		fullBuf := buf[:bufCap]
+		// Clear the buffer to prevent memory leaks
+		for i := range fullBuf {
+			fullBuf[i] = 0
+		}
+		pool.Put(fullBuf)
+	}
+	// If no matching pool, let GC handle it
+}
+
 // ReleaseAll releases all memory pools for cleanup
 func (m *MemoryPoolManager) ReleaseAll() {
 	m.mutex.Lock()

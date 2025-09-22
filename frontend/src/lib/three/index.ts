@@ -795,8 +795,14 @@ export function detectThreeCapabilities(): {
     const gl2 = canvas.getContext('webgl2');
     if (gl2) {
       capabilities.webgl2 = true;
+      capabilities.webgl = true;
       if (!capabilities.webgpu) {
         capabilities.recommendedRenderer = 'webgl2';
+      }
+
+      // Test for context loss support
+      if (gl2.getExtension('WEBGL_lose_context')) {
+        console.log('[Three.js Loader] WebGL2 context loss extension available');
       }
     }
   } catch (e) {
@@ -811,6 +817,11 @@ export function detectThreeCapabilities(): {
       const extensions = gl.getSupportedExtensions();
       if (extensions) {
         capabilities.extensions = extensions;
+      }
+
+      // Test for context loss support
+      if (gl.getExtension('WEBGL_lose_context')) {
+        console.log('[Three.js Loader] WebGL context loss extension available');
       }
 
       // If no WebGL2 or WebGPU, fall back to WebGL
@@ -1004,6 +1015,12 @@ export async function createOptimizedWebGPURenderer(canvas: HTMLCanvasElement): 
     return null;
   }
 
+  // Check if canvas is valid
+  if (!canvas || canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+    console.warn('[Three.js Loader] Canvas not ready for WebGPU renderer');
+    return null;
+  }
+
   try {
     const optimizationResult = await optimizeForWebGPU();
 
@@ -1012,18 +1029,36 @@ export async function createOptimizedWebGPURenderer(canvas: HTMLCanvasElement): 
       return null;
     }
 
-    // Create WebGPU renderer with optimizations
+    // Create WebGPU renderer with minimal options to avoid initialization errors
     const renderer = new threeRenderers.WebGPURenderer({
       canvas,
-      antialias: true,
+      antialias: false, // Disable antialiasing for better performance
       alpha: true,
-      powerPreference: 'high-performance',
-      // WebGPU-specific optimizations
-      forceWebGL: false
+      powerPreference: 'high-performance'
+      // Remove problematic options that cause initialization failures
     });
 
-    // Configure for high performance
-    await renderer.init();
+    // Configure for high performance with error handling
+    try {
+      await renderer.init();
+    } catch (initError) {
+      console.error('[Three.js Loader] WebGPU renderer init failed:', initError);
+      // Try to dispose the renderer if init failed
+      try {
+        if (renderer.dispose) {
+          renderer.dispose();
+        }
+      } catch (disposeError) {
+        console.warn('[Three.js Loader] Error disposing failed WebGPU renderer:', disposeError);
+      }
+      return null;
+    }
+
+    // Verify renderer is working
+    if (!renderer.domElement) {
+      console.error('[Three.js Loader] WebGPU renderer created but domElement is null');
+      return null;
+    }
 
     // Enable advanced features if available
     if (

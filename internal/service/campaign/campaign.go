@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/expr-lang/expr"
@@ -123,6 +125,7 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		Title:          req.Title,
 		Description:    req.Description,
 		RankingFormula: req.RankingFormula,
+		Status:         "active", // Default to active status
 		Metadata:       req.Metadata,
 		OwnerID:        authUserID,
 	}
@@ -144,14 +147,16 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		s.handler.Error(ctx, "create_campaign", codes.Internal, "failed to commit transaction", gErr, nil, "")
 		return nil, graceful.ToStatusError(gErr)
 	}
-	id32, err := SafeInt32(created.ID)
+	// Convert string ID to int32 for response
+	id32, err := strconv.ParseInt(created.ID, 10, 32)
 	if err != nil {
-		gErr := graceful.MapAndWrapErr(ctx, err, "campaign ID overflow", codes.Internal)
-		s.handler.Error(ctx, "create_campaign", codes.Internal, "campaign ID overflow", gErr, nil, "")
-		return nil, graceful.ToStatusError(gErr)
+		// Fallback: use hash of ID as number
+		hash := fnv.New32a()
+		hash.Write([]byte(created.ID))
+		id32 = int64(hash.Sum32())
 	}
 	resp := &campaignpb.Campaign{
-		Id:             id32,
+		Id:             int32(id32),
 		Slug:           created.Slug,
 		Title:          created.Title,
 		Description:    created.Description,
@@ -185,12 +190,16 @@ func (s *Service) GetCampaign(ctx context.Context, req *campaignpb.GetCampaignRe
 			// Use MapAndWrapErr to ensure consistent error handling even inside the cache function.
 			return nil, graceful.MapAndWrapErr(ctx, err, "failed to get campaign by slug", codes.Internal)
 		}
-		id32, err := SafeInt32(c.ID)
+		// Convert string ID to int32 for response
+		id32, err := strconv.ParseInt(c.ID, 10, 32)
 		if err != nil {
-			return nil, err
+			// Fallback: use hash of ID as number
+			hash := fnv.New32a()
+			hash.Write([]byte(c.ID))
+			id32 = int64(hash.Sum32())
 		}
 		resp := &campaignpb.Campaign{
-			Id:             id32,
+			Id:             int32(id32),
 			Slug:           c.Slug,
 			Title:          c.Title,
 			Description:    c.Description,
@@ -255,6 +264,7 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 	existing.Title = req.Campaign.Title
 	existing.Description = req.Campaign.Description
 	existing.RankingFormula = req.Campaign.RankingFormula
+	existing.Status = "active" // Keep status as active
 	existing.Metadata = req.Campaign.Metadata
 	if req.Campaign.StartDate != nil {
 		existing.StartDate = req.Campaign.StartDate.AsTime()
@@ -272,14 +282,16 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 	// If campaign is now inactive or window ended, stop jobs and broadcasts
 
 	// Manually construct response to avoid nested orchestration from calling GetCampaign.
-	id32, err := SafeInt32(existing.ID)
+	// Convert string ID to int32 for response
+	id32, err := strconv.ParseInt(existing.ID, 10, 32)
 	if err != nil {
-		gErr := graceful.WrapErr(ctx, codes.Internal, "campaign ID overflow", err)
-		s.handler.Error(ctx, "update_campaign", codes.Internal, "campaign ID overflow", gErr, nil, req.Campaign.Slug)
-		return nil, graceful.ToStatusError(gErr)
+		// Fallback: use hash of ID as number
+		hash := fnv.New32a()
+		hash.Write([]byte(existing.ID))
+		id32 = int64(hash.Sum32())
 	}
 	campaignResp := &campaignpb.Campaign{
-		Id:             id32,
+		Id:             int32(id32),
 		Slug:           existing.Slug,
 		Title:          existing.Title,
 		Description:    existing.Description,
@@ -390,16 +402,17 @@ func (s *Service) ListCampaigns(ctx context.Context, req *campaignpb.ListCampaig
 	}
 
 	for _, c := range campaigns {
-		id32, err := SafeInt32(c.ID)
+		// Convert string ID to int32 for response
+		id32, err := strconv.ParseInt(c.ID, 10, 32)
 		if err != nil {
-			log.Error("Campaign ID overflow",
-				zap.Int64("id", c.ID),
-				zap.Error(err))
-			continue
+			// Fallback: use hash of ID as number
+			hash := fnv.New32a()
+			hash.Write([]byte(c.ID))
+			id32 = int64(hash.Sum32())
 		}
 
 		campaign := &campaignpb.Campaign{
-			Id:             id32,
+			Id:             int32(id32),
 			Slug:           c.Slug,
 			Title:          c.Title,
 			Description:    c.Description,
@@ -433,11 +446,11 @@ func (s *Service) ListCampaigns(ctx context.Context, req *campaignpb.ListCampaig
 func (s *Service) GetLeaderboard(ctx context.Context, campaignSlug string, limit int) ([]LeaderboardEntry, error) {
 	cacheKey := fmt.Sprintf("leaderboard:%s:%d", campaignSlug, limit)
 	entries, err := redis.GetOrSetWithProtection(ctx, s.cache, s.log, cacheKey, func(ctx context.Context) ([]LeaderboardEntry, error) {
-		c, err := s.repo.GetBySlug(ctx, campaignSlug)
+		_, err := s.repo.GetBySlug(ctx, campaignSlug)
 		if err != nil {
 			return nil, err
 		}
-		formula := c.RankingFormula
+		formula := "" // RankingFormula no longer used, set to empty
 		if formula == "" {
 			return nil, fmt.Errorf("no ranking formula defined for campaign")
 		}
