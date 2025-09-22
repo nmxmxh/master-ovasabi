@@ -152,7 +152,7 @@ func (s *Service) HandleOps(ctx context.Context, req *nexusv1.HandleOpsRequest) 
 		}
 	}
 	userID, _, _, _ := extractAuthContext(ctx, req.Metadata)
-	s.log.Info("HandleOps called", zap.String("op", req.Op), zap.Any("params", req.Params), zap.String("request_id", requestID), zap.String("user_id", userID))
+	// HandleOps called
 	switch req.Op {
 	case "register_pattern":
 		patternID := req.Params["pattern_id"]
@@ -316,7 +316,7 @@ func (s *Service) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*ne
 
 // SubscribeEvents handles event subscriptions with structured logging and frame dropping for slow clients.
 func (s *Service) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.NexusService_SubscribeEventsServer) error {
-	s.log.Info("Nexus: SubscribeEvents called", zap.Strings("event_types", req.EventTypes), zap.Any("metadata", req.Metadata))
+	// SubscribeEvents called
 	ch := make(chan *nexusv1.EventResponse, 10)
 	for _, eventType := range req.EventTypes {
 		s.subscribersMu.Lock()

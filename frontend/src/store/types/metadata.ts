@@ -21,6 +21,22 @@ export interface DeviceMetadata {
   consentGiven: boolean;
   gdprConsentTimestamp?: string; // ISO string with timezone
   gdprConsentRequired?: boolean;
+  // Security and tracking information
+  ipAddress?: string;
+  ipLocation?: {
+    country?: string;
+    region?: string;
+    city?: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  securityFlags?: {
+    isBot?: boolean;
+    isVPN?: boolean;
+    isProxy?: boolean;
+    riskScore?: number;
+    suspiciousActivity?: boolean;
+  };
   // GPU and performance information
   gpuCapabilities?: any; // Will be populated by WASM GPU Bridge
   wasmGPUBridge?: {

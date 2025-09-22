@@ -157,13 +157,14 @@ const (
 )
 
 var (
-	userID       string
-	ws           js.Value
-	messageMutex sync.Mutex
-	messageQueue = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
-	resourcePool = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
-	computeQueue = make(chan computeTask, 32)
-	eventBus     *WASMEventBus // Our internal WASM event bus
+	userID        string
+	ws            js.Value
+	messageMutex  sync.Mutex
+	messageQueue  = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
+	outgoingQueue = make(chan []byte, 1024)    // Buffered queue for outgoing messages
+	resourcePool  = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
+	computeQueue  = make(chan computeTask, 32)
+	eventBus      *WASMEventBus // Our internal WASM event bus
 
 	// Threading configuration
 	enableThreading       string = "true" // Can be overridden by ldflags
@@ -584,19 +585,37 @@ func sendWSMessage(payload []byte) {
 
 	// Check if WebSocket is null or undefined
 	if ws.IsNull() || ws.IsUndefined() {
-		wasmLog("[WASM] WebSocket is null/undefined, cannot send message")
+		wasmLog("[WASM] WebSocket is null/undefined, queuing message")
+		select {
+		case outgoingQueue <- payload:
+			wasmLog("[WASM] Message queued for later sending")
+		default:
+			wasmError("[WASM] Outgoing queue full, dropping message")
+		}
 		return
 	}
 
 	// Check if WebSocket is ready
 	readyState := ws.Get("readyState")
 	if readyState.IsNull() || readyState.IsUndefined() {
-		wasmLog("[WASM] WebSocket readyState is null/undefined, cannot send message")
+		wasmLog("[WASM] WebSocket readyState is null/undefined, queuing message")
+		select {
+		case outgoingQueue <- payload:
+			wasmLog("[WASM] Message queued for later sending")
+		default:
+			wasmError("[WASM] Outgoing queue full, dropping message")
+		}
 		return
 	}
 
 	if readyState.Int() != 1 /* OPEN */ {
-		wasmLog("[WASM] WebSocket not ready, cannot send message. ReadyState:", readyState.Int())
+		wasmLog("[WASM] WebSocket not ready, queuing message. ReadyState:", readyState.Int())
+		select {
+		case outgoingQueue <- payload:
+			wasmLog("[WASM] Message queued for later sending")
+		default:
+			wasmError("[WASM] Outgoing queue full, dropping message")
+		}
 		return
 	}
 
@@ -611,6 +630,49 @@ func sendWSMessage(payload []byte) {
 func mustMarshal(v interface{}) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return json.RawMessage(b)
+}
+
+// processOutgoingQueue processes queued messages when WebSocket becomes ready
+func processOutgoingQueue() {
+	wasmLog("[WASM] Processing outgoing message queue")
+	for {
+		select {
+		case payload := <-outgoingQueue:
+			wasmLog("[WASM] Processing queued message, length:", len(payload))
+			wasmLog("[WASM] Queued message content:", string(payload))
+
+			// Check if WebSocket is still ready
+			if ws.IsNull() || ws.IsUndefined() {
+				wasmLog("[WASM] WebSocket is null/undefined, re-queuing message")
+				select {
+				case outgoingQueue <- payload:
+					wasmLog("[WASM] Message re-queued")
+				default:
+					wasmError("[WASM] Outgoing queue full, dropping re-queued message")
+				}
+				return
+			}
+
+			readyState := ws.Get("readyState")
+			if readyState.IsNull() || readyState.IsUndefined() || readyState.Int() != 1 {
+				wasmLog("[WASM] WebSocket not ready, re-queuing message. ReadyState:", readyState.Int())
+				select {
+				case outgoingQueue <- payload:
+					wasmLog("[WASM] Message re-queued")
+				default:
+					wasmError("[WASM] Outgoing queue full, dropping re-queued message")
+				}
+				return
+			}
+
+			// Send the message
+			ws.Call("send", string(payload))
+			wasmLog("[WASM] Queued message sent successfully")
+		default:
+			// No more messages in queue
+			return
+		}
+	}
 }
 
 // --- Message Registration API ---

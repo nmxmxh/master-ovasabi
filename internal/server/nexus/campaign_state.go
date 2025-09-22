@@ -116,9 +116,7 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 		case "campaign:config:v1:requested":
 			m.handleConfigUpdate(ctx, event)
 		case "campaign:state:v1:requested":
-			m.log.Info("[CampaignState] Processing campaign state request",
-				zap.String("campaign_id", campaignID),
-				zap.String("user_id", userID))
+			// Processing campaign state request
 			state := m.PrepareStateForUser(campaignID, userID)
 			structData := meta.NewStructFromMap(state, nil)
 			eventType := "campaign:state:v1:success"
@@ -181,17 +179,12 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 				Metadata:  event.Metadata,
 				Payload:   &commonpb.Payload{Data: structData},
 			}
-			// Debug: Log all events being sent through feedbackBus
-			m.log.Info("[FEEDBACKBUS] Sending event",
-				zap.String("event_type", eventResp.EventType),
-				zap.String("event_id", eventResp.EventId),
-				zap.Bool("success", eventResp.Success),
-				zap.String("message", eventResp.Message))
+			// Sending event via feedback bus
 
 			m.feedbackBus(eventResp)
 		}
 	} else {
-		m.log.Debug("Ignoring non-mutation event type", zap.String("event_type", event.EventType))
+		// Ignoring non-mutation event type
 	}
 }
 
@@ -202,10 +195,15 @@ func NewCampaignStateManager(log *zap.Logger, feedbackBus func(event *nexusv1.Ev
 		feedbackBus: feedbackBus,
 		repo:        repo,
 	}
-	// Attempt to load the default campaign at startup
+	// Always load the default campaign first - this is the initial campaign
 	if err := m.LoadDefaultCampaign("start/default_campaign.json"); err != nil {
-		log.Warn("Failed to load default campaign", zap.Error(err))
+		log.Error("Failed to load default campaign from start/default_campaign.json", zap.Error(err))
+		// This is critical - the default campaign must exist
+		panic("Cannot start without default campaign")
 	}
+
+	// Campaigns will be seeded on-demand when needed
+
 	// Optionally preload all campaigns from DB
 	if repo != nil {
 		if err := m.LoadAllCampaignsFromDB(); err != nil {
@@ -213,6 +211,33 @@ func NewCampaignStateManager(log *zap.Logger, feedbackBus func(event *nexusv1.Ev
 		}
 	}
 	return m
+}
+
+// GetDefaultCampaign returns the default campaign, ensuring it always exists
+func (m *CampaignStateManager) GetDefaultCampaign() *CampaignState {
+	// Try to get from memory first
+	if val, ok := m.campaigns.Load("ovasabi_website"); ok {
+		if cs, ok := val.(*CampaignState); ok {
+			return cs
+		}
+	}
+
+	// If not found, try to load from config file
+	if err := m.LoadDefaultCampaign("start/default_campaign.json"); err != nil {
+		m.log.Error("Failed to load default campaign from start/default_campaign.json", zap.Error(err))
+		return nil
+	}
+
+	// Return the default campaign
+	if val, ok := m.campaigns.Load("ovasabi_website"); ok {
+		if cs, ok := val.(*CampaignState); ok {
+			return cs
+		}
+	}
+
+	// This should never happen since we panic on startup if default campaign fails to load
+	m.log.Error("Default campaign not found - this should not happen")
+	return nil
 }
 
 // LoadAllCampaignsFromDB loads all campaigns from the DB and populates the state map.
@@ -227,15 +252,7 @@ func (m *CampaignStateManager) LoadAllCampaignsFromDB() error {
 		return err
 	}
 
-	m.log.Info("Loaded campaigns from database",
-		zap.Int("count", len(campaigns)),
-		zap.Any("slugs", func() []string {
-			slugs := make([]string, len(campaigns))
-			for i, c := range campaigns {
-				slugs[i] = c.Slug
-			}
-			return slugs
-		}()))
+	// Loaded campaigns from database
 	for _, c := range campaigns {
 		state := make(map[string]any)
 		// Flatten all relevant fields from Metadata
@@ -281,7 +298,7 @@ func (m *CampaignStateManager) LoadAllCampaignsFromDB() error {
 		}
 		cs.Subscribers = sync.Map{}
 		m.campaigns.Store(c.Slug, cs)
-		m.log.Info("Loaded campaign from DB into state manager", zap.String("campaign_id", c.Slug))
+		// Loaded campaign from DB into state manager
 	}
 	return nil
 }
@@ -328,7 +345,7 @@ func (m *CampaignStateManager) LoadDefaultCampaign(path string) error {
 	}
 	cs.Subscribers = sync.Map{}
 	m.campaigns.Store(campaignID, cs)
-	m.log.Info("Loaded default campaign into state manager", zap.String("campaign_id", campaignID))
+	// Loaded default campaign into state manager
 	return nil
 }
 
@@ -353,6 +370,66 @@ func (m *CampaignStateManager) GetOrCreateState(campaignID string) *CampaignStat
 	return cs
 }
 
+// updateStateWithoutEvent updates the campaign state without emitting an event.
+// This is used when the caller wants to send their own specific event.
+func (m *CampaignStateManager) updateStateWithoutEvent(campaignID, userID string, update map[string]any, metadata *commonpb.Metadata) {
+	// Generate unique event ID using counter to prevent collisions
+	m.counterMutex.Lock()
+	m.eventCounter++
+	counter := m.eventCounter
+	m.counterMutex.Unlock()
+
+	eventID := fmt.Sprintf("state_update:%s:%s:%d:%d", campaignID, userID, time.Now().UnixNano(), counter)
+
+	// Check for duplicate events atomically
+	if m.isEventProcessed(eventID) {
+		// Skipping duplicate state update
+		return
+	}
+
+	cs := m.GetOrCreateState(campaignID)
+
+	// Validate input parameters
+	if campaignID == "" {
+		m.log.Warn("updateStateWithoutEvent called with empty campaignID")
+		return
+	}
+	if len(update) == 0 {
+		m.log.Debug("updateStateWithoutEvent called with empty update, skipping")
+		return
+	}
+
+	// Use metadata pkg to flatten and learn campaign state from metadata
+	if metadata != nil {
+		if metadata.ServiceSpecific != nil && metadata.ServiceSpecific.Fields != nil {
+			if campaignField, ok := metadata.ServiceSpecific.Fields["campaign"]; ok && campaignField != nil {
+				if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
+					maps.Copy(cs.State, campaignStruct.AsMap())
+				}
+			}
+		}
+	}
+
+	// Apply updates with validation
+	originalState := make(map[string]any, len(cs.State))
+	maps.Copy(originalState, cs.State)
+	maps.Copy(cs.State, update)
+	cs.LastUpdated = time.Now()
+
+	// Count subscribers for logging (but don't send to them individually to avoid duplicates)
+	subscriberCount := 0
+	cs.Subscribers.Range(func(key, value interface{}) bool {
+		subscriberCount++
+		return true
+	})
+
+	// Campaign state updated (no event sent)
+	m.log.Debug("Campaign state updated without event",
+		zap.String("campaign_id", campaignID),
+		zap.String("user_id", userID),
+		zap.Int("subscriber_count", subscriberCount))
+}
+
 // UpdateState updates the campaign state and emits a real-time feedback event.
 func (m *CampaignStateManager) UpdateState(campaignID, userID string, update map[string]any, metadata *commonpb.Metadata) {
 	// Generate unique event ID using counter to prevent collisions
@@ -365,10 +442,7 @@ func (m *CampaignStateManager) UpdateState(campaignID, userID string, update map
 
 	// Check for duplicate events atomically
 	if m.isEventProcessed(eventID) {
-		m.log.Debug("[CampaignState] Skipping duplicate state update",
-			zap.String("event_id", eventID),
-			zap.String("campaign_id", campaignID),
-			zap.String("user_id", userID))
+		// Skipping duplicate state update
 		return
 	}
 
@@ -444,11 +518,7 @@ func (m *CampaignStateManager) UpdateState(campaignID, userID string, update map
 		return true
 	})
 
-	m.log.Debug("Campaign state updated",
-		zap.String("campaign_id", campaignID),
-		zap.String("user_id", userID),
-		zap.Int("subscriber_count", subscriberCount),
-		zap.Int("update_fields", len(update)))
+	// Campaign state updated
 }
 
 // Subscribe adds a user to the campaign's real-time feedback channel.
@@ -581,24 +651,32 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 		payload.Limit = 50
 	}
 
-	m.log.Info("Processing campaign list request",
-		zap.String("user_id", userID),
-		zap.Int("limit", payload.Limit),
-		zap.Int("offset", payload.Offset))
+	// Campaign list processing log removed for performance
+	// Only log errors and critical information
 
-	var campaigns []map[string]any
+	// Use a map to deduplicate campaigns by slug
+	campaignMap := make(map[string]map[string]any)
 
-	// If repository is available, fetch from database
+	// Only seed from config if no campaigns exist in database
+	if err := m.EnsureCampaignsSeeded(); err != nil {
+		m.log.Warn("Failed to ensure campaigns are seeded", zap.Error(err))
+	}
+
+	// If repository is available, fetch from database first
 	if m.repo != nil {
-		m.log.Info("Attempting to fetch campaigns from database", zap.Int("limit", payload.Limit), zap.Int("offset", payload.Offset))
 		if dbCampaigns, err := m.repo.List(ctx, payload.Limit, payload.Offset); err == nil {
-			m.log.Info("Successfully fetched campaigns from database", zap.Int("count", len(dbCampaigns)))
 			for _, c := range dbCampaigns {
+				// Use slug as the key for deduplication
+				slug := c.Slug
+				if slug == "" {
+					slug = fmt.Sprintf("%v", c.ID) // Fallback to ID if no slug
+				}
+
 				campaignData := map[string]any{
-					"id":    c.ID,
-					"slug":  c.Slug,
+					"id":    slug, // Use slug as ID for consistency
+					"slug":  slug,
 					"title": c.Title,
-					"name":  c.Slug, // Use slug as name for compatibility
+					"name":  c.Slug,
 				}
 
 				// Add metadata if available
@@ -621,61 +699,111 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 					}
 				}
 
-				campaigns = append(campaigns, campaignData)
+				// Only add if not already present (database takes precedence)
+				if _, exists := campaignMap[slug]; !exists {
+					campaignMap[slug] = campaignData
+				}
 			}
 		} else {
 			m.log.Error("Failed to fetch campaigns from database", zap.Error(err), zap.String("error_type", fmt.Sprintf("%T", err)))
 		}
 	}
 
-	// Fallback: add campaigns from memory state if database failed or is unavailable
-	if len(campaigns) == 0 {
-		m.campaigns.Range(func(key, value interface{}) bool {
-			campaignID, ok := key.(string)
-			if !ok {
-				m.log.Warn("Type assertion to string failed for campaignID in handleCampaignList", zap.Any("key", key))
-				return true
-			}
-			cs, ok2 := value.(*CampaignState)
-			if !ok2 {
-				m.log.Warn("Type assertion to *CampaignState failed in handleCampaignList", zap.Any("value", value))
-				return true
-			}
+	// Add campaigns from memory state (includes config data) - only if not already present
+	m.campaigns.Range(func(key, value interface{}) bool {
+		campaignID, ok := key.(string)
+		if !ok {
+			m.log.Warn("Type assertion to string failed for campaignID in handleCampaignList", zap.Any("key", key))
+			return true
+		}
+		cs, ok2 := value.(*CampaignState)
+		if !ok2 {
+			m.log.Warn("Type assertion to *CampaignState failed in handleCampaignList", zap.Any("value", value))
+			return true
+		}
 
+		// Only add if not already present from database
+		if _, exists := campaignMap[campaignID]; !exists {
 			campaignData := map[string]any{
 				"id":   campaignID,
 				"slug": campaignID,
 				"name": campaignID,
 			}
 
-			// Add state data
+			// Add state data (includes ui_components from config)
 			for k, v := range cs.State {
 				campaignData[k] = v
 			}
 
-			campaigns = append(campaigns, campaignData)
-			return true
-		})
+			campaignMap[campaignID] = campaignData
+		}
+		return true
+	})
+
+	// Always ensure the default campaign is included
+	if _, exists := campaignMap["ovasabi_website"]; !exists {
+		m.log.Info("Adding default campaign to campaign list")
+		if defaultState, ok := m.campaigns.Load("ovasabi_website"); ok {
+			if cs, ok := defaultState.(*CampaignState); ok {
+				campaignData := map[string]any{
+					"id":   "ovasabi_website",
+					"slug": "ovasabi_website",
+					"name": "Ovasabi Website",
+				}
+				// Add all state data including ui_components
+				for k, v := range cs.State {
+					campaignData[k] = v
+				}
+				campaignMap["ovasabi_website"] = campaignData
+			}
+		} else {
+			// Fallback: try to load default campaign from file
+			m.log.Warn("Default campaign not found in memory, attempting to load from file")
+			if err := m.LoadDefaultCampaign("start/default_campaign.json"); err != nil {
+				m.log.Error("Failed to load default campaign from file", zap.Error(err))
+			} else {
+				// Try again to get from memory after loading
+				if defaultState, ok := m.campaigns.Load("ovasabi_website"); ok {
+					if cs, ok := defaultState.(*CampaignState); ok {
+						campaignData := map[string]any{
+							"id":   "ovasabi_website",
+							"slug": "ovasabi_website",
+							"name": "Ovasabi Website",
+						}
+						// Add all state data including ui_components
+						for k, v := range cs.State {
+							campaignData[k] = v
+						}
+						campaignMap["ovasabi_website"] = campaignData
+					}
+				}
+			}
+		}
 	}
 
-	// Always ensure at least the default campaign exists
-	if len(campaigns) == 0 {
-		m.log.Warn("No campaigns found, using fallback default campaign")
-		// Try to seed campaigns first
-		if err := m.EnsureCampaignsSeeded(); err != nil {
-			m.log.Error("Failed to seed campaigns", zap.Error(err))
+	// Convert campaignMap to slice and ensure all campaigns have required fields
+	var campaigns []map[string]any
+	for slug, campaignData := range campaignMap {
+		// Ensure required fields are present
+		if campaignData["title"] == nil || campaignData["title"] == "" {
+			// Use slug as title if missing
+			campaignData["title"] = strings.ReplaceAll(slug, "_", " ")
+			// Capitalize first letter
+			if title, ok := campaignData["title"].(string); ok && len(title) > 0 {
+				campaignData["title"] = strings.ToUpper(title[:1]) + title[1:]
+			}
+		}
+		if campaignData["name"] == nil || campaignData["name"] == "" {
+			campaignData["name"] = slug
+		}
+		if campaignData["slug"] == nil || campaignData["slug"] == "" {
+			campaignData["slug"] = slug
+		}
+		if campaignData["id"] == nil || campaignData["id"] == "" {
+			campaignData["id"] = slug
 		}
 
-		// Add fallback default campaign
-		campaigns = append(campaigns, map[string]any{
-			"id":          0,
-			"slug":        "ovasabi_website",
-			"name":        "Ovasabi Website",
-			"title":       "Ovasabi Studios Website Launch",
-			"description": "Official launch campaign for Ovasabi Studios",
-			"features":    []string{"waitlist", "referral", "leaderboard", "broadcast"},
-			"status":      "active",
-		})
+		campaigns = append(campaigns, campaignData)
 	}
 
 	// Extract correlationId from metadata or payload
@@ -719,57 +847,16 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 	// Validate campaign data structure
 	m.validateCampaignData(campaigns)
 
-	// Debug logging for campaign data
-	m.log.Info("Campaign list response payload",
-		zap.Any("campaigns", campaigns),
-		zap.Int("campaign_count", len(campaigns)),
-		zap.Any("response_payload", responsePayload),
-		zap.String("user_id", userID),
-		zap.String("campaign_id", campaignID),
-		zap.String("correlation_id", correlationID))
+	// Campaign data debug logging removed for performance
+	// Only log errors and critical information
 
-	// Debug the response payload before serialization
-	m.log.Info("Response payload before serialization",
-		zap.Any("response_payload", responsePayload),
-		zap.Int("payload_field_count", len(responsePayload)))
-
-	// Test serialization step by step to identify the issue
-	m.log.Info("Testing basic serialization with simple data")
-	simpleData := map[string]interface{}{
-		"test":   "value",
-		"number": 123,
-		"bool":   true,
-	}
-	simpleStruct := meta.NewStructFromMap(simpleData, m.log)
-	m.log.Info("Simple serialization result",
-		zap.Any("simple_struct", simpleStruct.AsMap()),
-		zap.Int("simple_field_count", len(simpleStruct.AsMap())))
-
-	// Test with campaigns data only
-	m.log.Info("Testing campaigns serialization")
-	campaignsData := map[string]interface{}{
-		"campaigns": jsonCampaigns,
-	}
-	campaignsStruct := meta.NewStructFromMap(campaignsData, m.log)
-	m.log.Info("Campaigns serialization result",
-		zap.Any("campaigns_struct", campaignsStruct.AsMap()),
-		zap.Int("campaigns_field_count", len(campaignsStruct.AsMap())))
-
-	// Debug the campaigns data structure
-	m.log.Info("Campaigns data structure debug",
-		zap.Any("campaigns_raw", campaigns),
-		zap.Int("campaigns_count", len(campaigns)),
-		zap.String("first_campaign_type", fmt.Sprintf("%T", campaigns[0])),
-		zap.Any("first_campaign", campaigns[0]))
+	// Serialization debug logs removed for performance
+	// Only log serialization errors if they occur
 
 	// Use a more robust serialization approach for campaign data
 	structData := m.serializeCampaignResponse(responsePayload)
 
-	// Debug logging for serialized data
-	m.log.Info("Serialized campaign data",
-		zap.Any("struct_data", structData.AsMap()),
-		zap.String("data_type", fmt.Sprintf("%T", structData)),
-		zap.Int("field_count", len(structData.AsMap())))
+	// Serialization debug logging removed for performance
 
 	// Update event ID with correlation ID if available
 	if correlationID != "" {
@@ -831,28 +918,65 @@ func (m *CampaignStateManager) EnsureCampaignsSeeded() error {
 
 // seedCampaignsFromConfig seeds campaigns from the configuration file
 func (m *CampaignStateManager) seedCampaignsFromConfig() error {
-	// This would typically load from config/campaign.json and create campaigns
-	// For now, we'll add a default campaign to ensure something is available
-	m.log.Info("Seeding default campaign from configuration")
+	m.log.Debug("Seeding campaigns from configuration file")
 
-	// Add the default campaign to memory state as fallback
-	defaultCampaign := map[string]any{
-		"id":          0,
-		"slug":        "ovasabi_website",
-		"name":        "Ovasabi Website",
-		"title":       "Ovasabi Studios Website Launch",
-		"description": "Official launch campaign for Ovasabi Studios",
-		"features":    []string{"waitlist", "referral", "leaderboard", "broadcast"},
-		"status":      "active",
+	// Load campaigns from config/campaign.json
+	file, err := os.Open("config/campaign.json")
+	if err != nil {
+		m.log.Error("Failed to open campaign config file", zap.Error(err))
+		return err
+	}
+	defer file.Close()
+
+	var campaigns []map[string]any
+	dec := json.NewDecoder(file)
+	if err := dec.Decode(&campaigns); err != nil {
+		m.log.Error("Failed to decode campaign config", zap.Error(err))
+		return err
 	}
 
-	// Store in memory state
-	cs := m.GetOrCreateState("0")
-	for k, v := range defaultCampaign {
-		cs.State[k] = v
+	// Process each campaign from config
+	for i, campaign := range campaigns {
+		// Extract campaign ID and slug
+		campaignID := fmt.Sprintf("%d", i+1) // Use index as ID
+		if slug, ok := campaign["slug"].(string); ok && slug != "" {
+			campaignID = slug
+		}
+
+		// Create campaign state with full data including ui_components
+		state := make(map[string]any)
+		for k, v := range campaign {
+			state[k] = v
+		}
+
+		// Add service-specific data if it exists
+		if metadata, ok := campaign["metadata"].(map[string]any); ok {
+			if serviceSpecific, ok := metadata["service_specific"].(map[string]any); ok {
+				if campaignData, ok := serviceSpecific["campaign"].(map[string]any); ok {
+					// Merge service-specific campaign data into state
+					for k, v := range campaignData {
+						state[k] = v
+					}
+				}
+			}
+		}
+
+		// Create campaign state
+		cs := &CampaignState{
+			CampaignID:  campaignID,
+			State:       state,
+			LastUpdated: time.Now(),
+		}
+		cs.Subscribers = sync.Map{}
+		m.campaigns.Store(campaignID, cs)
+
+		m.log.Debug("Seeded campaign from config",
+			zap.String("campaign_id", campaignID),
+			zap.String("title", state["title"].(string)),
+			zap.Bool("has_ui_components", state["ui_components"] != nil))
 	}
 
-	m.log.Info("Successfully seeded default campaign", zap.Any("campaign", defaultCampaign))
+	m.log.Debug("Successfully seeded campaigns from configuration", zap.Int("count", len(campaigns)))
 	return nil
 }
 
@@ -1034,10 +1158,8 @@ func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *
 		return
 	}
 
-	m.log.Info("Processing campaign switch",
-		zap.String("campaign_id", payload.CampaignID),
-		zap.String("slug", payload.Slug),
-		zap.String("user_id", userID))
+	// Campaign switch processing log removed for performance
+	// Only log errors and critical information
 
 	// For campaign switching, we primarily update the user's active campaign
 	// without necessarily persisting to database (this is more of a session state change)
@@ -1056,13 +1178,11 @@ func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *
 		}
 	}
 
-	// Update state without database persistence for switching
-	m.UpdateState(payload.CampaignID, userID, updates, event.Metadata)
+	// Update state without sending an event (we'll send our own switch success event)
+	m.updateStateWithoutEvent(payload.CampaignID, userID, updates, event.Metadata)
 
-	// Send campaign switch success event with current state
-	m.log.Info("Sending campaign switch success with state",
-		zap.String("campaign_id", payload.CampaignID),
-		zap.String("user_id", userID))
+	// Campaign switch success logging removed for performance
+	// Only log errors and critical information
 
 	// Get current campaign state to include in switch success response
 	cs := m.GetOrCreateState(payload.CampaignID)
@@ -1091,16 +1211,16 @@ func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *
 		},
 	}
 
-	// Send through feedback bus
+	// Send through feedback bus with proper sequencing
 	if m.feedbackBus != nil {
-		m.safeGo(func() {
-			defer func() {
-				if r := recover(); r != nil {
-					m.log.Error("panic in switch success feedback bus", zap.Any("recover", r))
-				}
-			}()
-			m.feedbackBus(switchSuccessEvent)
-		})
+		// Send immediately to ensure event is delivered before WebSocket close
+		m.feedbackBus(switchSuccessEvent)
+
+		// Log the successful switch
+		m.log.Info("Campaign switch success event sent",
+			zap.String("campaign_id", payload.CampaignID),
+			zap.String("user_id", userID),
+			zap.String("event_id", switchEventID))
 	}
 
 	m.log.Info("Campaign switch completed",

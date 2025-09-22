@@ -17,6 +17,8 @@ interface CampaignProviderProps {
   children: React.ReactNode;
 }
 
+// Removed verbose logging
+
 export function CampaignProvider({ children }: CampaignProviderProps) {
   const { emitEvent } = useEventStore();
   const { metadata } = useMetadataStore();
@@ -36,13 +38,9 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
   const hasLoadedRef = useRef(false);
 
   const loadCampaigns = React.useCallback(async () => {
-    console.log('[CampaignProvider] loadCampaigns called, current loading state:', loading);
-    console.log('[CampaignProvider] isLoadingRef.current:', isLoadingRef.current);
-    console.log('[CampaignProvider] hasLoadedRef.current:', hasLoadedRef.current);
-
     // If we already have campaigns and have loaded before, don't reload unless explicitly requested
     if (hasLoadedRef.current && campaigns.length > 0) {
-      console.log('[CampaignProvider] Campaigns already loaded, skipping duplicate request');
+      console.log('[CampaignProvider] Campaigns already loaded, skipping reload');
       return;
     }
 
@@ -59,21 +57,32 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
     }
 
     try {
-      console.log('[CampaignProvider] Setting loading to true and clearing error');
       isLoadingRef.current = true;
       setLoading(true);
       setError(null);
 
-      console.log('[CampaignProvider] Loading campaigns...');
+      console.log('[CampaignProvider] Starting dual-request approach: list + state');
 
-      // Generate correlation ID for tracking
-      const correlationId = `corr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      console.log('[CampaignProvider] Generated correlation ID:', correlationId);
+      // Generate correlation IDs for tracking
+      const listCorrelationId = `corr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const stateCorrelationId = `corr_${Date.now() + 1}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Note: Campaign state will be included in the campaign list response
-      // No need to make separate state request to avoid duplication
+      let listCompleted = false;
+      let stateCompleted = false;
+      let hasSetCurrentCampaign = false;
 
-      // Emit campaign list request event
+      const checkCompletion = () => {
+        if (listCompleted && stateCompleted && !hasSetCurrentCampaign) {
+          console.log('[CampaignProvider] Both requests completed, finalizing initialization');
+          setLoading(false);
+          setError(null);
+          isLoadingRef.current = false;
+          hasLoadedRef.current = true;
+          setIsInitialized(true);
+        }
+      };
+
+      // Request 1: Campaign List
       emitEvent(
         {
           type: 'campaign:list:v1:requested',
@@ -83,54 +92,69 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
           },
           metadata: {
             ...metadata,
-            correlation_id: correlationId
+            correlation_id: listCorrelationId
           }
         },
         response => {
-          console.log('[CampaignProvider] Received response:', {
-            type: response.type,
-            correlationId: response.correlation_id,
-            expectedCorrelationId: correlationId,
-            payload: response.payload
-          });
-
-          // Clear timeout since we got a response
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
-            console.log('[CampaignProvider] Cleared timeout on successful response');
-          }
+          console.log('[CampaignProvider] Campaign list response:', response.type);
 
           if (response.type === 'campaign:list:v1:success') {
             console.log('[CampaignProvider] Campaign list success, updating campaigns');
-
-            // Update campaigns in the store with the response payload
             updateCampaignsFromResponse(response.payload);
-
-            // Update loading state and clear any errors
-            setLoading(false);
-            setError(null);
-            isLoadingRef.current = false;
-            hasLoadedRef.current = true;
-            setIsInitialized(true);
-
-            console.log('[CampaignProvider] Campaigns loaded successfully');
-          } else if (response.type === 'campaign:list:v1:error') {
-            console.error('[CampaignProvider] Campaign list error:', response);
-            setError('Failed to load campaigns');
-            setLoading(false);
-            isLoadingRef.current = false;
+            listCompleted = true;
+            checkCompletion();
           } else {
-            console.warn('[CampaignProvider] Unexpected response type:', response.type, response);
-            setLoading(false);
-            isLoadingRef.current = false;
+            console.error('[CampaignProvider] Campaign list error:', response);
+            listCompleted = true;
+            checkCompletion();
           }
         }
       );
 
-      // Set timeout for request
+      // Request 2: Default Campaign State (always request this for robust initialization)
+      emitEvent(
+        {
+          type: 'campaign:state:v1:requested',
+          payload: {},
+          metadata: {
+            ...metadata,
+            correlation_id: stateCorrelationId,
+            global_context: {
+              campaign_id: 'ovasabi_website',
+              user_id: metadata?.user?.userId || metadata?.userId || 'guest_unknown',
+              device_id: metadata?.device?.deviceId || metadata?.deviceId || 'device_unknown',
+              session_id: metadata?.session?.sessionId || metadata?.sessionId || 'session_unknown',
+              correlation_id: stateCorrelationId,
+              source: 'frontend'
+            }
+          }
+        },
+        response => {
+          console.log('[CampaignProvider] Campaign state response:', response.type);
+
+          if (response.type === 'campaign:state:v1:success') {
+            console.log('[CampaignProvider] Default campaign state received:', response.payload);
+
+            // Set the campaign as current with full state data
+            if (response.payload && !hasSetCurrentCampaign) {
+              console.log('[CampaignProvider] Setting default campaign as current with full state');
+              useCampaignStore.getState().switchCampaignWithData(response.payload);
+              hasSetCurrentCampaign = true;
+            }
+
+            stateCompleted = true;
+            checkCompletion();
+          } else {
+            console.error('[CampaignProvider] Default campaign state request failed:', response);
+            stateCompleted = true;
+            checkCompletion();
+          }
+        }
+      );
+
+      // Set timeout for both requests
       timeoutRef.current = setTimeout(() => {
-        console.log('[CampaignProvider] Request timeout after 10 seconds');
+        console.log('[CampaignProvider] Dual request timeout after 10 seconds');
         setError('Request timeout');
         setLoading(false);
         isLoadingRef.current = false;
@@ -143,43 +167,44 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
         timeoutRef.current = null;
       }
 
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load campaigns';
-      setError(errorMessage);
-      console.error('[CampaignProvider] Error loading campaigns:', err);
+      console.error('[CampaignProvider] Error in dual-request approach:', err);
+      setError('Failed to load campaigns');
       setLoading(false);
       isLoadingRef.current = false;
     }
-  }, [emitEvent, metadata, updateCampaignsFromResponse, campaigns.length]);
+  }, [emitEvent, metadata, updateCampaignsFromResponse]);
 
-  // Load campaigns on mount only once
+  // Load campaigns when metadata is ready and not in loading state
   useEffect(() => {
-    console.log('[CampaignProvider] useEffect triggered - loading campaigns on mount');
-    console.log('[CampaignProvider] Current state:', {
-      loading,
-      campaigns: campaigns.length,
-      error
-    });
-    loadCampaigns();
-  }, []); // Only run once on mount
+    // Only load campaigns if metadata is properly initialized (not in loading state)
+    const userId = metadata?.user?.userId || metadata?.userId;
+    if (metadata && userId && userId !== 'loading') {
+      console.log('[CampaignProvider] Metadata ready, loading campaigns');
+      loadCampaigns();
+    } else {
+      console.log('[CampaignProvider] Metadata not ready yet, waiting...', {
+        hasMetadata: !!metadata,
+        userId: userId,
+        isInitialized: isInitialized
+      });
+    }
+  }, [metadata?.user?.userId, metadata?.userId, isInitialized]); // Remove loadCampaigns to prevent circular dependency
 
   // Listen for campaign list responses that might not match pending requests
   useEffect(() => {
     const handleCampaignListResponse = (event: any) => {
       if (event.type === 'campaign:list:v1:success') {
-        console.log(
-          '[CampaignProvider] Received campaign list response via event listener (fallback):',
-          event
-        );
+        // Received campaign list response via event listener
 
         // Only process if we're still loading (avoid duplicate processing)
         if (isLoadingRef.current) {
-          console.log('[CampaignProvider] Processing fallback response - clearing loading state');
+          // Processing fallback response
 
           // Clear timeout since we got a response
           if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
-            console.log('[CampaignProvider] Cleared timeout in fallback response handler');
+            // Timeout cleared in fallback
           }
 
           // Update campaigns in the store with the response payload
@@ -192,9 +217,7 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
           hasLoadedRef.current = true;
           setIsInitialized(true);
         } else {
-          console.log(
-            '[CampaignProvider] Ignoring fallback response - already processed or not loading'
-          );
+          // Ignoring fallback response - already processed
         }
       }
     };
@@ -214,7 +237,7 @@ export function CampaignProvider({ children }: CampaignProviderProps) {
   }, [updateCampaignsFromResponse]);
 
   const refresh = React.useCallback(() => {
-    console.log('[CampaignProvider] Manual refresh requested');
+    // Manual refresh requested
     hasLoadedRef.current = false; // Allow reload on manual refresh
     loadCampaigns();
   }, [loadCampaigns]);

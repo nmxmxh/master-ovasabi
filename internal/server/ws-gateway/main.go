@@ -40,9 +40,16 @@ type ClientWebSocketMessage struct {
 }
 
 // WebSocketEvent is a standard event structure for messages sent to clients.
+// This structure should be consistent with the canonical EventEnvelope.
 type WebSocketEvent struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Type          string      `json:"type"`           // Event type: {service}:{action}:v{version}:{state}
+	Payload       interface{} `json:"payload"`        // Event payload data
+	CorrelationID string      `json:"correlation_id"` // Correlation ID for request/response matching
+	Metadata      interface{} `json:"metadata"`       // Event metadata (should match protobuf Metadata structure)
+	Timestamp     string      `json:"timestamp"`      // ISO string with timezone
+	Version       string      `json:"version"`        // Event envelope version
+	Environment   string      `json:"environment"`    // Environment (dev, staging, prod)
+	Source        string      `json:"source"`         // Source of the event (frontend, backend, wasm)
 }
 
 // IngressEvent is a message received from a client, augmented with gateway metadata,
@@ -452,9 +459,26 @@ func processEvent(event *nexuspb.EventResponse) {
 		if eventType == entry.expectedEventType {
 			payloadMap := event.Payload.GetData().AsMap()
 			payloadMap["source"] = "nexus"
+
+			// Extract correlation ID from event ID or metadata
+			correlationID := ""
+			parts := strings.Split(eventID, ":")
+			if len(parts) >= 3 {
+				correlationID = parts[len(parts)-1] // Last part is usually correlation ID
+			}
+			if correlationID == "" && event.Metadata != nil && event.Metadata.GlobalContext != nil {
+				correlationID = event.Metadata.GlobalContext.CorrelationId
+			}
+
 			wsEvent := WebSocketEvent{
-				Type:    eventType,
-				Payload: payloadMap,
+				Type:          eventType,
+				Payload:       payloadMap,
+				CorrelationID: correlationID,
+				Metadata:      event.Metadata,
+				Timestamp:     time.Now().UTC().Format(time.RFC3339),
+				Version:       "1.0.0",
+				Environment:   "development", // TODO: Get from config
+				Source:        "backend",
 			}
 			payloadBytes, err := json.Marshal(wsEvent)
 			if err == nil {
@@ -485,21 +509,11 @@ func processEvent(event *nexuspb.EventResponse) {
 	}
 
 	// --- Existing event routing and broadcast logic ---
-	log.Debug("[WS-GATEWAY] Received event from Nexus", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId), zap.Any("payload", event.Payload), zap.Any("metadata", event.Metadata))
+	// Only log critical events for performance
+	// log.Debug("[WS-GATEWAY] Received event from Nexus", ...) // Removed for performance
 
-	// Debug payload data
-	if event.Payload != nil && event.Payload.Data != nil {
-		payloadMap := event.Payload.GetData().AsMap()
-		log.Info("[WS-GATEWAY] Payload data debug",
-			zap.String("event_type", event.EventType),
-			zap.Any("payload_map", payloadMap),
-			zap.Int("payload_field_count", len(payloadMap)))
-	} else {
-		log.Warn("[WS-GATEWAY] Payload or Payload.Data is nil",
-			zap.String("event_type", event.EventType),
-			zap.Bool("payload_nil", event.Payload == nil),
-			zap.Bool("payload_data_nil", event.Payload != nil && event.Payload.Data == nil))
-	}
+	// Only log payload issues for errors
+	// Debug payload logging removed for performance
 
 	// Special handling for campaign list events
 	if event.EventType == "campaign:list:v1:success" {
@@ -619,6 +633,42 @@ func processEvent(event *nexuspb.EventResponse) {
 			return true
 		})
 
+		// Fallback: For campaign switch events, try user-only routing if campaign-specific routing failed
+		if !delivered && isCampaignSwitchEvent(event.EventType) {
+			log.Info("[CANONICAL_EVENT] Campaign switch event - attempting user-only fallback routing",
+				zap.String("ws_user_id", wsUserID),
+				zap.String("ws_campaign_id", wsCampaignID),
+				zap.String("event_type", event.EventType))
+
+			wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
+				// Match user ID only for campaign switch events
+				if uid == wsUserID {
+					// Security validation: ensure user is switching TO this campaign
+					if isUserSwitchingToCampaign(client, wsCampaignID, event) {
+						go func(client *WSClient, payloadBytes []byte, uid, cid string) {
+							select {
+							case client.send <- payloadBytes:
+								log.Info("[CANONICAL_EVENT] Forwarded campaign switch event via user fallback",
+									zap.String("user_id", uid),
+									zap.String("current_campaign_id", cid),
+									zap.String("target_campaign_id", wsCampaignID),
+									zap.String("event_type", event.EventType))
+							case <-time.After(100 * time.Millisecond):
+								log.Error("[CANONICAL_EVENT] Dropped campaign switch event: WebSocket send buffer full",
+									zap.String("user_id", uid),
+									zap.String("current_campaign_id", cid),
+									zap.String("target_campaign_id", wsCampaignID),
+									zap.String("event_type", event.EventType))
+							}
+						}(client, payloadBytes, uid, cid)
+						delivered = true
+						return false
+					}
+				}
+				return true
+			})
+		}
+
 		if !delivered {
 			// Log all connected clients for debugging
 			var connectedClients []string
@@ -706,6 +756,47 @@ func isGodotEvent(event *nexuspb.EventResponse) bool {
 	return false
 }
 
+// isCampaignSwitchEvent checks if an event type is related to campaign switching
+func isCampaignSwitchEvent(eventType string) bool {
+	switch eventType {
+	case "campaign:switch:v1:success",
+		"campaign:switch:v1:failed",
+		"campaign:state:v1:success",
+		"campaign:switch:required",
+		"campaign:switch:completed":
+		return true
+	default:
+		return false
+	}
+}
+
+// isUserSwitchingToCampaign validates that a user is legitimately switching to the target campaign
+func isUserSwitchingToCampaign(client *WSClient, targetCampaignID string, event *nexuspb.EventResponse) bool {
+	// Extract campaign ID from event payload for validation
+	if event.Payload != nil && event.Payload.Data != nil {
+		payloadMap := event.Payload.GetData().AsMap()
+
+		// Check if the event contains the target campaign ID
+		if eventCampaignID, ok := payloadMap["campaign_id"].(string); ok && eventCampaignID == targetCampaignID {
+			return true
+		}
+		if eventCampaignID, ok := payloadMap["campaignId"].(string); ok && eventCampaignID == targetCampaignID {
+			return true
+		}
+
+		// For campaign switch events, check if user is switching to this campaign
+		if event.EventType == "campaign:switch:v1:success" || event.EventType == "campaign:switch:required" {
+			if newCampaignID, ok := payloadMap["new_campaign_id"].(string); ok && newCampaignID == targetCampaignID {
+				return true
+			}
+		}
+	}
+
+	// Additional security: check if user is already connected to a different campaign
+	// This ensures we only route to users who are actually switching campaigns
+	return client.campaignID != targetCampaignID
+}
+
 // isGodotRequestEvent checks if an event type is a Godot request that should not use request/response pattern
 func isGodotRequestEvent(eventType string) bool {
 	// Godot events that are typically one-way broadcasts, not request/response
@@ -748,14 +839,8 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 	} else if r.Header.Get("X-Godot-Backend") == "1" {
 		rawUserID = "godot"
 	} else {
-		// Check if this is an old format guest ID and migrate to new format
-		if strings.HasPrefix(parts[1], "guest_") && len(parts[1]) == 15 { // guest_ + 8 chars = 15 total
-			log.Info("Detected old format guest ID, migrating to new format", zap.String("old_id", parts[1]))
-			rawUserID = "guest_" + generateCryptoHash(fmt.Sprintf("%d", time.Now().UnixNano()))
-		} else {
-			// Generate guest ID in same crypto hash format as WASM (32 characters)
-			rawUserID = "guest_" + generateCryptoHash(fmt.Sprintf("%d", time.Now().UnixNano()))
-		}
+		// Generate guest ID in same crypto hash format as WASM (32 characters)
+		rawUserID = "guest_" + generateCryptoHash(fmt.Sprintf("%d", time.Now().UnixNano()))
 	}
 	userID := mapUserID(rawUserID)
 	log.Debug("WebSocket connection user ID normalization", zap.String("raw_user_id", rawUserID), zap.String("mapped_user_id", userID))
@@ -856,10 +941,8 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 			break
 		}
 
-		// Debug: Log the raw message to understand the structure
-		log.Info("Received WebSocket message",
-			zap.String("raw_message", string(msgBytes)),
-			zap.Int("message_length", len(msgBytes)))
+		// Only log message reception for errors or important events
+		// log.Info("Received WebSocket message", ...) // Removed for performance
 
 		// Parse using canonical envelope with proper JSON handling
 		var envelope events.CanonicalEventEnvelope
@@ -885,14 +968,9 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 			continue
 		}
 
-		rawMsgUserID := envelope.Metadata.GetGlobalContext().GetUserId()
-		mappedMsgUserID := mapUserID(rawMsgUserID)
-		log.Info("Parsed client message",
-			zap.String("user_id", mappedMsgUserID),
-			zap.String("raw_user_id", rawMsgUserID),
-			zap.String("event_type", envelope.Type),
-			zap.String("correlation_id", envelope.CorrelationID),
-		)
+		// User ID mapping removed as it was only used for logging
+		// rawMsgUserID := envelope.Metadata.GetGlobalContext().GetUserId()
+		// mappedMsgUserID := mapUserID(rawMsgUserID)
 
 		// Extract routing information from validated metadata
 		correlationID := envelope.Metadata.GetGlobalContext().GetCorrelationId()
@@ -1024,12 +1102,8 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 				eventID := event.EventId
 				eventType := event.EventType
 
-				// Log event source for debugging
-				log.Debug("[WS-GATEWAY] Received event",
-					zap.String("event_id", eventID),
-					zap.String("event_type", eventType),
-					zap.Bool("success", event.Success),
-					zap.String("message", event.Message))
+				// Only log critical events for performance
+				// log.Debug("[WS-GATEWAY] Received event", ...) // Removed for performance
 
 				// Atomic check-and-process: prevent race conditions
 				if !tryProcessEvent(eventID, eventType) {

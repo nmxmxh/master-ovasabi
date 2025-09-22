@@ -15,12 +15,107 @@ interface MetadataStore {
   handleUserIDChange: (newUserId: string) => void;
   initializeUserId: () => Promise<void>;
   initializeMetadata: () => Promise<void>; // Initialize metadata with WASM IDs
+  updateCampaignMetadata: (campaignData: any) => void; // Update campaign-specific metadata
+  syncWithCampaignState: (campaignState: any) => void; // Sync with campaign state changes
 
   // Getters
   get campaignId(): string | number;
+
+  // Debugging & Monitoring
+  getStateSnapshot: () => any; // Get complete state for debugging
+  logStateChange: (action: string, details?: any) => void; // Log state changes
 }
 
 // Note: Secure ID generation functions are now imported from cryptoIds utility
+
+// IP Address and Security Detection
+const detectIPAndSecurity = async (): Promise<{
+  ipAddress?: string;
+  ipLocation?: any;
+  securityFlags?: any;
+}> => {
+  try {
+    // Try to get IP from multiple sources
+    const ipPromises = [
+      // Primary: ipify.org (most reliable)
+      fetch('https://api.ipify.org?format=json')
+        .then(res => res.json())
+        .then(data => ({ ip: data.ip, source: 'ipify' }))
+        .catch(() => null),
+
+      // Fallback 1: ipapi.co (includes location)
+      fetch('https://ipapi.co/json/')
+        .then(res => res.json())
+        .then(data => ({
+          ip: data.ip,
+          location: {
+            country: data.country_name,
+            region: data.region,
+            city: data.city,
+            latitude: data.latitude,
+            longitude: data.longitude
+          },
+          source: 'ipapi'
+        }))
+        .catch(() => null),
+
+      // Fallback 2: ip-api.com
+      fetch('http://ip-api.com/json/')
+        .then(res => res.json())
+        .then(data => ({
+          ip: data.query,
+          location: {
+            country: data.country,
+            region: data.regionName,
+            city: data.city,
+            latitude: data.lat,
+            longitude: data.lon
+          },
+          source: 'ip-api'
+        }))
+        .catch(() => null)
+    ];
+
+    const results = await Promise.allSettled(ipPromises);
+    const successfulResult = results.find(
+      result => result.status === 'fulfilled' && result.value !== null
+    );
+
+    if (successfulResult && successfulResult.status === 'fulfilled' && successfulResult.value) {
+      const data = successfulResult.value;
+
+      // Basic security analysis
+      const securityFlags = {
+        isBot: false, // Would need more sophisticated detection
+        isVPN: false, // Would need VPN detection service
+        isProxy: false, // Would need proxy detection
+        riskScore: 0, // 0-100 risk score
+        suspiciousActivity: false
+      };
+
+      // Simple bot detection based on user agent
+      if (typeof navigator !== 'undefined') {
+        const userAgent = navigator.userAgent.toLowerCase();
+        securityFlags.isBot =
+          userAgent.includes('bot') ||
+          userAgent.includes('crawler') ||
+          userAgent.includes('spider') ||
+          userAgent.includes('scraper');
+      }
+
+      return {
+        ipAddress: data.ip,
+        ipLocation: (data as any).location,
+        securityFlags
+      };
+    }
+
+    return {};
+  } catch (error) {
+    console.warn('[MetadataStore] Failed to detect IP address:', error);
+    return {};
+  }
+};
 
 // Get user ID from WASM (source of truth)
 const getUserIdFromWasm = async (): Promise<string> => {
@@ -97,6 +192,10 @@ const createInitialMetadata = async (fallbackUserId?: string): Promise<Metadata>
       }
     }
 
+    // Detect IP address and security information
+    console.log('[MetadataStore] 🔍 Detecting IP address and security information...');
+    const ipData = await detectIPAndSecurity();
+
     return {
       campaign: {
         campaignId: '0',
@@ -114,7 +213,11 @@ const createInitialMetadata = async (fallbackUserId?: string): Promise<Metadata>
         timezone:
           typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
         consentGiven: false,
-        gdprConsentRequired: true
+        gdprConsentRequired: true,
+        // IP and security information
+        ipAddress: ipData.ipAddress,
+        ipLocation: ipData.ipLocation,
+        securityFlags: ipData.securityFlags
       },
       session: {
         sessionId,
@@ -125,6 +228,15 @@ const createInitialMetadata = async (fallbackUserId?: string): Promise<Metadata>
     };
   } catch (error) {
     console.warn('[MetadataStore] Error creating initial metadata:', error);
+
+    // Try to get IP data even in fallback case
+    let ipData: { ipAddress?: string; ipLocation?: any; securityFlags?: any } = {};
+    try {
+      ipData = await detectIPAndSecurity();
+    } catch (ipError) {
+      console.warn('[MetadataStore] Failed to get IP data in fallback:', ipError);
+    }
+
     // Fallback metadata in case of error
     return {
       campaign: {
@@ -142,7 +254,11 @@ const createInitialMetadata = async (fallbackUserId?: string): Promise<Metadata>
         language: 'en-US',
         timezone: 'UTC',
         consentGiven: false,
-        gdprConsentRequired: true
+        gdprConsentRequired: true,
+        // Include IP data even in fallback
+        ipAddress: ipData.ipAddress,
+        ipLocation: ipData.ipLocation,
+        securityFlags: ipData.securityFlags
       },
       session: {
         sessionId: 'fallback_session',
@@ -218,7 +334,7 @@ export const useMetadataStore = create<MetadataStore>()(
         initializeUserId: async () => {
           try {
             const wasmUserId = await getUserIdFromWasm();
-            console.log('[MetadataStore] Initializing with WASM user ID:', wasmUserId);
+            // Initializing with WASM user ID
             set({ userId: wasmUserId }, false, 'initializeUserId');
 
             // Also update the metadata with the new user ID
@@ -285,6 +401,112 @@ export const useMetadataStore = create<MetadataStore>()(
           }
         },
 
+        // Update campaign-specific metadata when campaign switches
+        updateCampaignMetadata: (campaignData: any) => {
+          console.log('[MetadataStore] 🔄 Updating campaign metadata:', {
+            campaignData,
+            currentCampaign: get().metadata.campaign,
+            userId: get().userId,
+            timestamp: new Date().toISOString()
+          });
+
+          const previousCampaign = get().metadata.campaign;
+
+          set(
+            state => ({
+              metadata: {
+                ...state.metadata,
+                campaign: {
+                  campaignId:
+                    campaignData.id ||
+                    campaignData.campaignId ||
+                    state.metadata.campaign.campaignId,
+                  slug: campaignData.slug || state.metadata.campaign.slug,
+                  title: campaignData.title || state.metadata.campaign.campaignName,
+                  status: campaignData.status || state.metadata.campaign.status,
+                  features: campaignData.features || state.metadata.campaign.features,
+                  last_switched: new Date().toISOString(),
+                  ...campaignData // Merge any additional campaign data
+                }
+              }
+            }),
+            false,
+            'updateCampaignMetadata'
+          );
+
+          const newCampaign = get().metadata.campaign;
+          console.log('[MetadataStore] ✅ Campaign metadata updated successfully:', {
+            previous: {
+              id: previousCampaign.campaignId,
+              slug: previousCampaign.slug,
+              title: previousCampaign.campaignName
+            },
+            new: {
+              id: newCampaign.campaignId,
+              slug: newCampaign.slug,
+              title: newCampaign.title
+            },
+            switchTime: newCampaign.last_switched,
+            featuresCount: newCampaign.features?.length || 0
+          });
+        },
+
+        // Sync with campaign state changes (called from campaign store)
+        syncWithCampaignState: (campaignState: any) => {
+          console.log('[MetadataStore] 🔄 Syncing with campaign state:', {
+            campaignState,
+            currentMetadata: get().metadata.campaign,
+            userId: get().userId,
+            timestamp: new Date().toISOString()
+          });
+
+          if (campaignState && campaignState.campaignId) {
+            const previousState = get().metadata.campaign;
+
+            set(
+              state => ({
+                metadata: {
+                  ...state.metadata,
+                  campaign: {
+                    ...state.metadata.campaign,
+                    campaignId: campaignState.campaignId,
+                    slug: campaignState.slug || state.metadata.campaign.slug,
+                    title: campaignState.title || state.metadata.campaign.campaignName,
+                    status: campaignState.status || state.metadata.campaign.status,
+                    features: campaignState.features || state.metadata.campaign.features,
+                    last_switched: new Date().toISOString(),
+                    ...campaignState // Merge any additional state data
+                  }
+                }
+              }),
+              false,
+              'syncWithCampaignState'
+            );
+
+            const newState = get().metadata.campaign;
+            console.log('[MetadataStore] ✅ Campaign state synced successfully:', {
+              previous: {
+                id: previousState.campaignId,
+                status: previousState.status,
+                featuresCount: previousState.features?.length || 0
+              },
+              new: {
+                id: newState.campaignId,
+                status: newState.status,
+                featuresCount: newState.features?.length || 0
+              },
+              changes: {
+                idChanged: previousState.campaignId !== newState.campaignId,
+                statusChanged: previousState.status !== newState.status,
+                featuresChanged:
+                  JSON.stringify(previousState.features) !== JSON.stringify(newState.features)
+              }
+            });
+          } else {
+            console.warn('[MetadataStore] ⚠️ Invalid campaign state for sync:', campaignState);
+          }
+        },
+
         // Handle user ID changes from WASM (guest → authenticated migration)
         handleUserIDChange: (newUserId: string) => {
           set(
@@ -310,6 +532,34 @@ export const useMetadataStore = create<MetadataStore>()(
           console.log('[MetadataStore] User ID updated from WASM:', newUserId);
         },
 
+        // Get complete state snapshot for debugging
+        getStateSnapshot: () => {
+          const state = get();
+          return {
+            userId: state.userId,
+            campaignId: state.campaignId,
+            metadata: {
+              campaign: state.metadata.campaign,
+              user: state.metadata.user,
+              device: state.metadata.device,
+              session: state.metadata.session,
+              correlation_id: state.metadata.correlation_id
+            },
+            timestamp: new Date().toISOString()
+          };
+        },
+
+        // Log state changes with context
+        logStateChange: (action: string, details?: any) => {
+          const snapshot = get().getStateSnapshot();
+          console.log(`[MetadataStore] 📊 State Change: ${action}`, {
+            action,
+            details,
+            currentState: snapshot,
+            timestamp: new Date().toISOString()
+          });
+        },
+
         get campaignId(): string | number {
           try {
             const state = get();
@@ -323,24 +573,11 @@ export const useMetadataStore = create<MetadataStore>()(
       }),
       {
         name: 'metadata-store',
-        partialize: () => {
-          // Don't persist user IDs - always get them from WASM
+        partialize: state => {
+          // Persist the actual state, not hardcoded loading values
           return {
-            metadata: {
-              campaign: { campaignId: '0', features: [], slug: 'default' },
-              user: { userId: 'loading', username: 'Loading...' },
-              device: {
-                deviceId: 'loading',
-                userAgent: '',
-                language: 'en-US',
-                timezone: 'UTC',
-                consentGiven: false,
-                gdprConsentRequired: true
-              },
-              session: { sessionId: 'loading', guestId: 'loading', authenticated: false },
-              correlation_id: 'loading'
-            },
-            userId: 'loading'
+            metadata: state.metadata,
+            userId: state.userId
           };
         }
       }

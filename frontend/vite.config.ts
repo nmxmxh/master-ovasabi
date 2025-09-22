@@ -24,12 +24,13 @@ function coopCoepPlugin(): PluginOption {
     name: 'set-coop-coep-headers',
     configureServer(server) {
       server.middlewares.use((req, res: ServerResponse, next) => {
-        // Skip COOP/COEP headers for HMR WebSocket connections
+        // Skip COOP/COEP headers for HMR WebSocket connections and WebSocket upgrade requests
         if (
           req.url?.includes('/__vite_ping') ||
           req.url?.includes('/__vite_hmr') ||
           req.url?.includes('?t=') || // Vite timestamp parameter
-          req.headers.upgrade === 'websocket'
+          req.headers.upgrade === 'websocket' ||
+          req.url?.startsWith('/ws') // Skip COOP/COEP for WebSocket proxy requests
         ) {
           next();
           return;
@@ -92,13 +93,21 @@ export default defineConfig({
     port: Number(process.env.VITE_PORT) || 5173,
     host: true, // Allow external connections
     cors: {
-      origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+      origin: [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
+        'http://localhost:5175',
+        'http://127.0.0.1:5175',
+        'http://localhost:5176',
+        'http://127.0.0.1:5176'
+      ],
       credentials: true
     },
     open: true,
-    // HMR configuration to fix WebSocket issues
+    // HMR configuration - let Vite handle port automatically
     hmr: {
-      port: 5174, // Use a different port for HMR WebSocket
       host: 'localhost'
     },
     // Proxy configuration for local development
@@ -109,11 +118,12 @@ export default defineConfig({
         changeOrigin: true,
         ws: false
       },
-      // Proxy WebSocket requests to ws-gateway (default: 8091)
+      // Proxy WebSocket requests to ws-gateway (default: 8090)
       '/ws': {
         target: 'ws://localhost:8090',
         ws: true,
-        changeOrigin: true
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/ws/, '/ws')
       }
     }
   },

@@ -12,6 +12,8 @@ export interface EventEnvelope {
 
 export interface PendingRequestEntry {
   expectedEventType: string;
+  eventType: string;
+  timestamp: number;
   resolve: (event: EventEnvelope) => void;
   reject?: (reason?: any) => void;
 }

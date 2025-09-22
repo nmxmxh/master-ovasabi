@@ -51,6 +51,8 @@ declare global {
       animationMode: number,
       callback: Function
     ) => boolean;
+    // Campaign switch success handler
+    handleCampaignSwitchSuccess?: (campaignId: string, reason: string) => void;
   }
 
   interface GlobalState {

@@ -28,6 +28,7 @@
     "luxon": "^3.6.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-hot-toast": "^2.6.0",
     "react-icons": "^5.5.0",
     "react-media-recorder": "^1.7.1",
     "react-permissions": "^1.0.5",

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import CampaignSwitchingPage from './pages/CampaignSwitchingPage';
 import { useInitializeUserId } from './hooks/useInitializeUserId';
 import { useCampaignState } from './store/hooks/useCampaign';
@@ -19,12 +19,16 @@ const minimalStyles = `
     color: #fff;
     font-size: 12px;
     line-height: 1.4;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
   
   .minimal-header {
     border-bottom: 1px solid #333;
     padding: 8px 16px;
     background: #111;
+    flex-shrink: 0;
   }
   
   .minimal-nav {
@@ -39,10 +43,14 @@ const minimalStyles = `
     border: 1px solid #333;
     background: #000;
     font-size: 11px;
+    cursor: pointer;
+    display: inline-block;
+    transition: all 0.2s ease;
   }
   
   .minimal-link:hover {
     background: #333;
+    transform: translateY(-1px);
   }
   
   .minimal-link.active {
@@ -54,6 +62,8 @@ const minimalStyles = `
     padding: 16px;
     max-width: 1200px;
     margin: 0 auto;
+    flex: 1;
+    width: 100%;
   }
   
   .minimal-section {
@@ -84,27 +94,110 @@ const minimalStyles = `
     font-size: 11px;
     cursor: pointer;
     font-family: inherit;
+    transition: all 0.2s ease;
   }
   
   .minimal-button:hover {
     background: #333;
+    transform: translateY(-1px);
   }
   
   .minimal-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
   }
   
   .minimal-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
   }
   
   .minimal-card {
     border: 1px solid #333;
-    padding: 8px;
+    padding: 16px;
     background: #000;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  
+  .minimal-card:hover {
+    border-color: #555;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  .minimal-card.active {
+    border: 2px solid #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+  }
+  
+  .minimal-card.active:hover {
+    border-color: #fff;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+  }
+  
+  .minimal-card-header {
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
+  
+  .minimal-card-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 6px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .minimal-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .minimal-card-id {
+    font-size: 10px;
+    color: #888;
+    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  }
+  
+  .minimal-card-description {
+    font-size: 11px;
+    color: #ccc;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .minimal-card-features {
+    font-size: 10px;
+    color: #999;
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .minimal-card-actions {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid #222;
   }
   
   .minimal-code {
@@ -123,23 +216,87 @@ const minimalStyles = `
     padding: 2px 6px;
     font-size: 10px;
     border: 1px solid #333;
+    border-radius: 2px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
   
   .minimal-status.active {
     background: #0f0;
     color: #000;
+    border-color: #0f0;
   }
   
   .minimal-status.inactive {
     background: #f00;
     color: #fff;
+    border-color: #f00;
   }
   
   .minimal-status.loading {
     background: #ff0;
     color: #000;
+    border-color: #ff0;
+  }
+  
+  .minimal-card-button {
+    width: 100%;
+    background: #000;
+    color: #fff;
+    border: 1px solid #333;
+    padding: 8px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: bold;
+  }
+  
+  .minimal-card-button:hover {
+    background: #333;
+    border-color: #555;
+    transform: translateY(-1px);
+  }
+  
+  .minimal-card-button:active {
+    transform: translateY(0);
   }
 `;
+
+// Navigation component with active link highlighting
+function Navigation() {
+  let location;
+
+  try {
+    location = useLocation();
+  } catch (error) {
+    console.error('Navigation: Router context not available:', error);
+    return (
+      <nav className="minimal-nav">
+        <div style={{ color: '#f00' }}>
+          Router Error: {error instanceof Error ? error.message : 'Unknown error'}
+        </div>
+      </nav>
+    );
+  }
+
+  return (
+    <nav className="minimal-nav">
+      <Link to="/" className={`minimal-link ${location.pathname === '/' ? 'active' : ''}`}>
+        CAMPAIGNS
+      </Link>
+      <Link
+        to="/switching"
+        className={`minimal-link ${location.pathname === '/switching' ? 'active' : ''}`}
+      >
+        SWITCH
+      </Link>
+    </nav>
+  );
+}
 
 function App() {
   const { isInitialized } = useInitializeUserId();
@@ -147,6 +304,8 @@ function App() {
   useEffect(() => {
     setupCampaignSwitchHandler();
   }, []);
+
+  // Debug route changes - removed excessive logging
 
   if (!isInitialized) {
     return (
@@ -160,19 +319,12 @@ function App() {
   }
 
   return (
-    <CampaignProvider>
-      <Router>
+    <Router>
+      <CampaignProvider>
         <div className="minimal-app">
           <style>{minimalStyles}</style>
           <header className="minimal-header">
-            <nav className="minimal-nav">
-              <Link to="/" className="minimal-link">
-                CAMPAIGNS
-              </Link>
-              <Link to="/switching" className="minimal-link">
-                SWITCH
-              </Link>
-            </nav>
+            <Navigation />
           </header>
 
           <main className="minimal-main">
@@ -182,8 +334,8 @@ function App() {
             </Routes>
           </main>
         </div>
-      </Router>
-    </CampaignProvider>
+      </CampaignProvider>
+    </Router>
   );
 }
 
@@ -238,35 +390,79 @@ function CampaignManagementPage() {
           <div className="minimal-text">No campaigns available</div>
         ) : (
           <div className="minimal-grid">
-            {campaigns.map((campaign, index) => (
-              <div key={campaign.id || index} className="minimal-card">
-                <div className="minimal-text">
-                  <strong>{campaign.title || campaign.name || `Campaign ${campaign.id}`}</strong>
-                </div>
-                <div className="minimal-text">
-                  ID: {campaign.id} |
-                  <span className={`minimal-status ${campaign.status || 'unknown'}`}>
-                    {campaign.status || 'UNKNOWN'}
-                  </span>
-                </div>
-                {campaign.description && <div className="minimal-text">{campaign.description}</div>}
-                {campaign.features && campaign.features.length > 0 && (
-                  <div className="minimal-text">Features: {campaign.features.join(', ')}</div>
-                )}
-                <button
-                  onClick={() =>
-                    switchCampaignWithData &&
-                    switchCampaignWithData(campaign, response => {
-                      console.log('Campaign switch response:', response);
-                    })
-                  }
-                  className="minimal-button"
-                  style={{ marginTop: '8px' }}
+            {campaigns.map((campaign, index) => {
+              const isCurrentCampaign =
+                currentCampaign.campaignId === campaign.id ||
+                currentCampaign.campaignId === campaign.campaignId ||
+                currentCampaign.id === campaign.id;
+
+              return (
+                <div
+                  key={campaign.id || index}
+                  className={`minimal-card ${isCurrentCampaign ? 'active' : ''}`}
                 >
-                  SWITCH
-                </button>
-              </div>
-            ))}
+                  <div className="minimal-card-header">
+                    <div className="minimal-card-title">
+                      {campaign.title || campaign.name || `Campaign ${campaign.id}`}
+                    </div>
+                    <div className="minimal-card-meta">
+                      <span className="minimal-card-id">ID: {campaign.id}</span>
+                      <span className={`minimal-status ${campaign.status || 'unknown'}`}>
+                        {campaign.status || 'UNKNOWN'}
+                      </span>
+                      {isCurrentCampaign && (
+                        <span
+                          className="minimal-status active"
+                          style={{
+                            background: '#fff',
+                            color: '#000',
+                            fontWeight: 'bold',
+                            border: '1px solid #fff'
+                          }}
+                        >
+                          CURRENT
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {campaign.description && (
+                    <div className="minimal-card-description">{campaign.description}</div>
+                  )}
+
+                  {campaign.features && campaign.features.length > 0 && (
+                    <div className="minimal-card-features">
+                      <strong>Features:</strong> {campaign.features.join(', ')}
+                    </div>
+                  )}
+
+                  <div className="minimal-card-actions">
+                    <button
+                      onClick={() =>
+                        switchCampaignWithData &&
+                        switchCampaignWithData(campaign, _response => {
+                          // Campaign switch response handler
+                        })
+                      }
+                      className="minimal-card-button"
+                      disabled={isCurrentCampaign}
+                      style={
+                        isCurrentCampaign
+                          ? {
+                              background: '#333',
+                              color: '#666',
+                              cursor: 'not-allowed',
+                              opacity: 0.6
+                            }
+                          : {}
+                      }
+                    >
+                      {isCurrentCampaign ? 'CURRENT CAMPAIGN' : 'SWITCH TO CAMPAIGN'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

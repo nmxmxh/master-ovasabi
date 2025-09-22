@@ -154,12 +154,10 @@ func jsValueToMap(v js.Value) map[string]interface{} {
 	result := make(map[string]interface{})
 	keys := js.Global().Get("Object").Call("keys", v)
 	length := keys.Get("length").Int()
-	wasmLog("[WASM] jsValueToMap: processing object with", length, "keys")
 
 	for i := 0; i < length; i++ {
 		key := keys.Index(i).String()
 		val := v.Get(key)
-		wasmLog("[WASM] jsValueToMap: processing key", key, "type:", val.Type().String())
 
 		if val.Type() == js.TypeObject && !val.IsNull() {
 			result[key] = jsValueToMap(val)
@@ -176,6 +174,5 @@ func jsValueToMap(v js.Value) map[string]interface{} {
 		}
 	}
 
-	wasmLog("[WASM] jsValueToMap: result has", len(result), "keys")
 	return result
 }

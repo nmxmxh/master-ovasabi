@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { ConnectionState, MediaStreamingState } from '../types/connection';
+import { storeRegistry } from '../utils/storeActions';
 
 interface ConnectionStore extends ConnectionState {
   // Actions
@@ -16,6 +17,8 @@ interface ConnectionStore extends ConnectionState {
   setMediaStreamingState: (state: Partial<MediaStreamingState>) => void;
   clearMediaStreamingState: () => void;
 }
+
+// Removed verbose logging - only critical events are logged
 
 export const useConnectionStore = create<ConnectionStore>()(
   devtools(
@@ -70,10 +73,12 @@ export const useConnectionStore = create<ConnectionStore>()(
           'handleConnectionStatus'
         );
 
-        // Log connection status changes for debugging
-        console.log(
-          `[ConnectionStore] WebSocket status: ${connected ? 'CONNECTED' : 'DISCONNECTED'} (${reason})`
-        );
+        // Only log critical connection changes
+        if (reason === 'error' || reason === 'failed') {
+          console.log(
+            `[ConnectionStore] WebSocket status: ${connected ? 'CONNECTED' : 'DISCONNECTED'} (${reason})`
+          );
+        }
       },
 
       // Check global WebSocket status as fallback
@@ -93,43 +98,15 @@ export const useConnectionStore = create<ConnectionStore>()(
             'checkGlobalConnectionStatus'
           );
 
-          console.log(
-            `[ConnectionStore] Global status check: connected=${globalConnected}, wasmReady=${globalWasmReady}`
-          );
+          // Removed verbose status logging
         }
       },
 
       // Check connection timeout based on last message received
       checkConnectionTimeout: () => {
-        // Check if we haven't received a message in the last 30 seconds
-        import('./eventStore').then(mod => {
-          if (mod && mod.useEventStore) {
-            const eventStore = mod.useEventStore.getState();
-            const lastMessageTime = (eventStore as any).lastMessageTime;
-
-            if (lastMessageTime) {
-              const timeSinceLastMessage = Date.now() - new Date(lastMessageTime).getTime();
-              const timeoutThreshold = 30000; // 30 seconds
-
-              if (timeSinceLastMessage > timeoutThreshold) {
-                console.log(
-                  '[ConnectionStore] Connection timeout detected, no messages received in',
-                  timeSinceLastMessage,
-                  'ms'
-                );
-                set(
-                  (state: ConnectionStore) => ({
-                    ...state,
-                    connected: false,
-                    lastPing: state.lastPing
-                  }),
-                  false,
-                  'connectionTimeout'
-                );
-              }
-            }
-          }
-        });
+        // Note: Connection timeout checking is now handled by the event store
+        // to avoid circular dependencies. This method is kept for compatibility.
+        console.log('[ConnectionStore] Connection timeout check delegated to event store');
       },
 
       setWasmFunctions: funcs => {
@@ -211,3 +188,9 @@ export const useConnectionStore = create<ConnectionStore>()(
     }
   )
 );
+
+// Register store actions to break circular dependencies
+storeRegistry.register('connection', {
+  handleConnectionStatus: (connected: boolean, reason: string) =>
+    useConnectionStore.getState().handleConnectionStatus(connected, reason)
+});

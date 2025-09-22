@@ -3,8 +3,18 @@
 
 class ComputeWorker {
   log(...args) {
-    const context = this.getContext();
-    console.log(`[COMPUTE-WORKER][${this.workerId}]${context}`, ...args);
+    // Reduced logging - only log important events
+    if (
+      args[0] &&
+      typeof args[0] === 'string' &&
+      (args[0].includes('✅') ||
+        args[0].includes('❌') ||
+        args[0].includes('ERROR') ||
+        args[0].includes('Initialization'))
+    ) {
+      const context = this.getContext();
+      console.log(`[COMPUTE-WORKER][${this.workerId}]${context}`, ...args);
+    }
   }
   warn(...args) {
     const context = this.getContext();
@@ -87,16 +97,11 @@ class ComputeWorker {
 
   // Initialize compute worker with all optimizations
   async initialize() {
-    this.log('Initializing with enhanced optimizations...', {
-      workerId: this.workerId,
-      capabilities: this.capabilities,
-      maxPoolSize: this.maxPoolSize,
-      maxParticles: this.maxParticles
-    });
+    // Initializing with enhanced optimizations
     try {
       await this.initializeModules();
       // WASM integration setup handled by wasmReady event
-      this.log('✅ Initialization complete');
+      // Initialization complete
     } catch (error) {
       this.error('Initialization failed:', error);
       this.handleCriticalError(error);
@@ -280,13 +285,13 @@ class ComputeWorker {
   setupWASMIntegration() {
     // Workers don't have direct access to WASM functions from main thread
     // Instead, we'll communicate with the main thread for WASM operations
-    this.log('Setting up WASM integration via main thread communication...');
+    // Setting up WASM integration via main thread communication
 
     // WASM is available via main thread communication
     this.capabilities.wasm = true;
     this.capabilities.wasmViaMainThread = true;
 
-    this.log('✅ WASM integration set up via main thread communication');
+    // WASM integration set up via main thread communication
 
     // Notify main thread of capabilities
     self.postMessage({
@@ -392,12 +397,7 @@ class ComputeWorker {
       await this.initializeWebGPU();
       this.initialized = true;
 
-      this.log('Initialized successfully', {
-        wasm: this.capabilities.wasm,
-        webgpu: this.capabilities.webgpu,
-        javascript: this.capabilities.javascript,
-        concurrency: navigator.hardwareConcurrency || 4
-      });
+      // Initialized successfully
 
       // Run performance benchmarks if WASM functions are available
       if (this.capabilities.wasm && typeof self.runConcurrentCompute === 'function') {
@@ -425,12 +425,12 @@ class ComputeWorker {
   async initializeWasm() {
     // Load WASM module in worker context with proper integration
     try {
-      this.log('Loading wasm_exec.js...');
+      // Loading wasm_exec.js
 
       // Try to load wasm_exec.js with error handling
       try {
         importScripts('/wasm_exec.js');
-        this.log('wasm_exec.js loaded. Initializing Go runtime...');
+        // wasm_exec.js loaded
       } catch (importError) {
         this.warn('Failed to import wasm_exec.js:', importError);
         this.capabilities.wasm = false;
@@ -441,12 +441,12 @@ class ComputeWorker {
       let result;
 
       try {
-        this.log('Attempting streaming WASM instantiation...');
+        // Attempting streaming WASM instantiation
         result = await WebAssembly.instantiateStreaming(
           fetch(`/main.wasm?v=${Date.now()}`),
           go.importObject
         );
-        this.log('Streaming instantiation succeeded.');
+        // Streaming instantiation succeeded
       } catch (streamError) {
         this.warn('Streaming instantiation failed, trying manual fetch:', streamError);
 
@@ -454,29 +454,29 @@ class ComputeWorker {
         let wasmResponse;
 
         try {
-          this.log('Trying to fetch main.threads.wasm...');
+          // Trying to fetch main.threads.wasm
           wasmResponse = await fetch(`${wasmUrl}?v=${Date.now()}`);
           if (!wasmResponse.ok) throw new Error('main.threads.wasm not found');
-          this.log('main.threads.wasm fetched.');
+          // main.threads.wasm fetched
         } catch (e) {
           this.warn('main.threads.wasm not available, falling back to main.wasm:', e.message);
           wasmUrl = '/main.wasm';
           wasmResponse = await fetch(`${wasmUrl}?v=${Date.now()}`);
-          this.log('main.wasm fetched.');
+          // main.wasm fetched
         }
 
         const wasmBytes = await wasmResponse.arrayBuffer();
         const wasmModule = await WebAssembly.compile(wasmBytes);
         result = await WebAssembly.instantiate(wasmModule, go.importObject);
-        this.log('Manual WASM instantiation succeeded.');
+        // Manual WASM instantiation succeeded
       }
 
-      this.log('Running Go program...');
+      // Running Go program
       go.run(result.instance);
-      this.log('Go program started. Checking for WASM functions...');
+      // Go program started
 
       // Workers don't have direct access to WASM functions - they communicate with main thread
-      this.log('Worker WASM initialization complete, setting up main thread communication...');
+      // Worker WASM initialization complete
       this.wasmReady = true;
       this.setupWASMIntegration();
     } catch (error) {
@@ -489,7 +489,7 @@ class ComputeWorker {
   async initializeWebGPU() {
     // Skip WebGPU initialization in workers to prevent "external Instance reference" errors
     // WebGPU should only be initialized in the main thread to avoid conflicts
-    this.log('Skipping WebGPU initialization in worker - handled by main thread');
+    // Skipping WebGPU initialization in worker
     this.capabilities.webgpu = false;
 
     // Notify main thread that worker is ready without WebGPU

@@ -2,7 +2,7 @@
 // @ts-ignore: no types for wasm-feature-detect
 import { threads } from 'wasm-feature-detect';
 
-console.log('[WASM-LOADER] main.ts loaded and executing...');
+// WASM loader initialized
 
 // --- Global Bridge Functions ---
 // These functions are defined here so the application can use them,
@@ -56,7 +56,7 @@ window.onUserIDChanged = (newUserId: string) => {
 
 // Helper to load Go WASM and wire up the JS <-> WASM bridge
 async function loadGoWasm(wasmUrl: string) {
-  console.log('[WASM-LOADER] loadGoWasm called with URL:', wasmUrl);
+  // Loading WASM from URL
   // @ts-ignore
   if (!window.Go) {
     console.error(
@@ -74,7 +74,7 @@ async function loadGoWasm(wasmUrl: string) {
   for (const currentWasmUrl of wasmUrls) {
     // Add cache-busting timestamp to prevent browser caching during development
     const cacheBustingUrl = `${currentWasmUrl}?v=${Date.now()}`;
-    console.log(`[WASM-LOADER] Trying WASM file: ${cacheBustingUrl}`);
+    // Attempting WASM file load
 
     // @ts-ignore
     const go = new window.Go();
@@ -90,7 +90,7 @@ async function loadGoWasm(wasmUrl: string) {
 
     while (attempts < maxAttempts) {
       try {
-        console.log('[WASM-LOADER] Attempting WASM instantiateStreaming...');
+        // Attempting WASM instantiation
 
         // Try to fetch the WASM file first to check if it's accessible
         const response = await fetch(cacheBustingUrl);
@@ -99,14 +99,14 @@ async function loadGoWasm(wasmUrl: string) {
         }
 
         const result = await WebAssembly.instantiateStreaming(response, go.importObject);
-        console.log('[WASM-LOADER] WASM instantiateStreaming succeeded, running Go WASM...');
+        // WASM instantiation succeeded, running Go WASM
         go.run(result.instance);
-        console.log('[WASM-LOADER] go.run completed. Checking exports...');
+        // Go WASM execution completed
 
         // Check for required exports on window
         const missing = requiredExports.filter(fn => typeof (window as any)[fn] !== 'function');
         if (missing.length === 0) {
-          console.log('[WASM-LOADER] All required exports attached to window:', requiredExports);
+          // All required exports attached to window
           wasmInitializationComplete = true;
           // Dispatch wasmReady event
           window.dispatchEvent(new Event('wasmReady'));
@@ -156,13 +156,7 @@ function startWasmAndComputeWorker() {
   }
 
   wasmInitializationStarted = true;
-  console.log('[WASM-LOADER] startWasmAndComputeWorker called');
-  console.log('[WASM-LOADER] Current window.Go available:', typeof (window as any).Go);
-  console.log('[WASM-LOADER] Current WASM functions available:', {
-    runConcurrentCompute: typeof (window as any).runConcurrentCompute === 'function',
-    runGPUCompute: typeof (window as any).runGPUCompute === 'function',
-    getGPUMetricsBuffer: typeof (window as any).getGPUMetricsBuffer === 'function'
-  });
+  // Starting WASM and compute worker
   (async () => {
     try {
       // Extra debug: check SharedArrayBuffer and COOP/COEP
@@ -192,29 +186,24 @@ function startWasmAndComputeWorker() {
       const wasmUrl = supportsThreads ? '/main.threads.wasm' : '/main.wasm';
       // Set global variable for Go WASM to log
       (window as any).__WASM_VERSION = wasmUrl;
-      console.log('[WASM-LOADER] About to call loadGoWasm...');
+      // Loading Go WASM
       await loadGoWasm(wasmUrl);
-      console.log(`[WASM] Loaded ${wasmUrl} (threads: ${supportsThreads})`);
-      console.log('[WASM-LOADER] loadGoWasm completed, checking for WASM functions...');
-      console.log('[WASM-LOADER] WASM functions after load:', {
-        runConcurrentCompute: typeof (window as any).runConcurrentCompute === 'function',
-        runGPUCompute: typeof (window as any).runGPUCompute === 'function',
-        getGPUMetricsBuffer: typeof (window as any).getGPUMetricsBuffer === 'function'
-      });
+      console.log(`✅ WASM loaded successfully (threads: ${supportsThreads})`);
+      // WASM functions loaded
       // Start compute-worker after WASM is loaded
       if (window.Worker) {
         try {
           const worker = new Worker('/workers/compute-worker.js');
           worker.onmessage = event => {
             if (event.data && event.data.type === 'worker-ready') {
-              console.log('[ComputeWorker] Ready:', event.data.capabilities);
+              // Compute worker ready
             }
             if (event.data && event.data.type === 'worker-error') {
               console.error('[ComputeWorker] Error:', event.data.error);
             }
           };
           (window as any).__COMPUTE_WORKER = worker;
-          console.log('[ComputeWorker] Started and listening for messages.');
+          // Compute worker started
         } catch (err) {
           console.error('[ComputeWorker] Failed to start:', err);
         }
@@ -239,13 +228,13 @@ function registerServiceWorker() {
     return;
   }
 
-  console.log('[SW] Registering service worker...');
+  // Registering service worker
 
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then(registration => {
-        console.log('[SW] Registered successfully:', registration);
+        // Service worker registered successfully
 
         // Handle updates silently
         registration.addEventListener('updatefound', () => {
@@ -276,7 +265,7 @@ function attemptWasmStart() {
   }
 
   wasmStartAttempted = true;
-  console.log('[WASM-LOADER] Starting WASM initialization...');
+  // Starting WASM initialization
 
   try {
     startWasmAndComputeWorker();
@@ -290,37 +279,37 @@ if ('serviceWorker' in navigator) {
   // Listen for service worker ready signal
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data && event.data.type === 'sw-ready') {
-      console.log('[SW] Ready, starting WASM and compute-worker');
+      // Service worker ready, starting WASM
       attemptWasmStart();
     }
   });
 
   // Fallback: start on window load if SW doesn't signal ready
   window.addEventListener('load', () => {
-    console.log('[WASM-LOADER] Window load event - attempting WASM start');
+    // Window loaded, attempting WASM start
     attemptWasmStart();
   });
 
   // Immediate fallback for development or if SW is slow
   setTimeout(() => {
     if (!wasmStartAttempted) {
-      console.log('[WASM-LOADER] Timeout fallback - starting WASM');
+      // Timeout fallback - starting WASM
       attemptWasmStart();
     }
   }, 1000);
 } else {
   // No service worker - start immediately
-  console.log('[WASM-LOADER] No service worker, starting WASM immediately');
+  // No service worker, starting WASM immediately
   attemptWasmStart();
 }
 
 window.addEventListener('wasmReady', () => {
   // Only start polling after wasmReady event
-  console.log('[Frontend] wasmReady event received, checking for WASM exports...');
+  // WASM ready event received
 
   // Clear any cached user IDs from localStorage to ensure fresh WASM user ID
   if (typeof window !== 'undefined' && window.localStorage) {
-    console.log('[Frontend] Clearing cached user IDs to ensure fresh WASM user ID');
+    // Clearing cached user IDs
     // Clear any cached metadata that might have stale user IDs
     window.localStorage.removeItem('metadata-store');
   }
@@ -330,7 +319,7 @@ window.addEventListener('wasmReady', () => {
     if (mod && mod.useEventStore) {
       const store = mod.useEventStore.getState();
       if (store.setWasmReady) {
-        console.log('[Frontend] Setting event store WASM ready via wasmReady event');
+        // Setting event store WASM ready
         store.setWasmReady(true);
       }
     }
@@ -338,10 +327,7 @@ window.addEventListener('wasmReady', () => {
 
   // Log the WASM export summary for inspection
   const exportSummary = (window as any).__WASM_GLOBAL_METADATA;
-  console.log('[Frontend] __WASM_GLOBAL_METADATA:', exportSummary);
-  if (typeof (window as any).getWasmExportSummary === 'function') {
-    console.log('[Frontend] getWasmExportSummary():', (window as any).getWasmExportSummary());
-  }
+  // WASM global metadata available
   // Check for required exports and their types
   const requiredExports = [
     'initWebGPU',
@@ -366,7 +352,7 @@ window.addEventListener('wasmReady', () => {
         typeof windowFn
       );
     } else {
-      console.log(`[Frontend] WASM export '${fn}' available on window:`, typeof windowFn);
+      // WASM export available
     }
 
     // Also check metadata for debugging
@@ -422,16 +408,33 @@ window.addEventListener('wasmReady', () => {
       if (mod && mod.useEventStore) {
         const store = mod.useEventStore.getState();
         if (store.setWasmReady) {
-          console.log('[Frontend] Setting event store WASM ready');
+          // Setting event store WASM ready
           store.setWasmReady(true);
+        }
+      }
+    });
+
+    // Initialize metadata store with WASM-generated IDs
+    import('./store/stores/metadataStore').then(mod => {
+      if (mod && mod.useMetadataStore) {
+        const store = mod.useMetadataStore.getState();
+        if (store.initializeMetadata && store.initializeUserId) {
+          console.log('[WASM] Initializing metadata store with WASM IDs');
+          // Initialize both metadata and user ID
+          store.initializeMetadata();
+          store.initializeUserId();
         }
       }
     });
   };
 
+  // Removed verbose WASM polling logs
+
   const pollWasmFunctions = () => {
     const wasmFunctions = checkWasmFunctions();
-    console.log('[Frontend] WASM functions available (poll):', wasmFunctions);
+
+    // Removed verbose WASM polling logs
+
     updateStoreWithWasmFunctions(wasmFunctions);
     attempts++;
 
@@ -446,9 +449,8 @@ window.addEventListener('wasmReady', () => {
 
     if (coreFunctionsReady || attempts >= maxAttempts) {
       clearInterval(timer);
-      console.log('[Frontend] WASM function polling complete:', wasmFunctions);
-      console.log('[Frontend] Core functions ready:', coreFunctionsReady);
-      console.log('[Frontend] runConcurrentCompute available:', wasmFunctions.runConcurrentCompute);
+      // Only log completion
+      console.log('✅ WASM functions ready:', coreFunctionsReady);
     }
   };
   // Delay polling to allow WASM exports to attach

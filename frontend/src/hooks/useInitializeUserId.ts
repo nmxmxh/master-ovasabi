@@ -11,7 +11,7 @@ export const useInitializeUserId = () => {
   useEffect(() => {
     // Wait for WASM to be ready before initializing
     const handleWasmReady = () => {
-      console.log('[useInitializeUserId] WASM ready event received');
+      // WASM ready event received
       setWasmReady(true);
     };
 
@@ -29,20 +29,16 @@ export const useInitializeUserId = () => {
   }, []);
 
   useEffect(() => {
-    console.log('[useInitializeUserId] Effect triggered:', {
-      wasmReady,
-      userId,
-      isInitialized: userId !== 'loading'
-    });
+    // Effect triggered
 
     // Only initialize if WASM is ready and userId is still in loading state
     if (wasmReady && userId === 'loading') {
-      console.log('[useInitializeUserId] Initializing user ID from WASM');
+      // Initializing user ID from WASM
       initializeUserId();
     } else if (!wasmReady && userId === 'loading') {
-      console.log('[useInitializeUserId] WASM not ready, waiting...');
+      // WASM not ready, waiting
     } else if (userId !== 'loading') {
-      console.log('[useInitializeUserId] User ID already initialized:', userId);
+      // User ID already initialized
     }
   }, [wasmReady, initializeUserId, userId]);
 

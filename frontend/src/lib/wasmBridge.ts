@@ -167,13 +167,10 @@ export class WasmGPUBridge {
 
   private async performWASMInitialization(): Promise<boolean> {
     try {
-      console.log('[WASM-GPU-Bridge] Initializing WASM GPU bridge...');
-
       // Wait for WASM functions to be available
       await this.waitForWASMFunctions();
 
       this.initialized = true;
-      console.log('[WASM-GPU-Bridge] ✅ WASM GPU bridge initialized');
       return true;
     } catch (error) {
       console.error('[WASM-GPU-Bridge] Initialization failed:', error);
@@ -263,7 +260,7 @@ export class WasmGPUBridge {
         (window as any).__WASM_GLOBAL_METADATA.gpuCapabilities = capabilities;
       }
     } catch (error) {
-      console.warn('[WASM-GPU-Bridge] Failed to update metadata with GPU info:', error);
+      // Silently fail - GPU info is not critical
     }
   }
 
@@ -291,7 +288,6 @@ export class WasmGPUBridge {
       const { wasmComputeBridge } = await import('./compute');
       return wasmComputeBridge.runBenchmark({ particleCount: dataSize });
     } catch (error) {
-      console.warn('[WASM-GPU-Bridge] Compute bridge not available for benchmark');
       return {
         throughput: 0,
         duration: 0,
@@ -321,14 +317,6 @@ export function getLastWasmCancellationReason(): string | null {
 }
 
 function notifyListeners(msg: any) {
-  console.log('[WASM-Bridge] Received message:', {
-    type: msg.type,
-    hasPayload: !!msg.payload,
-    hasMetadata: !!msg.metadata,
-    correlationId: msg.correlationId || msg.correlation_id,
-    timestamp: new Date().toISOString()
-  });
-
   const wasmMsg = wasmMessageToTypescript(msg);
 
   // First, route to event store for processing
@@ -337,7 +325,6 @@ function notifyListeners(msg: any) {
       if (mod && mod.useEventStore) {
         const store = mod.useEventStore.getState();
         if (store.handleWasmMessage) {
-          console.log('[WASM-Bridge] Routing message to event store:', msg.type);
           store.handleWasmMessage(msg);
         } else {
           console.error('[WASM-Bridge] Event store handleWasmMessage not available');
@@ -417,7 +404,6 @@ export function wasmSendMessage(msg: WasmBridgeMessage | EventEnvelope) {
     // Check if this is an EventEnvelope with canonical structure
     if ('correlation_id' in msg && 'version' in msg && 'environment' in msg && 'source' in msg) {
       // This is a canonical EventEnvelope - send it directly
-      console.log('[WASM-Bridge] Sending canonical EventEnvelope:', msg);
       window.sendWasmMessage(msg);
     } else {
       // Handle legacy WasmBridgeMessage format
@@ -430,7 +416,6 @@ export function wasmSendMessage(msg: WasmBridgeMessage | EventEnvelope) {
               metadata: (msg as EventEnvelope).metadata || {}
             };
 
-      console.log('[WASM-Bridge] Sending legacy WasmBridgeMessage:', wasmMsg);
       window.sendWasmMessage(wasmMsg);
     }
   } catch (error) {
@@ -480,8 +465,6 @@ export function setupCampaignSwitchHandler(): void {
     reason: string;
     timestamp?: string;
   }) => {
-    console.log('[WasmBridge] Campaign switch required:', switchEvent);
-
     // Import the store dynamically to avoid circular dependencies
     import('../store/stores/campaignStore').then(({ useCampaignStore }) => {
       useCampaignStore.getState().handleCampaignSwitchRequired(switchEvent);
@@ -495,8 +478,6 @@ export function setupCampaignSwitchHandler(): void {
     timestamp?: string;
     status: string;
   }) => {
-    console.log('[WasmBridge] Campaign switch completed:', switchEvent);
-
     // Import the store dynamically to avoid circular dependencies
     import('../store/stores/campaignStore').then(({ useCampaignStore }) => {
       useCampaignStore.getState().handleCampaignSwitchCompleted(switchEvent);
@@ -518,7 +499,6 @@ export function subscribeToMediaStreamingMessages(callback: (data: any) => void)
 
 export function disconnectMediaStreaming(): void {
   // Implementation depends on WASM media streaming API
-  console.log('[WASM-Bridge] Disconnecting media streaming...');
 }
 
 // Initialize message handling

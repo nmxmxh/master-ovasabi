@@ -222,8 +222,8 @@ func gracefulCloseWebSocket() {
 		// Close with a proper close code and reason
 		ws.Call("close", 1000, "campaign_switch") // 1000 = normal closure
 
-		// Wait a moment for the close to complete
-		time.Sleep(100 * time.Millisecond)
+		// Wait briefly for the close to complete and frontend to process
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Clean up the connection
@@ -262,6 +262,10 @@ func configureWebSocketCallbacks() {
 		updateWasmMetadata("webSocketReadyState", ws.Get("readyState").Int())
 
 		notifyFrontendConnectionStatus(true, "websocket_opened") // Notify connection status
+
+		// Process any queued outgoing messages
+		go processOutgoingQueue()
+
 		return nil
 	}))
 
@@ -450,4 +454,11 @@ func handleCampaignSwitch(oldCampaignID, newCampaignID, reason string) {
 	// Note: Don't reconnect immediately here - wait for the switch event to be processed
 	// The switch event will trigger the reconnection with the updated campaign ID
 	wasmLog("[WASM] Campaign switch metadata updated, waiting for switch event to trigger reconnection...")
+
+	// Add a minimal delay to ensure the switch event is processed before reconnecting
+	go func() {
+		time.Sleep(25 * time.Millisecond)
+		wasmLog("[WASM] Triggering reconnection after campaign switch...")
+		reconnectWebSocket()
+	}()
 }

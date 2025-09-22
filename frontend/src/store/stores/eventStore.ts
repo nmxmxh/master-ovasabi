@@ -158,6 +158,8 @@ export const useEventStore = create<EventStore>()(
                 ...state.pendingRequests,
                 [correlationId]: {
                   expectedEventType: fullEvent.type.replace(/:requested$/, ':success'),
+                  eventType: fullEvent.type,
+                  timestamp: Date.now(),
                   resolve: onResponse
                 }
               }
@@ -169,19 +171,21 @@ export const useEventStore = create<EventStore>()(
 
         // Send to WASM WebSocket
         try {
-          // Import the WASM bridge function
-          import('../../lib/wasmBridge')
-            .then(mod => {
-              if (mod && mod.wasmSendMessage) {
-                mod.wasmSendMessage(fullEvent);
-                console.log('[EventStore] Event sent to WASM:', fullEvent.type, fullEvent);
-              } else {
-                console.warn('[EventStore] wasmSendMessage not available');
-              }
-            })
-            .catch(error => {
-              console.error('[EventStore] Failed to import WASM bridge:', error);
-            });
+          // Check if WASM is ready and send message directly
+          if (typeof window.sendWasmMessage === 'function') {
+            window.sendWasmMessage(fullEvent);
+            console.log('[EventStore] Event sent to WASM:', fullEvent.type, fullEvent);
+          } else {
+            console.warn('[EventStore] sendWasmMessage not available, WASM not ready');
+            // Queue the event for later processing
+            set(
+              state => ({
+                queuedEvents: [...state.queuedEvents, { event: fullEvent, onResponse }]
+              }),
+              false,
+              'queueEventForWasm'
+            );
+          }
         } catch (error) {
           console.error('[EventStore] Failed to send event to WASM:', error);
         }
@@ -283,7 +287,7 @@ export const useEventStore = create<EventStore>()(
             payload: parsedPayload,
             metadata: msg.metadata || {},
             correlation_id: msg.correlation_id || msg.correlationId || `corr_${Date.now()}`,
-            timestamp: new Date().toISOString(),
+            timestamp: msg.timestamp || new Date().toISOString(),
             version: msg.version || '1.0.0',
             environment: msg.environment || 'development',
             source: msg.source || 'wasm'
@@ -312,6 +316,47 @@ export const useEventStore = create<EventStore>()(
               if (event.type === 'search:search:v1:success') {
                 console.log('[EventStore] Adding search success event to store:', event);
               }
+
+              if (event.type === 'campaign:switch:v1:success') {
+                console.log('[EventStore] Processing campaign switch success event:', event);
+
+                // Update campaign store with the new campaign data
+                import('./campaignStore').then(({ useCampaignStore }) => {
+                  const campaignStore = useCampaignStore.getState();
+                  if (campaignStore.updateCampaignFromResponse) {
+                    campaignStore.updateCampaignFromResponse(event.payload);
+                    console.log('[EventStore] Updated campaign store with switch success data');
+                  }
+                });
+
+                // Trigger WebSocket reconnection to subscribe to new campaign
+                if (window.handleCampaignSwitchSuccess) {
+                  const campaignId =
+                    event.payload.campaign_id || event.payload.campaignId || 'unknown';
+                  const reason = event.payload.reason || 'user_initiated';
+                  console.log(
+                    '[EventStore] Triggering WebSocket reconnection for campaign:',
+                    campaignId
+                  );
+                  window.handleCampaignSwitchSuccess(campaignId, reason);
+                }
+              }
+
+              if (event.type === 'campaign:state:v1:success') {
+                console.log('[EventStore] Adding campaign state success event to store:', event);
+                // Update campaign store with the received campaign data
+                import('./campaignStore').then(({ useCampaignStore }) => {
+                  useCampaignStore.getState().updateCampaignFromResponse(event.payload);
+                });
+              }
+
+              if (event.type === 'campaign:list:v1:success') {
+                console.log('[EventStore] Adding campaign list success event to store:', event);
+                // Update campaign store with the received campaign list
+                import('./campaignStore').then(({ useCampaignStore }) => {
+                  useCampaignStore.getState().updateCampaignsFromResponse(event.payload);
+                });
+              }
               return {
                 events: newEvents,
                 eventStates: {
@@ -325,7 +370,7 @@ export const useEventStore = create<EventStore>()(
           );
 
           // Check if this resolves a pending request
-          const correlationId = msg.correlationId || msg.correlation_id || event.correlation_id;
+          const correlationId = msg.correlation_id || msg.correlationId || event.correlation_id;
           console.log('[EventStore] Checking correlation ID match:', {
             receivedCorrelationId: correlationId,
             availablePendingRequests: Object.keys(get().pendingRequests),
@@ -337,6 +382,28 @@ export const useEventStore = create<EventStore>()(
               )
           });
 
+          // If no correlation ID from backend, try to match by event type and recent timing
+          let matchedCorrelationId = correlationId;
+          if (!correlationId || !get().pendingRequests[correlationId]) {
+            // Try to find a matching pending request by event type and timing
+            const pendingKeys = Object.keys(get().pendingRequests);
+            const matchingKey = pendingKeys.find(key => {
+              const pendingRequest = get().pendingRequests[key];
+              const timeDiff = Date.now() - (pendingRequest as any).timestamp;
+              // Match if it's the same event type and within 5 seconds
+              return (pendingRequest as any).eventType === event.type && timeDiff < 5000;
+            });
+
+            if (matchingKey) {
+              matchedCorrelationId = matchingKey;
+              console.log('[EventStore] Found matching request by type and timing:', {
+                eventType: event.type,
+                matchedKey: matchingKey,
+                timeDiff: Date.now() - (get().pendingRequests[matchingKey] as any).timestamp
+              });
+            }
+          }
+
           if (event.type === 'search:search:v1:success') {
             console.log(
               '[EventStore] Processing search success event correlation ID:',
@@ -344,18 +411,18 @@ export const useEventStore = create<EventStore>()(
             );
           }
 
-          if (correlationId && get().pendingRequests[correlationId]) {
-            const pendingRequest = get().pendingRequests[correlationId];
+          if (matchedCorrelationId && get().pendingRequests[matchedCorrelationId]) {
+            const pendingRequest = get().pendingRequests[matchedCorrelationId];
             console.log(
               '[EventStore] Resolving pending request for correlation ID:',
-              correlationId
+              matchedCorrelationId
             );
             pendingRequest.resolve(event);
 
             set(
               state => {
                 const newPendingRequests = { ...state.pendingRequests };
-                delete newPendingRequests[correlationId];
+                delete newPendingRequests[matchedCorrelationId];
                 return { pendingRequests: newPendingRequests };
               },
               false,
@@ -449,8 +516,18 @@ export const useEventStore = create<EventStore>()(
           const { queuedEvents } = get();
           console.log(`[EventStore] WASM ready, processing ${queuedEvents.length} queued events`);
 
-          queuedEvents.forEach(({ event, onResponse }) => {
-            get().emitEvent(event, onResponse);
+          queuedEvents.forEach(({ event }) => {
+            // Send directly to WASM
+            try {
+              if (typeof window.sendWasmMessage === 'function') {
+                window.sendWasmMessage(event);
+                console.log('[EventStore] Queued event sent to WASM:', event.type, event);
+              } else {
+                console.warn('[EventStore] sendWasmMessage not available for queued event');
+              }
+            } catch (error) {
+              console.error('[EventStore] Failed to send queued event to WASM:', error);
+            }
           });
 
           // Clear queued events

@@ -50,6 +50,11 @@ interface CampaignStore extends CampaignState {
   ) => void;
   updateCampaignFromResponse: (campaignData: any) => void;
   updateCampaignsFromResponse: (responseData: any) => void;
+
+  // Debugging & Monitoring
+  getStateSnapshot: () => any; // Get complete state for debugging
+  logStateChange: (action: string, details?: any) => void; // Log state changes
+  getCampaignSwitchFlow: () => any; // Get campaign switching flow state
 }
 
 export const useCampaignStore = create<CampaignStore>()(
@@ -248,7 +253,10 @@ export const useCampaignStore = create<CampaignStore>()(
           },
           metadata: {
             global_context: {
-              user_id: useMetadataStore.getState().metadata?.user?.userId || 'loading',
+              user_id:
+                useMetadataStore.getState().userId ||
+                useMetadataStore.getState().metadata?.user?.userId ||
+                'loading',
               campaign_id: campaignIdentifier, // Use slug-based identifier
               correlation_id: `corr_${Date.now()}`,
               session_id: useMetadataStore.getState().metadata?.session?.sessionId || 'loading',
@@ -291,7 +299,18 @@ export const useCampaignStore = create<CampaignStore>()(
       },
 
       switchCampaignWithData: (campaignData, onResponse) => {
-        console.log('[CampaignStore] Switching campaign with data:', campaignData);
+        console.log('[CampaignStore] Switching campaign with data:', {
+          id: campaignData.id,
+          campaignId: campaignData.campaignId,
+          slug: campaignData.slug,
+          title: campaignData.title,
+          name: campaignData.name,
+          status: campaignData.status,
+          features: campaignData.features?.length || 0,
+          hasUI: !!campaignData.ui_content,
+          hasTheme: !!campaignData.theme,
+          hasServiceConfigs: !!campaignData.service_configs
+        });
 
         // Create campaign metadata structure with actual campaign data
         const campaignMetadata: CampaignMetadata = {
@@ -322,10 +341,36 @@ export const useCampaignStore = create<CampaignStore>()(
               slug: campaignData.slug || `campaign_${campaignData.id}`,
               status: campaignData.status || 'active',
               last_switched: new Date().toISOString(),
+              // Preserve nested structure from campaign.json
+              ui_components:
+                campaignData.ui_components ||
+                campaignData.metadata?.service_specific?.campaign?.ui_components,
+              theme: campaignData.theme || campaignData.metadata?.service_specific?.campaign?.theme,
+              platform_type:
+                campaignData.platform_type ||
+                campaignData.metadata?.service_specific?.campaign?.platform_type,
+              focus: campaignData.focus || campaignData.metadata?.service_specific?.campaign?.focus,
+              target_audience:
+                campaignData.target_audience ||
+                campaignData.metadata?.service_specific?.campaign?.target_audience,
+              service_configs:
+                campaignData.service_configs ||
+                campaignData.metadata?.service_specific?.campaign?.service_configs,
+              // Spread other campaign data
               ...campaignData
             }
           }
         };
+
+        console.log('[CampaignStore] Created campaign metadata:', {
+          campaignId: campaignMetadata.campaignId,
+          slug: campaignMetadata.slug,
+          title: campaignMetadata.title,
+          status: campaignMetadata.status,
+          features: campaignMetadata.features.length,
+          hasServiceSpecific: !!campaignMetadata.serviceSpecific,
+          hasCampaign: !!campaignMetadata.serviceSpecific?.campaign
+        });
 
         // Update current campaign
         set(
@@ -336,10 +381,19 @@ export const useCampaignStore = create<CampaignStore>()(
           'switchCampaignWithData'
         );
 
-        // Also update metadata store
-        useMetadataStore.getState().setMetadata({
-          campaign: campaignMetadata
+        // Also update metadata store with campaign data
+        console.log('[CampaignStore] 🔄 Triggering metadata store update for campaign switch:', {
+          campaignData: {
+            id: campaignData.id || campaignData.campaignId,
+            slug: campaignData.slug,
+            title: campaignData.title,
+            features: campaignData.features?.length || 0
+          },
+          currentMetadata: useMetadataStore.getState().metadata.campaign,
+          userId: useMetadataStore.getState().userId
         });
+
+        useMetadataStore.getState().updateCampaignMetadata(campaignData);
 
         // Emit campaign switch event
         const event: Omit<
@@ -359,7 +413,10 @@ export const useCampaignStore = create<CampaignStore>()(
           },
           metadata: {
             global_context: {
-              user_id: useMetadataStore.getState().metadata?.user?.userId || 'loading',
+              user_id:
+                useMetadataStore.getState().userId ||
+                useMetadataStore.getState().metadata?.user?.userId ||
+                'loading',
               campaign_id: campaignData.id || campaignData.campaignId,
               correlation_id: `corr_${Date.now()}`,
               session_id: useMetadataStore.getState().metadata?.session?.sessionId || 'loading',
@@ -378,6 +435,14 @@ export const useCampaignStore = create<CampaignStore>()(
         };
 
         // Emit event through event store
+        console.log('[CampaignStore] Emitting campaign switch event:', {
+          type: event.type,
+          campaignId: event.payload.campaignId,
+          slug: event.payload.slug,
+          correlationId: event.metadata.global_context.correlation_id,
+          hasOnResponse: !!onResponse
+        });
+
         try {
           const eventStore = useEventStore.getState();
           eventStore.emitEvent(event, onResponse);
@@ -385,6 +450,7 @@ export const useCampaignStore = create<CampaignStore>()(
         } catch (error) {
           console.error('[CampaignStore] Failed to emit event:', error);
           if (onResponse) {
+            console.log('[CampaignStore] Simulating response due to emit failure');
             // Simulate response
             setTimeout(() => {
               const response: EventEnvelope = {
@@ -606,7 +672,10 @@ export const useCampaignStore = create<CampaignStore>()(
           },
           metadata: {
             global_context: {
-              user_id: useMetadataStore.getState().metadata?.user?.userId || 'loading',
+              user_id:
+                useMetadataStore.getState().userId ||
+                useMetadataStore.getState().metadata?.user?.userId ||
+                'loading',
               campaign_id: campaignSlug, // Use slug in metadata too
               correlation_id: `corr_${Date.now()}`,
               session_id: useMetadataStore.getState().metadata?.session?.sessionId || 'loading',
@@ -648,7 +717,7 @@ export const useCampaignStore = create<CampaignStore>()(
         console.log('[CampaignStore] Updating campaign from response:', campaignData);
 
         // Extract campaign information from response
-        const campaignId = campaignData.campaignId || campaignData.id;
+        const campaignId = campaignData.campaignId || campaignData.campaign_id || campaignData.id;
         const slug = campaignData.slug;
         const title = campaignData.title || campaignData.name;
         const features = Array.isArray(campaignData.features) ? campaignData.features : [];
@@ -706,16 +775,31 @@ export const useCampaignStore = create<CampaignStore>()(
           false,
           'updateCampaignFromResponse'
         );
+
+        // Sync with metadata store
+        console.log('[CampaignStore] 🔄 Triggering metadata store sync for campaign response:', {
+          campaignMetadata: {
+            id: campaignMetadata.campaignId,
+            slug: campaignMetadata.slug,
+            title: campaignMetadata.title,
+            status: campaignMetadata.status,
+            features: campaignMetadata.features?.length || 0
+          },
+          currentMetadata: useMetadataStore.getState().metadata.campaign,
+          userId: useMetadataStore.getState().userId
+        });
+
+        useMetadataStore.getState().syncWithCampaignState(campaignMetadata);
       },
 
       updateCampaignsFromResponse: responseData => {
-        console.log('[CampaignStore] Updating campaigns from response:', responseData);
+        // Updating campaigns from response
 
         // Extract campaigns from the response
         const campaigns = responseData?.campaigns || responseData?.data?.campaigns || [];
 
         if (campaigns.length > 0) {
-          console.log('[CampaignStore] Processing campaigns:', campaigns.length);
+          // Processing campaigns
 
           // Update the campaigns in the store
           set(
@@ -723,6 +807,10 @@ export const useCampaignStore = create<CampaignStore>()(
               campaigns: campaigns.map((campaign: any, index: number) => {
                 try {
                   const parsed = typeof campaign === 'string' ? JSON.parse(campaign) : campaign;
+
+                  // Extract nested data from metadata.service_specific.campaign if it exists
+                  const nestedCampaign = parsed.metadata?.service_specific?.campaign;
+
                   return {
                     id: parsed.id || parsed.campaign_id || index,
                     title: parsed.title || parsed.name || `Campaign ${index + 1}`,
@@ -730,14 +818,28 @@ export const useCampaignStore = create<CampaignStore>()(
                     description: parsed.description || '',
                     status: parsed.status || 'active',
                     features: parsed.features || [],
-                    focus: parsed.focus || '',
+                    focus: parsed.focus || nestedCampaign?.focus || '',
                     inos_enabled: parsed.inos_enabled || false,
                     broadcast_enabled: parsed.broadcast_enabled || false,
                     channels: parsed.channels || [],
                     i18n_keys: parsed.i18n_keys || [],
-                    ui_content: parsed.ui_content || {},
-                    about: parsed.about || {},
-                    last_updated: new Date().toISOString()
+                    ui_content: parsed.ui_content || nestedCampaign?.ui_content || {},
+                    about: parsed.about || nestedCampaign?.about || {},
+                    // Extract nested UI components and theme
+                    ui_components: parsed.ui_components || nestedCampaign?.ui_components || {},
+                    theme: parsed.theme || nestedCampaign?.theme || {},
+                    platform_type:
+                      parsed.platform_type ||
+                      nestedCampaign?.platform_type ||
+                      parsed.focus ||
+                      'general',
+                    service_configs:
+                      parsed.service_configs || nestedCampaign?.service_configs || {},
+                    target_audience:
+                      parsed.target_audience || nestedCampaign?.target_audience || '',
+                    last_updated: new Date().toISOString(),
+                    // Preserve the full campaign data for nested access
+                    ...parsed
                   };
                 } catch (error) {
                   console.error('[CampaignStore] Error parsing campaign:', error, campaign);
@@ -748,6 +850,18 @@ export const useCampaignStore = create<CampaignStore>()(
                     description: '',
                     status: 'active',
                     features: [],
+                    focus: '',
+                    inos_enabled: false,
+                    broadcast_enabled: false,
+                    channels: [],
+                    i18n_keys: [],
+                    ui_content: {},
+                    about: {},
+                    ui_components: {},
+                    theme: {},
+                    platform_type: 'general',
+                    service_configs: {},
+                    target_audience: '',
                     last_updated: new Date().toISOString()
                   };
                 }
@@ -757,6 +871,63 @@ export const useCampaignStore = create<CampaignStore>()(
             'updateCampaignsFromResponse'
           );
         }
+      },
+
+      // Get complete state snapshot for debugging
+      getStateSnapshot: () => {
+        const state = get();
+        return {
+          currentCampaign: state.currentCampaign,
+          campaigns: state.campaigns,
+          metadata: useMetadataStore.getState().getStateSnapshot(),
+          timestamp: new Date().toISOString()
+        };
+      },
+
+      // Log state changes with context
+      logStateChange: (action: string, details?: any) => {
+        const snapshot = get().getStateSnapshot();
+        console.log(`[CampaignStore] 📊 State Change: ${action}`, {
+          action,
+          details,
+          currentState: snapshot,
+          timestamp: new Date().toISOString()
+        });
+      },
+
+      // Get campaign switching flow state
+      getCampaignSwitchFlow: () => {
+        const state = get();
+        const metadata = useMetadataStore.getState().getStateSnapshot();
+
+        return {
+          currentCampaign: {
+            id: state.currentCampaign?.campaignId,
+            slug: state.currentCampaign?.slug,
+            title: state.currentCampaign?.title,
+            status: state.currentCampaign?.status,
+            features: state.currentCampaign?.features?.length || 0
+          },
+          metadataCampaign: {
+            id: metadata.metadata.campaign.campaignId,
+            slug: metadata.metadata.campaign.slug,
+            title: metadata.metadata.campaign.title,
+            status: metadata.metadata.campaign.status,
+            features: metadata.metadata.campaign.features?.length || 0,
+            lastSwitched: metadata.metadata.campaign.last_switched
+          },
+          syncStatus: {
+            campaignsMatch:
+              state.currentCampaign?.campaignId === metadata.metadata.campaign.campaignId,
+            titlesMatch: state.currentCampaign?.title === metadata.metadata.campaign.title,
+            statusMatch: state.currentCampaign?.status === metadata.metadata.campaign.status,
+            featuresMatch:
+              JSON.stringify(state.currentCampaign?.features) ===
+              JSON.stringify(metadata.metadata.campaign.features)
+          },
+          userId: metadata.userId,
+          timestamp: new Date().toISOString()
+        };
       }
     }),
     {

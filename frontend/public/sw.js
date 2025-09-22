@@ -34,7 +34,10 @@ function handleServiceWorkerError(error, context = 'unknown') {
   errorCount++;
   lastErrorTime = now;
 
-  console.error(`[SW] Error in ${context} (${errorCount}/${MAX_ERRORS}):`, error);
+  // Only log critical errors
+  if (errorCount >= MAX_ERRORS || context.includes('critical')) {
+    console.error(`[SW] Error in ${context} (${errorCount}/${MAX_ERRORS}):`, error);
+  }
 
   // If too many errors, enter degraded mode
   if (errorCount >= MAX_ERRORS) {
@@ -95,20 +98,15 @@ const CACHE_STRATEGIES = {
 
 // Install event - cache static assets with error handling
 self.addEventListener('install', event => {
-  console.log('[SW] Installing service worker...');
-
   event.waitUntil(
     Promise.all([
       // Cache static assets with individual error handling
       caches.open(STATIC_CACHE).then(cache => {
-        console.log('[SW] Caching static assets');
         return cache.addAll(STATIC_ASSETS).catch(error => {
-          console.warn('[SW] Some static assets failed to cache:', error);
           // Cache individual assets that exist
           return Promise.allSettled(
             STATIC_ASSETS.map(asset =>
               cache.add(asset).catch(err => {
-                console.warn(`[SW] Failed to cache ${asset}:`, err);
                 return null;
               })
             )
@@ -118,14 +116,11 @@ self.addEventListener('install', event => {
 
       // Cache WASM files separately for better performance
       caches.open(WASM_CACHE).then(cache => {
-        console.log('[SW] Caching WASM assets');
         return cache.addAll(['/main.wasm', '/main.threads.wasm', '/wasm_exec.js']).catch(error => {
-          console.warn('[SW] Some WASM assets failed to cache:', error);
           // Cache individual WASM assets that exist
           return Promise.allSettled(
             ['/main.wasm', '/main.threads.wasm', '/wasm_exec.js'].map(asset =>
               cache.add(asset).catch(err => {
-                console.warn(`[SW] Failed to cache WASM ${asset}:`, err);
                 return null;
               })
             )
@@ -134,7 +129,6 @@ self.addEventListener('install', event => {
       })
     ])
       .then(() => {
-        console.log('[SW] Installation complete');
         // Skip waiting to activate immediately
         return self.skipWaiting();
       })
@@ -148,8 +142,6 @@ self.addEventListener('install', event => {
 
 // Activate event - cleanup old caches
 self.addEventListener('activate', event => {
-  console.log('[SW] Activating service worker...');
-
   event.waitUntil(
     caches
       .keys()
@@ -158,14 +150,12 @@ self.addEventListener('activate', event => {
           cacheNames.map(cacheName => {
             // Delete old caches that don't match current version
             if (cacheName.startsWith('ovasabi-') && cacheName !== CACHE_NAME) {
-              console.log(`[SW] Deleting old cache: ${cacheName}`);
               return caches.delete(cacheName);
             }
           })
         );
       })
       .then(() => {
-        console.log('[SW] Activation complete');
         // Take control of all clients immediately
         return self.clients.claim();
       })
@@ -219,7 +209,7 @@ async function handleWASMRequest(request) {
         if (networkResponse.ok) {
           try {
             await cache.put(request, networkResponse.clone());
-            console.log('[SW] Updated WASM cache in development:', request.url);
+            // Updated WASM cache in development
           } catch (cacheError) {
             console.warn('[SW] Failed to cache WASM response:', cacheError);
             // Continue without caching - the response is still valid
@@ -285,7 +275,7 @@ async function handleWorkerRequest(request) {
         const networkResponse = await fetch(request);
         if (networkResponse.ok) {
           await cache.put(request, networkResponse.clone());
-          console.log('[SW] Updated worker cache in development:', request.url);
+          // Updated worker cache in development
         }
         return networkResponse;
       } catch (networkError) {

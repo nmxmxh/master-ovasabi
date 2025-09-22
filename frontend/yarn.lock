@@ -2422,6 +2422,11 @@
   "resolved" "https://nexus.sparemin.com/repository/npm-all/glsl-noise/-/glsl-noise-0.0.0.tgz"
   "version" "0.0.0"
 
+"goober@^2.1.16":
+  "integrity" "sha512-erjk19y1U33+XAMe1VTvIONHYoSqE4iS7BYUZfHaqeohLmnC0FdxEh7rQU+6MZ4OajItzjZFSRtVANrQwNq6/g=="
+  "resolved" "https://nexus.sparemin.com/repository/npm-all/goober/-/goober-2.1.16.tgz"
+  "version" "2.1.16"
+
 "graphemer@^1.4.0":
   "integrity" "sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag=="
   "resolved" "https://nexus.sparemin.com/repository/npm-all/graphemer/-/graphemer-1.4.0.tgz"
@@ -2967,6 +2972,14 @@
   "version" "19.1.0"
   dependencies:
     "scheduler" "^0.26.0"
+
+"react-hot-toast@^2.6.0":
+  "integrity" "sha512-bH+2EBMZ4sdyou/DPrfgIouFpcRLCJ+HoCA32UoAYHn6T3Ur5yfcDCeSr5mwldl6pFOsiocmrXMuoCJ1vV8bWg=="
+  "resolved" "https://nexus.sparemin.com/repository/npm-all/react-hot-toast/-/react-hot-toast-2.6.0.tgz"
+  "version" "2.6.0"
+  dependencies:
+    "csstype" "^3.1.3"
+    "goober" "^2.1.16"
 
 "react-icons@^5.5.0":
   "integrity" "sha512-MEFcXdkP3dLo8uumGI5xN3lDFNsRtrjbOEKDLD7yv76v4wpnEq2Lt2qeHaQOr34I/wPN3s3+N08WkQ+CW37Xiw=="

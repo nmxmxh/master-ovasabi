@@ -19,7 +19,6 @@ import (
 	pkgredis "github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/registration"
 	"github.com/redis/go-redis/v9"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -162,7 +161,7 @@ func (b *RedisEventBus) listen() {
 			b.log.Error("Failed to unmarshal event", zap.Error(err))
 			continue
 		}
-		b.log.Debug("[RedisEventBus] Received event from Redis", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
+		// b.log.Debug("[RedisEventBus] Received event from Redis", ...) // Removed for performance
 		// Enqueue event for delivery by worker pool
 		select {
 		case b.deliverQ <- &event:
@@ -188,7 +187,7 @@ func (b *RedisEventBus) Unsubscribe(ch chan *nexusv1.EventResponse) {
 }
 
 func (b *RedisEventBus) Publish(event *nexusv1.EventResponse) {
-	b.log.Debug("[RedisEventBus] Publishing event", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
+	// b.log.Debug("[RedisEventBus] Publishing event", ...) // Removed for performance
 	data, err := json.Marshal(event)
 	if err != nil {
 		b.log.Error("Failed to marshal event", zap.Error(err))
@@ -272,7 +271,7 @@ func NewNexusServer(log *zap.Logger, cache *pkgredis.Cache, repo *nexusrepo.Repo
 
 // PublishEvent allows other parts of the system to publish events to all subscribers.
 func (s *Server) PublishEvent(event *nexusv1.EventResponse) {
-	s.log.Debug("[Nexus] PublishEvent", zap.String("event_type", event.EventType), zap.String("event_id", event.EventId))
+	// s.log.Debug("[Nexus] PublishEvent", ...) // Removed for performance
 	service, action := parseServiceAction(event.EventType)
 	key := service + ":" + action
 
@@ -537,7 +536,8 @@ func hasEventType(set map[string]struct{}, eventType string) bool {
 func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nexusv1.EventResponse, error) {
 	// --- Unified Event Type Validation ---
 	eventType := req.EventType
-	s.log.Info("[EmitEvent] Received request", zap.String("event_type", eventType))
+	// Only log critical events for performance
+	// s.log.Info("[EmitEvent] Received request", ...) // Removed for performance
 
 	validator := NewEventTypeValidator()
 	if !validator.IsValidEventType(eventType) {
@@ -551,43 +551,16 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	eventID := req.EventId
 	if eventID == "" {
 		eventID = uuid.New().String()
-		s.log.Debug("[EmitEvent] Generated new EventID", zap.String("event_id", eventID))
+		// s.log.Debug("[EmitEvent] Generated new EventID", ...) // Removed for performance
 	}
 
 	// Keep original eventID - don't modify it with state suffixes
 	// The eventID should remain stable for correlation tracking
 
-	// --- Parse metadata once ---
-	var traceID, userID, campaignID string
-	if span := trace.SpanFromContext(ctx); span != nil && span.SpanContext().IsValid() {
-		traceID = span.SpanContext().TraceID().String()
-		s.log.Debug("[EmitEvent] Extracted traceID", zap.String("trace_id", traceID))
-	}
-
-	// Extract userID: context first, then metadata (global struct)
-	if authCtx := contextx.Auth(ctx); authCtx != nil && authCtx.UserID != "" {
-		userID = authCtx.UserID
-		s.log.Debug("[EmitEvent] Extracted userID from context", zap.String("user_id", userID))
-	} else if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
-		if global, ok := req.Metadata.ServiceSpecific.Fields["global"]; ok {
-			if globalStruct := global.GetStructValue(); globalStruct != nil {
-				if uid, ok := globalStruct.Fields["user_id"]; ok {
-					userID = uid.GetStringValue()
-				}
-			}
-		}
-	}
-
-	// Extract campaignID: only from metadata (global struct)
-	if req.Metadata != nil && req.Metadata.ServiceSpecific != nil {
-		if global, ok := req.Metadata.ServiceSpecific.Fields["global"]; ok {
-			if globalStruct := global.GetStructValue(); globalStruct != nil {
-				if cid, ok := globalStruct.Fields["campaign_id"]; ok {
-					campaignID = cid.GetStringValue()
-				}
-			}
-		}
-	}
+	// Note: Metadata extraction (traceID, userID, campaignID) was removed from this function
+	// as these variables are not currently used in the EmitEvent logic.
+	// If needed for future functionality (e.g., event filtering, user-specific routing),
+	// they can be re-added and used appropriately.
 
 	// Validate and clean payload if validator is available
 	var validatedPayload *commonpb.Payload
@@ -609,8 +582,7 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 			}
 		} else {
 			// Skip validation for success/failed events - they contain response data
-			s.log.Debug("[EmitEvent] Skipping payload validation for response event",
-				zap.String("event_type", eventType))
+			// s.log.Debug("[EmitEvent] Skipping payload validation for response event", ...) // Removed for performance
 			validatedPayload = req.Payload
 		}
 	} else {
@@ -627,11 +599,11 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		Payload:   validatedPayload,
 	}
 
-	s.log.Debug("[EmitEvent] Built event envelope", zap.String("event_type", eventType), zap.String("event_id", eventID), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.String("trace_id", traceID))
+	// s.log.Debug("[EmitEvent] Built event envelope", ...) // Removed for performance
 
 	// --- Campaign-First Architecture: Delegate campaign events to CampaignStateManager ---
 	if s.campaignStateMgr != nil && strings.HasPrefix(req.EventType, "campaign:") {
-		s.log.Debug("[EmitEvent] Delegating campaign event to CampaignStateManager", zap.String("event_type", eventType), zap.String("event_id", eventID))
+		// s.log.Debug("[EmitEvent] Delegating campaign event to CampaignStateManager", ...) // Removed for performance
 		s.campaignStateMgr.HandleEvent(ctx, req)
 		// CampaignStateManager handles all campaign event publishing via feedbackBus
 		// No need to publish generically for campaign events
@@ -648,13 +620,13 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 		s.log.Error("[EmitEvent] Failed to acquire event lock", zap.Error(err), zap.String("event_id", eventID))
 	}
 	if lockAcquired {
-		s.log.Debug("[EmitEvent] Lock acquired, publishing event", zap.String("event_id", eventID))
+		// s.log.Debug("[EmitEvent] Lock acquired, publishing event", ...) // Removed for performance
 		s.PublishEvent(envelope)
 	} else {
-		s.log.Debug("[EmitEvent] Event already published by another instance, skipping", zap.String("event_id", eventID))
+		// s.log.Debug("[EmitEvent] Event already published by another instance, skipping", ...) // Removed for performance
 	}
 
-	s.log.Debug("[EmitEvent] Returning response to caller", zap.String("event_id", eventID))
+	// s.log.Debug("[EmitEvent] Returning response to caller", ...) // Removed for performance
 	// Set Success=false if event type ends with ':failed', else true
 	success := true
 	if strings.HasSuffix(req.EventType, ":failed") {

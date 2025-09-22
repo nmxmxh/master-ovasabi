@@ -43,16 +43,10 @@ export class WASMComputeBridge {
 
   private async performWASMInitialization(): Promise<boolean> {
     try {
-      console.log('[WASMComputeBridge] Initializing WASM compute bridge...');
-
       // Wait for WASM functions to be available with timeout
       try {
         await this.waitForWASMFunctions();
       } catch (error) {
-        console.warn(
-          '[WASMComputeBridge] WASM functions not available, continuing without WASM:',
-          error
-        );
         this.wasmReady = false;
         return false;
       }
@@ -61,15 +55,10 @@ export class WASMComputeBridge {
       try {
         await workerManager.initialize();
       } catch (error) {
-        console.warn(
-          '[WASMComputeBridge] Worker manager initialization failed, continuing without workers:',
-          error
-        );
         // Continue without workers - we can still use direct WASM calls
       }
 
       this.wasmReady = true;
-      console.log('[WASMComputeBridge] ✅ WASM compute bridge initialized');
       return true;
     } catch (error) {
       console.error('[WASMComputeBridge] Initialization failed:', error);
@@ -124,10 +113,7 @@ export class WASMComputeBridge {
         return this.runWithWASM(particleData, deltaTime, 5000);
       }
     } catch (error) {
-      console.warn('[WASMComputeBridge] WASM compute failed:', error);
-
       if (fallbackToJS) {
-        console.log('[WASMComputeBridge] Falling back to JavaScript compute');
         return this.runWithJavaScript(particleData, deltaTime);
       }
 
