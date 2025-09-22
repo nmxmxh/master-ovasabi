@@ -389,10 +389,10 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2`
 
-	r.GetLogger().Info("Fetching campaigns from database",
-		zap.Int("limit", limit),
-		zap.Int("offset", offset),
-		zap.String("query", query))
+	// r.GetLogger().Info("Fetching campaigns from database",
+	// 	zap.Int("limit", limit),
+	// 	zap.Int("offset", offset),
+	// 	zap.String("query", query))
 
 	rows, err := r.GetDB().QueryContext(ctx, query, limit, offset)
 	if err != nil {
@@ -458,15 +458,15 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		return nil, err
 	}
 
-	r.GetLogger().Info("Successfully fetched campaigns from database",
-		zap.Int("count", len(campaigns)),
-		zap.Any("campaign_names", func() []string {
-			names := make([]string, len(campaigns))
-			for i, c := range campaigns {
-				names[i] = c.Slug
-			}
-			return names
-		}()))
+	// r.GetLogger().Info("Successfully fetched campaigns from database",
+	// 	zap.Int("count", len(campaigns)),
+	// 	zap.Any("campaign_names", func() []string {
+	// 		names := make([]string, len(campaigns))
+	// 		for i, c := range campaigns {
+	// 			names[i] = c.Slug
+	// 		}
+	// 		return names
+	// 	}()))
 
 	return campaigns, nil
 }

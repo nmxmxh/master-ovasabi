@@ -9,6 +9,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"syscall/js"
 	"time"
 )
@@ -270,20 +271,163 @@ func configureWebSocketCallbacks() {
 	}))
 
 	ws.Set("onmessage", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		msg := args[0].Get("data")
-		msgStr := msg.String()
+		event := args[0]
+		msg := event.Get("data")
 
 		go func() {
-			switch {
-			case msg.InstanceOf(js.Global().Get("ArrayBuffer")):
-				buf := make([]byte, msg.Get("byteLength").Int())
-				js.CopyBytesToGo(buf, msg)
-				wasmLog("[WASM] Adding ArrayBuffer message to queue, size:", len(buf))
-				messageQueue <- wsMessage{dataType: 1, payload: buf}
-			default:
-				wasmLog("[WASM] Adding string message to queue, size:", len(msgStr))
-				messageQueue <- wsMessage{dataType: 0, payload: []byte(msgStr)}
+			defer func() {
+				if r := recover(); r != nil {
+					wasmLog("[WASM] Panic in onmessage handler, falling back to string processing:", r)
+					// Fallback to string processing
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					wasmLog("[WASM] Adding string message to queue (fallback), size:", len(msgStr), "->", len(decompressed))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				}
+			}()
+
+			// Debug: Log the message type and properties (defensive)
+			jsMsgType := msg.Type().String()
+			constructorName := "unknown"
+
+			// Only try to get constructor info if msg is an object
+			if jsMsgType == "object" {
+				if constructor := msg.Get("constructor"); !constructor.IsNull() && !constructor.IsUndefined() {
+					if name := constructor.Get("name"); !name.IsNull() && !name.IsUndefined() {
+						constructorName = name.String()
+					}
+				}
+			} else {
+				constructorName = jsMsgType
 			}
+			// wasmError("[WASM] Message received - JS Type:", jsMsgType, "Constructor:", constructorName)
+
+			// Determine message type based on data type (not event.type which is always "message")
+			if jsMsgType == "string" {
+				// This is a text message from WebSocket Gateway
+				// wasmError("[WASM] Processing text message from WebSocket")
+				msgStr := msg.String()
+				decompressed := Decompress([]byte(msgStr))
+				// wasmError("[WASM] Adding text message to queue, size:", len(msgStr), "->", len(decompressed))
+				messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				return
+			} else if jsMsgType == "object" && constructorName == "ArrayBuffer" {
+				// This is a binary message from WebSocket Gateway (compressed)
+				// wasmError("[WASM] Processing binary message from WebSocket")
+				// Process as ArrayBuffer - continue to ArrayBuffer check below
+			} else {
+				// Fallback: Handle as string message
+				// wasmError("[WASM] Processing string message (fallback)")
+				msgStr := msg.String()
+				decompressed := Decompress([]byte(msgStr))
+				// wasmError("[WASM] Adding string message to queue, size:", len(msgStr), "->", len(decompressed))
+				messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				return
+			}
+
+			// Check if it's an ArrayBuffer (for binary messages)
+			if msg.InstanceOf(js.Global().Get("ArrayBuffer")) {
+				// wasmError("[WASM] Processing ArrayBuffer message - JS Type:", jsMsgType)
+				byteLength := msg.Get("byteLength")
+				if byteLength.IsNull() || byteLength.IsUndefined() {
+					wasmLog("[WASM] ArrayBuffer has no byteLength, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+					return
+				}
+
+				buf := make([]byte, byteLength.Int())
+				// Add defensive check before CopyBytesToGo
+				if byteLength.Int() > 0 && byteLength.Int() < 1000000 { // Reasonable size limit
+					// Create a Uint8Array view of the ArrayBuffer (no data copying)
+					uint8Array := js.Global().Get("Uint8Array").New(msg)
+					js.CopyBytesToGo(buf, uint8Array)
+					// Decompress binary message if needed
+					decompressed := Decompress(buf)
+					// wasmError("[WASM] Adding ArrayBuffer message to queue, size:", len(buf), "->", len(decompressed))
+					messageQueue <- wsMessage{dataType: 1, payload: decompressed}
+				} else {
+					wasmLog("[WASM] ArrayBuffer size out of bounds, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				}
+				return
+			}
+
+			// Check if it's a Uint8Array
+			if msg.InstanceOf(js.Global().Get("Uint8Array")) {
+				wasmLog("[WASM] Processing Uint8Array message")
+				length := msg.Get("length")
+				if length.IsNull() || length.IsUndefined() {
+					wasmLog("[WASM] Uint8Array has no length, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+					return
+				}
+				buf := make([]byte, length.Int())
+				// Add defensive check before CopyBytesToGo
+				if length.Int() > 0 && length.Int() < 1000000 { // Reasonable size limit
+					js.CopyBytesToGo(buf, msg)
+					// Decompress binary message if needed
+					decompressed := Decompress(buf)
+					wasmLog("[WASM] Adding Uint8Array message to queue, size:", len(buf), "->", len(decompressed))
+					messageQueue <- wsMessage{dataType: 1, payload: decompressed}
+				} else {
+					wasmLog("[WASM] Uint8Array size out of bounds, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				}
+				return
+			}
+
+			// Check if it's a Blob
+			if msg.InstanceOf(js.Global().Get("Blob")) {
+				wasmLog("[WASM] Blob message received, converting to string for now")
+				msgStr := msg.String()
+				decompressed := Decompress([]byte(msgStr))
+				wasmLog("[WASM] Adding Blob->string message to queue, size:", len(msgStr), "->", len(decompressed))
+				messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				return
+			}
+
+			// Check if it's a Uint8ClampedArray (common with WebSocket binary data)
+			if msg.InstanceOf(js.Global().Get("Uint8ClampedArray")) {
+				wasmLog("[WASM] Processing Uint8ClampedArray message")
+				length := msg.Get("length")
+				if length.IsNull() || length.IsUndefined() {
+					wasmLog("[WASM] Uint8ClampedArray has no length, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+					return
+				}
+				buf := make([]byte, length.Int())
+				// Add defensive check before CopyBytesToGo
+				if length.Int() > 0 && length.Int() < 1000000 { // Reasonable size limit
+					js.CopyBytesToGo(buf, msg)
+					// Decompress binary message if needed
+					decompressed := Decompress(buf)
+					wasmLog("[WASM] Adding Uint8ClampedArray message to queue, size:", len(buf), "->", len(decompressed))
+					messageQueue <- wsMessage{dataType: 1, payload: decompressed}
+				} else {
+					wasmLog("[WASM] Uint8ClampedArray size out of bounds, falling back to string")
+					msgStr := msg.String()
+					decompressed := Decompress([]byte(msgStr))
+					messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+				}
+				return
+			}
+
+			// Default: Handle as string message
+			wasmLog("[WASM] Processing string message (default)")
+			msgStr := msg.String()
+			decompressed := Decompress([]byte(msgStr))
+			wasmLog("[WASM] Adding string message to queue, size:", len(msgStr), "->", len(decompressed))
+			messageQueue <- wsMessage{dataType: 0, payload: decompressed}
 		}()
 		return nil
 	}))
@@ -299,6 +443,18 @@ func configureWebSocketCallbacks() {
 		}
 		readyState := ws.Get("readyState").Int()
 		wasmLog(errMsg, "readyState:", readyState, "event args:", args, "error object:", errorDetails)
+
+		// Check for specific error types
+		if len(args) > 0 {
+			errorStr := args[0].String()
+			if strings.Contains(errorStr, "404") || strings.Contains(errorStr, "Not Found") {
+				wasmError("[WASM] WebSocket endpoint not found (404) - check if ws-gateway is running")
+			} else if strings.Contains(errorStr, "500") || strings.Contains(errorStr, "Internal Server Error") {
+				wasmError("[WASM] WebSocket server error (500) - check ws-gateway logs")
+			} else if strings.Contains(errorStr, "connection refused") || strings.Contains(errorStr, "ECONNREFUSED") {
+				wasmError("[WASM] WebSocket connection refused - check if ws-gateway is running on correct port")
+			}
+		}
 
 		// Update WASM metadata with error status
 		updateWasmMetadata("webSocketConnected", false)

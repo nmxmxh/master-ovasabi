@@ -114,11 +114,11 @@ func convertForStructpb(data interface{}, log *zap.Logger) interface{} {
 		return v
 	default:
 		// For complex types like slices of maps, try to convert recursively
-		if log != nil {
-			log.Info("Converting complex type recursively",
-				zap.String("type", fmt.Sprintf("%T", v)),
-				zap.Any("value", v))
-		}
+		// if log != nil {
+		// 	log.Info("Converting complex type recursively",
+		// 		zap.String("type", fmt.Sprintf("%T", v)),
+		// 		zap.Any("value", v))
+		// }
 
 		// Try to convert slices of maps to []interface{}
 		if reflect.TypeOf(v).Kind() == reflect.Slice {

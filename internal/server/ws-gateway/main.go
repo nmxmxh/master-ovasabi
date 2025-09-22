@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,8 +22,10 @@ import (
 	"github.com/gorilla/websocket"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexuspb "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/compression"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -70,6 +73,14 @@ type WSClient struct {
 	userID        string
 	correlationID string        // stores the original correlation ID for response matching
 	done          chan struct{} // signals connection closure
+
+	// Rate limiting and security
+	lastMessageTime      time.Time
+	messageCount         int
+	rateLimitWindow      time.Duration
+	rateLimitMax         int
+	lastBackpressureTime time.Time
+	sendBufferFull       bool
 }
 
 // ClientMap stores active WebSocket clients.
@@ -85,7 +96,14 @@ var (
 	wsClientMap    = newWsClientMap()
 	nexusClient    nexuspb.NexusServiceClient
 	allowedOrigins = getAllowedOrigins() // Keep for CORS checks
-	upgrader       = websocket.Upgrader{
+	compressor     = compression.NewCompressor()
+
+	// Security: Connection and rate limiting
+	connectionLimiter   = make(map[string]int) // IP -> connection count
+	connectionMutex     sync.RWMutex
+	maxConnectionsPerIP = 5 // Reasonable for game clients
+
+	upgrader = websocket.Upgrader{
 		ReadBufferSize:  16777216, // 16MB read buffer for massive particle datasets
 		WriteBufferSize: 16777216, // 16MB write buffer for real-time streaming
 		CheckOrigin:     checkOrigin,
@@ -492,11 +510,17 @@ func processEvent(event *nexuspb.EventResponse) {
 				}
 			}
 
+			// Convert metadata to a proper JSON-serializable structure
+			var metadataMap map[string]interface{}
+			if event.Metadata != nil {
+				metadataMap = metadata.ProtoToMap(event.Metadata)
+			}
+
 			wsEvent := WebSocketEvent{
 				Type:          eventType,
 				Payload:       payloadMap,
 				CorrelationID: correlationID,
-				Metadata:      event.Metadata,
+				Metadata:      metadataMap,
 				Timestamp:     time.Now().UTC().Format(time.RFC3339),
 				Version:       "1.0.0",
 				Environment:   "development", // TODO: Get from config
@@ -615,9 +639,47 @@ func processEvent(event *nexuspb.EventResponse) {
 			zap.String("ws_campaign_id", wsCampaignID),
 			zap.Any("payloadMap", payloadMap))
 
+		// Convert metadata to a proper JSON-serializable structure
+		var metadataMap map[string]interface{}
+		if event.Metadata != nil {
+			metadataMap = metadata.ProtoToMap(event.Metadata)
+		}
+
+		// Extract correlation ID from event metadata or payload
+		correlationID := ""
+		if event.Metadata != nil && event.Metadata.GlobalContext != nil {
+			correlationID = event.Metadata.GlobalContext.CorrelationId
+		}
+		if correlationID == "" && payloadMap != nil {
+			if corrID, ok := payloadMap["correlationId"].(string); ok {
+				correlationID = corrID
+			}
+		}
+
+		// For canonical events, try to find the client and use their stored correlation ID
+		// This ensures we use the original request correlation ID, not the response correlation ID
+		if correlationID != "" {
+			wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
+				if uid == wsUserID && cid == wsCampaignID {
+					// Use the client's stored correlation ID if available
+					if client.correlationID != "" {
+						correlationID = client.correlationID
+					}
+					return false // Stop searching
+				}
+				return true
+			})
+		}
+
 		wsEvent := WebSocketEvent{
-			Type:    event.EventType,
-			Payload: payloadMap,
+			Type:          event.EventType,
+			Payload:       payloadMap,
+			CorrelationID: correlationID,
+			Metadata:      metadataMap,
+			Timestamp:     time.Now().UTC().Format(time.RFC3339),
+			Version:       "1.0.0",
+			Environment:   "development",
+			Source:        "backend",
 		}
 		payloadBytes, err := json.Marshal(wsEvent)
 		if err != nil {
@@ -711,9 +773,53 @@ func processEvent(event *nexuspb.EventResponse) {
 	// Fallback: Existing broadcast logic for other events
 	userID, campaignID, isSystem := getBroadcastScope(event)
 	log.Debug("[WS-GATEWAY] Fallback event routing info", zap.String("event_type", event.EventType), zap.String("user_id", userID), zap.String("campaign_id", campaignID), zap.Bool("is_system", isSystem))
+
+	// Convert payload and metadata to proper JSON-serializable structures
+	var payloadMap map[string]interface{}
+	if event.Payload != nil && event.Payload.Data != nil {
+		payloadMap = event.Payload.GetData().AsMap()
+	}
+
+	var metadataMap map[string]interface{}
+	if event.Metadata != nil {
+		metadataMap = metadata.ProtoToMap(event.Metadata)
+	}
+
+	// Extract correlation ID from event metadata or payload
+	correlationID := ""
+	if event.Metadata != nil && event.Metadata.GlobalContext != nil {
+		correlationID = event.Metadata.GlobalContext.CorrelationId
+	}
+	if correlationID == "" && payloadMap != nil {
+		if corrID, ok := payloadMap["correlationId"].(string); ok {
+			correlationID = corrID
+		}
+	}
+
+	// For fallback events, try to find the client and use their stored correlation ID
+	// This ensures we use the original request correlation ID, not the response correlation ID
+	if correlationID != "" && userID != "" {
+		wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
+			if uid == userID && cid == campaignID {
+				// Use the client's stored correlation ID if available
+				if client.correlationID != "" {
+					correlationID = client.correlationID
+				}
+				return false // Stop searching
+			}
+			return true
+		})
+	}
+
 	wsEvent := WebSocketEvent{
-		Type:    event.EventType,
-		Payload: event.Payload,
+		Type:          event.EventType,
+		Payload:       payloadMap,
+		CorrelationID: correlationID,
+		Metadata:      metadataMap,
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Version:       "1.0.0",
+		Environment:   "development",
+		Source:        "backend",
 	}
 	payloadBytes, err := json.Marshal(wsEvent)
 	if err != nil {
@@ -843,7 +949,43 @@ func isGodotRequestEvent(eventType string) bool {
 	return false
 }
 
+// getClientIP extracts the real client IP from request headers
+func getClientIP(r *http.Request) string {
+	// Check X-Forwarded-For header first (for proxies/load balancers)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For can contain multiple IPs, take the first one
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+
+	// Check X-Real-IP header
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+
+	// Fall back to RemoteAddr
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
+}
+
 func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
+	// Connection limiting: Check if IP has too many connections
+	clientIP := getClientIP(r)
+	connectionMutex.Lock()
+	if connectionLimiter[clientIP] >= maxConnectionsPerIP {
+		connectionMutex.Unlock()
+		log.Warn("Connection limit exceeded", zap.String("client_ip", clientIP), zap.Int("max_connections", maxConnectionsPerIP))
+		http.Error(w, "Too many connections from this IP", http.StatusTooManyRequests)
+		return
+	}
+	connectionLimiter[clientIP]++
+	connectionMutex.Unlock()
+
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/ws/"), "/")
 	// Use default campaign if not provided
 	campaignID := "0"
@@ -895,6 +1037,13 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 		campaignID: campaignID,
 		userID:     userID,
 		done:       make(chan struct{}),
+
+		// Initialize rate limiting
+		lastMessageTime: time.Now(),
+		messageCount:    0,
+		rateLimitWindow: time.Second,
+		rateLimitMax:    100, // 100 messages per second
+		sendBufferFull:  false,
 	}
 	wsClientMap.Store(campaignID, userID, client)
 	log.Info("Client connected", zap.String("campaign", campaignID), zap.String("user", userID), zap.String("raw_user_id", rawUserID), zap.String("remote", r.RemoteAddr))
@@ -916,6 +1065,10 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 		if err != nil {
 			log.Warn("Error closing WebSocket connection", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 		}
+
+		// Clean up connection counter (we need to store the IP somewhere)
+		// TODO: Store client IP in WSClient struct for proper cleanup
+
 		log.Info("Client disconnected", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 		wsCancel() // Cancel context to signal shutdown
 	}()
@@ -963,12 +1116,33 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 			break
 		}
 
-		// Only log message reception for errors or important events
-		// log.Info("Received WebSocket message", ...) // Removed for performance
+		// Log message type for debugging
+		// if messageType == websocket.BinaryMessage {
+		// 	log.Debug("Received binary message", zap.Int("size", len(msgBytes)))
+		// } else {
+		// 	log.Debug("Received text message", zap.Int("size", len(msgBytes)))
+		// }
+
+		// Rate limiting: Check if user is sending too many messages
+		now := time.Now()
+		if now.Sub(c.lastMessageTime) > c.rateLimitWindow {
+			c.messageCount = 0
+			c.lastMessageTime = now
+		}
+		c.messageCount++
+
+		if c.messageCount > c.rateLimitMax {
+			log.Warn("Rate limit exceeded", zap.String("user_id", c.userID), zap.Int("message_count", c.messageCount), zap.Int("rate_limit_max", c.rateLimitMax))
+			sendErrorResponse(c, "rate_limit_exceeded", "Too many messages", fmt.Errorf("rate limit exceeded"))
+			continue
+		}
+
+		// Decompress message if needed
+		decompressedBytes := compressor.Decompress(msgBytes)
 
 		// Parse using canonical envelope with proper JSON handling
 		var envelope events.CanonicalEventEnvelope
-		if err := json.Unmarshal(msgBytes, &envelope); err != nil {
+		if err := json.Unmarshal(decompressedBytes, &envelope); err != nil {
 			log.Warn("Failed to parse event envelope", zap.Error(err), zap.String("raw", string(msgBytes)))
 			// Send error response to client
 			sendErrorResponse(c, "parse_error", "Failed to parse event envelope", err)
@@ -1055,6 +1229,21 @@ func (c *WSClient) writePump() {
 			log.Info("writePump received done signal, exiting", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 			return
 		case message, ok := <-c.send:
+			// Backpressure detection: Check if send buffer is getting full
+			if len(c.send) > 1500 { // 75% of buffer capacity
+				c.sendBufferFull = true
+				c.lastBackpressureTime = time.Now()
+				log.Warn("Send buffer approaching capacity, potential slow client",
+					zap.String("user_id", c.userID),
+					zap.Int("buffer_usage", len(c.send)),
+					zap.Int("buffer_capacity", cap(c.send)))
+			} else if c.sendBufferFull && len(c.send) < 500 { // 25% of buffer capacity
+				c.sendBufferFull = false
+				log.Info("Send buffer recovered from backpressure",
+					zap.String("user_id", c.userID),
+					zap.Duration("backpressure_duration", time.Since(c.lastBackpressureTime)))
+			}
+
 			if err := c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
 				log.Warn("SetWriteDeadline failed", zap.Error(err))
 			}
@@ -1067,7 +1256,37 @@ func (c *WSClient) writePump() {
 				return
 			}
 
-			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+			// Compress message before sending
+			compressedMessage := compressor.Compress(message)
+
+			// Debug logging for compression decisions
+			// originalSize := len(message)
+			// compressedSize := len(compressedMessage)
+			isCompressed := compressor.IsCompressed(compressedMessage)
+
+			// if isCompressed {
+			// 	ratio := float64(compressedSize) / float64(originalSize)
+			// 	log.Debug("Message compressed",
+			// 		zap.Int("original_size", originalSize),
+			// 		zap.Int("compressed_size", compressedSize),
+			// 		zap.Float64("compression_ratio", ratio),
+			// 		zap.String("user_id", c.userID))
+			// } else {
+			// 	log.Debug("Message not compressed (below threshold)",
+			// 		zap.Int("size", originalSize),
+			// 		zap.Int("threshold", 1024),
+			// 		zap.String("user_id", c.userID))
+			// }
+
+			// Send as binary if compressed, text if not
+			var messageType int
+			if isCompressed {
+				messageType = websocket.BinaryMessage
+			} else {
+				messageType = websocket.TextMessage
+			}
+
+			if err := c.conn.WriteMessage(messageType, compressedMessage); err != nil {
 				log.Warn("Write error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 				log.Info("Exiting writePump due to error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 				return

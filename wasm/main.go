@@ -381,21 +381,58 @@ func processTransformComputeTask(task ComputeTask) {
 }
 
 func processMessages() {
+	// wasmError("[WASM] processMessages goroutine started")
 	for msg := range messageQueue {
+		// wasmError("[WASM] Processing message from queue, dataType:", msg.dataType, "payload size:", len(msg.payload))
 
 		var event EventEnvelope
-		if err := json.Unmarshal(msg.payload, &event); err == nil {
+		var err error
 
-			if handler := eventBus.GetHandler(event.Type); handler != nil {
-				go handler(event)
+		// Handle based on message type
+		if msg.dataType == 1 {
+			// Binary message (compressed) - payload is already decompressed
+			// wasmError("[WASM] Processing binary message (already decompressed)")
+			err = json.Unmarshal(msg.payload, &event)
+		} else {
+			// Text message (uncompressed) - payload is already decompressed
+			// wasmError("[WASM] Processing text message (already decompressed)")
+			err = json.Unmarshal(msg.payload, &event)
+		}
+
+		if err != nil {
+			wasmLog("[WASM] Failed to unmarshal message payload:", err)
+			previewLen := len(msg.payload)
+			if previewLen > 200 {
+				previewLen = 200
+			}
+			payloadPreview := string(msg.payload[:previewLen])
+			wasmLog("[WASM] Payload preview:", payloadPreview)
+
+			// Check if this is an HTML response (common WebSocket fallback error)
+			if strings.Contains(payloadPreview, "<html") || strings.Contains(payloadPreview, "<!DOCTYPE") {
+				wasmError("[WASM] Received HTML response instead of JSON - WebSocket may have failed and fallen back to HTTP")
+				wasmError("[WASM] This usually indicates WebSocket Gateway is not running or nginx proxy issue")
+				// Try to reconnect WebSocket
+				go func() {
+					time.Sleep(1 * time.Second)
+					wasmLog("[WASM] Attempting WebSocket reconnection due to HTML response...")
+					reconnectWebSocket()
+				}()
+			}
+			continue
+		}
+
+		// wasmError("[WASM] Successfully parsed event:", event.Type, "correlation_id:", event.CorrelationID)
+
+		if handler := eventBus.GetHandler(event.Type); handler != nil {
+			go handler(event)
+		} else {
+			// Handle error events specially
+			if strings.HasPrefix(event.Type, "error:") {
+				handleErrorEvent(event)
 			} else {
-				// Handle error events specially
-				if strings.HasPrefix(event.Type, "error:") {
-					handleErrorEvent(event)
-				} else {
-					// Use generic handler for unhandled events
-					go genericEventHandler(event)
-				}
+				// Use generic handler for unhandled events
+				go genericEventHandler(event)
 			}
 		}
 	}
@@ -622,9 +659,21 @@ func sendWSMessage(payload []byte) {
 	wasmLog("[WASM] Sending WebSocket message, length:", len(payload))
 	wasmLog("[WASM] WebSocket message content:", string(payload))
 
-	// Always send JSON EventEnvelope, never raw binary
-	ws.Call("send", string(payload))
-	wasmLog("[WASM] WebSocket message sent successfully")
+	// Compress payload before sending to WebSocket Gateway
+	compressedPayload := Compress(payload)
+
+	// Send as binary data if compressed, string if not
+	if IsCompressed(compressedPayload) {
+		// Send compressed data as ArrayBuffer
+		jsArrayBuffer := js.Global().Get("Uint8Array").New(len(compressedPayload))
+		js.CopyBytesToJS(jsArrayBuffer, compressedPayload)
+		ws.Call("send", jsArrayBuffer)
+		wasmLog("[WASM] WebSocket binary message sent successfully, compressed:", len(compressedPayload), "bytes")
+	} else {
+		// Send uncompressed data as string
+		ws.Call("send", string(compressedPayload))
+		wasmLog("[WASM] WebSocket string message sent successfully, uncompressed")
+	}
 }
 
 func mustMarshal(v interface{}) json.RawMessage {
@@ -901,9 +950,14 @@ func genericEventHandler(event EventEnvelope) {
 	// Forward all other events to frontend via onWasmMessage
 	if onMsgHandler := js.Global().Get("onWasmMessage"); onMsgHandler.Type() == js.TypeFunction {
 		jsEvent := js.ValueOf(map[string]interface{}{
-			"type":     event.Type,
-			"payload":  string(event.Payload),
-			"metadata": string(event.Metadata),
+			"type":           event.Type,
+			"payload":        string(event.Payload),
+			"metadata":       string(event.Metadata),
+			"correlation_id": event.CorrelationID,
+			"timestamp":      time.Now().Format(time.RFC3339),
+			"version":        "1.0.0",
+			"environment":    "development",
+			"source":         "wasm",
 		})
 		wasmLog("[WASM] Forwarding event to frontend:", event.Type)
 		payloadPreview := string(event.Payload)

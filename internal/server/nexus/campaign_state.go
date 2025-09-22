@@ -622,32 +622,12 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 	}
 
 	// Log the type and structure of incoming metadata for debugging
-	m.log.Info("CampaignList: Received event metadata",
-		zap.Any("metadata", event.Metadata),
-		zap.Bool("metadata_nil", event.Metadata == nil),
-		zap.Bool("service_specific_nil", event.Metadata != nil && event.Metadata.ServiceSpecific == nil))
+	// m.log.Info("CampaignList: Received event metadata",
+	// 	zap.Any("metadata", event.Metadata),
+	// 	zap.Bool("metadata_nil", event.Metadata == nil),
+	// 	zap.Bool("service_specific_nil", event.Metadata != nil && event.Metadata.ServiceSpecific == nil))
 
-	if event.Metadata != nil && event.Metadata.ServiceSpecific != nil {
-		m.log.Info("CampaignList: ServiceSpecific fields found", zap.Int("field_count", len(event.Metadata.ServiceSpecific.Fields)))
-		for k, v := range event.Metadata.ServiceSpecific.Fields {
-			switch v.Kind.(type) {
-			case *structpb.Value_StringValue:
-				m.log.Info("CampaignList: Metadata field is string", zap.String("field", k), zap.String("value", v.GetStringValue()))
-			case *structpb.Value_StructValue:
-				m.log.Info("CampaignList: Metadata field is struct", zap.String("field", k))
-			case *structpb.Value_NumberValue:
-				m.log.Info("CampaignList: Metadata field is number", zap.String("field", k), zap.Float64("value", v.GetNumberValue()))
-			case *structpb.Value_BoolValue:
-				m.log.Info("CampaignList: Metadata field is bool", zap.String("field", k), zap.Bool("value", v.GetBoolValue()))
-			default:
-				m.log.Info("CampaignList: Metadata field is other type", zap.String("field", k))
-			}
-		}
-	} else {
-		m.log.Warn("CampaignList: Metadata or ServiceSpecific is nil",
-			zap.Bool("metadata_nil", event.Metadata == nil),
-			zap.Bool("service_specific_nil", event.Metadata != nil && event.Metadata.ServiceSpecific == nil))
-	}
+	// Removed unused metadata field processing loop
 
 	var payload struct {
 		Limit  int `json:"limit"`
