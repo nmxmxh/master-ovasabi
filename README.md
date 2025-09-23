@@ -1,4 +1,11 @@
-# INOS – The Internet Native Operating System (WIP)
+# INOS – The Internet Native Operating System
+
+> **🚧 Work in Progress (WIP):**  
+> INOS is a fast-evolving, open platform for distributed, AI-powered, and WASM-enabled systems. We
+> welcome contributors of all backgrounds—Go developers, AI/ML engineers, database and distributed
+> systems specialists, QA/testers, frontend and WASM enthusiasts, and anyone passionate about
+> building resilient, extensible digital infrastructure. See the Contributing section below to get
+> involved!
 
 **INOS** is a self-documenting, AI-ready, and community-driven platform for orchestrating digital services, relationships, and value. It is an open platform for distributed, AI-powered, and WASM-enabled systems.
 

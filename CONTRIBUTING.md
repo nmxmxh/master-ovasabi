@@ -1,4 +1,4 @@
-# Contributing to OVASABI
+# Contributing to INOS
 
 Thank you for your interest in contributing! We welcome code, documentation, ideas, and feedback
 from everyone.
@@ -11,12 +11,6 @@ from everyone.
 - **Code Style:** Follow Go best practices. Use clear, descriptive names (e.g., `fileStructure` not
   `file_structure`).
 - **Documentation:** Update or add docs in the `docs/` directory as needed.
-
-## Adding New Connectors/Services
-
-- Edit `tax/ovasabi_default.go` to add new connectors (people, services, compliance, etc.).
-- For automatic service addition, update the service registry in `internal/service/registry.go`.
-- Document your changes in the appropriate markdown files in `docs/`.
 
 ## Community Spirit
 
