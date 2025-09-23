@@ -60,7 +60,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. All are welcome—code, d
 
 ## License
 
-Inos is dual-licensed:
+INOS is dual-licensed:
 
 - **MIT License:** Free and open source for community use, contributions, and research. See [LICENSE](LICENSE).
 - **Enterprise License (AGPL/BUSL):** For advanced features, enterprise support, and legal guarantees. See [LICENSE](LICENSE).
