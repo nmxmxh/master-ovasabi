@@ -19,6 +19,12 @@ The `Makefile` in the root of the project contains all the necessary commands fo
 
 #### Docker
 
+To build the application using Docker, use the following command:
+
+```bash
+make docker-build
+```
+
 To run the application using Docker, use the following command:
 
 ```bash
