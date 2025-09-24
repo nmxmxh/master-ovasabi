@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import CampaignSwitchingPage from './pages/CampaignSwitchingPage';
 import { useInitializeUserId } from './hooks/useInitializeUserId';
 import { useCampaignState } from './store/hooks/useCampaign';
 import { useCampaignStore } from './store/stores/campaignStore';
@@ -8,8 +7,11 @@ import { useMetadata } from './store/hooks/useMetadata';
 import { useEventHistory } from './store/hooks/useEvents';
 import { useCampaignData } from './providers/CampaignProvider';
 import { CampaignProvider } from './providers/CampaignProvider';
+import CampaignSwitchingPage from './pages/CampaignSwitchingPage';
+import ServiceListPage from './pages/ServiceListPage';
 import { setupCampaignSwitchHandler } from './lib/wasmBridge';
 import './App.css';
+import UserServicePage from './pages/UserServicePage';
 
 // Minimal black and white styles
 const minimalStyles = `
@@ -294,6 +296,12 @@ function Navigation() {
       >
         SWITCH
       </Link>
+      <Link
+        to="/services"
+        className={`minimal-link ${location.pathname.startsWith('/services') ? 'active' : ''}`}
+      >
+        SERVICES
+      </Link>
     </nav>
   );
 }
@@ -331,6 +339,15 @@ function App() {
             <Routes>
               <Route path="/" element={<CampaignManagementPage />} />
               <Route path="/switching" element={<CampaignSwitchingPage />} />
+              <Route path="/services" element={<ServiceListPage />} />
+              <Route
+                path="/services/user"
+                element={
+                  <React.Suspense fallback={<div className="minimal-text">Loading...</div>}>
+                    <UserServicePage />
+                  </React.Suspense>
+                }
+              />
             </Routes>
           </main>
         </div>
