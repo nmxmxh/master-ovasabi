@@ -442,10 +442,7 @@ class ComputeWorker {
 
       try {
         // Attempting streaming WASM instantiation
-        result = await WebAssembly.instantiateStreaming(
-          fetch(`/main.wasm?v=${Date.now()}`),
-          go.importObject
-        );
+        result = await WebAssembly.instantiateStreaming(fetch(`/main.wasm`), go.importObject);
         // Streaming instantiation succeeded
       } catch (streamError) {
         this.warn('Streaming instantiation failed, trying manual fetch:', streamError);
@@ -455,13 +452,13 @@ class ComputeWorker {
 
         try {
           // Trying to fetch main.threads.wasm
-          wasmResponse = await fetch(`${wasmUrl}?v=${Date.now()}`);
+          wasmResponse = await fetch(wasmUrl);
           if (!wasmResponse.ok) throw new Error('main.threads.wasm not found');
           // main.threads.wasm fetched
         } catch (e) {
           this.warn('main.threads.wasm not available, falling back to main.wasm:', e.message);
           wasmUrl = '/main.wasm';
-          wasmResponse = await fetch(`${wasmUrl}?v=${Date.now()}`);
+          wasmResponse = await fetch(wasmUrl);
           // main.wasm fetched
         }
 

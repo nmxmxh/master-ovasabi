@@ -72,8 +72,6 @@ async function loadGoWasm(wasmUrl: string) {
   }
 
   for (const currentWasmUrl of wasmUrls) {
-    // Add cache-busting timestamp to prevent browser caching during development
-    const cacheBustingUrl = `${currentWasmUrl}?v=${Date.now()}`;
     // Attempting WASM file load
 
     // @ts-ignore
@@ -93,7 +91,7 @@ async function loadGoWasm(wasmUrl: string) {
         // Attempting WASM instantiation
 
         // Try to fetch the WASM file first to check if it's accessible
-        const response = await fetch(cacheBustingUrl);
+        const response = await fetch(currentWasmUrl);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }

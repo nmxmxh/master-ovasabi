@@ -199,6 +199,9 @@ self.addEventListener('fetch', event => {
 // WASM requests - cache first (WASM files rarely change) but network first in dev
 async function handleWASMRequest(request) {
   try {
+    // Ignore search parameters for caching to avoid issues with cache-busting strings
+    const cacheKey = new URL(request.url).pathname;
+
     const cache = await caches.open(WASM_CACHE);
 
     let response;
@@ -208,7 +211,7 @@ async function handleWASMRequest(request) {
         const networkResponse = await fetch(request);
         if (networkResponse.ok) {
           try {
-            await cache.put(request, networkResponse.clone());
+            await cache.put(cacheKey, networkResponse.clone());
             // Updated WASM cache in development
           } catch (cacheError) {
             console.warn('[SW] Failed to cache WASM response:', cacheError);
@@ -218,13 +221,13 @@ async function handleWASMRequest(request) {
         response = networkResponse;
       } catch (networkError) {
         console.log('[SW] Network failed for WASM, using cache:', request.url);
-        const cachedResponse = await cache.match(request);
+        const cachedResponse = await cache.match(cacheKey);
         if (cachedResponse) response = cachedResponse;
         else throw networkError;
       }
     } else {
       // Production: cache first
-      const cachedResponse = await cache.match(request);
+      const cachedResponse = await cache.match(cacheKey);
       if (cachedResponse) {
         console.log('[SW] Serving WASM from cache:', request.url);
         response = cachedResponse;
@@ -232,7 +235,7 @@ async function handleWASMRequest(request) {
         const networkResponse = await fetch(request);
         if (networkResponse.ok) {
           try {
-            await cache.put(request, networkResponse.clone());
+            await cache.put(cacheKey, networkResponse.clone());
           } catch (cacheError) {
             console.warn('[SW] Failed to cache WASM response:', cacheError);
             // Continue without caching - the response is still valid
