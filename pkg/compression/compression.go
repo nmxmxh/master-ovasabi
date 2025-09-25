@@ -2,14 +2,15 @@ package compression
 
 import (
 	"bytes"
-	"compress/gzip"
 	"io"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 const (
 	// Compression thresholds
-	MinCompressSize = 1024 // 1KB - minimum size to consider compression
-	GzipHeader      = "gzip:"
+	MinCompressSize = 512
+	ZstdHeader      = "zstd:"
 
 	// Security limits to prevent ZIP bomb attacks
 	MaxCompressedSize   = 50 * 1024 * 1024  // 50MB max compressed size
@@ -29,7 +30,7 @@ func (c *Compressor) Compress(data []byte) []byte {
 	return Compress(data)
 }
 
-// Decompress decompresses data if it has the gzip header
+// Decompress decompresses data if it has the zstd header
 func (c *Compressor) Decompress(data []byte) []byte {
 	return Decompress(data)
 }
@@ -51,18 +52,18 @@ func Compress(data []byte) []byte {
 	}
 
 	var buf bytes.Buffer
-	gz, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+	zw, err := zstd.NewWriter(&buf)
 	if err != nil {
 		return data // Return original if compression fails
 	}
 
-	_, err = gz.Write(data)
+	_, err = zw.Write(data)
 	if err != nil {
-		gz.Close()
+		zw.Close()
 		return data
 	}
 
-	err = gz.Close()
+	err = zw.Close()
 	if err != nil {
 		return data
 	}
@@ -75,31 +76,31 @@ func Compress(data []byte) []byte {
 	}
 
 	// Add header to identify compressed data
-	return append([]byte(GzipHeader), compressed...)
+	return append([]byte(ZstdHeader), compressed...)
 }
 
-// Decompress decompresses data if it has the gzip header
+// Decompress decompresses data if it has the zstd header
 func Decompress(data []byte) []byte {
 	// Security check: prevent processing of oversized compressed data
 	if len(data) > MaxCompressedSize {
 		return data // Return original if too large
 	}
 
-	if !bytes.HasPrefix(data, []byte(GzipHeader)) {
+	if !bytes.HasPrefix(data, []byte(ZstdHeader)) {
 		return data // Not compressed
 	}
 
 	// Remove header and decompress
-	compressedData := data[len(GzipHeader):]
+	compressedData := data[len(ZstdHeader):]
 
-	gz, err := gzip.NewReader(bytes.NewReader(compressedData))
+	zr, err := zstd.NewReader(bytes.NewReader(compressedData))
 	if err != nil {
 		return data // Return original if decompression fails
 	}
-	defer gz.Close()
+	defer zr.Close()
 
 	// Use LimitedReader to prevent ZIP bomb attacks
-	limitedReader := &io.LimitedReader{R: gz, N: MaxDecompressedSize}
+	limitedReader := &io.LimitedReader{R: zr, N: MaxDecompressedSize}
 	decompressed, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return data
@@ -115,5 +116,5 @@ func Decompress(data []byte) []byte {
 
 // IsCompressed checks if data is compressed
 func IsCompressed(data []byte) bool {
-	return bytes.HasPrefix(data, []byte(GzipHeader))
+	return bytes.HasPrefix(data, []byte(ZstdHeader))
 }
