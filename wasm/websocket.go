@@ -101,9 +101,8 @@ func getWebSocketURL() string {
 		protocol = "wss:"
 	}
 	hostname := location.Get("hostname").String()
-	port := "8090" // Always use backend WebSocket gateway port
 	path := "/ws/" + campaignId + "/" + userId
-	url := protocol + "//" + hostname + ":" + port + path
+	url := protocol + "//" + hostname + path
 	wasmLog("[WASM] WebSocket URL constructed:", url)
 	return url
 }

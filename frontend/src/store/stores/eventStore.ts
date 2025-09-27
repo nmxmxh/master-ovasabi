@@ -283,15 +283,23 @@ export const useEventStore = create<EventStore>()(
           }
 
           // Extract correlation ID from multiple sources
-          let extractedCorrelationId = msg.correlation_id || msg.correlationId;
+          let extractedCorrelationId;
+
+          // Prioritize correlationId from the payload
           if (
-            !extractedCorrelationId &&
             parsedPayload &&
             typeof parsedPayload === 'object' &&
             'correlationId' in parsedPayload
           ) {
             extractedCorrelationId = parsedPayload.correlationId;
           }
+
+          // Fallback to the message-level correlationId
+          if (!extractedCorrelationId) {
+            extractedCorrelationId = msg.correlation_id || msg.correlationId;
+          }
+
+          // Generate a new one if not found anywhere
           if (!extractedCorrelationId) {
             extractedCorrelationId = `corr_${Date.now()}`;
           }

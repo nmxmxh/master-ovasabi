@@ -57,22 +57,6 @@ const detectIPAndSecurity = async (): Promise<{
           },
           source: 'ipapi'
         }))
-        .catch(() => null),
-
-      // Fallback 2: ip-api.com
-      fetch('http://ip-api.com/json/')
-        .then(res => res.json())
-        .then(data => ({
-          ip: data.query,
-          location: {
-            country: data.country,
-            region: data.regionName,
-            city: data.city,
-            latitude: data.lat,
-            longitude: data.lon
-          },
-          source: 'ip-api'
-        }))
         .catch(() => null)
     ];
 

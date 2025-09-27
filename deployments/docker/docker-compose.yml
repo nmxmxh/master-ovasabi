@@ -265,7 +265,7 @@ services:
       - '443:443'
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      # - ./deployments/docker/certs:/etc/nginx/certs:ro  # Uncomment and set path if using SSL certs
+      - ./certs:/etc/nginx/certs:ro
     depends_on:
       - app
     networks:
