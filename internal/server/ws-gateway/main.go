@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -291,6 +292,21 @@ func main() {
 		panic("failed to initialize logger: " + err.Error())
 	}
 	log.Info("Starting application...")
+
+	// Read max connections per IP from environment variable
+	maxConnsStr := os.Getenv("WS_MAX_CONNECTIONS_PER_IP")
+	if maxConnsStr == "" {
+		maxConnectionsPerIP = 20 // Default value
+	} else {
+		val, err := strconv.Atoi(maxConnsStr)
+		if err != nil {
+			log.Warn("Invalid value for WS_MAX_CONNECTIONS_PER_IP, using default", zap.Error(err))
+			maxConnectionsPerIP = 20
+		} else {
+			maxConnectionsPerIP = val
+		}
+	}
+	log.Info("Max connections per IP set", zap.Int("value", maxConnectionsPerIP))
 
 	// --- Configuration ---
 	wsPort := os.Getenv("HTTP_PORT") // ws-gateway uses HTTP_PORT in compose, but let's be specific
@@ -1800,7 +1816,7 @@ func (m *ClientMap) Range(f func(campaignID, userID string, client *WSClient) bo
 }
 
 func getAllowedOrigins() []string {
-	origins := os.Getenv("ALLOWED_ORIGINS")
+	origins := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if origins == "" {
 		return []string{"*"} // Default to all origins if not set
 	}
