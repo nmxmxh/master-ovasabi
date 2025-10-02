@@ -156,12 +156,22 @@ func prepopulateCanonicalSuccessEventTypes(path string, log logger.Logger) {
 	// Defensive: add any event type starting with 'campaign:' dynamically
 	for _, svc := range services {
 		if name, ok := svc["name"].(string); ok && strings.HasPrefix(name, "campaign") {
-			for _, ep := range svc["endpoints"].([]interface{}) {
+			endpoints, ok := svc["endpoints"].([]interface{})
+			if !ok {
+				log.Warn("Service endpoints type assertion failed", zap.Any("endpoints_val", svc["endpoints"]))
+				continue
+			}
+			for _, ep := range endpoints {
 				epm, ok := ep.(map[string]interface{})
 				if !ok {
 					continue
 				}
-				for _, action := range epm["actions"].([]interface{}) {
+				actions, ok := epm["actions"].([]interface{})
+				if !ok {
+					log.Warn("Endpoint actions type assertion failed", zap.Any("actions_val", epm["actions"]))
+					continue
+				}
+				for _, action := range actions {
 					if act, ok := action.(string); ok {
 						et := name + ":" + act + ":success"
 						AddRelevantEventType(et)
@@ -1214,8 +1224,8 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 		// Convert to Nexus event and emit
 		nexusEvent := envelope.ToNexusEvent()
 
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		go func(ctx context.Context) {
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
 			_, err := nexusClient.EmitEvent(ctx, nexusEvent)
@@ -1224,7 +1234,7 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 			} else {
 				log.Info("Successfully emitted event to Nexus", zap.String("type", envelope.Type), zap.String("correlation_id", correlationID))
 			}
-		}()
+		}(ctx)
 	}
 }
 
@@ -1429,8 +1439,16 @@ func handleCampaignStateEvent(event *nexuspb.EventResponse) {
 	}
 
 	payloadMap := event.Payload.Data.AsMap()
-	userID, _ := payloadMap["user_id"].(string)
-	campaignID, _ := payloadMap["campaign_id"].(string)
+	userID, ok := payloadMap["user_id"].(string)
+	if !ok {
+		log.Warn("user_id type assertion failed in handleCampaignStateEvent/handleCampaignSwitchEvent", zap.Any("user_id_val", payloadMap["user_id"]))
+		return
+	}
+	campaignID, ok := payloadMap["campaign_id"].(string)
+	if !ok {
+		log.Warn("campaign_id type assertion failed in handleCampaignStateEvent/handleCampaignSwitchEvent", zap.Any("campaign_id_val", payloadMap["campaign_id"]))
+		return
+	}
 
 	if userID == "" || campaignID == "" {
 		log.Warn("[WS-GATEWAY] Campaign state event missing user_id or campaign_id",
@@ -1496,7 +1514,11 @@ func handleCampaignStateEvent(event *nexuspb.EventResponse) {
 		})
 	} else {
 		// Regular campaign state update - just log it
-		status, _ := payloadMap["status"].(string)
+		status, ok := payloadMap["status"].(string)
+		if !ok {
+			log.Warn("status type assertion failed in handleCampaignStateEvent", zap.Any("status_val", payloadMap["status"]))
+			status = "unknown"
+		}
 		log.Debug("[WS-GATEWAY] Campaign state update (not a switch)",
 			zap.String("user_id", userID),
 			zap.String("campaign_id", campaignID),
@@ -1512,8 +1534,16 @@ func handleCampaignSwitchEvent(event *nexuspb.EventResponse) {
 	}
 
 	payloadMap := event.Payload.Data.AsMap()
-	userID, _ := payloadMap["user_id"].(string)
-	campaignID, _ := payloadMap["campaign_id"].(string)
+	userID, ok := payloadMap["user_id"].(string)
+	if !ok {
+		log.Warn("user_id type assertion failed in handleCampaignStateEvent/handleCampaignSwitchEvent", zap.Any("user_id_val", payloadMap["user_id"]))
+		return
+	}
+	campaignID, ok := payloadMap["campaign_id"].(string)
+	if !ok {
+		log.Warn("campaign_id type assertion failed in handleCampaignStateEvent/handleCampaignSwitchEvent", zap.Any("campaign_id_val", payloadMap["campaign_id"]))
+		return
+	}
 
 	if userID == "" || campaignID == "" {
 		log.Warn("[WS-GATEWAY] Campaign switch event missing user_id or campaign_id",

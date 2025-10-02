@@ -172,28 +172,15 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 
 	var metadataJSON []byte
 	if campaign.Metadata != nil {
-		// Ensure status is present in service_specific.campaign
-		if campaign.Metadata.ServiceSpecific == nil {
-			campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
-		}
-		// Add status to service_specific.campaign if not present
-		if campaign.Metadata.ServiceSpecific.Fields["campaign"] == nil {
-			campaign.Metadata.ServiceSpecific.Fields["campaign"] = structpb.NewStructValue(&structpb.Struct{Fields: make(map[string]*structpb.Value)})
-		}
-		campaignStruct := campaign.Metadata.ServiceSpecific.Fields["campaign"].GetStructValue()
-		if campaignStruct != nil {
-			if _, ok := campaignStruct.Fields["status"]; !ok {
-				// Default to active if not set
-				campaignStruct.Fields["status"] = structpb.NewStringValue("active")
-			}
-		}
 		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
 		if err != nil {
 			return nil, err
 		}
-		metadataJSON, err = protojson.Marshal(ToProto(canonicalMeta))
+		// Directly marshal the canonical Go struct to JSON.
+		// This avoids the complex and error-prone round-trip back to a proto before marshaling.
+		metadataJSON, err = json.Marshal(canonicalMeta)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal canonical metadata to JSON: %w", err)
 		}
 	}
 
@@ -310,9 +297,10 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 		if err != nil {
 			return err
 		}
-		metadataJSON, err = protojson.Marshal(ToProto(canonicalMeta))
+		// Directly marshal the canonical Go struct to JSON.
+		metadataJSON, err = json.Marshal(canonicalMeta)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to marshal canonical metadata to JSON: %w", err)
 		}
 	}
 	query := `

@@ -71,9 +71,11 @@ export function useCampaignUpdates() {
 export function useCampaignOperations() {
   const campaignState = useCampaignState();
   const campaignUpdates = useCampaignUpdates();
+  const createCampaign = useCampaignStore(state => state.createCampaign);
 
   return {
     ...campaignState,
-    ...campaignUpdates
+    ...campaignUpdates,
+    createCampaign
   };
 }

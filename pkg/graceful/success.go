@@ -40,20 +40,23 @@ func HandleServiceSuccess(ctx context.Context, cfg ServiceHandlerConfig, code co
 		metaIn = &commonpb.Metadata{}
 	}
 	// Enrich metadata with missing context fields if needed
-	metaMap := metadata.ProtoToMap(metaIn)
+	if metaIn.ServiceSpecific == nil {
+		metaIn.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+	}
+	globalFields := make(map[string]string)
 	if ctxUserID != "" {
-		metaMap["user_id"] = ctxUserID
+		globalFields["user_id"] = ctxUserID
 	}
 	if ctxCampaignID != "" {
-		metaMap["campaign_id"] = ctxCampaignID
+		globalFields["campaign_id"] = ctxCampaignID
 	}
 	if ctxTraceID != "" {
-		metaMap["trace_id"] = ctxTraceID
+		globalFields["trace_id"] = ctxTraceID
 	}
 	if ctxCorrelationID != "" {
-		metaMap["correlation_id"] = ctxCorrelationID
+		globalFields["correlation_id"] = ctxCorrelationID
 	}
-	metaOut := metadata.MapToProto(metaMap)
+	metaOut := metadata.Handler{}.EnrichMetadata(metaIn, globalFields, "", nil)
 	// Add debug logging for all context fields
 	if cfg.Log != nil {
 		cfg.Log.Info("[HandleServiceSuccess] Called", zap.String("eventID", eventID), zap.Any("metadata", metaOut), zap.Any("result", result),
@@ -207,9 +210,8 @@ func (s *SuccessContext) StandardOrchestrate(ctx context.Context, cfg SuccessOrc
 			prevID := cfg.PatternID + ":prev"
 			nextID := cfg.PatternID + ":next"
 			relatedIDs := []string{}
-			metaMap := metadata.ProtoToMap(cfg.Metadata)
-			normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, prevID, nextID, relatedIDs, "success", s.Message)
-			normMeta = metadata.MapToProto(normMap)
+			metadata.Handler{}.NormalizeAndCalculate(cfg.Metadata, prevID, nextID, relatedIDs, "success", s.Message)
+			normMeta = cfg.Metadata // The handler modifies the metadata in-place
 		}
 		if err != nil {
 			if cfg.Log != nil {

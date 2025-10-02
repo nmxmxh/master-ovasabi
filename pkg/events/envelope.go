@@ -54,13 +54,16 @@ func NewCanonicalEventEnvelope(
 	}
 
 	// Create service-specific metadata
-	serviceSpecificStruct, _ := structpb.NewStruct(serviceSpecific)
+	serviceSpecificStruct, err := structpb.NewStruct(serviceSpecific)
+	if err != nil {
+		return nil
+	}
 
 	// Create audit info
-	auditStruct, _ := structpb.NewStruct(map[string]interface{}{
-		"created_at": time.Now().Format(time.RFC3339),
-		"created_by": userID,
-	})
+	auditStruct, err := structpb.NewStruct(map[string]interface{}{"created_at": time.Now().Format(time.RFC3339), "created_by": userID})
+	if err != nil {
+		return nil
+	}
 
 	// Create metadata
 	metadata := &commonpb.Metadata{
@@ -87,7 +90,10 @@ func NewCanonicalEventEnvelope(
 
 // ToNexusEvent converts to existing Nexus event format
 func (e *CanonicalEventEnvelope) ToNexusEvent() *nexuspb.EventRequest {
-	campaignIDInt, _ := strconv.ParseInt(e.Metadata.GetGlobalContext().GetCampaignId(), 10, 64)
+	campaignIDInt, err := strconv.ParseInt(e.Metadata.GetGlobalContext().GetCampaignId(), 10, 64)
+	if err != nil {
+		campaignIDInt = 0
+	}
 
 	return &nexuspb.EventRequest{
 		EventId:    e.Metadata.GetGlobalContext().GetCorrelationId(),

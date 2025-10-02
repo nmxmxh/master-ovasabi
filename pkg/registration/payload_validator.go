@@ -252,26 +252,18 @@ func (pv *PayloadValidator) getRequestModel(service, action string) (string, err
 	return "", fmt.Errorf("request model not found for %s.%s (tried patterns: %v)", service, action, patterns)
 }
 
-// toPascalCase converts a string to PascalCase (first letter uppercase, rest lowercase for each word).
+// toPascalCase converts a string to PascalCase, handling snake_case and kebab-case.
 func (pv *PayloadValidator) toPascalCase(s string) string {
 	if s == "" {
-		return s
+		return ""
 	}
 
-	// Handle simple case: single word
-	words := strings.Fields(strings.ToLower(s))
-	if len(words) == 0 {
-		return s
-	}
+	// Replace underscores and hyphens with spaces to treat them as word separators
+	s = strings.ReplaceAll(s, "_", " ")
+	s = strings.ReplaceAll(s, "-", " ")
 
-	var result strings.Builder
-	for _, word := range words {
-		if word != "" {
-			result.WriteString(strings.ToUpper(word[:1]) + word[1:])
-		}
-	}
-
-	return result.String()
+	// Use strings.Title to capitalize each word, then remove spaces
+	return strings.ReplaceAll(strings.Title(s), " ", "")
 }
 
 // walkProtoFiles is a helper method to walk through proto files.

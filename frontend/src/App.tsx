@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import CampaignPage from './pages/CampaignPage';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useInitializeUserId } from './hooks/useInitializeUserId';
 import { useCampaignState } from './store/hooks/useCampaign';
@@ -9,9 +10,19 @@ import { useCampaignData } from './providers/CampaignProvider';
 import { CampaignProvider } from './providers/CampaignProvider';
 import CampaignSwitchingPage from './pages/CampaignSwitchingPage';
 import ServiceListPage from './pages/ServiceListPage';
+import ServiceTestPage from './pages/ServiceTestPage';
+import { useParams } from 'react-router-dom';
 import { setupCampaignSwitchHandler } from './lib/wasmBridge';
 import './App.css';
 import UserServicePage from './pages/UserServicePage';
+import CreateCampaignPage from './pages/CreateCampaignPage';
+
+// Wrapper to extract serviceName param for ServiceTestPage
+function ServiceTestPageWrapper() {
+  const { serviceName } = useParams();
+  if (!serviceName) return <div>Service name not specified.</div>;
+  return <ServiceTestPage serviceName={serviceName} />;
+}
 
 // Minimal black and white styles
 const minimalStyles = `
@@ -291,6 +302,12 @@ function Navigation() {
         CAMPAIGNS
       </Link>
       <Link
+        to="/create"
+        className={`minimal-link ${location.pathname === '/create' ? 'active' : ''}`}
+      >
+        CREATE CAMPAIGN
+      </Link>
+      <Link
         to="/switching"
         className={`minimal-link ${location.pathname === '/switching' ? 'active' : ''}`}
       >
@@ -338,6 +355,22 @@ function App() {
           <main className="minimal-main">
             <Routes>
               <Route path="/" element={<CampaignManagementPage />} />
+              <Route
+                path="/create"
+                element={
+                  <React.Suspense fallback={<div className="minimal-text">Loading...</div>}>
+                    <CreateCampaignPage />
+                  </React.Suspense>
+                }
+              />
+              <Route
+                path="/campaign/:slug"
+                element={
+                  <React.Suspense fallback={<div className="minimal-text">Loading...</div>}>
+                    <CampaignPage />
+                  </React.Suspense>
+                }
+              />
               <Route path="/switching" element={<CampaignSwitchingPage />} />
               <Route path="/services" element={<ServiceListPage />} />
               <Route
@@ -345,6 +378,14 @@ function App() {
                 element={
                   <React.Suspense fallback={<div className="minimal-text">Loading...</div>}>
                     <UserServicePage />
+                  </React.Suspense>
+                }
+              />
+              <Route
+                path="/services/:serviceName"
+                element={
+                  <React.Suspense fallback={<div className="minimal-text">Loading...</div>}>
+                    <ServiceTestPageWrapper />
                   </React.Suspense>
                 }
               />

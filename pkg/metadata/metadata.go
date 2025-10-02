@@ -6,12 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -143,225 +142,279 @@ func (Handler) EnrichMetadata(meta *commonpb.Metadata, globalFields map[string]s
 	return meta
 }
 
-// DefaultMetadata returns a canonical metadata map with all required fields initialized.
-func (Handler) DefaultMetadata() map[string]interface{} {
+// DefaultMetadata returns a canonical *commonpb.Metadata with all required fields initialized.
+func (Handler) DefaultMetadata() *commonpb.Metadata {
 	now := time.Now().UTC().Format(time.RFC3339)
-	return map[string]interface{}{
-		"updated_at":        now,
-		"version":           1,
-		"prev_state_id":     "",
-		"next_state_id":     "",
-		"related_state_ids": []string{},
-		"calculation":       map[string]interface{}{},
-		"scheduling":        map[string]interface{}{},
-		"features":          []string{},
-		"custom_rules":      map[string]interface{}{},
-		"audit":             map[string]interface{}{},
-		"tags":              []string{},
-		"service_specific":  map[string]interface{}{},
-		"knowledge_graph":   map[string]interface{}{},
+	systemMeta, err := structpb.NewStruct(map[string]interface{}{"updated_at": now, "version": 1, "prev_state_id": "", "next_state_id": "", "related_state_ids": []string{}, "calculation": map[string]interface{}{}})
+	if err != nil {
+		systemMeta = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+	}
+
+	return &commonpb.Metadata{
+		Audit:       &structpb.Struct{Fields: map[string]*structpb.Value{}},
+		CustomRules: &structpb.Struct{Fields: map[string]*structpb.Value{}},
+		Scheduling:  &structpb.Struct{Fields: map[string]*structpb.Value{}},
+		ServiceSpecific: &structpb.Struct{
+			Fields: map[string]*structpb.Value{
+				"system": structpb.NewStructValue(systemMeta),
+			},
+		},
+		KnowledgeGraph: &commonpb.KnowledgeGraph{},
 	}
 }
 
-// GenerateIdempotentKey generates a unique, idempotent key for a metadata instance based on its normalized content and context.
-func (Handler) GenerateIdempotentKey(meta map[string]interface{}) string {
-	// Normalize: sort keys, flatten, and hash
-	keys := make([]string, 0, len(meta))
-	for k := range meta {
-		keys = append(keys, k)
+// GenerateIdempotentKey generates a unique, idempotent key for a metadata instance based on its normalized content.
+func (Handler) GenerateIdempotentKey(meta *commonpb.Metadata) string {
+	// Use proto marshaling for a canonical, stable representation.
+	b, err := proto.Marshal(meta)
+	if err != nil {
+		// Fallback for safety, though marshaling should not fail with a valid proto.
+		return fmt.Sprintf("error-key-%d", time.Now().UnixNano())
 	}
-	sort.Strings(keys)
-	var b strings.Builder
-	for _, k := range keys {
-		fmt.Fprintf(&b, "%s=%v;", k, meta[k])
-	}
-	h := sha256.Sum256([]byte(b.String()))
+	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }
 
-// SetChainLinks sets prev, next, and related state ids in metadata.
-func (Handler) SetChainLinks(meta map[string]interface{}, prev, next string, related []string) {
-	meta["prev_state_id"] = prev
-	meta["next_state_id"] = next
-	meta["related_state_ids"] = related
+// SetChainLinks sets prev, next, and related state ids in the system namespace.
+func (Handler) SetChainLinks(meta *commonpb.Metadata, prev, next string, related []string) {
+	if meta == nil {
+		return
+	}
+	system := GetSystemNamespace(meta)
+	system["prev_state_id"] = prev
+	system["next_state_id"] = next
+	system["related_state_ids"] = related
+	SetSystemNamespace(meta, system)
 }
 
-// GetChainLinks retrieves prev, next, and related state ids from metadata.
-func (Handler) GetChainLinks(meta map[string]interface{}) (prev, next string, related []string) {
-	prev = ""
-	if v, ok := meta["prev_state_id"].(string); ok {
-		prev = v
+// GetChainLinks retrieves prev, next, and related state ids from the system namespace.
+func (Handler) GetChainLinks(meta *commonpb.Metadata) (prev, next string, related []string) {
+	if meta == nil {
+		return "", "", nil
 	}
-	next = ""
-	if v, ok := meta["next_state_id"].(string); ok {
-		next = v
+	system := GetSystemNamespace(meta)
+
+	if p, ok := system["prev_state_id"].(string); ok {
+		prev = p
 	}
-	switch rel := meta["related_state_ids"].(type) {
-	case []string:
-		related = rel
-	case []interface{}:
-		for _, v := range rel {
-			if s, ok := v.(string); ok {
-				related = append(related, s)
-			}
+	if n, ok := system["next_state_id"].(string); ok {
+		next = n
+	}
+
+	var relatedRaw []interface{}
+	if r, ok := system["related_state_ids"].([]interface{}); ok {
+		relatedRaw = r
+	}
+	for _, v := range relatedRaw {
+		if s, ok := v.(string); ok {
+			related = append(related, s)
 		}
 	}
 	return prev, next, related
 }
 
-// GrepMetadata searches for a field or value in metadata and returns matching keys/values.
+// GrepMetadata is deprecated. Use direct field access on the protobuf.
 func (Handler) GrepMetadata(meta map[string]interface{}, query string) map[string]interface{} {
-	result := make(map[string]interface{})
-	for k, v := range meta {
-		if strings.Contains(k, query) || strings.Contains(fmt.Sprintf("%v", v), query) {
-			result[k] = v
-		}
-	}
-	return result
+	// This function is deprecated as it operates on an inconsistent map representation.
+	// Direct access to protobuf fields is preferred.
+	return make(map[string]interface{})
 }
 
-// UpdateCalculation updates the calculation field in metadata (e.g., score, tax, etc.).
-func (Handler) UpdateCalculation(meta, calc map[string]interface{}) {
-	meta["calculation"] = calc
-	meta["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+// UpdateCalculation updates the calculation field in the system namespace.
+func (Handler) UpdateCalculation(meta *commonpb.Metadata, calc map[string]interface{}) {
+	if meta == nil {
+		return
+	}
+	system := GetSystemNamespace(meta)
+	system["calculation"] = calc
+	system["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	SetSystemNamespace(meta, system)
 }
 
 // AddScore adds or updates a score in the calculation field.
-func (Handler) AddScore(meta map[string]interface{}, score float64) {
-	calc, ok := meta["calculation"].(map[string]interface{})
-	if !ok {
-		calc = map[string]interface{}{}
+func (Handler) AddScore(meta *commonpb.Metadata, score float64) {
+	if meta == nil {
+		return
+	}
+	system := GetSystemNamespace(meta)
+	var calc map[string]interface{}
+	if c, ok := system["calculation"].(map[string]interface{}); ok {
+		calc = c
+	}
+	if calc == nil {
+		calc = make(map[string]interface{})
 	}
 	calc["score"] = score
-	meta["calculation"] = calc
-	meta["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	system["calculation"] = calc
+	system["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	SetSystemNamespace(meta, system)
 }
 
 // AddTax adds or updates a tax value in the calculation field.
-func (Handler) AddTax(meta map[string]interface{}, tax float64) {
-	calc, ok := meta["calculation"].(map[string]interface{})
-	if !ok {
-		calc = map[string]interface{}{}
+func (Handler) AddTax(meta *commonpb.Metadata, tax float64) {
+	if meta == nil {
+		return
+	}
+	system := GetSystemNamespace(meta)
+	var calc map[string]interface{}
+	if c, ok := system["calculation"].(map[string]interface{}); ok {
+		calc = c
+	}
+	if calc == nil {
+		calc = make(map[string]interface{})
 	}
 	calc["tax"] = tax
-	meta["calculation"] = calc
-	meta["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	system["calculation"] = calc
+	system["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	SetSystemNamespace(meta, system)
 }
 
 // SetAvailableBalance sets the available balance in the calculation field.
-func (Handler) SetAvailableBalance(meta map[string]interface{}, balance float64) {
-	calc, ok := meta["calculation"].(map[string]interface{})
-	if !ok {
-		calc = map[string]interface{}{}
+func (Handler) SetAvailableBalance(meta *commonpb.Metadata, balance float64) {
+	if meta == nil {
+		return
+	}
+	system := GetSystemNamespace(meta)
+	var calc map[string]interface{}
+	if c, ok := system["calculation"].(map[string]interface{}); ok {
+		calc = c
+	}
+	if calc == nil {
+		calc = make(map[string]interface{})
 	}
 	calc["available_balance"] = balance
-	meta["calculation"] = calc
-	meta["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	system["calculation"] = calc
+	system["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	SetSystemNamespace(meta, system)
 }
 
 // SetPending sets the pending value in the calculation field.
-func (Handler) SetPending(meta map[string]interface{}, pending float64) {
-	calc, ok := meta["calculation"].(map[string]interface{})
-	if !ok {
-		calc = map[string]interface{}{}
+func (Handler) SetPending(meta *commonpb.Metadata, pending float64) {
+	if meta == nil {
+		return
+	}
+	system := GetSystemNamespace(meta)
+	var calc map[string]interface{}
+	if c, ok := system["calculation"].(map[string]interface{}); ok {
+		calc = c
+	}
+	if calc == nil {
+		calc = make(map[string]interface{})
 	}
 	calc["pending"] = pending
-	meta["calculation"] = calc
-	meta["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	system["calculation"] = calc
+	system["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	SetSystemNamespace(meta, system)
 }
 
-// TransferOwnership updates the owner, audit, prev_state_id, and updated_at fields, and returns the new idempotent key.
-func (h Handler) TransferOwnership(meta map[string]interface{}, newOwner, prevMetaID string) string {
-	// Update owner
-	meta["owner"] = newOwner
-	// Update audit/lineage
+// TransferOwnership updates the owner, audit, and chain links.
+func (h Handler) TransferOwnership(meta *commonpb.Metadata, newOwner, prevMetaID string) {
+	if meta == nil {
+		return
+	}
+	// Set owner in a relevant namespace, e.g., 'system' or a specific service namespace.
+	// For now, we place it in the system namespace for consistency.
+	system := GetSystemNamespace(meta)
+	system["owner"] = newOwner
+	system["prev_state_id"] = prevMetaID
+	system["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	SetSystemNamespace(meta, system)
+
+	// Update audit
 	h.AppendAudit(meta, map[string]interface{}{
 		"action":    "transfer_ownership",
 		"to":        newOwner,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
-	// Chain prev_state_id
-	meta["prev_state_id"] = prevMetaID
-	meta["updated_at"] = time.Now().UTC().Format(time.RFC3339)
-	return h.GenerateIdempotentKey(meta)
 }
 
-// AppendAudit appends an entry to the audit or lineage field in metadata.
-func (Handler) AppendAudit(meta, entry map[string]interface{}) {
-	audit, ok := meta["audit"].([]interface{})
-	if !ok {
-		audit = []interface{}{}
+// AppendAudit appends an entry to the audit history.
+func (Handler) AppendAudit(meta *commonpb.Metadata, entry map[string]interface{}) {
+	if meta == nil {
+		return
 	}
-	audit = append(audit, entry)
-	meta["audit"] = audit
-	meta["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	if meta.Audit == nil {
+		meta.Audit = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+	}
+	auditMap := meta.Audit.AsMap()
+	var history []interface{}
+	if h, ok := auditMap["history"].([]interface{}); ok {
+		history = h
+	}
+	history = append(history, entry)
+	auditMap["history"] = history
+	newAudit, err := structpb.NewStruct(auditMap)
+	if err == nil {
+		meta.Audit = newAudit
+	}
 }
 
-// NormalizeMetadata ensures the metadata is canonical: sets chain links, sorts keys, and returns a normalized map.
-func (Handler) NormalizeMetadata(meta map[string]interface{}, prev, next string, related []string) map[string]interface{} {
-	h := Handler{}
-	// Set chain links
+// NormalizeAndCalculate normalizes metadata and performs default calculations.
+func (h Handler) NormalizeAndCalculate(meta *commonpb.Metadata, prev, next string, related []string, calculationType, calcMsg string) {
+	if meta == nil {
+		return
+	}
 	h.SetChainLinks(meta, prev, next, related)
-	// Sort keys and rebuild map for canonical order
-	keys := make([]string, 0, len(meta))
-	for k := range meta {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	norm := make(map[string]interface{}, len(meta))
-	for _, k := range keys {
-		norm[k] = meta[k]
-	}
-	return norm
-}
-
-// NormalizeAndCalculate normalizes metadata and performs default calculations for success/error states.
-// calculationType should be "success" or "error".
-func (Handler) NormalizeAndCalculate(meta map[string]interface{}, prev, next string, related []string, calculationType, calcMsg string) map[string]interface{} {
-	h := Handler{}
-	h.SetChainLinks(meta, prev, next, related)
-	// Default calculation logic
+	system := GetSystemNamespace(meta)
 	var calc map[string]interface{}
-	if v, ok := meta["calculation"].(map[string]interface{}); ok {
-		calc = v
-	} else {
-		calc = map[string]interface{}{}
+	if c, ok := system["calculation"].(map[string]interface{}); ok {
+		calc = c
 	}
+	if calc == nil {
+		calc = make(map[string]interface{})
+	}
+
 	switch calculationType {
 	case "success":
-		// Increment score, start from 0 if not present
-		if v, ok := calc["score"].(float64); ok {
-			calc["score"] = v + 1
-		} else {
-			calc["score"] = 0.0
+		var score float64
+		if s, ok := calc["score"].(float64); ok {
+			score = s
 		}
+		calc["score"] = score + 1
 		calc["last_success"] = calcMsg
 	case "error":
-		// Increment error count, start from 1 if not present
-		if v, ok := calc["error_count"].(float64); ok {
-			calc["error_count"] = v + 1
-		} else {
-			calc["error_count"] = 1.0
+		var errorCount float64
+		if ec, ok := calc["error_count"].(float64); ok {
+			errorCount = ec
 		}
+		calc["error_count"] = errorCount + 1
 		calc["last_error"] = calcMsg
 	}
-	meta["calculation"] = calc
-	meta["updated_at"] = time.Now().UTC().Format(time.RFC3339)
-	// Canonicalize: sort keys
-	keys := make([]string, 0, len(meta))
-	for k := range meta {
-		keys = append(keys, k)
+	system["calculation"] = calc
+	system["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+	SetSystemNamespace(meta, system)
+}
+
+// Helper functions to access the system namespace safely.
+
+// GetSystemNamespace extracts the 'system' namespace from ServiceSpecific as a map.
+func GetSystemNamespace(meta *commonpb.Metadata) map[string]interface{} {
+	if meta == nil || meta.ServiceSpecific == nil || meta.ServiceSpecific.Fields == nil {
+		return make(map[string]interface{})
 	}
-	sort.Strings(keys)
-	norm := make(map[string]interface{}, len(meta))
-	for _, k := range keys {
-		norm[k] = meta[k]
+	systemVal, ok := meta.ServiceSpecific.Fields["system"]
+	if !ok || systemVal.GetStructValue() == nil {
+		return make(map[string]interface{})
 	}
-	return norm
+	return systemVal.GetStructValue().AsMap()
+}
+
+// SetSystemNamespace sets the 'system' namespace in ServiceSpecific from a map.
+func SetSystemNamespace(meta *commonpb.Metadata, system map[string]interface{}) {
+	if meta == nil {
+		return
+	}
+	if meta.ServiceSpecific == nil {
+		meta.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+	}
+	systemStruct, err := structpb.NewStruct(system)
+	if err == nil {
+		meta.ServiceSpecific.Fields["system"] = structpb.NewStructValue(systemStruct)
+	}
 }
 
 // Package usage note:
-// All metadata operations (save, emit, chain) MUST use NormalizeMetadata to ensure canonical, normalized state.
+// All metadata operations (save, emit, chain) MUST now operate on the canonical *commonpb.Metadata protobuf struct.
 // This guarantees previous/forward state is always consistent and ready for audit, orchestration, and event sourcing.
 
 // Example usage:
@@ -371,7 +424,6 @@ func (Handler) NormalizeAndCalculate(meta map[string]interface{}, prev, next str
 // key := handler.GenerateIdempotentKey(meta)
 // handler.AddScore(meta, 99.5)
 // handler.AddTax(meta, 0.15)
-// matches := handler.GrepMetadata(meta, "score")
 
 // ServiceMetadataFromStruct converts a structpb.Struct to *ServiceMetadata.
 func ServiceMetadataFromStruct(s *structpb.Struct) (*ServiceMetadata, error) {
@@ -405,41 +457,6 @@ func ServiceMetadataToStruct(meta *ServiceMetadata) (*structpb.Struct, error) {
 	return NewStructFromMap(m, nil), nil
 }
 
-// ProtoToMap converts a *commonpb.Metadata proto to a map[string]interface{} for use with Handler.
-func ProtoToMap(meta *commonpb.Metadata) map[string]interface{} {
-	if meta == nil {
-		return Handler{}.DefaultMetadata()
-	}
-	b, err := protojson.Marshal(meta)
-	if err != nil {
-		return Handler{}.DefaultMetadata()
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(b, &m); err != nil {
-		return Handler{}.DefaultMetadata()
-	}
-	if _, ok := m["updated_at"]; !ok {
-		m["updated_at"] = time.Now().UTC().Format(time.RFC3339)
-	}
-	return m
-}
-
-// MapToProto converts a map[string]interface{} (from Handler) to a *commonpb.Metadata proto.
-func MapToProto(m map[string]interface{}) *commonpb.Metadata {
-	if m == nil {
-		return &commonpb.Metadata{}
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		return &commonpb.Metadata{}
-	}
-	var meta commonpb.Metadata
-	if err := protojson.Unmarshal(b, &meta); err != nil {
-		return &commonpb.Metadata{}
-	}
-	return &meta
-}
-
 // StructToMap converts a *structpb.Struct to map[string]interface{}.
 func StructToMap(s *structpb.Struct) map[string]interface{} {
 	if s == nil {
@@ -450,11 +467,78 @@ func StructToMap(s *structpb.Struct) map[string]interface{} {
 
 // MapToStruct converts a map[string]interface{} to *structpb.Struct.
 func MapToStruct(m map[string]interface{}) *structpb.Struct {
+	m = NormalizeSlices(m)
 	s, err := structpb.NewStruct(m)
 	if err != nil {
 		return &structpb.Struct{Fields: map[string]*structpb.Value{}}
 	}
 	return s
+}
+
+// Recursively convert all []string and []interface{} to []interface{} for structpb compatibility
+func NormalizeSlices(m map[string]interface{}) map[string]interface{} {
+	for k, v := range m {
+		switch vv := v.(type) {
+		case []string:
+			arr := make([]interface{}, len(vv))
+			for i, s := range vv {
+				arr[i] = s
+			}
+			m[k] = arr
+		case []interface{}:
+			for i, elem := range vv {
+				if subMap, ok := elem.(map[string]interface{}); ok {
+					vv[i] = NormalizeSlices(subMap)
+				}
+			}
+			m[k] = vv
+		case map[string]interface{}:
+			m[k] = NormalizeSlices(vv)
+			m[k] = NormalizeSlices(vv)
+			m[k] = NormalizeSlices(vv)
+		}
+	}
+	return m
+}
+
+// ProtoToMap converts a *commonpb.Metadata proto to map[string]interface{}.
+func ProtoToMap(meta *commonpb.Metadata) map[string]interface{} {
+	if meta == nil {
+		return make(map[string]interface{})
+	}
+	// Use protojson for canonical JSON representation of protobufs.
+	// This handles field names (camelCase), oneofs, and other proto-specific JSON mappings.
+	b, err := protojson.Marshal(meta)
+	if err != nil {
+		// Log the error or handle it appropriately. For now, return empty map.
+		return make(map[string]interface{})
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		// Log the error or handle it appropriately. For now, return empty map.
+		return make(map[string]interface{})
+	}
+	return m
+}
+
+// MapToProto converts a map[string]interface{} to *commonpb.Metadata proto.
+func MapToProto(m map[string]interface{}) *commonpb.Metadata {
+	if m == nil {
+		return &commonpb.Metadata{}
+	}
+	// Marshal map to JSON, then unmarshal into proto.
+	b, err := json.Marshal(m)
+	if err != nil {
+		// Log the error or handle it appropriately. For now, return empty proto.
+		return &commonpb.Metadata{}
+	}
+	meta := &commonpb.Metadata{}
+	// Use protojson for canonical JSON representation of protobufs.
+	if err := protojson.Unmarshal(b, meta); err != nil {
+		// Log the error or handle it appropriately. For now, return empty proto.
+		return &commonpb.Metadata{}
+	}
+	return meta
 }
 
 // ProtoToStruct converts a *commonpb.Metadata proto to *structpb.Struct (for storage as jsonb or for gRPC).

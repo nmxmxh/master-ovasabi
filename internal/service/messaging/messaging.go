@@ -157,8 +157,12 @@ func (s *Service) SendMessage(ctx context.Context, req *messagingpb.SendMessageR
 	}
 	// Normalize metadata before sending to repo
 	metaMap := metadata.ProtoToMap(req.Metadata)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "messaging", req.Content, nil, "success", "enrich messaging metadata")
-	req.Metadata = metadata.MapToProto(normMap)
+	// Convert metaMap to *commonpb.Metadata before passing to NormalizeAndCalculate
+	metaProto := metadata.MapToProto(metaMap)
+	// Normalize and calculate on the protobuf struct (modifies metaProto in place)
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "messaging", req.Content, nil, "success", "enrich messaging metadata")
+	// Assign the modified protobuf struct back to req.Metadata
+	req.Metadata = metaProto
 	msg, err := s.repo.SendMessage(ctx, req)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to send message", err)

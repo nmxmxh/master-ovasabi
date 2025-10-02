@@ -191,9 +191,7 @@ func (s *Service) CreateTranslation(ctx context.Context, req *localizationpb.Cre
 		return nil, graceful.ToStatusError(err)
 	}
 	// [CANONICAL] Always normalize metadata before persistence or emission.
-	metaMap := metadata.ProtoToMap(meta)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "localization", req.Key, nil, "success", "enrich localization metadata")
-	meta = metadata.MapToProto(normMap)
+	metadata.Handler{}.NormalizeAndCalculate(meta, "localization", req.Key, nil, "success", "enrich localization metadata")
 	req.Metadata = meta
 	var masterID, masterUUID string
 	modVars := metadata.ExtractServiceVariables(meta, "localization")
@@ -342,8 +340,9 @@ func (s *Service) SetPricingRule(ctx context.Context, req *localizationpb.SetPri
 	}
 	// [CANONICAL] Always normalize metadata before persistence or emission.
 	metaMap := metadata.ProtoToMap(meta)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "localization", rule.ID, nil, "success", "enrich localization metadata")
-	meta = metadata.MapToProto(normMap)
+	metaProto := metadata.MapToProto(metaMap)
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "localization", rule.ID, nil, "success", "enrich localization metadata")
+	meta = metaProto
 	rule.Metadata = meta
 	if err := s.repo.SetPricingRule(ctx, rule); err != nil {
 		s.log.Error("SetPricingRule failed", zap.Error(err))

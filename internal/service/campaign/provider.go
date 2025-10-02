@@ -29,9 +29,9 @@ package campaign
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
-	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/repository"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/di"
@@ -57,68 +57,58 @@ func Register(
 	eventEnabled bool,
 	provider interface{},
 ) error {
-	// Register campaign service error map for graceful error handling.
+	// 1. Type-assert the provider, which is essential for event subscriptions.
+	prov, ok := provider.(*service.Provider)
+	if !ok {
+		log.Error("Failed to assert provider as *service.Provider for campaign service")
+		return errors.New("provider is not *service.Provider")
+	}
+
+	// 2. Register error map.
 	graceful.RegisterErrorMap(map[error]graceful.ErrorMapEntry{
 		ErrCampaignExists:   {Code: codes.AlreadyExists, Message: "campaign with this slug already exists"},
 		ErrCampaignNotFound: {Code: codes.NotFound, Message: "campaign not found"},
 	})
 
+	// 3. Create dependencies.
 	repo := NewRepository(db, log, masterRepo)
 	cache, err := redisProvider.GetCache(ctx, "campaign")
 	if err != nil {
-		log.With(zap.String("service", "campaign")).Warn("Failed to get campaign cache", zap.Error(err), zap.String("cache", "campaign"), zap.String("context", ctxValue(ctx)))
+		log.Warn("Failed to get campaign cache", zap.Error(err))
 	}
 
-	campaignService := NewService(log, repo, cache, eventEmitter, eventEnabled)
+	// 4. Create the service instance, injecting the provider.
+	campaignService := NewService(log, repo, cache, eventEmitter, eventEnabled, prov)
 
-	// Register cleanup for active broadcasts and scheduled jobs
+	// 5. Register service for lifecycle management.
 	lifecycle.RegisterCleanup(container, "campaign", func() error {
-		log.Info("Stopping campaign service and cleaning up active broadcasts")
-		// Campaign service will handle cleanup of activeBroadcasts map
-		// and scheduled jobs when the cleanup is triggered
+		log.Info("Stopping campaign service")
 		return nil
 	})
 
-	// Register canonical action handlers for event-driven orchestration
-	RegisterActionHandler("create", handleCampaignAction)
-	RegisterActionHandler("update", handleCampaignAction)
-	RegisterActionHandler("delete", handleCampaignAction)
-	RegisterActionHandler("report", handleCampaignAction)
-
+	// 6. Register the gRPC server implementation with the DI container.
 	if err := container.Register((*campaignpb.CampaignServiceServer)(nil), func(_ *di.Container) (interface{}, error) {
 		return campaignService, nil
 	}); err != nil {
-		log.With(zap.String("service", "campaign")).Error("Failed to register campaign gRPC service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		log.Error("Failed to register campaign gRPC service", zap.Error(err))
 		return err
 	}
 
-	// Register the concrete *Service type for direct resolution (e.g., in event handlers).
+	// 7. Register the concrete service type for direct resolution.
 	if err := container.Register((*Service)(nil), func(_ *di.Container) (interface{}, error) {
 		return campaignService, nil
 	}); err != nil {
-		log.With(zap.String("service", "campaign")).Error("Failed to register concrete *campaign.Service", zap.Error(err), zap.String("context", ctxValue(ctx)))
+		log.Error("Failed to register concrete *campaign.Service", zap.Error(err))
 		return err
 	}
 
-	// Event subscriber logic (matching admin provider)
-	prov, ok := provider.(*service.Provider)
-	if ok && prov != nil {
-		go func() {
-			for _, sub := range CampaignEventRegistry {
-				err := prov.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
-					sub.Handler(ctx, campaignService, event)
-				})
-				if err != nil {
-					log.With(zap.String("service", "campaign")).Error("Failed to subscribe to campaign events", zap.Error(err))
-				}
-			}
-		}()
+	// 8. Start the event subscribers, which now have the correct provider.
+	StartEventSubscribers(ctx, campaignService, log)
 
-		// Start health monitoring (following hello package pattern)
-		healthDeps := &health.ServiceDependencies{
-			Database: db,
-			Redis:    cache, // Reuse existing cache (may be nil if retrieval failed)
-		}
+	// Start health monitoring and hello loop if the provider is valid.
+	if prov != nil {
+		// Start health monitoring
+		healthDeps := &health.ServiceDependencies{Database: db, Redis: cache}
 		health.StartHealthSubscriber(ctx, prov, log, "campaign", healthDeps)
 
 		hello.StartHelloWorldLoop(ctx, prov, log, "campaign")

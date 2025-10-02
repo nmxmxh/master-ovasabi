@@ -358,17 +358,7 @@ func (s *Server) SubscribeEvents(req *nexusv1.SubscribeRequest, stream nexusv1.N
 			service, action := parseServiceAction(et)
 			key := service + ":" + action
 
-			// For campaign events, always use the default bus to avoid duplicates
-			// since CampaignStateManager only publishes to the default bus
-			if strings.HasPrefix(et, "campaign:") {
-				if !subscribedBuses["default"] {
-					ch := s.eventBus.Subscribe()
-					channels = append(channels, ch)
-					unsubFuncs = append(unsubFuncs, func() { s.eventBus.Unsubscribe(ch) })
-					subscribedBuses["default"] = true
-					s.log.Debug("[Nexus] Subscribed to default bus for campaign event", zap.String("event_type", et))
-				}
-			} else if bus, ok := s.eventBuses[key]; ok {
+			if bus, ok := s.eventBuses[key]; ok {
 				// For non-campaign events, use specific bus if available
 				if !subscribedBuses[key] {
 					ch := bus.Subscribe()
@@ -532,8 +522,19 @@ func hasEventType(set map[string]struct{}, eventType string) bool {
 	return ok
 }
 
+// isStatefulCampaignEvent checks if the event type is one that should be handled by the CampaignStateManager.
+func isStatefulCampaignEvent(eventType string) bool {
+	return strings.HasPrefix(eventType, "campaign:state:") ||
+		strings.HasPrefix(eventType, "campaign:list:") ||
+		strings.HasPrefix(eventType, "campaign:switch:") ||
+		strings.HasPrefix(eventType, "campaign:feature:") ||
+		strings.HasPrefix(eventType, "campaign:config:") ||
+		strings.HasPrefix(eventType, "campaign:update:")
+}
+
 // EmitEvent receives an event from a client and broadcasts it to all subscribers.
 func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nexusv1.EventResponse, error) {
+	s.log.Info("[NEXUS-ROUTER] EmitEvent received", zap.String("eventType", req.EventType))
 	// --- Unified Event Type Validation ---
 	eventType := req.EventType
 	// Only log critical events for performance
@@ -602,7 +603,7 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 	// s.log.Debug("[EmitEvent] Built event envelope", ...) // Removed for performance
 
 	// --- Campaign-First Architecture: Delegate campaign events to CampaignStateManager ---
-	if s.campaignStateMgr != nil && strings.HasPrefix(req.EventType, "campaign:") {
+	if s.campaignStateMgr != nil && isStatefulCampaignEvent(req.EventType) {
 		// s.log.Debug("[EmitEvent] Delegating campaign event to CampaignStateManager", ...) // Removed for performance
 		s.campaignStateMgr.HandleEvent(ctx, req)
 		// CampaignStateManager handles all campaign event publishing via feedbackBus

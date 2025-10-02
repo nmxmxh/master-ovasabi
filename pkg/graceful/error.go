@@ -43,21 +43,20 @@ func HandleServiceError(ctx context.Context, cfg ServiceHandlerConfig, code code
 		meta = &commonpb.Metadata{}
 	}
 	// Enrich metadata with missing context fields if needed
-	// Use metautil package for symmetry with success
-	metaMap := metautil.ProtoToMap(meta)
+	globalFields := make(map[string]string)
 	if ctxUserID != "" {
-		metaMap["user_id"] = ctxUserID
+		globalFields["user_id"] = ctxUserID
 	}
 	if ctxCampaignID != "" {
-		metaMap["campaign_id"] = ctxCampaignID
+		globalFields["campaign_id"] = ctxCampaignID
 	}
 	if ctxTraceID != "" {
-		metaMap["trace_id"] = ctxTraceID
+		globalFields["trace_id"] = ctxTraceID
 	}
 	if ctxCorrelationID != "" {
-		metaMap["correlation_id"] = ctxCorrelationID
+		globalFields["correlation_id"] = ctxCorrelationID
 	}
-	meta = metautil.MapToProto(metaMap)
+	metautil.Handler{}.EnrichMetadata(meta, globalFields, "", nil)
 	// Add debug logging for all context fields
 	if cfg.Log != nil {
 		cfg.Log.Info("[HandleServiceError] Called", zap.String("eventID", eventID), zap.Any("metadata", meta), zap.Any("cause", cause),

@@ -50,6 +50,7 @@ interface CampaignStore extends CampaignState {
   ) => void;
   updateCampaignFromResponse: (campaignData: any) => void;
   updateCampaignsFromResponse: (responseData: any) => void;
+  createCampaign: (campaign: any) => Promise<any>;
 
   // Debugging & Monitoring
   getStateSnapshot: () => any; // Get complete state for debugging
@@ -871,6 +872,48 @@ export const useCampaignStore = create<CampaignStore>()(
             'updateCampaignsFromResponse'
           );
         }
+      },
+
+      createCampaign: campaign => {
+        return new Promise((resolve, reject) => {
+          console.log('[CampaignStore] Creating campaign:', campaign);
+
+          const event = {
+            type: 'campaign:create_campaign:v1:requested',
+            payload: {
+              title: campaign.title,
+              description: campaign.description,
+              slug: campaign.slug
+            },
+            metadata: {
+              // Pass business-specific metadata. eventStore will build the full envelope.
+              campaign_id: campaign.slug
+            }
+          };
+
+          console.log('[CampaignStore] Campaign create event:', event);
+
+          try {
+            const eventStore = useEventStore.getState();
+            eventStore.emitEvent(event, (response: EventEnvelope) => {
+              if (response.type === 'campaign:create_campaign:v1:success') {
+                console.log('[CampaignStore] Campaign creation success:', response.payload);
+                const newCampaign = response.payload?.campaign || response.payload;
+                if (newCampaign) {
+                  set(state => ({ campaigns: [...state.campaigns, newCampaign] }));
+                }
+                resolve(response.payload);
+              } else {
+                console.error('[CampaignStore] Campaign creation failed:', response.payload);
+                reject(response.payload);
+              }
+            });
+            console.log('[CampaignStore] Create event emitted successfully');
+          } catch (error) {
+            console.error('[CampaignStore] Failed to emit event:', error);
+            reject(error);
+          }
+        });
       },
 
       // Get complete state snapshot for debugging

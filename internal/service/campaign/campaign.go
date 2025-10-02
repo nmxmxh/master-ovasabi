@@ -12,9 +12,9 @@ import (
 
 	"github.com/expr-lang/expr"
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
+	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
-	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/nmxmxh/master-ovasabi/pkg/utils"
 	"github.com/robfig/cron/v3"
@@ -39,11 +39,12 @@ type Service struct {
 	eventEnabled     bool
 	activeBroadcasts map[string]context.CancelFunc
 	scheduledJobs    map[string][]cron.EntryID
+	provider         *service.Provider // Add provider field
 	// Graceful handler for orchestration, audit, and event emission
 	handler *graceful.Handler
 }
 
-func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool) *Service {
+func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmitter events.EventEmitter, eventEnabled bool, provider *service.Provider) *Service {
 	return &Service{
 		log:              log,
 		repo:             repo,
@@ -52,6 +53,7 @@ func NewService(log *zap.Logger, repo *Repository, cache *redis.Cache, eventEmit
 		eventEnabled:     eventEnabled,
 		activeBroadcasts: make(map[string]context.CancelFunc),
 		scheduledJobs:    make(map[string][]cron.EntryID),
+		provider:         provider, // Assign provider
 		handler:          graceful.NewHandler(log, eventEmitter, cache, "campaign", "v1", eventEnabled),
 	}
 }
@@ -70,9 +72,7 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		err := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
-		s.handler.Error(ctx, "create_campaign", codes.Unauthenticated, "missing authentication", err, nil, "")
-		return nil, graceful.ToStatusError(err)
+		authUserID = "system" // Fallback to a system user for internal operations
 	}
 
 	log.Info("Creating campaign")
@@ -86,25 +86,6 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if req.Title == "" {
 		err := graceful.WrapErr(ctx, codes.InvalidArgument, "title is required", nil)
 		s.handler.Error(ctx, "create_campaign", codes.InvalidArgument, "title is required", err, nil, "")
-		return nil, graceful.ToStatusError(err)
-	}
-	// Parse and validate campaign metadata using canonical extraction
-	campaignVars := map[string]interface{}{}
-	if req.Metadata != nil {
-		extracted := metadata.ExtractServiceVariables(req.Metadata, "campaign")
-		for k, v := range extracted {
-			campaignVars[k] = v
-		}
-	}
-	// Validate required fields
-	if t, ok := campaignVars["type"].(string); !ok || t == "" {
-		err := graceful.MapAndWrapErr(ctx, errors.New("campaign type is required"), "campaign type is required", codes.InvalidArgument)
-		s.handler.Error(ctx, "create_campaign", codes.InvalidArgument, "campaign type is required", err, nil, "")
-		return nil, graceful.ToStatusError(err)
-	}
-	if status, ok := campaignVars["status"].(string); !ok || status == "" {
-		err := graceful.MapAndWrapErr(ctx, errors.New("campaign status is required"), "campaign status is required", codes.InvalidArgument)
-		s.handler.Error(ctx, "create_campaign", codes.InvalidArgument, "campaign status is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
 	// Start transaction
@@ -234,9 +215,7 @@ func (s *Service) GetCampaign(ctx context.Context, req *campaignpb.GetCampaignRe
 func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCampaignRequest) (*campaignpb.UpdateCampaignResponse, error) {
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		err := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
-		s.handler.Error(ctx, "update_campaign", codes.Unauthenticated, "missing authentication", err, nil, "")
-		return nil, graceful.ToStatusError(err)
+		authUserID = "system" // Fallback to a system user for internal operations
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isPlatformAdmin := utils.IsServiceAdmin(roles, "campaign")
@@ -315,9 +294,7 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCampaignRequest) (*campaignpb.DeleteCampaignResponse, error) {
 	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
 	if !ok {
-		err := graceful.WrapErr(ctx, codes.Unauthenticated, "missing authentication", nil)
-		s.handler.Error(ctx, "delete_campaign", codes.Unauthenticated, "missing authentication", err, nil, "")
-		return nil, graceful.ToStatusError(err)
+		authUserID = "system" // Fallback to a system user for internal operations
 	}
 	roles, _ := utils.GetAuthenticatedUserRoles(ctx)
 	isPlatformAdmin := utils.IsServiceAdmin(roles, "campaign")

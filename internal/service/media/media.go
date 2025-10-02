@@ -231,8 +231,7 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 	// Declare all needed variables at the very top for proper scope
 	var (
 		mediaMeta         *Metadata
-		metaMapOut        map[string]interface{}
-		metaBytesOut      []byte
+		
 		metaStruct        *structpb.Struct
 		metaForValidation *structpb.Struct
 		err               error
@@ -438,26 +437,32 @@ func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadL
 
 	// After all modifications to mediaMeta are complete, marshal/unmarshal/normalize/validate
 	// (This block must be just before asset creation)
-	metaMapOut = make(map[string]interface{})
-	metaBytesOut, err = json.Marshal(mediaMeta)
+	// After all modifications to mediaMeta are complete, marshal/unmarshal/normalize/validate
+	// (This block must be just before asset creation)
+	// Convert mediaMeta to *commonpb.Metadata
+	metaProto := &commonpb.Metadata{}
+	// Marshal mediaMeta to JSON, then unmarshal into metaProto
+	metaBytes, err := json.Marshal(mediaMeta)
 	if err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
 			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	if err := json.Unmarshal(metaBytesOut, &metaMapOut); err != nil {
-		err = graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal media metadata", err)
+	if err := pkgmeta.UnmarshalCanonical(metaBytes, metaProto); err != nil {
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
 			s.handler.Error(ctx, "upload_light_media", codes.Internal, ce.Message, ce, nil, "media")
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	normMap := pkgmeta.Handler{}.NormalizeAndCalculate(metaMapOut, "media", req.UserId, nil, "success", "normalize media metadata")
-	metaStruct = pkgmeta.MapToStruct(normMap)
+
+	// Normalize and calculate on the protobuf struct (modifies metaProto in place)
+	pkgmeta.Handler{}.NormalizeAndCalculate(metaProto, "media", req.UserId, nil, "success", "normalize media metadata")
+
+	// Convert the normalized protobuf struct back to structpb.Struct for ServiceSpecific
+	metaStruct = pkgmeta.ProtoToStruct(metaProto)
 	metaForValidation = &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
 
 	asset := &Model{
@@ -1217,8 +1222,10 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 		Issues:    []ComplianceIssue{},
 	}
 	// [CANONICAL] Always normalize metadata before persistence or emission.
-	metaMapOut := make(map[string]interface{})
-	metaBytesOut, err := json.Marshal(mediaMeta)
+	// Convert mediaMeta to *commonpb.Metadata
+	metaProto := &commonpb.Metadata{}
+	// Marshal mediaMeta to JSON, then unmarshal into metaProto
+	metaBytes, err := json.Marshal(mediaMeta)
 	if err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to marshal media metadata", err)
 		var ce *graceful.ContextError
@@ -1227,7 +1234,7 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	if err := json.Unmarshal(metaBytesOut, &metaMapOut); err != nil {
+	if err := pkgmeta.UnmarshalCanonical(metaBytes, metaProto); err != nil {
 		err = graceful.WrapErr(ctx, codes.Internal, "failed to unmarshal media metadata", err)
 		var ce *graceful.ContextError
 		if errors.As(err, &ce) {
@@ -1235,8 +1242,12 @@ func (s *ServiceImpl) CompleteMediaUpload(ctx context.Context, req *mediapb.Comp
 		}
 		return nil, graceful.ToStatusError(err)
 	}
-	normMap := pkgmeta.Handler{}.NormalizeAndCalculate(metaMapOut, "media", req.UploadId, nil, "success", "normalize media metadata")
-	metaStruct := pkgmeta.MapToStruct(normMap)
+
+	// Normalize and calculate on the protobuf struct (modifies metaProto in place)
+	pkgmeta.Handler{}.NormalizeAndCalculate(metaProto, "media", req.UploadId, nil, "success", "normalize media metadata")
+
+	// Convert the normalized protobuf struct back to structpb.Struct for ServiceSpecific
+	metaStruct := pkgmeta.ProtoToStruct(metaProto)
 	metaForValidation := &structpb.Struct{Fields: map[string]*structpb.Value{"media": structpb.NewStructValue(metaStruct)}}
 
 	asset.Metadata = &commonpb.Metadata{ServiceSpecific: metaForValidation}

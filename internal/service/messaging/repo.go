@@ -424,8 +424,9 @@ func (r *Repository) SendMessage(ctx context.Context, req *messagingpb.SendMessa
 	// Optionally set audit, delivery, etc. as needed
 	// Normalize metadata before persistence
 	metaMap := metadata.ProtoToMap(req.Metadata)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "messaging", req.Content, nil, "success", "enrich messaging metadata")
-	req.Metadata = metadata.MapToProto(normMap)
+	metaProto := metadata.MapToProto(metaMap)
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "messaging", req.Content, nil, "success", "enrich messaging metadata")
+	req.Metadata = metaProto
 	// Validate sender/recipients (omitted for brevity)
 	masterName := r.GenerateMasterName(repository.EntityType("message"), req.Content, req.Type.String(), fmt.Sprintf("sender-%s", req.SenderId))
 	masterID, masterUUID, err := r.masterRepo.CreateMasterRecord(ctx, string(repository.EntityType("message")), masterName)
@@ -591,9 +592,7 @@ func (r *Repository) EditMessage(ctx context.Context, req *messagingpb.EditMessa
 		r.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
 	}
 	// Normalize metadata before persistence
-	metaMap := metadata.ProtoToMap(msg.Metadata)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "messaging", msg.Content, nil, "edit", "edit messaging metadata")
-	msg.Metadata = metadata.MapToProto(normMap)
+	metadata.Handler{}.NormalizeAndCalculate(msg.Metadata, "messaging", msg.Content, nil, "edit", "edit messaging metadata")
 	query := `UPDATE service_messaging_main SET content=$1, attachments=$2, edited=true, metadata=$3, updated_at=NOW() WHERE id=$4`
 	_, err = r.GetDB().ExecContext(ctx, query, msg.Content, msg.Attachments, msg.Metadata, msg.ID)
 	if err != nil {
@@ -683,9 +682,7 @@ func (r *Repository) ReactToMessage(ctx context.Context, req *messagingpb.ReactT
 		r.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
 	}
 	// Normalize metadata before persistence
-	metaMap := metadata.ProtoToMap(msg.Metadata)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "messaging", msg.Content, nil, "react", "react messaging metadata")
-	msg.Metadata = metadata.MapToProto(normMap)
+	metadata.Handler{}.NormalizeAndCalculate(msg.Metadata, "messaging", msg.Content, nil, "react", "react messaging metadata")
 	query := `UPDATE service_messaging_main SET reactions=$1, metadata=$2, updated_at=NOW() WHERE id=$3`
 	_, err = r.GetDB().ExecContext(ctx, query, msg.Reactions, msg.Metadata, msg.ID)
 	if err != nil {

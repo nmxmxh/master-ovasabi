@@ -248,12 +248,16 @@ func (r *Repository) Orchestrate(ctx context.Context, req *nexusv1.OrchestrateRe
 // logOrchestrationEvent logs rollback/audit events for orchestration.
 func (r *Repository) logOrchestrationEvent(ctx context.Context, tx *sql.Tx, orchestrationID, eventType, message string, metaMap map[string]interface{}) error {
 	handler := metadata.Handler{}
-	handler.AppendAudit(metaMap, map[string]interface{}{
+	// Convert metaMap to *commonpb.Metadata before passing to AppendAudit
+	metaProto := metadata.MapToProto(metaMap)
+	handler.AppendAudit(metaProto, map[string]interface{}{
 		"orchestration_id": orchestrationID,
 		"event_type":       eventType,
 		"message":          message,
 		"timestamp":        time.Now().UTC().Format(time.RFC3339),
 	})
+	// Convert the modified *commonpb.Metadata back to a map for marshaling
+	metaMap = metadata.ProtoToMap(metaProto)
 	var metaBytes []byte
 	if metaMap != nil {
 		var err error

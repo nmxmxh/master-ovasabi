@@ -76,13 +76,10 @@ func BuildAnalyticsMetadata(
 	if metaMap == nil {
 		return nil, fmt.Errorf("failed to convert metadata to map")
 	}
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "", "", []string{}, "success", "enrich analytics metadata")
-	if normMap == nil {
-		return nil, fmt.Errorf("failed to normalize and calculate metadata")
+	metaProto := metadata.MapToProto(metaMap)
+	if metaProto == nil {
+		return nil, fmt.Errorf("failed to convert metadata map to proto")
 	}
-	proto := metadata.MapToProto(normMap)
-	if proto == nil {
-		return nil, fmt.Errorf("failed to convert normalized map to proto")
-	}
-	return proto, nil
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "", "", []string{}, "success", "enrich analytics metadata")
+	return metaProto, nil
 }

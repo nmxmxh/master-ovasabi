@@ -112,8 +112,9 @@ func ExtractAndEnrichProductMetadata(meta *commonpb.Metadata, userID string, isC
 	// If you have a product ID, use it for prev/next/related; otherwise, leave as empty.
 	metaMap := metadata.ProtoToMap(meta)
 	// TODO: Replace "" with actual prev/next/related IDs if available
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "", "", []string{}, "success", "enrich product metadata")
-	return metadata.MapToProto(normMap), nil
+	metaProto := metadata.MapToProto(metaMap)
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "", "", []string{}, "success", "enrich product metadata")
+	return metaProto, nil
 }
 
 // ExtractProductServiceMetadata extracts product metadata as ServiceMetadata from a Metadata proto.

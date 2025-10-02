@@ -15,7 +15,7 @@ import (
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	campaignrepo "github.com/nmxmxh/master-ovasabi/internal/service/campaign"
-	meta "github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -73,7 +73,7 @@ func (m *CampaignStateManager) isEventProcessed(eventID string) bool {
 
 	// Check if this event was processed recently (within 2 seconds)
 	if lastSeen, exists := m.processedEvents.Load(eventID); exists {
-		if now.Sub(lastSeen.(time.Time)) < 2*time.Second {
+		if lastSeenTime, ok := lastSeen.(time.Time); ok && now.Sub(lastSeenTime) < 2*time.Second {
 			m.log.Debug("[CampaignState] Skipping duplicate event",
 				zap.String("event_id", eventID))
 			return true
@@ -102,7 +102,7 @@ func (m *CampaignStateManager) PrepareStateForUser(campaignID, userID string) ma
 
 // HandleEvent is a generic event handler for campaign-related events (to be called from the Nexus event bus).
 func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.EventRequest) {
-	campaignID, userID := m.extractCampaignAndUserID(event)
+	campaignID, userID := m.extractCampaignAndUserID(ctx, event)
 	// Canonical event mutation: only process events ending in ':requested' or ':started'
 	if strings.HasSuffix(event.EventType, ":requested") || strings.HasSuffix(event.EventType, ":started") {
 		switch event.EventType {
@@ -119,7 +119,6 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 		case "campaign:state:v1:requested":
 			// Processing campaign state request
 			state := m.PrepareStateForUser(campaignID, userID)
-			structData := meta.NewStructFromMap(state, nil)
 			eventType := "campaign:state:v1:success"
 			// Extract or create correlation ID - preserve original correlation ID
 			var correlationID string
@@ -161,7 +160,12 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 			stateWithRouting["user_id"] = userID
 			stateWithRouting["campaign_id"] = campaignID
 			stateWithRouting["correlationId"] = correlationID // Include correlation ID for request/response matching
-			structData = meta.NewStructFromMap(stateWithRouting, nil)
+			structData, err := structpb.NewStruct(stateWithRouting)
+			if err != nil {
+				m.log.Error("Failed to create struct for campaign state response", zap.Error(err), zap.String("campaign_id", campaignID), zap.String("user_id", userID))
+				m.sendFailureEvent(campaignID, userID, "internal: serialization failed", event.Metadata)
+				return
+			}
 			if userID == "godot" {
 				eventType = "campaign:state:v1:godot_update"
 				// Optionally: broadcast to Godot stream
@@ -173,7 +177,10 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 					godotStream = make(chan *nexusv1.EventResponse, 128)
 					cs.Subscribers.Store(godotStreamKey, godotStream)
 				} else {
-					godotStream, _ = val.(chan *nexusv1.EventResponse)
+					if godotStream, ok = val.(chan *nexusv1.EventResponse); !ok {
+						m.log.Warn("Type assertion to chan *nexusv1.EventResponse failed", zap.Any("val", val))
+						return
+					}
 				}
 				eventResp := &nexusv1.EventResponse{
 					Success:   true,
@@ -500,6 +507,12 @@ func (m *CampaignStateManager) UpdateState(campaignID, userID string, update map
 	stateWithRouting["user_id"] = userID
 	stateWithRouting["campaign_id"] = campaignID
 
+	structData, err := structpb.NewStruct(stateWithRouting)
+	if err != nil {
+		m.log.Error("Failed to create struct for state update event", zap.Error(err), zap.String("campaign_id", campaignID))
+		structData = &structpb.Struct{}
+	}
+
 	event := &nexusv1.EventResponse{
 		Success:   true,
 		EventId:   uuid.New().String(), // Generate proper EventId
@@ -507,7 +520,7 @@ func (m *CampaignStateManager) UpdateState(campaignID, userID string, update map
 		Message:   "state_updated",
 		Metadata:  metadata,
 		Payload: &commonpb.Payload{
-			Data: meta.NewStructFromMap(stateWithRouting, nil),
+			Data: structData,
 		},
 	}
 
@@ -605,7 +618,7 @@ func (m *CampaignStateManager) GetState(campaignID string) map[string]any {
 
 // handleCampaignList processes campaign list requests and returns all available campaigns.
 func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *nexusv1.EventRequest) {
-	campaignID, userID := m.extractCampaignAndUserID(event)
+	campaignID, userID := m.extractCampaignAndUserID(ctx, event)
 
 	// Generate event ID for deduplication
 	eventID := "campaign_list:" + userID
@@ -657,7 +670,7 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 	campaignMap := make(map[string]map[string]any)
 
 	// Only seed from config if no campaigns exist in database
-	if err := m.EnsureCampaignsSeeded(); err != nil {
+	if err := m.EnsureCampaignsSeeded(ctx); err != nil {
 		m.log.Warn("Failed to ensure campaigns are seeded", zap.Error(err))
 	}
 
@@ -839,13 +852,15 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 		correlationID = "corr_" + fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 
-	// Convert campaigns to proper JSON-serializable format
+	// Convert campaigns to proper JSON-serializable format and normalize slices for proto compatibility
 	jsonCampaigns := make([]map[string]interface{}, len(campaigns))
 	for i, campaign := range campaigns {
 		jsonCampaign := make(map[string]interface{})
 		for k, v := range campaign {
 			jsonCampaign[k] = v
 		}
+		// Normalize all slices in campaign map
+		jsonCampaign = metadata.NormalizeSlices(jsonCampaign)
 		jsonCampaigns[i] = jsonCampaign
 	}
 
@@ -871,26 +886,47 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 	// Only log serialization errors if they occur
 
 	// Use a more robust serialization approach for campaign data
+
 	structData := m.serializeCampaignResponse(responsePayload)
 
-	// Serialization debug logging removed for performance
-
-	// Update event ID with correlation ID if available
-	if correlationID != "" {
-		eventID = "campaign_list:" + userID + ":" + correlationID
+	// Determine if serialization was successful by checking for minimal fallback
+	isMinimal := false
+	if structData != nil {
+		// Check for minimal fallback by inspecting campaigns field
+		if campaigns, ok := structData.Fields["campaigns"]; ok {
+			if listVal := campaigns.GetListValue(); listVal != nil && len(listVal.Values) == 0 {
+				isMinimal = true
+			}
+		}
 	} else {
-		eventID = "campaign_list:" + userID + ":" + time.Now().UTC().Format("20060102T150405.000Z")
+		isMinimal = true
 	}
 
-	response := &nexusv1.EventResponse{
-		Success:   true,
-		EventId:   uuid.New().String(), // Generate proper EventId
-		EventType: "campaign:list:v1:success",
-		Message:   "campaign_list_retrieved",
-		Metadata:  event.Metadata,
-		Payload: &commonpb.Payload{
-			Data: structData,
-		},
+	var response *nexusv1.EventResponse
+	if isMinimal {
+		// Serialization failed, broadcast failed event
+		response = &nexusv1.EventResponse{
+			Success:   false,
+			EventId:   uuid.New().String(),
+			EventType: "campaign:list:v1:failed",
+			Message:   "campaign_list_serialization_failed",
+			Metadata:  event.Metadata,
+			Payload: &commonpb.Payload{
+				Data: structData,
+			},
+		}
+	} else {
+		// Serialization successful, broadcast success event
+		response = &nexusv1.EventResponse{
+			Success:   true,
+			EventId:   uuid.New().String(),
+			EventType: "campaign:list:v1:success",
+			Message:   "campaign_list_retrieved",
+			Metadata:  event.Metadata,
+			Payload: &commonpb.Payload{
+				Data: structData,
+			},
+		}
 	}
 
 	m.log.Info("Sending campaign list response",
@@ -900,7 +936,6 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 		zap.String("response_event_type", response.EventType),
 		zap.Bool("success", response.Success))
 
-	// Debug: Log all events being sent through feedbackBus
 	m.log.Info("[FEEDBACKBUS] Sending event",
 		zap.String("event_type", response.EventType),
 		zap.String("event_id", response.EventId),
@@ -911,14 +946,14 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 }
 
 // EnsureCampaignsSeeded ensures campaigns are properly seeded from config if database is empty
-func (m *CampaignStateManager) EnsureCampaignsSeeded() error {
+func (m *CampaignStateManager) EnsureCampaignsSeeded(ctx context.Context) error {
 	if m.repo == nil {
 		m.log.Warn("Repository not available, cannot seed campaigns")
 		return nil
 	}
 
 	// Check if campaigns exist in database
-	campaigns, err := m.repo.List(context.Background(), 10, 0)
+	campaigns, err := m.repo.List(ctx, 10, 0)
 	if err != nil {
 		m.log.Error("Failed to check existing campaigns", zap.Error(err))
 		return err
@@ -989,7 +1024,7 @@ func (m *CampaignStateManager) seedCampaignsFromConfig() error {
 
 		m.log.Debug("Seeded campaign from config",
 			zap.String("campaign_id", campaignID),
-			zap.String("title", state["title"].(string)),
+			zap.String("title", fmt.Sprintf("%v", state["title"])),
 			zap.Bool("has_ui_components", state["ui_components"] != nil))
 	}
 
@@ -1054,7 +1089,7 @@ func (m *CampaignStateManager) handleCampaignUpdate(ctx context.Context, event *
 	}
 
 	// Extract campaign ID and user ID from metadata
-	campaignID, userID := m.extractCampaignAndUserID(event)
+	campaignID, userID := m.extractCampaignAndUserID(ctx, event)
 
 	// Try to unmarshal from payload first
 	if event.Payload != nil && event.Payload.Data != nil {
@@ -1091,7 +1126,7 @@ func (m *CampaignStateManager) handleCampaignUpdate(ctx context.Context, event *
 	var persistErr error
 	if m.repo != nil {
 		// Use a separate context with timeout for database operations
-		dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		dbCtx, dbCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer dbCancel()
 
 		// Check if campaign exists first and get it for persistence
@@ -1138,7 +1173,7 @@ func (m *CampaignStateManager) handleCampaignUpdate(ctx context.Context, event *
 // handleCampaignSwitch processes campaign switching requests.
 func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *nexusv1.EventRequest) {
 	// Extract campaign and user IDs
-	campaignID, userID := m.extractCampaignAndUserID(event)
+	campaignID, userID := m.extractCampaignAndUserID(ctx, event)
 	if campaignID == "" || userID == "" {
 		m.log.Error("Missing campaign or user ID in campaign switch request")
 		return
@@ -1216,6 +1251,12 @@ func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *
 
 	switchEventID := fmt.Sprintf("campaign_switch:%s:%s:%d:%d", payload.CampaignID, userID, time.Now().UnixNano(), counter)
 
+	structData, err := structpb.NewStruct(stateWithRouting)
+	if err != nil {
+		m.log.Error("Failed to create struct for campaign switch event", zap.Error(err), zap.String("campaign_id", payload.CampaignID))
+		structData = &structpb.Struct{}
+	}
+
 	// Send campaign switch success event
 	switchSuccessEvent := &nexusv1.EventResponse{
 		Success:   true,
@@ -1224,7 +1265,7 @@ func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *
 		Message:   "campaign_switched",
 		Metadata:  event.Metadata,
 		Payload: &commonpb.Payload{
-			Data: meta.NewStructFromMap(stateWithRouting, nil),
+			Data: structData,
 		},
 	}
 
@@ -1246,14 +1287,14 @@ func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *
 }
 
 // handleFeatureUpdate processes feature-specific updates.
-func (m *CampaignStateManager) handleFeatureUpdate(_ context.Context, event *nexusv1.EventRequest) {
+func (m *CampaignStateManager) handleFeatureUpdate(ctx context.Context, event *nexusv1.EventRequest) {
 	var payload struct {
 		CampaignID string   `json:"campaign_id"`
 		Features   []string `json:"features"`
 		Action     string   `json:"action"` // "add", "remove", "set"
 	}
 
-	campaignID, userID := m.extractCampaignAndUserID(event)
+	campaignID, userID := m.extractCampaignAndUserID(ctx, event)
 
 	if event.Payload != nil && event.Payload.Data != nil {
 		payloadMap := event.Payload.Data.AsMap()
@@ -1346,14 +1387,14 @@ func (m *CampaignStateManager) handleFeatureUpdate(_ context.Context, event *nex
 }
 
 // handleConfigUpdate processes configuration updates (UI content, scripts, etc.)
-func (m *CampaignStateManager) handleConfigUpdate(_ context.Context, event *nexusv1.EventRequest) {
+func (m *CampaignStateManager) handleConfigUpdate(ctx context.Context, event *nexusv1.EventRequest) {
 	var payload struct {
 		CampaignID string         `json:"campaign_id"`
 		ConfigType string         `json:"config_type"` // "ui_content", "scripts", "communication"
 		Config     map[string]any `json:"config"`
 	}
 
-	campaignID, userID := m.extractCampaignAndUserID(event)
+	campaignID, userID := m.extractCampaignAndUserID(ctx, event)
 
 	if event.Payload != nil && event.Payload.Data != nil {
 		payloadMap := event.Payload.Data.AsMap()
@@ -1389,7 +1430,7 @@ func (m *CampaignStateManager) handleConfigUpdate(_ context.Context, event *nexu
 }
 
 // extractCampaignAndUserID extracts campaign and user IDs from event metadata using unified extractor.
-func (m *CampaignStateManager) extractCampaignAndUserID(event *nexusv1.EventRequest) (campaignID, userID string) {
+func (m *CampaignStateManager) extractCampaignAndUserID(ctx context.Context, event *nexusv1.EventRequest) (campaignID, userID string) {
 	m.log.Debug("[extractCampaignAndUserID] Starting extraction", zap.Any("metadata", event.Metadata))
 
 	if event.Metadata == nil {
@@ -1399,7 +1440,7 @@ func (m *CampaignStateManager) extractCampaignAndUserID(event *nexusv1.EventRequ
 
 	// Use unified metadata extractor for consistent extraction
 	extractor := NewUnifiedMetadataExtractor(m.log)
-	ids := extractor.ExtractFromEventRequest(context.Background(), event)
+	ids := extractor.ExtractFromEventRequest(ctx, event)
 
 	campaignID = ids.CampaignID
 	userID = ids.UserID
@@ -1409,57 +1450,63 @@ func (m *CampaignStateManager) extractCampaignAndUserID(event *nexusv1.EventRequ
 }
 
 // persistToDBSync synchronously persists campaign state changes to the database.
-func (m *CampaignStateManager) persistToDBSync(ctx context.Context, campaignID string, updates map[string]any) error {
-	// Get campaign from DB
-	campaign, err := m.repo.GetBySlug(ctx, campaignID)
-	if err != nil {
-		m.log.Error("Failed to get campaign for persistence",
-			zap.String("campaign_id", campaignID),
-			zap.Error(err))
-		return err
-	}
+// func (m *CampaignStateManager) persistToDBSync(ctx context.Context, campaignID string, updates map[string]any) error {
+// 	// Get campaign from DB
+// 	campaign, err := m.repo.GetBySlug(ctx, campaignID)
+// 	if err != nil {
+// 		m.log.Error("Failed to get campaign for persistence",
+// 			zap.String("campaign_id", campaignID),
+// 			zap.Error(err))
+// 		return err
+// 	}
 
-	// Get current campaign state
-	cs := m.GetOrCreateState(campaignID)
-	// Merge updates into campaign state before persisting
-	if updates != nil {
-		maps.Copy(cs.State, updates)
-	}
+// 	// Get current campaign state
+// 	cs := m.GetOrCreateState(campaignID)
+// 	// Merge updates into campaign state before persisting
+// 	if updates != nil {
+// 		maps.Copy(cs.State, updates)
+// 	}
 
-	// Update metadata with state changes
-	if campaign.Metadata != nil && campaign.Metadata.ServiceSpecific != nil {
-		// Merge current state into campaign metadata
-		if campaignField, ok := campaign.Metadata.ServiceSpecific.Fields["campaign"]; ok && campaignField != nil {
-			if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
-				// Merge state into existing campaign metadata
-				existingMap := campaignStruct.AsMap()
-				maps.Copy(existingMap, cs.State)
-				structData := meta.NewStructFromMap(existingMap, nil)
-				campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
-					Kind: &structpb.Value_StructValue{StructValue: structData},
-				}
-			}
-		} else {
-			// Create new campaign metadata
-			structData := meta.NewStructFromMap(cs.State, nil)
-			campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
-				Kind: &structpb.Value_StructValue{StructValue: structData},
-			}
-		}
-	}
+// 	// Update metadata with state changes
+// 	if campaign.Metadata != nil && campaign.Metadata.ServiceSpecific != nil {
+// 		// Merge current state into campaign metadata
+// 		if campaignField, ok := campaign.Metadata.ServiceSpecific.Fields["campaign"]; ok && campaignField != nil {
+// 			if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
+// 				// Merge state into existing campaign metadata
+// 				existingMap := campaignStruct.AsMap()
+// 				maps.Copy(existingMap, cs.State)
+// 				structData, err := structpb.NewStruct(existingMap)
+// 				if err != nil {
+// 					return fmt.Errorf("failed to create struct from existing map: %w", err)
+// 				}
+// 				campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
+// 					Kind: &structpb.Value_StructValue{StructValue: structData},
+// 				}
+// 			}
+// 		} else {
+// 			// Create new campaign metadata
+// 			structData, err := structpb.NewStruct(cs.State)
+// 			if err != nil {
+// 				return fmt.Errorf("failed to create struct from campaign state: %w", err)
+// 			}
+// 			campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
+// 				Kind: &structpb.Value_StructValue{StructValue: structData},
+// 			}
+// 		}
+// 	}
 
-	// Update in database
-	if err := m.repo.Update(ctx, campaign); err != nil {
-		m.log.Error("Failed to persist campaign state to database",
-			zap.String("campaign_id", campaignID),
-			zap.Error(err))
-		return err
-	}
+// 	// Update in database
+// 	if err := m.repo.Update(ctx, campaign); err != nil {
+// 		m.log.Error("Failed to persist campaign state to database",
+// 			zap.String("campaign_id", campaignID),
+// 			zap.Error(err))
+// 		return err
+// 	}
 
-	m.log.Info("Successfully persisted campaign state to database",
-		zap.String("campaign_id", campaignID))
-	return nil
-}
+// 	m.log.Info("Successfully persisted campaign state to database",
+// 		zap.String("campaign_id", campaignID))
+// 	return nil
+// }
 
 // persistToDBSyncWithCampaign synchronously persists campaign state changes using a pre-retrieved campaign object
 func (m *CampaignStateManager) persistToDBSyncWithCampaign(ctx context.Context, campaign *campaignrepo.Campaign, updates map[string]any) error {
@@ -1478,14 +1525,20 @@ func (m *CampaignStateManager) persistToDBSyncWithCampaign(ctx context.Context, 
 				// Merge state into existing campaign metadata
 				existingMap := campaignStruct.AsMap()
 				maps.Copy(existingMap, cs.State)
-				structData := meta.NewStructFromMap(existingMap, nil)
+				structData, err := structpb.NewStruct(existingMap)
+				if err != nil {
+					return fmt.Errorf("failed to create struct from existing map: %w", err)
+				}
 				campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
 					Kind: &structpb.Value_StructValue{StructValue: structData},
 				}
 			}
 		} else {
 			// Create new campaign metadata
-			structData := meta.NewStructFromMap(cs.State, nil)
+			structData, err := structpb.NewStruct(cs.State)
+			if err != nil {
+				return fmt.Errorf("failed to create struct from campaign state: %w", err)
+			}
 			campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
 				Kind: &structpb.Value_StructValue{StructValue: structData},
 			}
@@ -1514,6 +1567,17 @@ func (m *CampaignStateManager) sendFailureEvent(campaignID, userID, errorMessage
 	stateWithRouting["campaign_id"] = campaignID
 	stateWithRouting["error"] = errorMessage
 
+	data, err := structpb.NewStruct(stateWithRouting)
+	if err != nil {
+		m.log.Error("Failed to create struct for failure event payload", zap.Error(err))
+		// Fallback to a minimal payload
+		data, _ = structpb.NewStruct(map[string]interface{}{
+			"user_id":     userID,
+			"campaign_id": campaignID,
+			"error":       "payload serialization failed: " + errorMessage,
+		})
+	}
+
 	event := &nexusv1.EventResponse{
 		Success:   false,
 		EventId:   uuid.New().String(), // Generate proper EventId
@@ -1521,7 +1585,7 @@ func (m *CampaignStateManager) sendFailureEvent(campaignID, userID, errorMessage
 		Message:   "state_update_failed",
 		Metadata:  metadata,
 		Payload: &commonpb.Payload{
-			Data: meta.NewStructFromMap(stateWithRouting, nil),
+			Data: data,
 		},
 	}
 
@@ -1546,61 +1610,66 @@ func (m *CampaignStateManager) sendFailureEvent(campaignID, userID, errorMessage
 
 // persistToDB asynchronously persists campaign state changes to the database.
 // This is kept for backward compatibility but now uses the sync version internally.
-func (m *CampaignStateManager) persistToDB(ctx context.Context, campaignID string, updates map[string]any) {
-	cancel := func() {}
-	if _, ok := ctx.Deadline(); !ok {
-		ctx, cancel = context.WithTimeout(ctx, 10*time.Second)
-	}
-	defer cancel()
+// func (m *CampaignStateManager) persistToDB(ctx context.Context, campaignID string, updates map[string]any) {
+// 	cancel := func() {}
+// 	if _, ok := ctx.Deadline(); !ok {
+// 		ctx, cancel = context.WithTimeout(ctx, 10*time.Second)
+// 	}
+// 	defer cancel()
 
-	// Use the sync version internally
-	if err := m.persistToDBSync(ctx, campaignID, updates); err != nil {
-		m.log.Error("Failed to persist campaign state to database",
-			zap.String("campaign_id", campaignID),
-			zap.Error(err))
-	}
-}
+// 	// Use the sync version internally
+// 	if err := m.persistToDBSync(ctx, campaignID, updates); err != nil {
+// 		m.log.Error("Failed to persist campaign state to database",
+// 			zap.String("campaign_id", campaignID),
+// 			zap.Error(err))
+// 	}
+// }
 
 // serializeCampaignResponse handles the serialization of campaign response data
 // with special handling for complex nested structures
 func (m *CampaignStateManager) serializeCampaignResponse(data map[string]interface{}) *structpb.Struct {
-	// First try the standard approach
-	structData := meta.NewStructFromMap(data, m.log)
-	if len(structData.AsMap()) > 0 {
-		m.log.Info("Standard serialization successful")
-		return structData
+	// Ensure campaigns is a slice of normalized maps, not []*structpb.Struct
+	if campaigns, ok := data["campaigns"].([]map[string]interface{}); ok {
+		normalizedCampaigns := make([]interface{}, len(campaigns))
+		for i, campaign := range campaigns {
+			normalizedCampaigns[i] = campaign
+		}
+		data["campaigns"] = normalizedCampaigns
 	}
+	// Normalize all slices in the parent map before structpb conversion
+	data = metadata.NormalizeSlices(data)
+	structData, err := structpb.NewStruct(data)
+	if err != nil {
+		m.log.Error("Failed to serialize campaign response", zap.Error(err))
 
-	// If standard approach fails, try a more conservative approach
-	m.log.Warn("Standard serialization failed, trying conservative approach")
-
-	// Create a simplified version with only essential fields
-	simplifiedData := map[string]interface{}{
-		"campaigns":     data["campaigns"],
-		"total":         data["total"],
-		"limit":         data["limit"],
-		"offset":        data["offset"],
-		"user_id":       data["user_id"],
-		"campaign_id":   data["campaign_id"],
-		"correlationId": data["correlationId"],
-		"source":        data["source"],
-	}
-
-	simplifiedStruct := meta.NewStructFromMap(simplifiedData, m.log)
-	if len(simplifiedStruct.AsMap()) > 0 {
+		// Try a more conservative approach
+		simplifiedData := map[string]interface{}{
+			"campaigns":     data["campaigns"],
+			"total":         data["total"],
+			"limit":         data["limit"],
+			"offset":        data["offset"],
+			"user_id":       data["user_id"],
+			"campaign_id":   data["campaign_id"],
+			"correlationId": data["correlationId"],
+			"source":        data["source"],
+		}
+		simplifiedStruct, err2 := structpb.NewStruct(simplifiedData)
+		if err2 != nil {
+			m.log.Error("Conservative serialization also failed", zap.Error(err2))
+			// If all else fails, create a minimal response
+			minimalData := map[string]interface{}{
+				"campaigns": []interface{}{},
+				"total":     0,
+				"source":    "nexus",
+			}
+			minimalStruct, _ := structpb.NewStruct(minimalData)
+			return minimalStruct
+		}
 		m.log.Info("Conservative serialization successful")
 		return simplifiedStruct
 	}
-
-	// If all else fails, create a minimal response
-	m.log.Error("All serialization approaches failed, creating minimal response")
-	minimalData := map[string]interface{}{
-		"campaigns": []interface{}{},
-		"total":     0,
-		"source":    "nexus",
-	}
-
-	return meta.NewStructFromMap(minimalData, m.log)
+	m.log.Info("Standard serialization successful")
+	return structData
 }
 
 // GetCampaignArchitectureSummary returns a summary of campaign architecture and health for dashboards.

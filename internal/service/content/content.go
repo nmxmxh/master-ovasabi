@@ -92,9 +92,9 @@ func (s *Service) CreateContent(ctx context.Context, req *contentpb.CreateConten
 		s.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
 	}
 	content.Metadata.Tags = content.Tags
-	metaMap := metadata.ProtoToMap(content.Metadata)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "content", content.Id, content.Tags, "success", "enrich content metadata")
-	content.Metadata = metadata.MapToProto(normMap)
+	metaProto := req.Content.Metadata
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "content", req.Content.Id, req.Content.Tags, "success", "enrich content metadata")
+
 	c, err := s.repo.CreateContent(ctx, content)
 	if err != nil {
 		s.log.Error("CreateContent failed", zap.Error(err))
@@ -179,9 +179,9 @@ func (s *Service) UpdateContent(ctx context.Context, req *contentpb.UpdateConten
 	if err := metadata.SetServiceSpecificField(req.Content.Metadata, "content", "bad_actor", badActorMetaMap); err != nil {
 		s.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
 	}
-	metaMap = metadata.ProtoToMap(req.Content.Metadata)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "content", req.Content.Id, req.Content.Tags, "success", "enrich content metadata")
-	req.Content.Metadata = metadata.MapToProto(normMap)
+	metaProto := req.Content.Metadata
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "content", req.Content.Id, req.Content.Tags, "success", "enrich content metadata")
+	req.Content.Metadata = metaProto
 	c, err := s.repo.UpdateContent(ctx, req.Content)
 	if err != nil {
 		s.log.Error("UpdateContent failed", zap.Error(err))
@@ -296,13 +296,15 @@ func (s *Service) AddComment(ctx context.Context, req *contentpb.AddCommentReque
 	}); err != nil {
 		s.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
 	}
-	metaMap := metadata.ProtoToMap(req.Metadata)
+	// Extract flagCount directly from req.Metadata
 	flagCount := 0
-	if ss, ok := metaMap["service_specific"].(map[string]interface{}); ok {
-		if contentMeta, ok := ss["content"].(map[string]interface{}); ok {
-			if badActor, ok := contentMeta["bad_actor"].(map[string]interface{}); ok {
-				if v, ok := badActor["flag_count"].(float64); ok {
-					flagCount = int(v)
+	if req.Metadata.ServiceSpecific != nil {
+		if ssMap := req.Metadata.ServiceSpecific.AsMap(); ssMap != nil {
+			if contentMeta, ok := ssMap["content"].(map[string]interface{}); ok {
+				if badActor, ok := contentMeta["bad_actor"].(map[string]interface{}); ok {
+					if v, ok := badActor["flag_count"].(float64); ok {
+						flagCount = int(v)
+					}
 				}
 			}
 		}
@@ -315,9 +317,7 @@ func (s *Service) AddComment(ctx context.Context, req *contentpb.AddCommentReque
 	if err := metadata.SetServiceSpecificField(req.Metadata, "content", "bad_actor", badActorMetaMap); err != nil {
 		s.log.Warn("Failed to set service-specific metadata field", zap.Error(err))
 	}
-	metaMap = metadata.ProtoToMap(req.Metadata)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "comment", "", nil, "success", "enrich comment metadata")
-	req.Metadata = metadata.MapToProto(normMap)
+	metadata.Handler{}.NormalizeAndCalculate(req.Metadata, "comment", "", nil, "success", "enrich comment metadata")
 	comment, err := s.repo.AddComment(ctx, req.ContentId, req.AuthorId, req.Body, req.Metadata)
 	if err != nil {
 		s.log.Error("AddComment failed", zap.Error(err))
@@ -444,9 +444,9 @@ func (s *Service) ModerateContent(ctx context.Context, req *contentpb.ModerateCo
 	if err := metadata.SetServiceSpecificField(meta, "content", "bad_actor", badActorMetaMap); err != nil {
 		s.log.Warn("Failed to set service-specific metadata field (bad_actor)", zap.Error(err))
 	}
-	metaMap = metadata.ProtoToMap(meta)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "moderation", req.ContentId, nil, "success", "enrich moderation metadata")
-	meta = metadata.MapToProto(normMap)
+	metaProto := metadata.MapToProto(metaMap)
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "moderation", req.ContentId, nil, "success", "enrich moderation metadata")
+	meta = metaProto
 	resp := &contentpb.ModerateContentResponse{
 		Success: true,
 		Status:  req.Action,

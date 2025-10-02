@@ -77,7 +77,7 @@ func (r *Repository) UpdateEntityMetadataFromEvent(ctx context.Context, uuidOrID
 	log.Info("Updated entity metadata in DB", zap.String("table", table), zap.String("entity_id", entityID))
 
 	// 6. Audit (append audit entry)
-	Handler{}.AppendAudit(ProtoToMap(newMeta), map[string]interface{}{
+	Handler{}.AppendAudit(newMeta, map[string]interface{}{
 		"action":      "update_metadata",
 		"entity_type": entityType,
 		"entity_id":   entityID,

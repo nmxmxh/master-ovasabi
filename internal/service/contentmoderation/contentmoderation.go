@@ -110,8 +110,10 @@ func (s *Service) SubmitContentForModeration(ctx context.Context, req *contentmo
 	}
 	// Normalize metadata before persistence/emission
 	metaMap = metadata.ProtoToMap(meta)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
-	meta = metadata.MapToProto(normMap)
+	// Normalize metadata before persistence/emission
+	metaProto := metadata.MapToProto(metaMap)
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
+	meta = metaProto
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
 		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)
@@ -228,8 +230,10 @@ func (s *Service) ApproveContent(ctx context.Context, req *contentmoderationpb.A
 	}
 	// Normalize metadata before persistence/emission
 	metaMap = metadata.ProtoToMap(meta)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
-	meta = metadata.MapToProto(normMap)
+	// Normalize metadata before persistence/emission
+	metaProto := metadata.MapToProto(metaMap)
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
+	meta = metaProto
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
 		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)
@@ -306,8 +310,10 @@ func (s *Service) RejectContent(ctx context.Context, req *contentmoderationpb.Re
 	}
 	// Normalize metadata before persistence/emission
 	metaMap = metadata.ProtoToMap(meta)
-	normMap := metadata.Handler{}.NormalizeAndCalculate(metaMap, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
-	meta = metadata.MapToProto(normMap)
+	// Normalize metadata before persistence/emission
+	metaProto := metadata.MapToProto(metaMap)
+	metadata.Handler{}.NormalizeAndCalculate(metaProto, "contentmoderation", req.ContentId, nil, "success", "normalize moderation metadata")
+	meta = metaProto
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
 		gErr := graceful.WrapErr(ctx, codes.Internal, "failed to marshal content moderation metadata", err)

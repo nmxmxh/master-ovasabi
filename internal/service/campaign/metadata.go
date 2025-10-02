@@ -25,6 +25,7 @@ import (
 
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Supported campaign type and status constants.
@@ -198,7 +199,7 @@ type Metadata struct {
 
 	// Custom allows extensibility for future or domain-specific needs.
 	// Used by: All services for future extensibility and experimental features.
-	Custom CustomInfo `json:"custom"`
+	Custom *structpb.Struct `json:"custom"`
 }
 
 /*
@@ -362,7 +363,7 @@ func CanonicalizeFromProto(meta *commonpb.Metadata, fallbackID string) (*Metadat
 	m.Commerce = &CommerceInfo{}
 	m.Analytics = &AnalyticsInfo{}
 	m.Compliance = &ComplianceInfo{}
-	m.Custom = CustomInfo{}
+	m.Custom = &structpb.Struct{}
 
 	if meta != nil && meta.ServiceSpecific != nil {
 		ss := meta.ServiceSpecific.AsMap()
@@ -428,7 +429,161 @@ func CanonicalizeFromProto(meta *commonpb.Metadata, fallbackID string) (*Metadat
 					}
 				}
 			}
-			// TODO: Add parsing for all other fields (localization, content, community, onboarding, referral, commerce, analytics, compliance, custom)
+			// START: Added parsing for all other fields
+			if loc, ok := cmeta["localization"].(map[string]interface{}); ok {
+				if m.Localization == nil {
+					m.Localization = &LocalizationInfo{}
+				}
+				if sl, ok := loc["supported_locales"].([]interface{}); ok {
+					for _, l := range sl {
+						if ls, ok := l.(string); ok {
+							m.Localization.SupportedLocales = append(m.Localization.SupportedLocales, ls)
+						}
+					}
+				}
+				if dl, ok := loc["default_locale"].(string); ok {
+					m.Localization.DefaultLocale = dl
+				}
+				if tr, ok := loc["translations"].(map[string]interface{}); ok {
+					m.Localization.Translations = make(map[string]map[string]string)
+					for lang, keys := range tr {
+						if keyMap, ok := keys.(map[string]interface{}); ok {
+							m.Localization.Translations[lang] = make(map[string]string)
+							for key, val := range keyMap {
+								if vs, ok := val.(string); ok {
+									m.Localization.Translations[lang][key] = vs
+								}
+							}
+						}
+					}
+				}
+			}
+			if cont, ok := cmeta["content"].(map[string]interface{}); ok {
+				if m.Content == nil {
+					m.Content = &ContentInfo{}
+				}
+				if types, ok := cont["types"].([]interface{}); ok {
+					for _, t := range types {
+						if ts, ok := t.(string); ok {
+							m.Content.Types = append(m.Content.Types, ts)
+						}
+					}
+				}
+				if tmpl, ok := cont["templates"].(map[string]interface{}); ok {
+					m.Content.Templates = tmpl
+				}
+				if mod, ok := cont["moderation"].(string); ok {
+					m.Content.Moderation = mod
+				}
+			}
+			if comm, ok := cmeta["community"].(map[string]interface{}); ok {
+				if m.Community == nil {
+					m.Community = &CommunityInfo{}
+				}
+				if secs, ok := comm["sections"].([]interface{}); ok {
+					for _, s := range secs {
+						if ss, ok := s.(string); ok {
+							m.Community.Sections = append(m.Community.Sections, ss)
+						}
+					}
+				}
+				if lb, ok := comm["leaderboard"].(map[string]interface{}); ok {
+					m.Community.Leaderboard = lb
+				}
+				if chat, ok := comm["chat"].(map[string]interface{}); ok {
+					m.Community.Chat = chat
+				}
+			}
+			if ob, ok := cmeta["onboarding"].(map[string]interface{}); ok {
+				if m.Onboarding == nil {
+					m.Onboarding = &OnboardingInfo{}
+				}
+				if it, ok := ob["interest_types"].([]interface{}); ok {
+					for _, i := range it {
+						if is, ok := i.(string); ok {
+							m.Onboarding.InterestTypes = append(m.Onboarding.InterestTypes, is)
+						}
+					}
+				}
+				if q, ok := ob["questionnaire"].(map[string]interface{}); ok {
+					m.Onboarding.Questionnaire = make(map[string][]map[string]map[string]interface{})
+					for key, val := range q {
+						if valSlice, ok := val.([]interface{}); ok {
+							var questions []map[string]map[string]interface{}
+							for _, item := range valSlice {
+								if question, ok := item.(map[string]interface{}); ok {
+									qMap := make(map[string]map[string]interface{})
+									for qKey, qVal := range question {
+										if qValMap, ok := qVal.(map[string]interface{}); ok {
+											qMap[qKey] = qValMap
+										}
+									}
+									questions = append(questions, qMap)
+								}
+							}
+							m.Onboarding.Questionnaire[key] = questions
+						}
+					}
+				}
+			}
+			if ref, ok := cmeta["referral"].(map[string]interface{}); ok {
+				if m.Referral == nil {
+					m.Referral = &ReferralInfo{}
+				}
+				if en, ok := ref["enabled"].(bool); ok {
+					m.Referral.Enabled = en
+				}
+				if rew, ok := ref["reward"].(map[string]interface{}); ok {
+					m.Referral.Reward = rew
+				}
+			}
+			if com, ok := cmeta["commerce"].(map[string]interface{}); ok {
+				if m.Commerce == nil {
+					m.Commerce = &CommerceInfo{}
+				}
+				if pm, ok := com["payment_methods"].([]interface{}); ok {
+					for _, p := range pm {
+						if ps, ok := p.(string); ok {
+							m.Commerce.PaymentMethods = append(m.Commerce.PaymentMethods, ps)
+						}
+					}
+				}
+				if book, ok := com["booking"].(map[string]interface{}); ok {
+					m.Commerce.Booking = book
+				}
+			}
+			if an, ok := cmeta["analytics"].(map[string]interface{}); ok {
+				if m.Analytics == nil {
+					m.Analytics = &AnalyticsInfo{}
+				}
+				if te, ok := an["track_events"].([]interface{}); ok {
+					for _, e := range te {
+						if es, ok := e.(string); ok {
+							m.Analytics.TrackEvents = append(m.Analytics.TrackEvents, es)
+						}
+					}
+				}
+				if goals, ok := an["goals"].(map[string]interface{}); ok {
+					m.Analytics.Goals = goals
+				}
+			}
+			if comp, ok := cmeta["compliance"].(map[string]interface{}); ok {
+				if m.Compliance == nil {
+					m.Compliance = &ComplianceInfo{}
+				}
+				if acc, ok := comp["accessibility"].(map[string]interface{}); ok {
+					m.Compliance.Accessibility = acc
+				}
+				if leg, ok := comp["legal"].(map[string]interface{}); ok {
+					m.Compliance.Legal = leg
+				}
+			}
+			if custom, ok := cmeta["custom"].(map[string]interface{}); ok {
+				if s, err := structpb.NewStruct(custom); err == nil {
+					m.Custom = s
+				}
+			}
+			// END: Added parsing for all other fields
 		}
 	}
 	// Validate before returning
@@ -464,7 +619,62 @@ func ToProto(m *Metadata) *commonpb.Metadata {
 	if len(m.Features) > 0 {
 		campaignMap["features"] = m.Features
 	}
-	// TODO: Add serialization for all other fields (localization, content, community, onboarding, referral, commerce, analytics, compliance, custom)
+	// START: Added serialization for all other fields
+	if m.Localization != nil {
+		campaignMap["localization"] = map[string]interface{}{
+			"supported_locales": m.Localization.SupportedLocales,
+			"default_locale":    m.Localization.DefaultLocale,
+			"translations":      m.Localization.Translations,
+		}
+	}
+	if m.Content != nil {
+		campaignMap["content"] = map[string]interface{}{
+			"types":      m.Content.Types,
+			"templates":  m.Content.Templates,
+			"moderation": m.Content.Moderation,
+		}
+	}
+	if m.Community != nil {
+		campaignMap["community"] = map[string]interface{}{
+			"sections":    m.Community.Sections,
+			"leaderboard": m.Community.Leaderboard,
+			"chat":        m.Community.Chat,
+		}
+	}
+	if m.Onboarding != nil {
+		campaignMap["onboarding"] = map[string]interface{}{
+			"interest_types": m.Onboarding.InterestTypes,
+			"questionnaire":  m.Onboarding.Questionnaire,
+		}
+	}
+	if m.Referral != nil {
+		campaignMap["referral"] = map[string]interface{}{
+			"enabled": m.Referral.Enabled,
+			"reward":  m.Referral.Reward,
+		}
+	}
+	if m.Commerce != nil {
+		campaignMap["commerce"] = map[string]interface{}{
+			"payment_methods": m.Commerce.PaymentMethods,
+			"booking":         m.Commerce.Booking,
+		}
+	}
+	if m.Analytics != nil {
+		campaignMap["analytics"] = map[string]interface{}{
+			"track_events": m.Analytics.TrackEvents,
+			"goals":        m.Analytics.Goals,
+		}
+	}
+	if m.Compliance != nil {
+		campaignMap["compliance"] = map[string]interface{}{
+			"accessibility": m.Compliance.Accessibility,
+			"legal":         m.Compliance.Legal,
+		}
+	}
+	if m.Custom != nil {
+		campaignMap["custom"] = m.Custom.AsMap()
+	}
+	// END: Added serialization for all other fields
 	ss := map[string]interface{}{"campaign": campaignMap}
 	return &commonpb.Metadata{
 		ServiceSpecific: metadata.NewStructFromMap(ss, nil),

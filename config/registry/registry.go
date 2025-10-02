@@ -71,78 +71,68 @@ func RegisterService(svc ServiceRegistration, instance ...interface{}) {
 		}
 	}
 	if meta != nil {
-		// Use metadata handler to extract registry fields
-		metaMap := metadata.ProtoToMap(meta)
-		if desc, ok := metaMap["description"].(string); ok {
-			svc.Description = desc
-		}
-		if tags, ok := metaMap["tags"].([]interface{}); ok {
-			var tagStrs []string
-			for _, t := range tags {
-				if s, ok := t.(string); ok {
-					tagStrs = append(tagStrs, s)
+		// Use direct protobuf access
+		if meta.ServiceSpecific != nil {
+			ss := meta.ServiceSpecific.AsMap()
+			if svcMeta, ok := ss["service"].(map[string]interface{}); ok {
+				if desc, ok := svcMeta["description"].(string); ok {
+					svc.Description = desc
+				}
+				if tags, ok := svcMeta["tags"].([]interface{}); ok {
+					for _, t := range tags {
+						if s, ok := t.(string); ok {
+							svc.Tags = append(svc.Tags, s)
+						}
+					}
+				}
+				if v, ok := svcMeta["version"].(string); ok {
+					svc.Version = v
+				}
+				if owner, ok := svcMeta["owner"].(string); ok {
+					svc.Owner = owner
+				}
+				if ext, ok := svcMeta["external"].(bool); ok {
+					svc.External = ext
 				}
 			}
-			svc.Tags = tagStrs
-		}
-		if v, ok := metaMap["version"].(string); ok {
-			svc.Version = v
-		}
-		if owner, ok := metaMap["owner"].(string); ok {
-			svc.Owner = owner
-		}
-		// Optionally, set External if metadata says so
-		if ext, ok := metaMap["external"].(bool); ok {
-			svc.External = ext
-		}
-		// Optionally, extract method-level metadata if present in metadata["methods"]
-		if methods, ok := metaMap["methods"].(map[string]interface{}); ok {
-			for i, m := range svc.Methods {
-				mMeta, ok := methods[m.Name].(map[string]interface{})
-				if !ok {
-					continue
-				}
-				if d, ok := mMeta["description"].(string); ok {
-					svc.Methods[i].Description = d
-				}
-				if v, ok := mMeta["version"].(string); ok {
-					svc.Methods[i].Version = v
-				}
-				if tgs, ok := mMeta["tags"].([]interface{}); ok {
-					var tagStrs []string
-					for _, t := range tgs {
-						if s, ok := t.(string); ok {
-							tagStrs = append(tagStrs, s)
+			if methods, ok := ss["methods"].(map[string]interface{}); ok {
+				for i, m := range svc.Methods {
+					if mMeta, ok := methods[m.Name].(map[string]interface{}); ok {
+						if d, ok := mMeta["description"].(string); ok {
+							svc.Methods[i].Description = d
+						}
+						if v, ok := mMeta["version"].(string); ok {
+							svc.Methods[i].Version = v
+						}
+						if tgs, ok := mMeta["tags"].([]interface{}); ok {
+							for _, t := range tgs {
+								if s, ok := t.(string); ok {
+									svc.Methods[i].Tags = append(svc.Methods[i].Tags, s)
+								}
+							}
+						}
+						if p, ok := mMeta["permissions"].([]interface{}); ok {
+							for _, t := range p {
+								if s, ok := t.(string); ok {
+									svc.Methods[i].Permissions = append(svc.Methods[i].Permissions, s)
+								}
+							}
+						}
+						if af, ok := mMeta["all_fields"].([]interface{}); ok {
+							for _, t := range af {
+								if s, ok := t.(string); ok {
+									svc.Methods[i].AllFields = append(svc.Methods[i].AllFields, s)
+								}
+							}
+						}
+						if rf, ok := mMeta["required_fields"].([]interface{}); ok {
+							for _, t := range rf {
+								if s, ok := t.(string); ok {
+									svc.Methods[i].RequiredFields = append(svc.Methods[i].RequiredFields, s)
+								}
+							}
 						}
 					}
-					svc.Methods[i].Tags = tagStrs
-				}
-				if p, ok := mMeta["permissions"].([]interface{}); ok {
-					var perms []string
-					for _, t := range p {
-						if s, ok := t.(string); ok {
-							perms = append(perms, s)
-						}
-					}
-					svc.Methods[i].Permissions = perms
-				}
-				if af, ok := mMeta["all_fields"].([]interface{}); ok {
-					var afs []string
-					for _, t := range af {
-						if s, ok := t.(string); ok {
-							afs = append(afs, s)
-						}
-					}
-					svc.Methods[i].AllFields = afs
-				}
-				if rf, ok := mMeta["required_fields"].([]interface{}); ok {
-					var rfs []string
-					for _, t := range rf {
-						if s, ok := t.(string); ok {
-							rfs = append(rfs, s)
-						}
-					}
-					svc.Methods[i].RequiredFields = rfs
 				}
 			}
 		}
