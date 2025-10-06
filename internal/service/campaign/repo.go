@@ -172,26 +172,43 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 
 	var metadataJSON []byte
 	if campaign.Metadata != nil {
+		r.GetLogger().Debug("marshaling campaign metadata", zap.Any("metadata", campaign.Metadata), zap.String("slug", campaign.Slug))
+		// Validate that Metadata is a valid proto struct and not empty
+		if campaign.Metadata.ServiceSpecific == nil && campaign.Metadata.GlobalContext == nil {
+			r.GetLogger().Error("campaign.Metadata is missing required fields", zap.Any("metadata", campaign.Metadata), zap.String("slug", campaign.Slug))
+			return nil, fmt.Errorf("campaign.Metadata is missing required fields")
+		}
 		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
 		if err != nil {
+			r.GetLogger().Error("failed to canonicalize campaign metadata", zap.Error(err), zap.String("slug", campaign.Slug))
 			return nil, err
 		}
-		// Directly marshal the canonical Go struct to JSON.
-		// This avoids the complex and error-prone round-trip back to a proto before marshaling.
+		if canonicalMeta == nil {
+			r.GetLogger().Error("CanonicalizeFromProto returned nil", zap.String("slug", campaign.Slug), zap.Any("metadata", campaign.Metadata))
+			return nil, fmt.Errorf("canonicalized metadata is nil")
+		}
 		metadataJSON, err = json.Marshal(canonicalMeta)
+		r.GetLogger().Debug("metadataJSON before DB insert", zap.ByteString("metadataJSON", metadataJSON), zap.String("slug", campaign.Slug))
 		if err != nil {
+			r.GetLogger().Error("failed to marshal canonical metadata to JSON", zap.Error(err), zap.String("slug", campaign.Slug), zap.Any("canonicalMeta", canonicalMeta), zap.ByteString("metadataJSON", metadataJSON))
 			return nil, fmt.Errorf("failed to marshal canonical metadata to JSON: %w", err)
 		}
+		// Extra check: ensure metadataJSON is valid JSON (not empty, not nil, not just '{}')
+		if len(metadataJSON) == 0 || string(metadataJSON) == "null" || string(metadataJSON) == "{}" {
+			r.GetLogger().Error("metadataJSON is empty, null, or just '{}' before DB insert", zap.String("slug", campaign.Slug), zap.Any("canonicalMeta", canonicalMeta))
+			return nil, fmt.Errorf("metadataJSON is empty, null, or just '{}' (invalid for DB insert)")
+		}
+		r.GetLogger().Debug("marshaled campaign metadata JSON", zap.ByteString("metadataJSON", metadataJSON), zap.String("slug", campaign.Slug))
 	}
 
 	query := `
-		INSERT INTO service_campaign_main (
-			master_id, master_uuid, slug, title, description,
-			ranking_formula, status, metadata, start_date, end_date,
-			created_at, updated_at, owner_id
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-		) RETURNING id, created_at, updated_at`
+	       INSERT INTO service_campaign_main (
+		       master_id, master_uuid, slug, title, name, description,
+		       ranking_formula, status, metadata, start_date, end_date,
+		       created_at, updated_at, owner_id
+	       ) VALUES (
+		       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+	       ) RETURNING id, created_at, updated_at`
 
 	now := time.Now()
 	row := tx.QueryRowContext(ctx, query,
@@ -199,6 +216,7 @@ func (r *Repository) CreateWithTransaction(ctx context.Context, tx *sql.Tx, camp
 		campaign.MasterUUID,
 		campaign.Slug,
 		campaign.Title,
+		campaign.Name,
 		campaign.Description,
 		campaign.RankingFormula,
 		campaign.Status,
@@ -265,11 +283,30 @@ func (r *Repository) GetBySlug(ctx context.Context, slug string) (*Campaign, err
 
 	campaign.Metadata = &commonpb.Metadata{} // Initialize metadata
 	if metadataStr != "" {
-		err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
+		// Clean metadata before unmarshalling
+		var rawMeta map[string]interface{}
+		if err := json.Unmarshal([]byte(metadataStr), &rawMeta); err == nil {
+			if ss, ok := rawMeta["service_specific"].(map[string]interface{}); ok {
+				if camp, ok := ss["campaign"].(map[string]interface{}); ok {
+					delete(camp, "id")
+				}
+			}
+			cleanedMetaBytes, err := json.Marshal(rawMeta)
+			if err == nil {
+				metadataStr = string(cleanedMetaBytes)
+			}
+		}
+
+		r.GetLogger().Debug("unmarshaling campaign metadata from DB", zap.String("metadataStr", metadataStr), zap.String("slug", slug))
+		unmarshaler := protojson.UnmarshalOptions{
+			DiscardUnknown: true,
+		}
+		err := unmarshaler.Unmarshal([]byte(metadataStr), campaign.Metadata)
 		if err != nil {
-			r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err))
+			r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err), zap.String("metadataStr", metadataStr), zap.String("slug", slug))
 			return nil, err
 		}
+		r.GetLogger().Debug("unmarshaled campaign metadata", zap.Any("metadata", campaign.Metadata), zap.String("slug", slug))
 	}
 	// Ensure ServiceSpecific exists and add/update campaign_id
 	if campaign.Metadata.ServiceSpecific == nil {
@@ -293,15 +330,18 @@ func (r *Repository) Update(ctx context.Context, campaign *Campaign) error {
 	var metadataJSON []byte
 	var err error
 	if campaign.Metadata != nil {
+		r.GetLogger().Debug("marshaling campaign metadata for update", zap.Any("metadata", campaign.Metadata), zap.String("slug", campaign.Slug))
 		canonicalMeta, err := CanonicalizeFromProto(campaign.Metadata, campaign.Slug)
 		if err != nil {
+			r.GetLogger().Error("failed to canonicalize campaign metadata for update", zap.Error(err), zap.String("slug", campaign.Slug))
 			return err
 		}
-		// Directly marshal the canonical Go struct to JSON.
 		metadataJSON, err = json.Marshal(canonicalMeta)
 		if err != nil {
+			r.GetLogger().Error("failed to marshal canonical metadata to JSON for update", zap.Error(err), zap.String("slug", campaign.Slug), zap.Any("canonicalMeta", canonicalMeta))
 			return fmt.Errorf("failed to marshal canonical metadata to JSON: %w", err)
 		}
+		r.GetLogger().Debug("marshaled campaign metadata JSON for update", zap.ByteString("metadataJSON", metadataJSON), zap.String("slug", campaign.Slug))
 	}
 	query := `
 		UPDATE service_campaign_main SET
@@ -420,7 +460,24 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 		// Always set serviceSpecific to campaign_id only, as err is always nil here
 		campaign.Metadata = &commonpb.Metadata{} // Initialize metadata
 		if metadataStr != "" {
-			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
+			// Clean metadata before unmarshalling
+			var rawMeta map[string]interface{}
+			if err := json.Unmarshal([]byte(metadataStr), &rawMeta); err == nil {
+				if ss, ok := rawMeta["service_specific"].(map[string]interface{}); ok {
+					if camp, ok := ss["campaign"].(map[string]interface{}); ok {
+						delete(camp, "id")
+					}
+				}
+				cleanedMetaBytes, err := json.Marshal(rawMeta)
+				if err == nil {
+					metadataStr = string(cleanedMetaBytes)
+				}
+			}
+
+			unmarshaler := protojson.UnmarshalOptions{
+			DiscardUnknown: true,
+		}
+		err := unmarshaler.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
 				r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err))
 				return nil, err
@@ -505,7 +562,24 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 		// Always set serviceSpecific to campaign_id only, as err is always nil here
 		campaign.Metadata = &commonpb.Metadata{} // Initialize metadata
 		if metadataStr != "" {
-			err := protojson.Unmarshal([]byte(metadataStr), campaign.Metadata)
+			// Clean metadata before unmarshalling
+			var rawMeta map[string]interface{}
+			if err := json.Unmarshal([]byte(metadataStr), &rawMeta); err == nil {
+				if ss, ok := rawMeta["service_specific"].(map[string]interface{}); ok {
+					if camp, ok := ss["campaign"].(map[string]interface{}); ok {
+						delete(camp, "id")
+					}
+				}
+				cleanedMetaBytes, err := json.Marshal(rawMeta)
+				if err == nil {
+					metadataStr = string(cleanedMetaBytes)
+				}
+			}
+
+			unmarshaler := protojson.UnmarshalOptions{
+			DiscardUnknown: true,
+		}
+		err := unmarshaler.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
 				r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err))
 				return nil, err
@@ -541,6 +615,7 @@ type Campaign struct {
 	MasterUUID     string `db:"master_uuid"`
 	Slug           string `db:"slug"`  // Maps to proto slug field
 	Title          string `db:"title"` // Maps to proto title field
+	Name           string `db:"name"`  // Maps to proto name field
 	Description    string `db:"description"`
 	RankingFormula string `db:"ranking_formula"` // Maps to proto ranking_formula field
 	Status         string `db:"status"`          // Maps to proto status field

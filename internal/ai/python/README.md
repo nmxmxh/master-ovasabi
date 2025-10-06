@@ -37,12 +37,14 @@ ai/python/
 ## Key Changes
 
 1. **Database modules** moved to `db/` folder:
+
    - `db.py` - PostgreSQL tables and connections
    - `vector_db.py` - Vector database interface
    - `vector_db_registry.py` - Vector DB adapters
    - `ai_web.py` - Web knowledge table
 
 2. **Core application** moved to `core/` folder:
+
    - `main.py` - Main application entrypoint
    - `cli.py` - Command-line interface
    - `llm_registry.py` - LLM adapters and registry

@@ -427,94 +427,92 @@
               }
             }
           },
-          "service_configs": {
-            "commerce": {
-              "enabled": true,
-              "description": "E-commerce functionality with payment processing",
-              "config": {
-                "payment_methods": [
-                  "credit_card",
-                  "debit_card",
-                  "paypal",
-                  "apple_pay",
-                  "google_pay",
-                  "amazon_pay"
-                ],
-                "currency": "USD",
-                "tax_calculation": true,
-                "shipping_calculator": true,
-                "inventory_management": true,
-                "order_tracking": true,
-                "return_management": true,
-                "wishlist": true,
-                "gift_cards": true,
-                "subscriptions": true,
-                "bulk_orders": true
-              }
-            },
-            "product": {
-              "enabled": true,
-              "description": "Product catalog and management system",
-              "config": {
-                "catalog_size": 1000000,
-                "categories": [
-                  "electronics",
-                  "books",
-                  "clothing",
-                  "home",
-                  "sports",
-                  "beauty",
-                  "automotive",
-                  "toys"
-                ],
-                "inventory_tracking": true,
-                "product_variants": true,
-                "reviews_system": true,
-                "rating_system": true,
-                "product_comparison": true,
-                "recommendation_engine": true,
-                "search_filters": true,
-                "sorting_options": true
-              }
-            },
-            "analytics": {
-              "enabled": true,
-              "description": "E-commerce analytics and insights",
-              "config": {
-                "track_events": [
-                  "product_viewed",
-                  "cart_added",
-                  "purchase_completed",
-                  "search_performed",
-                  "category_viewed"
-                ],
-                "conversion_tracking": true,
-                "abandoned_cart_recovery": true,
-                "customer_behavior_analysis": true,
-                "sales_reporting": true,
-                "inventory_analytics": true,
-                "recommendation_analytics": true
-              }
-            },
-            "search": {
-              "enabled": true,
-              "description": "Advanced product search and discovery",
-              "config": {
-                "search_fields": [
-                  "title",
-                  "description",
-                  "brand",
-                  "category",
-                  "tags",
-                  "specifications"
-                ],
-                "fuzzy_search": true,
-                "search_suggestions": true,
-                "autocomplete": true,
-                "search_filters": true,
-                "sorting_options": ["price", "rating", "newest", "popularity"],
-                "search_analytics": true
-              }
+          "commerce": {
+            "enabled": true,
+            "description": "E-commerce functionality with payment processing",
+            "config": {
+              "payment_methods": [
+                "credit_card",
+                "debit_card",
+                "paypal",
+                "apple_pay",
+                "google_pay",
+                "amazon_pay"
+              ],
+              "currency": "USD",
+              "tax_calculation": true,
+              "shipping_calculator": true,
+              "inventory_management": true,
+              "order_tracking": true,
+              "return_management": true,
+              "wishlist": true,
+              "gift_cards": true,
+              "subscriptions": true,
+              "bulk_orders": true
+            }
+          },
+          "product": {
+            "enabled": true,
+            "description": "Product catalog and management system",
+            "config": {
+              "catalog_size": 1000000,
+              "categories": [
+                "electronics",
+                "books",
+                "clothing",
+                "home",
+                "sports",
+                "beauty",
+                "automotive",
+                "toys"
+              ],
+              "inventory_tracking": true,
+              "product_variants": true,
+              "reviews_system": true,
+              "rating_system": true,
+              "product_comparison": true,
+              "recommendation_engine": true,
+              "search_filters": true,
+              "sorting_options": true
+            }
+          },
+          "analytics": {
+            "enabled": true,
+            "description": "E-commerce analytics and insights",
+            "config": {
+              "track_events": [
+                "product_viewed",
+                "cart_added",
+                "purchase_completed",
+                "search_performed",
+                "category_viewed"
+              ],
+              "conversion_tracking": true,
+              "abandoned_cart_recovery": true,
+              "customer_behavior_analysis": true,
+              "sales_reporting": true,
+              "inventory_analytics": true,
+              "recommendation_analytics": true
+            }
+          },
+          "search": {
+            "enabled": true,
+            "description": "Advanced product search and discovery",
+            "config": {
+              "search_fields": [
+                "title",
+                "description",
+                "brand",
+                "category",
+                "tags",
+                "specifications"
+              ],
+              "fuzzy_search": true,
+              "search_suggestions": true,
+              "autocomplete": true,
+              "search_filters": true,
+              "sorting_options": ["price", "rating", "newest", "popularity"],
+              "search_analytics": true
             }
           }
         }
@@ -680,69 +678,67 @@
               }
             }
           },
-          "service_configs": {
-            "content": {
-              "enabled": true,
-              "description": "Content management and publishing system",
-              "config": {
-                "article_formats": ["markdown", "rich_text", "html"],
-                "max_article_length": 50000,
-                "draft_system": true,
-                "auto_save": true,
-                "version_control": true,
-                "collaborative_editing": true,
-                "publication_system": true,
-                "series_creation": true,
-                "tagging_system": true,
-                "seo_optimization": true,
-                "custom_domains": true,
-                "import_tool": true
-              }
-            },
-            "media": {
-              "enabled": true,
-              "description": "Media management and optimization",
-              "config": {
-                "supported_formats": ["jpg", "png", "gif", "mp4", "pdf"],
-                "max_file_size": "10MB",
-                "image_optimization": true,
-                "responsive_images": true,
-                "alt_text_required": true,
-                "media_library": true,
-                "compression": true
-              }
-            },
-            "analytics": {
-              "enabled": true,
-              "description": "Content analytics and engagement tracking",
-              "config": {
-                "track_events": [
-                  "article_read",
-                  "clap_given",
-                  "comment_added",
-                  "bookmark_created",
-                  "share_clicked"
-                ],
-                "reading_time_calculation": true,
-                "engagement_metrics": true,
-                "audience_insights": true,
-                "content_performance": true,
-                "trending_articles": true,
-                "author_analytics": true
-              }
-            },
-            "messaging": {
-              "enabled": true,
-              "description": "Community messaging and engagement",
-              "config": {
-                "comments_system": true,
-                "responses": true,
-                "highlights": true,
-                "mentions": true,
-                "direct_messages": true,
-                "notifications": true,
-                "moderation_tools": true
-              }
+          "content": {
+            "enabled": true,
+            "description": "Content management and publishing system",
+            "config": {
+              "article_formats": ["markdown", "rich_text", "html"],
+              "max_article_length": 50000,
+              "draft_system": true,
+              "auto_save": true,
+              "version_control": true,
+              "collaborative_editing": true,
+              "publication_system": true,
+              "series_creation": true,
+              "tagging_system": true,
+              "seo_optimization": true,
+              "custom_domains": true,
+              "import_tool": true
+            }
+          },
+          "media": {
+            "enabled": true,
+            "description": "Media management and optimization",
+            "config": {
+              "supported_formats": ["jpg", "png", "gif", "mp4", "pdf"],
+              "max_file_size": "10MB",
+              "image_optimization": true,
+              "responsive_images": true,
+              "alt_text_required": true,
+              "media_library": true,
+              "compression": true
+            }
+          },
+          "analytics": {
+            "enabled": true,
+            "description": "Content analytics and engagement tracking",
+            "config": {
+              "track_events": [
+                "article_read",
+                "clap_given",
+                "comment_added",
+                "bookmark_created",
+                "share_clicked"
+              ],
+              "reading_time_calculation": true,
+              "engagement_metrics": true,
+              "audience_insights": true,
+              "content_performance": true,
+              "trending_articles": true,
+              "author_analytics": true
+            }
+          },
+          "messaging": {
+            "enabled": true,
+            "description": "Community messaging and engagement",
+            "config": {
+              "comments_system": true,
+              "responses": true,
+              "highlights": true,
+              "mentions": true,
+              "direct_messages": true,
+              "notifications": true,
+              "moderation_tools": true
             }
           }
         }
@@ -1119,80 +1115,78 @@
               "views": 5432
             }
           },
-          "service_configs": {
-            "media": {
-              "enabled": true,
-              "description": "Photo and video sharing with editing tools",
-              "config": {
-                "supported_formats": ["jpg", "png", "mp4", "mov", "gif"],
-                "max_file_size": "100MB",
-                "filters": [
-                  "vintage",
-                  "black_white",
-                  "sepia",
-                  "blur",
-                  "dramatic",
-                  "portrait",
-                  "landscape"
-                ],
-                "stories_duration": 24,
-                "reels_max_duration": 90,
-                "igtv_max_duration": 3600,
-                "image_editing": true,
-                "video_editing": true,
-                "crop_tools": true,
-                "brightness_contrast": true,
-                "saturation_adjustment": true
-              }
-            },
-            "messaging": {
-              "enabled": true,
-              "description": "Direct messaging and communication",
-              "config": {
-                "direct_messages": true,
-                "group_chats": true,
-                "message_types": ["text", "image", "video", "voice", "sticker", "gif"],
-                "disappearing_messages": true,
-                "message_reactions": true,
-                "typing_indicators": true,
-                "read_receipts": true,
-                "message_requests": true
-              }
-            },
-            "analytics": {
-              "enabled": true,
-              "description": "Instagram-style analytics and insights",
-              "config": {
-                "track_events": [
-                  "post_viewed",
-                  "like_given",
-                  "comment_added",
-                  "story_viewed",
-                  "profile_visited",
-                  "follow_action"
-                ],
-                "engagement_metrics": true,
-                "reach_analytics": true,
-                "impression_tracking": true,
-                "audience_insights": true,
-                "content_performance": true,
-                "hashtag_analytics": true,
-                "story_analytics": true
-              }
-            },
-            "commerce": {
-              "enabled": true,
-              "description": "Shopping and e-commerce features",
-              "config": {
-                "product_tags": true,
-                "shopping_cart": true,
-                "checkout_process": true,
-                "payment_integration": true,
-                "inventory_management": true,
-                "order_tracking": true,
-                "seller_tools": true,
-                "product_catalog": true
-              }
+          "media": {
+            "enabled": true,
+            "description": "Photo and video sharing with editing tools",
+            "config": {
+              "supported_formats": ["jpg", "png", "mp4", "mov", "gif"],
+              "max_file_size": "100MB",
+              "filters": [
+                "vintage",
+                "black_white",
+                "sepia",
+                "blur",
+                "dramatic",
+                "portrait",
+                "landscape"
+              ],
+              "stories_duration": 24,
+              "reels_max_duration": 90,
+              "igtv_max_duration": 3600,
+              "image_editing": true,
+              "video_editing": true,
+              "crop_tools": true,
+              "brightness_contrast": true,
+              "saturation_adjustment": true
+            }
+          },
+          "messaging": {
+            "enabled": true,
+            "description": "Direct messaging and communication",
+            "config": {
+              "direct_messages": true,
+              "group_chats": true,
+              "message_types": ["text", "image", "video", "voice", "sticker", "gif"],
+              "disappearing_messages": true,
+              "message_reactions": true,
+              "typing_indicators": true,
+              "read_receipts": true,
+              "message_requests": true
+            }
+          },
+          "analytics": {
+            "enabled": true,
+            "description": "Instagram-style analytics and insights",
+            "config": {
+              "track_events": [
+                "post_viewed",
+                "like_given",
+                "comment_added",
+                "story_viewed",
+                "profile_visited",
+                "follow_action"
+              ],
+              "engagement_metrics": true,
+              "reach_analytics": true,
+              "impression_tracking": true,
+              "audience_insights": true,
+              "content_performance": true,
+              "hashtag_analytics": true,
+              "story_analytics": true
+            }
+          },
+          "commerce": {
+            "enabled": true,
+            "description": "Shopping and e-commerce features",
+            "config": {
+              "product_tags": true,
+              "shopping_cart": true,
+              "checkout_process": true,
+              "payment_integration": true,
+              "inventory_management": true,
+              "order_tracking": true,
+              "seller_tools": true,
+              "product_catalog": true
             }
           }
         }
@@ -1547,73 +1541,71 @@
               }
             ]
           },
-          "service_configs": {
-            "content": {
-              "enabled": true,
-              "description": "Content management and publishing system",
-              "config": {
-                "article_formats": ["markdown", "html", "rich_text"],
-                "max_article_length": 10000,
-                "draft_system": true,
-                "auto_save": true,
-                "version_control": true,
-                "scheduled_publishing": true,
-                "category_management": true,
-                "tag_system": true,
-                "seo_optimization": true,
-                "meta_descriptions": true,
-                "custom_urls": true,
-                "rss_feeds": true,
-                "sitemap_generation": true
-              }
-            },
-            "search": {
-              "enabled": true,
-              "description": "Advanced search and discovery",
-              "config": {
-                "search_fields": ["title", "content", "tags", "author", "category"],
-                "fuzzy_search": true,
-                "search_suggestions": true,
-                "autocomplete": true,
-                "search_filters": true,
-                "sorting_options": ["relevance", "date", "popularity", "alphabetical"],
-                "search_analytics": true,
-                "search_highlighting": true
-              }
-            },
-            "analytics": {
-              "enabled": true,
-              "description": "Blog analytics and performance tracking",
-              "config": {
-                "track_events": [
-                  "article_read",
-                  "search_performed",
-                  "category_viewed",
-                  "comment_added",
-                  "share_clicked"
-                ],
-                "page_view_tracking": true,
-                "bounce_rate_analysis": true,
-                "time_on_page": true,
-                "traffic_sources": true,
-                "popular_content": true,
-                "reader_engagement": true,
-                "conversion_tracking": true
-              }
-            },
-            "messaging": {
-              "enabled": true,
-              "description": "Comment system and reader engagement",
-              "config": {
-                "comments_system": true,
-                "comment_moderation": true,
-                "comment_replies": true,
-                "email_notifications": true,
-                "spam_protection": true,
-                "user_registration": true,
-                "social_login": true,
-                "newsletter_signup": true
-              }
+          "content": {
+            "enabled": true,
+            "description": "Content management and publishing system",
+            "config": {
+              "article_formats": ["markdown", "html", "rich_text"],
+              "max_article_length": 10000,
+              "draft_system": true,
+              "auto_save": true,
+              "version_control": true,
+              "scheduled_publishing": true,
+              "category_management": true,
+              "tag_system": true,
+              "seo_optimization": true,
+              "meta_descriptions": true,
+              "custom_urls": true,
+              "rss_feeds": true,
+              "sitemap_generation": true
+            }
+          },
+          "search": {
+            "enabled": true,
+            "description": "Advanced search and discovery",
+            "config": {
+              "search_fields": ["title", "content", "tags", "author", "category"],
+              "fuzzy_search": true,
+              "search_suggestions": true,
+              "autocomplete": true,
+              "search_filters": true,
+              "sorting_options": ["relevance", "date", "popularity", "alphabetical"],
+              "search_analytics": true,
+              "search_highlighting": true
+            }
+          },
+          "analytics": {
+            "enabled": true,
+            "description": "Blog analytics and performance tracking",
+            "config": {
+              "track_events": [
+                "article_read",
+                "search_performed",
+                "category_viewed",
+                "comment_added",
+                "share_clicked"
+              ],
+              "page_view_tracking": true,
+              "bounce_rate_analysis": true,
+              "time_on_page": true,
+              "traffic_sources": true,
+              "popular_content": true,
+              "reader_engagement": true,
+              "conversion_tracking": true
+            }
+          },
+          "messaging": {
+            "enabled": true,
+            "description": "Comment system and reader engagement",
+            "config": {
+              "comments_system": true,
+              "comment_moderation": true,
+              "comment_replies": true,
+              "email_notifications": true,
+              "spam_protection": true,
+              "user_registration": true,
+              "social_login": true,
+              "newsletter_signup": true
             }
           }
         }

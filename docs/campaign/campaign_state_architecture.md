@@ -2,7 +2,10 @@
 
 ## Overview
 
-The campaign state management system provides real-time, direct access to campaign data without requiring database round-trips for every operation. This architecture enables high-performance campaign updates, real-time synchronization across multiple clients, and event-driven state management.
+The campaign state management system provides real-time, direct access to campaign data without
+requiring database round-trips for every operation. This architecture enables high-performance
+campaign updates, real-time synchronization across multiple clients, and event-driven state
+management.
 
 ## Architecture Components
 
@@ -28,7 +31,8 @@ The system supports the following canonical event types:
 
 #### 3. Nexus Server Integration (`internal/server/nexus/server.go`)
 
-The Nexus server routes campaign events to the CampaignStateManager and handles real-time event distribution via Redis pub/sub.
+The Nexus server routes campaign events to the CampaignStateManager and handles real-time event
+distribution via Redis pub/sub.
 
 ### Frontend Components
 
@@ -136,13 +140,13 @@ func (m *CampaignStateManager) handleCampaignUpdate(event *nexusv1.EventRequest)
         CampaignID string         `json:"campaignId"`
         Updates    map[string]any `json:"updates"`
     }
-    
+
     // Extract data from event payload
     // ...
-    
+
     // Update state directly (immediate)
     m.UpdateState(payload.CampaignID, userID, payload.Updates, event.Metadata)
-    
+
     // Persist to database asynchronously (background)
     if m.repo != nil {
         m.safeGo(func() {
@@ -157,17 +161,17 @@ func (m *CampaignStateManager) handleCampaignUpdate(event *nexusv1.EventRequest)
 ### 1. Frontend → Backend Update Flow
 
 ```mermaid
-[React Component] 
+[React Component]
     ↓ useCampaignUpdates().updateCampaign()
-[Global Store] 
+[Global Store]
     ↓ emitEvent('campaign:update:v1:requested')
-[WASM Bridge] 
+[WASM Bridge]
     ↓ WebSocket message
-[Nexus Server] 
+[Nexus Server]
     ↓ HandleEvent()
-[CampaignStateManager] 
+[CampaignStateManager]
     ↓ UpdateState() + persistToDB()
-[Redis Event Bus] 
+[Redis Event Bus]
     ↓ Real-time event broadcast
 [All Connected Clients]
 ```
@@ -192,7 +196,8 @@ func (m *CampaignStateManager) handleCampaignUpdate(event *nexusv1.EventRequest)
 
 ### Default Campaign Loading
 
-The system automatically loads the default campaign from `start/default_campaign.json` on startup, providing immediate campaign state availability.
+The system automatically loads the default campaign from `start/default_campaign.json` on startup,
+providing immediate campaign state availability.
 
 ## Monitoring and Debugging
 
@@ -201,7 +206,7 @@ The system automatically loads the default campaign from `start/default_campaign
 All campaign state operations are logged with structured logging:
 
 ```go
-m.log.Info("Processing campaign update", 
+m.log.Info("Processing campaign update",
     zap.String("campaign_id", campaignID),
     zap.String("user_id", userID),
     zap.Any("updates", updates))

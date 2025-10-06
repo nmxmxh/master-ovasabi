@@ -1,0 +1,1815 @@
+{
+  "version": "1.0.21",
+  "last_updated": "2025-10-03T00:40:18.443523Z",
+  "system_components": {
+    "integration_layer": {
+      "interfaces": [
+        "nexus_integration",
+        "pattern_registry",
+        "event_streams"
+      ],
+      "patterns": [
+        "identity_unification",
+        "value_exchange",
+        "data_intelligence"
+      ],
+      "services": [
+        "exchange_orchestration",
+        "wallet_gateway",
+        "incentive_management",
+        "reputation_bridge",
+        "value_router"
+      ]
+    },
+    "service_platform": {
+      "core_services": [
+        "asset",
+        "auth",
+        "babel",
+        "broadcast",
+        "campaign",
+        "i18n",
+        "nexus",
+        "notification",
+        "referral",
+        "security",
+        "user",
+        "commerce"
+      ],
+      "infrastructure": [
+        "nexus",
+        "patterns",
+        "database",
+        "redis",
+        "tracing",
+        "metrics"
+      ],
+      "interfaces": [
+        "api_gateway",
+        "grpc_services",
+        "event_bus"
+      ]
+    },
+    "token_ecosystem": {
+      "components": [
+        "exchange_orchestration",
+        "wallet_gateway",
+        "token_governance",
+        "treasury"
+      ],
+      "mechanisms": [
+        "currency_basket",
+        "UBI_distribution",
+        "staking",
+        "governance"
+      ],
+      "tokens": [
+        "OvaStable",
+        "OvaUtility"
+      ]
+    }
+  },
+  "repository_structure": {
+    "root_directories": {
+      "amadeus": {
+        "key_components": [
+          "system_knowledge_graph"
+        ],
+        "purpose": "System knowledge persistence",
+        "relationship_to_services": "meta-documentation of system relationships"
+      },
+      "api": {
+        "key_components": [
+          "protos"
+        ],
+        "purpose": "API definitions and contracts",
+        "relationship_to_services": "defines service interfaces",
+        "subdirectories": {
+          "protos": {
+            "purpose": "Protocol buffer definitions",
+            "service_mapping": {
+              "asset": "asset management services",
+              "auth": "authentication services",
+              "babel": "i18n and pricing services",
+              "broadcast": "messaging and notification",
+              "campaign": "marketing campaigns",
+              "finance": "financial operations",
+              "i18n": "internationalization",
+              "nexus": "orchestration and patterns",
+              "notification": "user notifications",
+              "quotes": "price quotes and estimation",
+              "referral": "referral program",
+              "security": "security and compliance",
+              "user": "user management"
+            }
+          }
+        }
+      },
+      "cmd": {
+        "key_components": [
+          "server"
+        ],
+        "purpose": "Application entry points",
+        "relationship_to_services": "service initialization and configuration"
+      },
+      "config": {
+        "affects": [
+          "service_behavior",
+          "environment_settings"
+        ],
+        "purpose": "Configuration files",
+        "relationship_to_services": "service configuration"
+      },
+      "database": {
+        "key_components": [
+          "migrations"
+        ],
+        "purpose": "Database related files",
+        "relationship_to_services": "data persistence layer"
+      },
+      "docs": {
+        "key_components": [
+          "api",
+          "architecture",
+          "deployment",
+          "development"
+        ],
+        "knowledge_base": "patterns, services, integrations",
+        "purpose": "Documentation",
+        "relationship_to_services": "documents service design and usage"
+      },
+      "internal": {
+        "key_components": [
+          "nexus",
+          "repository",
+          "server",
+          "service",
+          "shared"
+        ],
+        "nexus_location": "internal/nexus",
+        "purpose": "Private application code",
+        "relationship_to_services": "service implementations",
+        "services_location": "internal/service"
+      },
+      "pkg": {
+        "key_components": [
+          "di",
+          "errors",
+          "logger",
+          "metrics",
+          "models",
+          "redis",
+          "tracing"
+        ],
+        "purpose": "Public packages",
+        "relationship_to_services": "reusable components across services"
+      },
+      "tools": {
+        "key_components": [
+          "codegen",
+          "docgen",
+          "lint",
+          "protoc"
+        ],
+        "purpose": "Development tools",
+        "relationship_to_services": "service development support"
+      }
+    }
+  },
+  "services": {
+    "admin": {
+      "name": "admin",
+      "category": "dynamic_services",
+      "dependencies": [
+        "user",
+        "security"
+      ],
+      "metadata": {
+        "capabilities": [
+          "user_mgmt",
+          "admin",
+          "authorization",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_user",
+              "update_user",
+              "delete_user",
+              "list_users",
+              "get_user",
+              "create_role",
+              "update_role",
+              "delete_role",
+              "list_roles",
+              "assign_role",
+              "revoke_role",
+              "get_audit_logs",
+              "get_settings",
+              "update_settings",
+              "check_permission"
+            ],
+            "description": "Composable admin operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/admin_ops"
+          }
+        ],
+        "health_check": "/health/admin",
+        "metrics": "/metrics/admin",
+        "models": [
+          "AdminPreferences",
+          "ImpersonationInfo",
+          "AdminNote",
+          "User",
+          "Role",
+          "AuditLog",
+          "Settings",
+          "CreateUserRequest",
+          "CreateUserResponse",
+          "UpdateUserRequest",
+          "UpdateUserResponse",
+          "DeleteUserRequest",
+          "DeleteUserResponse",
+          "ListUsersRequest",
+          "ListUsersResponse",
+          "GetUserRequest",
+          "GetUserResponse",
+          "CreateRoleRequest",
+          "CreateRoleResponse",
+          "UpdateRoleRequest",
+          "UpdateRoleResponse",
+          "DeleteRoleRequest",
+          "DeleteRoleResponse",
+          "ListRolesRequest",
+          "ListRolesResponse",
+          "AssignRoleRequest",
+          "AssignRoleResponse",
+          "RevokeRoleRequest",
+          "RevokeRoleResponse",
+          "GetAuditLogsRequest",
+          "GetAuditLogsResponse",
+          "GetSettingsRequest",
+          "GetSettingsResponse",
+          "UpdateSettingsRequest",
+          "UpdateSettingsResponse",
+          "CheckPermissionRequest",
+          "CheckPermissionResponse"
+        ],
+        "schema": {
+          "methods": [
+            "CreateUser",
+            "UpdateUser",
+            "DeleteUser",
+            "ListUsers",
+            "GetUser",
+            "CreateRole",
+            "UpdateRole",
+            "DeleteRole",
+            "ListRoles",
+            "AssignRole",
+            "RevokeRole",
+            "GetAuditLogs",
+            "GetSettings",
+            "UpdateSettings",
+            "CheckPermission"
+          ],
+          "proto_path": "api/protos/admin/v1/admin.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.368597Z",
+        "version": "v1"
+      }
+    },
+    "ai": {
+      "name": "ai",
+      "category": "dynamic_services",
+      "dependencies": [
+        "content",
+        "analytics"
+      ],
+      "metadata": {
+        "capabilities": [],
+        "endpoints": [
+          {
+            "actions": [
+              "process_content",
+              "generate_embeddings",
+              "submit_model_update",
+              "get_current_model",
+              "handle_client_event"
+            ],
+            "description": "Composable ai operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/ai_ops"
+          }
+        ],
+        "health_check": "/health/ai",
+        "metrics": "/metrics/ai",
+        "models": [
+          "ContentChunk",
+          "Relation",
+          "SecurityAssessment",
+          "EnrichmentRequest",
+          "TextEnrichment",
+          "MediaEnrichment",
+          "EnrichmentResponse",
+          "Vector",
+          "ModelUpdate",
+          "Model",
+          "ModelUpdateAck",
+          "ModelRequest",
+          "ClientEvent",
+          "ClientEventAck"
+        ],
+        "schema": {
+          "methods": [
+            "ProcessContent",
+            "GenerateEmbeddings",
+            "SubmitModelUpdate",
+            "GetCurrentModel",
+            "HandleClientEvent"
+          ],
+          "proto_path": "api/protos/ai/v1/ai.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.369192Z",
+        "version": "v1"
+      }
+    },
+    "analytics": {
+      "name": "analytics",
+      "category": "dynamic_services",
+      "dependencies": [
+        "user"
+      ],
+      "metadata": {
+        "capabilities": [
+          "analytics",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "track_event",
+              "get_user_events",
+              "get_report",
+              "list_reports",
+              "capture_event",
+              "list_events"
+            ],
+            "description": "Composable analytics operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/analytics_ops"
+          }
+        ],
+        "health_check": "/health/analytics",
+        "metrics": "/metrics/analytics",
+        "models": [
+          "Event",
+          "TrackEventRequest",
+          "TrackEventResponse",
+          "BatchTrackEventsRequest",
+          "BatchTrackEventsResponse",
+          "GetUserEventsRequest",
+          "GetUserEventsResponse",
+          "GetProductEventsRequest",
+          "GetProductEventsResponse",
+          "GetReportRequest",
+          "GetReportResponse",
+          "ListReportsRequest",
+          "ListReportsResponse",
+          "Report",
+          "CaptureEventRequest",
+          "CaptureEventResponse",
+          "AnalyticsEvent",
+          "ListEventsRequest",
+          "ListEventsResponse",
+          "EnrichEventMetadataRequest",
+          "EnrichEventMetadataResponse"
+        ],
+        "schema": {
+          "methods": [
+            "TrackEvent",
+            "GetUserEvents",
+            "GetReport",
+            "ListReports",
+            "CaptureEvent",
+            "ListEvents"
+          ],
+          "proto_path": "api/protos/analytics/v1/analytics.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.369365Z",
+        "version": "v1"
+      }
+    },
+    "campaign": {
+      "name": "campaign",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [],
+        "endpoints": [
+          {
+            "actions": [
+              "create_campaign",
+              "get_campaign",
+              "update_campaign",
+              "delete_campaign",
+              "list_campaigns"
+            ],
+            "description": "Composable campaign operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/campaign_ops"
+          }
+        ],
+        "health_check": "/health/campaign",
+        "metrics": "/metrics/campaign",
+        "models": [
+          "Campaign",
+          "CreateCampaignRequest",
+          "CreateCampaignResponse",
+          "GetCampaignRequest",
+          "GetCampaignResponse",
+          "UpdateCampaignRequest",
+          "UpdateCampaignResponse",
+          "DeleteCampaignRequest",
+          "DeleteCampaignResponse",
+          "ListCampaignsRequest",
+          "ListCampaignsResponse"
+        ],
+        "schema": {
+          "methods": [
+            "CreateCampaign",
+            "GetCampaign",
+            "UpdateCampaign",
+            "DeleteCampaign",
+            "ListCampaigns"
+          ],
+          "proto_path": "api/protos/campaign/v1/campaign.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.369547Z",
+        "version": "v1"
+      }
+    },
+    "commerce": {
+      "name": "commerce",
+      "category": "dynamic_services",
+      "dependencies": [
+        "analytics"
+      ],
+      "metadata": {
+        "capabilities": [
+          "commerce",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_quote",
+              "get_quote",
+              "list_quotes",
+              "create_order",
+              "get_order",
+              "list_orders",
+              "initiate_payment",
+              "confirm_payment",
+              "refund_payment",
+              "get_transaction",
+              "get_balance",
+              "list_balances",
+              "list_events",
+              "get_portfolio",
+              "list_assets",
+              "list_portfolios",
+              "create_listing",
+              "make_offer",
+              "list_listings",
+              "get_exchange_rate"
+            ],
+            "description": "Composable commerce operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/commerce_ops"
+          }
+        ],
+        "health_check": "/health/commerce",
+        "metrics": "/metrics/commerce",
+        "models": [
+          "CreateQuoteRequest",
+          "CreateQuoteResponse",
+          "GetQuoteRequest",
+          "GetQuoteResponse",
+          "ListQuotesRequest",
+          "ListQuotesResponse",
+          "Quote",
+          "CreateOrderRequest",
+          "CreateOrderResponse",
+          "GetOrderRequest",
+          "GetOrderResponse",
+          "ListOrdersRequest",
+          "ListOrdersResponse",
+          "UpdateOrderStatusRequest",
+          "UpdateOrderStatusResponse",
+          "Order",
+          "OrderItem",
+          "InitiatePaymentRequest",
+          "InitiatePaymentResponse",
+          "ConfirmPaymentRequest",
+          "ConfirmPaymentResponse",
+          "RefundPaymentRequest",
+          "RefundPaymentResponse",
+          "Payment",
+          "GetTransactionRequest",
+          "GetTransactionResponse",
+          "ListTransactionsRequest",
+          "ListTransactionsResponse",
+          "Transaction",
+          "GetBalanceRequest",
+          "GetBalanceResponse",
+          "ListBalancesRequest",
+          "ListBalancesResponse",
+          "Balance",
+          "ListEventsRequest",
+          "ListEventsResponse",
+          "CommerceEvent",
+          "Party",
+          "Account",
+          "InvestmentAccount",
+          "InvestmentOrder",
+          "Asset",
+          "Portfolio",
+          "AssetPosition",
+          "BankAccount",
+          "BankTransfer",
+          "BankStatement",
+          "MarketplaceListing",
+          "MarketplaceOrder",
+          "MarketplaceOffer",
+          "ExchangeOrder",
+          "ExchangePair",
+          "ExchangeRate",
+          "CreateInvestmentAccountRequest",
+          "CreateInvestmentAccountResponse",
+          "GetInvestmentAccountRequest",
+          "GetInvestmentAccountResponse",
+          "PlaceInvestmentOrderRequest",
+          "PlaceInvestmentOrderResponse",
+          "GetPortfolioRequest",
+          "GetPortfolioResponse",
+          "ListPortfoliosRequest",
+          "ListPortfoliosResponse",
+          "ListAssetsRequest",
+          "ListAssetsResponse",
+          "CreateBankAccountRequest",
+          "CreateBankAccountResponse",
+          "InitiateBankTransferRequest",
+          "InitiateBankTransferResponse",
+          "GetBankStatementRequest",
+          "GetBankStatementResponse",
+          "CreateListingRequest",
+          "CreateListingResponse",
+          "PlaceMarketplaceOrderRequest",
+          "PlaceMarketplaceOrderResponse",
+          "MakeOfferRequest",
+          "MakeOfferResponse",
+          "ListListingsRequest",
+          "ListListingsResponse",
+          "PlaceExchangeOrderRequest",
+          "PlaceExchangeOrderResponse",
+          "GetExchangeRateRequest",
+          "GetExchangeRateResponse",
+          "ListExchangePairsRequest",
+          "ListExchangePairsResponse",
+          "CreateExchangePairRequest",
+          "CreateExchangePairResponse",
+          "CreateExchangeRateRequest",
+          "CreateExchangeRateResponse"
+        ],
+        "schema": {
+          "methods": [
+            "CreateQuote",
+            "GetQuote",
+            "ListQuotes",
+            "CreateOrder",
+            "GetOrder",
+            "ListOrders",
+            "InitiatePayment",
+            "ConfirmPayment",
+            "RefundPayment",
+            "GetTransaction",
+            "GetBalance",
+            "ListBalances",
+            "ListEvents",
+            "GetPortfolio",
+            "ListAssets",
+            "ListPortfolios",
+            "CreateListing",
+            "MakeOffer",
+            "ListListings",
+            "GetExchangeRate"
+          ],
+          "proto_path": "api/protos/commerce/v1/commerce.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.369892Z",
+        "version": "v1"
+      }
+    },
+    "content": {
+      "name": "content",
+      "category": "dynamic_services",
+      "dependencies": [
+        "search",
+        "analytics"
+      ],
+      "metadata": {
+        "capabilities": [
+          "content",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_content",
+              "get_content",
+              "update_content",
+              "delete_content",
+              "list_content",
+              "search_content",
+              "add_comment",
+              "list_comments",
+              "delete_comment",
+              "add_reaction",
+              "list_reactions",
+              "log_content_event",
+              "moderate_content"
+            ],
+            "description": "Composable content operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/content_ops"
+          }
+        ],
+        "health_check": "/health/content",
+        "metrics": "/metrics/content",
+        "models": [
+          "Content",
+          "Comment",
+          "ContentEvent",
+          "CreateContentRequest",
+          "GetContentRequest",
+          "UpdateContentRequest",
+          "DeleteContentRequest",
+          "ListContentRequest",
+          "SearchContentRequest",
+          "ListContentResponse",
+          "AddCommentRequest",
+          "CommentResponse",
+          "ListCommentsRequest",
+          "ListCommentsResponse",
+          "DeleteCommentRequest",
+          "DeleteCommentResponse",
+          "AddReactionRequest",
+          "ReactionResponse",
+          "ListReactionsRequest",
+          "ListReactionsResponse",
+          "LogContentEventRequest",
+          "LogContentEventResponse",
+          "ModerateContentRequest",
+          "ModerateContentResponse",
+          "ContentResponse",
+          "DeleteContentResponse"
+        ],
+        "schema": {
+          "methods": [
+            "CreateContent",
+            "GetContent",
+            "UpdateContent",
+            "DeleteContent",
+            "ListContent",
+            "SearchContent",
+            "AddComment",
+            "ListComments",
+            "DeleteComment",
+            "AddReaction",
+            "ListReactions",
+            "LogContentEvent",
+            "ModerateContent"
+          ],
+          "proto_path": "api/protos/content/v1/content.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.3701Z",
+        "version": "v1"
+      }
+    },
+    "contentmoderation": {
+      "name": "contentmoderation",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [
+          "moderation",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "approve_content",
+              "reject_content"
+            ],
+            "description": "Composable contentmoderation operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/contentmoderation_ops"
+          }
+        ],
+        "health_check": "/health/contentmoderation",
+        "metrics": "/metrics/contentmoderation",
+        "models": [
+          "ModerationResult",
+          "SubmitContentForModerationRequest",
+          "SubmitContentForModerationResponse",
+          "GetModerationResultRequest",
+          "GetModerationResultResponse",
+          "ListFlaggedContentRequest",
+          "ListFlaggedContentResponse",
+          "ApproveContentRequest",
+          "ApproveContentResponse",
+          "RejectContentRequest",
+          "RejectContentResponse",
+          "ContentModeration"
+        ],
+        "schema": {
+          "methods": [
+            "ApproveContent",
+            "RejectContent"
+          ],
+          "proto_path": "api/protos/contentmoderation/v1/contentmoderation.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.370318Z",
+        "version": "v1"
+      }
+    },
+    "crawler": {
+      "name": "crawler",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [],
+        "endpoints": [
+          {
+            "actions": [
+              "submit_task",
+              "get_task_status",
+              "stream_results"
+            ],
+            "description": "Composable crawler operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/crawler_ops"
+          }
+        ],
+        "health_check": "/health/crawler",
+        "metrics": "/metrics/crawler",
+        "models": [
+          "CrawlTask",
+          "CrawlResult",
+          "SubmitTaskRequest",
+          "SubmitTaskResponse",
+          "GetTaskStatusRequest",
+          "StreamResultsRequest"
+        ],
+        "schema": {
+          "methods": [
+            "SubmitTask",
+            "GetTaskStatus",
+            "StreamResults"
+          ],
+          "proto_path": "api/protos/crawler/v1/crawler.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.370522Z",
+        "version": "v1"
+      }
+    },
+    "localization": {
+      "name": "localization",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [],
+        "endpoints": [
+          {
+            "actions": [
+              "translate",
+              "batch_translate",
+              "get_translation",
+              "get_pricing_rule",
+              "set_pricing_rule",
+              "list_locales"
+            ],
+            "description": "Composable localization operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/localization_ops"
+          }
+        ],
+        "health_check": "/health/localization",
+        "metrics": "/metrics/localization",
+        "models": [
+          "TranslateRequest",
+          "TranslateResponse",
+          "BatchTranslateRequest",
+          "BatchTranslateResponse",
+          "CreateTranslationRequest",
+          "CreateTranslationResponse",
+          "GetTranslationRequest",
+          "GetTranslationResponse",
+          "ListTranslationsRequest",
+          "ListTranslationsResponse",
+          "Translation",
+          "GetPricingRuleRequest",
+          "GetPricingRuleResponse",
+          "SetPricingRuleRequest",
+          "SetPricingRuleResponse",
+          "ListPricingRulesRequest",
+          "ListPricingRulesResponse",
+          "PricingRule",
+          "ListLocalesRequest",
+          "ListLocalesResponse",
+          "GetLocaleMetadataRequest",
+          "GetLocaleMetadataResponse",
+          "Locale",
+          "Localization"
+        ],
+        "schema": {
+          "methods": [
+            "Translate",
+            "BatchTranslate",
+            "GetTranslation",
+            "GetPricingRule",
+            "SetPricingRule",
+            "ListLocales"
+          ],
+          "proto_path": "api/protos/localization/v1/localization.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.370744Z",
+        "version": "v1"
+      }
+    },
+    "media": {
+      "name": "media",
+      "category": "dynamic_services",
+      "dependencies": [
+        "user"
+      ],
+      "metadata": {
+        "capabilities": [
+          "media",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "get_media",
+              "delete_media",
+              "list_user_media",
+              "list_system_media"
+            ],
+            "description": "Composable media operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/media_ops"
+          }
+        ],
+        "health_check": "/health/media",
+        "metrics": "/metrics/media",
+        "models": [
+          "Media",
+          "UploadLightMediaRequest",
+          "UploadLightMediaResponse",
+          "StartHeavyMediaUploadRequest",
+          "StartHeavyMediaUploadResponse",
+          "MediaChunk",
+          "StreamMediaChunkRequest",
+          "StreamMediaChunkResponse",
+          "CompleteMediaUploadRequest",
+          "CompleteMediaUploadResponse",
+          "GetMediaRequest",
+          "GetMediaResponse",
+          "StreamMediaContentRequest",
+          "StreamMediaContentResponse",
+          "DeleteMediaRequest",
+          "DeleteMediaResponse",
+          "ListUserMediaRequest",
+          "ListUserMediaResponse",
+          "ListSystemMediaRequest",
+          "ListSystemMediaResponse",
+          "SubscribeToUserMediaRequest",
+          "SubscribeToUserMediaResponse",
+          "SubscribeToSystemMediaRequest",
+          "SubscribeToSystemMediaResponse",
+          "BroadcastSystemMediaRequest",
+          "BroadcastSystemMediaResponse"
+        ],
+        "schema": {
+          "methods": [
+            "GetMedia",
+            "DeleteMedia",
+            "ListUserMedia",
+            "ListSystemMedia"
+          ],
+          "proto_path": "api/protos/media/v1/media.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.371179Z",
+        "version": "v1"
+      }
+    },
+    "messaging": {
+      "name": "messaging",
+      "category": "dynamic_services",
+      "dependencies": [
+        "analytics"
+      ],
+      "metadata": {
+        "capabilities": [
+          "messaging",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "send_message",
+              "edit_message",
+              "delete_message",
+              "react_to_message",
+              "get_message",
+              "list_messages",
+              "list_threads",
+              "stream_messages",
+              "stream_typing",
+              "stream_presence",
+              "mark_as_read"
+            ],
+            "description": "Composable messaging operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/messaging_ops"
+          }
+        ],
+        "health_check": "/health/messaging",
+        "metrics": "/metrics/messaging",
+        "models": [
+          "Message",
+          "Thread",
+          "Conversation",
+          "ChatGroup",
+          "Reaction",
+          "Attachment",
+          "SendMessageRequest",
+          "SendMessageResponse",
+          "SendGroupMessageRequest",
+          "SendGroupMessageResponse",
+          "EditMessageRequest",
+          "EditMessageResponse",
+          "DeleteMessageRequest",
+          "DeleteMessageResponse",
+          "ReactToMessageRequest",
+          "ReactToMessageResponse",
+          "GetMessageRequest",
+          "GetMessageResponse",
+          "ListMessagesRequest",
+          "ListMessagesResponse",
+          "ListThreadsRequest",
+          "ListThreadsResponse",
+          "ListConversationsRequest",
+          "ListConversationsResponse",
+          "StreamMessagesRequest",
+          "MessageEvent",
+          "StreamTypingRequest",
+          "TypingEvent",
+          "StreamPresenceRequest",
+          "PresenceEvent",
+          "MarkAsReadRequest",
+          "MarkAsReadResponse",
+          "MarkAsDeliveredRequest",
+          "MarkAsDeliveredResponse",
+          "AcknowledgeMessageRequest",
+          "AcknowledgeMessageResponse",
+          "CreateChatGroupRequest",
+          "CreateChatGroupResponse",
+          "AddChatGroupMemberRequest",
+          "AddChatGroupMemberResponse",
+          "RemoveChatGroupMemberRequest",
+          "RemoveChatGroupMemberResponse",
+          "ListChatGroupMembersRequest",
+          "ListChatGroupMembersResponse",
+          "MessagingPreferences",
+          "UpdateMessagingPreferencesRequest",
+          "UpdateMessagingPreferencesResponse",
+          "ListMessageEventsRequest",
+          "ListMessageEventsResponse"
+        ],
+        "schema": {
+          "methods": [
+            "SendMessage",
+            "EditMessage",
+            "DeleteMessage",
+            "ReactToMessage",
+            "GetMessage",
+            "ListMessages",
+            "ListThreads",
+            "StreamMessages",
+            "StreamTyping",
+            "StreamPresence",
+            "MarkAsRead"
+          ],
+          "proto_path": "api/protos/messaging/v1/messaging.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.371478Z",
+        "version": "v1"
+      }
+    },
+    "nexus": {
+      "name": "nexus",
+      "category": "dynamic_services",
+      "dependencies": [
+        "analytics"
+      ],
+      "metadata": {
+        "capabilities": [
+          "orchestration",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "register_pattern",
+              "list_patterns",
+              "orchestrate",
+              "trace_pattern",
+              "mine_patterns",
+              "feedback",
+              "handle_ops",
+              "emit_event",
+              "subscribe_events"
+            ],
+            "description": "Composable nexus operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/nexus_ops"
+          }
+        ],
+        "health_check": "/health/nexus",
+        "metrics": "/metrics/nexus",
+        "models": [
+          "RegisterPatternRequest",
+          "RegisterPatternResponse",
+          "ListPatternsRequest",
+          "ListPatternsResponse",
+          "Pattern",
+          "OrchestrateRequest",
+          "OrchestrateResponse",
+          "TracePatternRequest",
+          "TracePatternResponse",
+          "TraceStep",
+          "MinePatternsRequest",
+          "MinePatternsResponse",
+          "FeedbackRequest",
+          "FeedbackResponse",
+          "HandleOpsRequest",
+          "HandleOpsResponse",
+          "EventRequest",
+          "EventResponse",
+          "SubscribeRequest",
+          "Nexus"
+        ],
+        "schema": {
+          "methods": [
+            "RegisterPattern",
+            "ListPatterns",
+            "Orchestrate",
+            "TracePattern",
+            "MinePatterns",
+            "Feedback",
+            "HandleOps",
+            "EmitEvent",
+            "SubscribeEvents"
+          ],
+          "proto_path": "api/protos/nexus/v1/nexus.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.372004Z",
+        "version": "v1"
+      }
+    },
+    "notification": {
+      "name": "notification",
+      "category": "dynamic_services",
+      "dependencies": [
+        "analytics"
+      ],
+      "metadata": {
+        "capabilities": [
+          "notification",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "send_email",
+              "send_sms",
+              "broadcast_event"
+            ],
+            "description": "Composable notification operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/notification_ops"
+          }
+        ],
+        "health_check": "/health/notification",
+        "metrics": "/metrics/notification",
+        "models": [
+          "Notification",
+          "SendNotificationRequest",
+          "SendNotificationResponse",
+          "SendEmailRequest",
+          "SendEmailResponse",
+          "SendSMSRequest",
+          "SendSMSResponse",
+          "SendPushNotificationRequest",
+          "SendPushNotificationResponse",
+          "BroadcastEventRequest",
+          "BroadcastEventResponse",
+          "SubscribeToEventsRequest",
+          "NotificationEvent",
+          "StreamAssetChunksRequest",
+          "AssetChunk",
+          "PublishAssetChunkRequest",
+          "PublishAssetChunkResponse",
+          "GetNotificationRequest",
+          "GetNotificationResponse",
+          "ListNotificationsRequest",
+          "ListNotificationsResponse",
+          "AcknowledgeNotificationRequest",
+          "AcknowledgeNotificationResponse",
+          "NotificationPreferences",
+          "UpdateNotificationPreferencesRequest",
+          "UpdateNotificationPreferencesResponse",
+          "ListNotificationEventsRequest",
+          "ListNotificationEventsResponse"
+        ],
+        "schema": {
+          "methods": [
+            "SendEmail",
+            "SendSMS",
+            "BroadcastEvent"
+          ],
+          "proto_path": "api/protos/notification/v1/notification.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.372268Z",
+        "version": "v1"
+      }
+    },
+    "product": {
+      "name": "product",
+      "category": "dynamic_services",
+      "dependencies": [
+        "search"
+      ],
+      "metadata": {
+        "capabilities": [],
+        "endpoints": [
+          {
+            "actions": [
+              "create_product",
+              "update_product",
+              "delete_product",
+              "get_product",
+              "list_products",
+              "search_products",
+              "update_inventory"
+            ],
+            "description": "Composable product operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/product_ops"
+          }
+        ],
+        "health_check": "/health/product",
+        "metrics": "/metrics/product",
+        "models": [
+          "Product",
+          "ProductVariant",
+          "CreateProductRequest",
+          "CreateProductResponse",
+          "UpdateProductRequest",
+          "UpdateProductResponse",
+          "DeleteProductRequest",
+          "DeleteProductResponse",
+          "GetProductRequest",
+          "GetProductResponse",
+          "ListProductsRequest",
+          "ListProductsResponse",
+          "SearchProductsRequest",
+          "SearchProductsResponse",
+          "UpdateInventoryRequest",
+          "UpdateInventoryResponse",
+          "ListProductVariantsRequest",
+          "ListProductVariantsResponse"
+        ],
+        "schema": {
+          "methods": [
+            "CreateProduct",
+            "UpdateProduct",
+            "DeleteProduct",
+            "GetProduct",
+            "ListProducts",
+            "SearchProducts",
+            "UpdateInventory"
+          ],
+          "proto_path": "api/protos/product/v1/product.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.37254Z",
+        "version": "v1"
+      }
+    },
+    "referral": {
+      "name": "referral",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [
+          "referral",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "get_referral",
+              "reward_referral"
+            ],
+            "description": "Composable referral operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/referral_ops"
+          }
+        ],
+        "health_check": "/health/referral",
+        "metrics": "/metrics/referral",
+        "models": [
+          "Referral",
+          "CreateReferralRequest",
+          "CreateReferralResponse",
+          "GetReferralRequest",
+          "GetReferralResponse",
+          "GetReferralStatsRequest",
+          "GetReferralStatsResponse",
+          "ReferralDetail",
+          "RegisterReferralRequest",
+          "RegisterReferralResponse",
+          "RewardReferralRequest",
+          "RewardReferralResponse"
+        ],
+        "schema": {
+          "methods": [
+            "GetReferral",
+            "RewardReferral"
+          ],
+          "proto_path": "api/protos/referral/v1/referral.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.372841Z",
+        "version": "v1"
+      }
+    },
+    "scheduler": {
+      "name": "scheduler",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [
+          "scheduler",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_job",
+              "update_job",
+              "delete_job",
+              "list_jobs",
+              "get_job",
+              "run_job",
+              "list_job_runs"
+            ],
+            "description": "Composable scheduler operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/scheduler_ops"
+          }
+        ],
+        "health_check": "/health/scheduler",
+        "metrics": "/metrics/scheduler",
+        "models": [
+          "RetryPolicy",
+          "JobHistory",
+          "CDCTrigger",
+          "Job",
+          "CreateJobRequest",
+          "CreateJobResponse",
+          "UpdateJobRequest",
+          "UpdateJobResponse",
+          "DeleteJobRequest",
+          "DeleteJobResponse",
+          "ListJobsRequest",
+          "ListJobsResponse",
+          "GetJobRequest",
+          "GetJobResponse",
+          "RunJobRequest",
+          "RunJobResponse",
+          "ListJobRunsRequest",
+          "ListJobRunsResponse",
+          "JobRun"
+        ],
+        "schema": {
+          "methods": [
+            "CreateJob",
+            "UpdateJob",
+            "DeleteJob",
+            "ListJobs",
+            "GetJob",
+            "RunJob",
+            "ListJobRuns"
+          ],
+          "proto_path": "api/protos/scheduler/v1/scheduler.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.373384Z",
+        "version": "v1"
+      }
+    },
+    "search": {
+      "name": "search",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [
+          "search",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "search",
+              "suggest"
+            ],
+            "description": "Composable search operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/search_ops"
+          }
+        ],
+        "health_check": "/health/search",
+        "metrics": "/metrics/search",
+        "models": [
+          "SearchRequest",
+          "SearchResult",
+          "SearchResponse",
+          "SuggestRequest",
+          "SuggestResponse",
+          "SearchableField",
+          "SearchableFields",
+          "ListSearchableFieldsResponse"
+        ],
+        "schema": {
+          "methods": [
+            "Search",
+            "Suggest"
+          ],
+          "proto_path": "api/protos/search/v1/search.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.373831Z",
+        "version": "v1"
+      }
+    },
+    "security": {
+      "name": "security",
+      "category": "dynamic_services",
+      "dependencies": [
+        "user",
+        "search",
+        "analytics"
+      ],
+      "metadata": {
+        "capabilities": [
+          "authentication",
+          "authorization",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "authenticate",
+              "authorize",
+              "issue_secret",
+              "query_events",
+              "get_policy",
+              "set_policy",
+              "audit_event"
+            ],
+            "description": "Composable security operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/security_ops"
+          }
+        ],
+        "health_check": "/health/security",
+        "metrics": "/metrics/security",
+        "models": [
+          "AuthenticateRequest",
+          "AuthenticateResponse",
+          "AuthorizeRequest",
+          "AuthorizeResponse",
+          "IssueSecretRequest",
+          "IssueSecretResponse",
+          "ValidateCredentialRequest",
+          "ValidateCredentialResponse",
+          "QueryEventsRequest",
+          "QueryEventsResponse",
+          "SecurityEvent",
+          "GetPolicyRequest",
+          "GetPolicyResponse",
+          "SetPolicyRequest",
+          "SetPolicyResponse",
+          "DetectThreatsRequest",
+          "DetectThreatsResponse",
+          "ThreatSignal",
+          "AuditEventRequest",
+          "AuditEventResponse"
+        ],
+        "schema": {
+          "methods": [
+            "Authenticate",
+            "Authorize",
+            "IssueSecret",
+            "QueryEvents",
+            "GetPolicy",
+            "SetPolicy",
+            "AuditEvent"
+          ],
+          "proto_path": "api/protos/security/v1/security.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.374536Z",
+        "version": "v1"
+      }
+    },
+    "talent": {
+      "name": "talent",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [],
+        "endpoints": [
+          {
+            "actions": [
+              "book_talent",
+              "list_bookings"
+            ],
+            "description": "Composable talent operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/talent_ops"
+          }
+        ],
+        "health_check": "/health/talent",
+        "metrics": "/metrics/talent",
+        "models": [
+          "TalentProfile",
+          "Experience",
+          "Education",
+          "Booking",
+          "CreateTalentProfileRequest",
+          "CreateTalentProfileResponse",
+          "UpdateTalentProfileRequest",
+          "UpdateTalentProfileResponse",
+          "DeleteTalentProfileRequest",
+          "DeleteTalentProfileResponse",
+          "GetTalentProfileRequest",
+          "GetTalentProfileResponse",
+          "ListTalentProfilesRequest",
+          "ListTalentProfilesResponse",
+          "SearchTalentProfilesRequest",
+          "SearchTalentProfilesResponse",
+          "BookTalentRequest",
+          "BookTalentResponse",
+          "ListBookingsRequest",
+          "ListBookingsResponse"
+        ],
+        "schema": {
+          "methods": [
+            "BookTalent",
+            "ListBookings"
+          ],
+          "proto_path": "api/protos/talent/v1/talent.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.374878Z",
+        "version": "v1"
+      }
+    },
+    "user": {
+      "name": "user",
+      "category": "dynamic_services",
+      "dependencies": [
+        "notification",
+        "security",
+        "analytics"
+      ],
+      "metadata": {
+        "capabilities": [
+          "authentication",
+          "admin",
+          "authorization",
+          "user_mgmt",
+          "metadata_enrichment"
+        ],
+        "endpoints": [
+          {
+            "actions": [
+              "create_user",
+              "get_user",
+              "get_user_by_email",
+              "update_user",
+              "delete_user",
+              "list_users",
+              "update_password",
+              "update_profile",
+              "create_session",
+              "get_session",
+              "revoke_session",
+              "list_sessions",
+              "assign_role",
+              "remove_role",
+              "list_roles",
+              "list_user_events",
+              "list_audit_logs",
+              "initiate_sso",
+              "initiate_mfa",
+              "sync_scim",
+              "add_friend",
+              "remove_friend",
+              "list_friends",
+              "follow_user",
+              "unfollow_user",
+              "list_followers",
+              "list_following",
+              "list_user_groups",
+              "block_user",
+              "unblock_user",
+              "mute_user",
+              "unmute_user",
+              "report_user",
+              "unmute_group",
+              "refresh_session"
+            ],
+            "description": "Composable user operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/user_ops"
+          }
+        ],
+        "health_check": "/health/user",
+        "metrics": "/metrics/user",
+        "models": [
+          "User",
+          "UserProfile",
+          "UserGroup",
+          "Friendship",
+          "Follow",
+          "CreateUserRequest",
+          "CreateUserResponse",
+          "GetUserRequest",
+          "GetUserResponse",
+          "GetUserByUsernameRequest",
+          "GetUserByUsernameResponse",
+          "GetUserByEmailRequest",
+          "GetUserByEmailResponse",
+          "UpdateUserRequest",
+          "UpdateUserResponse",
+          "DeleteUserRequest",
+          "DeleteUserResponse",
+          "ListUsersRequest",
+          "ListUsersResponse",
+          "UpdatePasswordRequest",
+          "UpdatePasswordResponse",
+          "UpdateProfileRequest",
+          "UpdateProfileResponse",
+          "CreateSessionRequest",
+          "CreateSessionResponse",
+          "GetSessionRequest",
+          "GetSessionResponse",
+          "RevokeSessionRequest",
+          "RevokeSessionResponse",
+          "ListSessionsRequest",
+          "ListSessionsResponse",
+          "Session",
+          "AssignRoleRequest",
+          "AssignRoleResponse",
+          "RemoveRoleRequest",
+          "RemoveRoleResponse",
+          "ListRolesRequest",
+          "ListRolesResponse",
+          "ListPermissionsRequest",
+          "ListPermissionsResponse",
+          "ListUserEventsRequest",
+          "ListUserEventsResponse",
+          "ListAuditLogsRequest",
+          "ListAuditLogsResponse",
+          "UserEvent",
+          "AuditLog",
+          "InitiateSSORequest",
+          "InitiateSSOResponse",
+          "InitiateMFARequest",
+          "InitiateMFAResponse",
+          "SyncSCIMRequest",
+          "SyncSCIMResponse",
+          "AddFriendRequest",
+          "AddFriendResponse",
+          "RemoveFriendRequest",
+          "RemoveFriendResponse",
+          "ListFriendsRequest",
+          "ListFriendsResponse",
+          "FollowUserRequest",
+          "FollowUserResponse",
+          "UnfollowUserRequest",
+          "UnfollowUserResponse",
+          "ListFollowersRequest",
+          "ListFollowersResponse",
+          "ListFollowingRequest",
+          "ListFollowingResponse",
+          "CreateUserGroupRequest",
+          "CreateUserGroupResponse",
+          "UpdateUserGroupRequest",
+          "UpdateUserGroupResponse",
+          "DeleteUserGroupRequest",
+          "DeleteUserGroupResponse",
+          "ListUserGroupsRequest",
+          "ListUserGroupsResponse",
+          "ListUserGroupMembersRequest",
+          "ListUserGroupMembersResponse",
+          "SuggestConnectionsRequest",
+          "SuggestConnectionsResponse",
+          "ListConnectionsRequest",
+          "ListConnectionsResponse",
+          "BlockUserRequest",
+          "BlockUserResponse",
+          "UnblockUserRequest",
+          "UnblockUserResponse",
+          "MuteUserRequest",
+          "MuteUserResponse",
+          "UnmuteUserRequest",
+          "UnmuteUserResponse",
+          "ReportUserRequest",
+          "ReportUserResponse",
+          "BlockGroupContentRequest",
+          "BlockGroupContentResponse",
+          "ReportGroupContentRequest",
+          "ReportGroupContentResponse",
+          "MuteGroupContentRequest",
+          "MuteGroupContentResponse",
+          "MuteGroupIndividualsRequest",
+          "MuteGroupIndividualsResponse",
+          "BlockGroupIndividualsRequest",
+          "BlockGroupIndividualsResponse",
+          "UnmuteGroupRequest",
+          "UnmuteGroupResponse",
+          "UnmuteGroupIndividualsRequest",
+          "UnmuteGroupIndividualsResponse",
+          "UnblockGroupIndividualsRequest",
+          "UnblockGroupIndividualsResponse",
+          "RegisterInterestRequest",
+          "RegisterInterestResponse",
+          "CreateReferralRequest",
+          "CreateReferralResponse",
+          "RefreshSessionRequest",
+          "RefreshSessionResponse"
+        ],
+        "schema": {
+          "methods": [
+            "CreateUser",
+            "GetUser",
+            "GetUserByEmail",
+            "UpdateUser",
+            "DeleteUser",
+            "ListUsers",
+            "UpdatePassword",
+            "UpdateProfile",
+            "CreateSession",
+            "GetSession",
+            "RevokeSession",
+            "ListSessions",
+            "AssignRole",
+            "RemoveRole",
+            "ListRoles",
+            "ListUserEvents",
+            "ListAuditLogs",
+            "InitiateSSO",
+            "InitiateMFA",
+            "SyncSCIM",
+            "AddFriend",
+            "RemoveFriend",
+            "ListFriends",
+            "FollowUser",
+            "UnfollowUser",
+            "ListFollowers",
+            "ListFollowing",
+            "ListUserGroups",
+            "BlockUser",
+            "UnblockUser",
+            "MuteUser",
+            "UnmuteUser",
+            "ReportUser",
+            "UnmuteGroup",
+            "RefreshSession"
+          ],
+          "proto_path": "api/protos/user/v1/user.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.375456Z",
+        "version": "v1"
+      }
+    },
+    "waitlist": {
+      "name": "waitlist",
+      "category": "dynamic_services",
+      "metadata": {
+        "capabilities": [],
+        "endpoints": [
+          {
+            "actions": [],
+            "description": "Composable waitlist operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment.",
+            "method": "POST",
+            "path": "/api/waitlist_ops"
+          }
+        ],
+        "health_check": "/health/waitlist",
+        "metrics": "/metrics/waitlist",
+        "models": [
+          "WaitlistEntry",
+          "LeaderboardEntry",
+          "ReferralRecord",
+          "LocationStat",
+          "ReferralStats",
+          "WaitlistStats",
+          "CreateWaitlistEntryRequest",
+          "CreateWaitlistEntryResponse",
+          "GetWaitlistEntryRequest",
+          "GetWaitlistEntryResponse",
+          "UpdateWaitlistEntryRequest",
+          "UpdateWaitlistEntryResponse",
+          "ListWaitlistEntriesRequest",
+          "ListWaitlistEntriesResponse",
+          "InviteUserRequest",
+          "InviteUserResponse",
+          "CheckUsernameAvailabilityRequest",
+          "CheckUsernameAvailabilityResponse",
+          "ValidateReferralUsernameRequest",
+          "ValidateReferralUsernameResponse",
+          "GetLeaderboardRequest",
+          "GetLeaderboardResponse",
+          "GetReferralsByUserRequest",
+          "GetReferralsByUserResponse",
+          "GetLocationStatsRequest",
+          "GetLocationStatsResponse",
+          "GetWaitlistStatsRequest",
+          "GetWaitlistStatsResponse",
+          "GetWaitlistPositionRequest",
+          "GetWaitlistPositionResponse"
+        ],
+        "schema": {
+          "proto_path": "api/protos/waitlist/v1/waitlist.proto"
+        },
+        "updated_at": "2025-07-03T21:13:11.376046Z",
+        "version": "v1"
+      }
+    }
+  },
+  "nexus": {
+    "core_components": {
+      "pattern_registry": {
+        "interfaces": [
+          "RegisterPattern",
+          "FindPattern",
+          "ExecutePattern"
+        ],
+        "location": "internal/nexus/service/pattern",
+        "purpose": "Stores and manages all system patterns, including service orchestration patterns",
+        "relationship_to_services": "provides patterns for service composition and orchestration",
+        "storage": "database with redis cache"
+      }
+    }
+  },
+  "patterns": null,
+  "database_practices": {
+    "architecture": {
+      "primary_database": {
+        "location": "database/",
+        "migration_strategy": "Up/down versioned migrations",
+        "purpose": "Primary persistent storage",
+        "relationship_to_services": "All services use for persistent storage",
+        "technology": "PostgreSQL"
+      }
+    }
+  },
+  "redis_practices": {
+    "architecture": {
+      "deployment_model": {
+        "configuration_location": "redis.conf",
+        "primary": "Redis Cluster for high availability",
+        "purpose": "Caching, session management, real-time features",
+        "relationship_to_services": "Used by all services for performance optimization"
+      }
+    }
+  },
+  "amadeus_integration": {
+    "service_registration": {
+      "auto_discovery": true,
+      "generator_config": {
+        "proto_path": "api/protos",
+        "src_path": "internal"
+      },
+      "last_update": "2025-07-03T21:13:11.376519Z",
+      "services_count": 21,
+      "success_count": 21
+    }
+  }
+}

@@ -2,6 +2,7 @@ package campaign
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/expr-lang/expr"
 	campaignpb "github.com/nmxmxh/master-ovasabi/api/protos/campaign/v1"
+	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
@@ -20,6 +22,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -65,15 +68,28 @@ func SafeInt32(i int64) (int32, error) {
 	return int32(i), nil
 }
 
+func (s *Service) getSystemUserID(ctx context.Context) string {
+	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
+	if ok && authUserID != "" {
+		return authUserID
+	}
+
+	// Query for the admin user ID as a fallback
+	err := s.repo.GetDB().QueryRowContext(ctx, "SELECT id FROM service_user_master WHERE email = $1 LIMIT 1", "admin@ovasabi.com").Scan(&authUserID)
+	if err != nil {
+		s.log.Warn("Failed to get admin user ID, falling back to nil UUID", zap.Error(err))
+		return "00000000-0000-0000-0000-000000000000"
+	}
+
+	return authUserID
+}
+
 func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCampaignRequest) (*campaignpb.CreateCampaignResponse, error) {
 	log := s.log.With(
 		zap.String("operation", "create_campaign"),
 		zap.String("slug", req.Slug))
 
-	authUserID, ok := utils.GetAuthenticatedUserID(ctx)
-	if !ok {
-		authUserID = "system" // Fallback to a system user for internal operations
-	}
+	authUserID := s.getSystemUserID(ctx)
 
 	log.Info("Creating campaign")
 
@@ -88,6 +104,24 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		s.handler.Error(ctx, "create_campaign", codes.InvalidArgument, "title is required", err, nil, "")
 		return nil, graceful.ToStatusError(err)
 	}
+	// Ensure Metadata is always present and has default empty values for required subfields
+	if req.Metadata == nil {
+		req.Metadata = &commonpb.Metadata{}
+	}
+	if req.Metadata.ServiceSpecific == nil {
+		req.Metadata.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+	}
+	if req.Metadata.GlobalContext == nil {
+		req.Metadata.GlobalContext = &commonpb.Metadata_GlobalContext{}
+	}
+	// Check if a campaign with the same slug already exists in the master table
+	_, err := s.repo.master.GetByNameAndType(ctx, req.Slug, "campaign")
+	if err == nil {
+		err := graceful.WrapErr(ctx, codes.AlreadyExists, "campaign with this slug already exists", nil)
+		s.handler.Error(ctx, "create_campaign", codes.AlreadyExists, "campaign with this slug already exists", err, nil, req.Slug)
+		return nil, graceful.ToStatusError(err)
+	}
+
 	// Start transaction
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -95,26 +129,44 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		s.handler.Error(ctx, "create_campaign", codes.Internal, "failed to begin transaction", gErr, nil, "")
 		return nil, graceful.ToStatusError(gErr)
 	}
+	var committed bool
 	defer func() {
-		if rerr := tx.Rollback(); rerr != nil {
-			log.Error("error rolling back transaction", zap.Error(rerr))
+		if !committed {
+			if rerr := tx.Rollback(); rerr != nil && !errors.Is(rerr, sql.ErrTxDone) {
+				log.Error("error rolling back transaction", zap.Error(rerr))
+			}
 		}
 	}()
 	// Create campaign with transaction
+	now := time.Now()
 	c := &Campaign{
 		Slug:           req.Slug,
 		Title:          req.Title,
-		Description:    req.Description,
+		Name:           req.Title, // Set Name to Title by default
+		Description:    "Campaign entity",
 		RankingFormula: req.RankingFormula,
 		Status:         "active", // Default to active status
 		Metadata:       req.Metadata,
 		OwnerID:        authUserID,
+		StartDate:      now,
+		EndDate:        now.AddDate(0, 3, 0),
 	}
-	if req.StartDate != nil {
-		c.StartDate = req.StartDate.AsTime()
-	}
-	if req.EndDate != nil {
-		c.EndDate = req.EndDate.AsTime()
+	if req.Description != "" {
+		if c.Metadata != nil && c.Metadata.ServiceSpecific != nil {
+			if c.Metadata.ServiceSpecific.Fields == nil {
+				c.Metadata.ServiceSpecific.Fields = make(map[string]*structpb.Value)
+			}
+			campaignMetaValue, ok := c.Metadata.ServiceSpecific.Fields["campaign"]
+			var campaignMeta *structpb.Struct
+			if ok {
+				campaignMeta = campaignMetaValue.GetStructValue()
+			}
+			if campaignMeta == nil {
+				campaignMeta = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+				c.Metadata.ServiceSpecific.Fields["campaign"] = structpb.NewStructValue(campaignMeta)
+			}
+			campaignMeta.Fields["description"] = structpb.NewStringValue(req.Description)
+		}
 	}
 	created, err := s.repo.CreateWithTransaction(ctx, tx, c)
 	if err != nil {
@@ -128,6 +180,7 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		s.handler.Error(ctx, "create_campaign", codes.Internal, "failed to commit transaction", gErr, nil, "")
 		return nil, graceful.ToStatusError(gErr)
 	}
+	committed = true
 	// Convert string ID to int32 for response
 	id32, err := strconv.ParseInt(created.ID, 10, 32)
 	if err != nil {

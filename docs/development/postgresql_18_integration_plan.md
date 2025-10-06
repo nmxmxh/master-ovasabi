@@ -14,6 +14,7 @@
 ### Phase 1: Core Repository Enhancement (IMMEDIATE)
 
 1. **Integrate Enhanced Repository into Services**
+
    - Migrate content service to use `EnhancedBaseRepository`
    - Migrate user service to leverage virtual columns
    - Migrate nexus event repository for better performance
@@ -32,8 +33,8 @@
 func (r *Repository) SearchContent(ctx context.Context, query string, campaignID int64) ([]*contentpb.Content, error) {
     return r.QueryWithPrepared(ctx, `
         SELECT id, title, body, content_score_virtual
-        FROM service_content_main 
-        WHERE campaign_id = $1 
+        FROM service_content_main
+        WHERE campaign_id = $1
         AND search_vector_virtual @@ plainto_tsquery('english', $2)
         ORDER BY content_score_virtual DESC, ts_rank(search_vector_virtual, plainto_tsquery('english', $2)) DESC
         LIMIT 50
@@ -48,7 +49,7 @@ func (r *Repository) SearchContent(ctx context.Context, query string, campaignID
 func (r *Repository) FindUsersByName(ctx context.Context, namePattern string, limit int) ([]*userv1.User, error) {
     return r.QueryWithPrepared(ctx, `
         SELECT id, username, display_name_virtual, activity_score_virtual
-        FROM service_user_main 
+        FROM service_user_main
         WHERE display_name_virtual ILIKE $1
         ORDER BY activity_score_virtual DESC
         LIMIT $2
@@ -63,8 +64,8 @@ func (r *Repository) FindUsersByName(ctx context.Context, namePattern string, li
 func (r *EventRepository) GetEventsByCategory(ctx context.Context, category string, campaignID int64) ([]*nexusv1.EventResponse, error) {
     return r.QueryWithPrepared(ctx, `
         SELECT event_id, event_type, event_category_virtual, importance_score_virtual
-        FROM service_event 
-        WHERE campaign_id = $1 
+        FROM service_event
+        WHERE campaign_id = $1
         AND event_category_virtual = $2
         ORDER BY importance_score_virtual DESC, created_at DESC
         LIMIT 100
@@ -75,10 +76,12 @@ func (r *EventRepository) GetEventsByCategory(ctx context.Context, category stri
 ### Phase 3: Advanced PostgreSQL 18 Features
 
 1. **Async I/O Optimization**
+
    - Configure `io_method = 'io_uring'` for Linux deployments
    - Set `effective_io_concurrency = 32` for multi-service architecture
 
 2. **Enhanced Monitoring**
+
    - Enable `track_wal_io_timing = on`
    - Use `StatsCollector` for PostgreSQL 18 metrics
    - Monitor virtual column usage with `VirtualColumnAnalyzer`
@@ -124,4 +127,5 @@ func (r *EventRepository) GetEventsByCategory(ctx context.Context, category stri
 - ✅ Gradual rollout service by service
 - ✅ Comprehensive monitoring before and after changes
 
-The architecture is indeed "fated" for PostgreSQL 18 - our virtual columns, skip scan indexes, and event-driven patterns align perfectly with PostgreSQL 18's strengths! 🚀
+The architecture is indeed "fated" for PostgreSQL 18 - our virtual columns, skip scan indexes, and
+event-driven patterns align perfectly with PostgreSQL 18's strengths! 🚀

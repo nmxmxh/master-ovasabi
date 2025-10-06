@@ -474,5 +474,3 @@ streaming system:
 
 This creates a powerful, unified event system that handles both traditional request/response
 patterns and modern real-time streaming patterns!
-
-

@@ -14,17 +14,17 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ActionHandlerFunc defines the signature for business logic handlers for each action.
-type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse)
+// ActionHandlerFunc defines the signature for business logic handlers for each action, returns error for provider propagation.
+type ActionHandlerFunc func(ctx context.Context, s *Service, event *nexusv1.EventResponse) error
 
 // Wraps a handler to filter for specific campaign event states.
 func FilterCampaignEvents(handler ActionHandlerFunc) ActionHandlerFunc {
-	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+	return func(ctx context.Context, s *Service, event *nexusv1.EventResponse) error {
 		if !events.ShouldProcessEvent(event.GetEventType(), []string{":requested", ":started", ":success"}) {
 			// Optionally log: ignoring event that is not requested, started, or success
-			return
+			return nil
 		}
-		handler(ctx, s, event)
+		return handler(ctx, s, event)
 	}
 }
 
@@ -47,31 +47,31 @@ func parseActionAndState(eventType string) (action, state string) {
 }
 
 // HandleCampaignServiceEvent is the generic event handler for all campaign service actions.
-func HandleCampaignServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+func HandleCampaignServiceEvent(ctx context.Context, s *Service, event *nexusv1.EventResponse) error {
 	s.log.Info("[CAMPAIGN-HANDLER] Event received", zap.String("eventType", event.GetEventType()))
 	eventType := event.GetEventType()
 	action, _ := parseActionAndState(eventType)
 	handler, ok := actionHandlers[action]
 	if !ok {
 		s.log.Warn("No handler registered for action", zap.String("action", action))
-		return
+		return errors.New("no handler registered for action")
 	}
 	expectedPrefix := "campaign:" + action + ":"
 	if !strings.HasPrefix(eventType, expectedPrefix) {
 		s.log.Warn("Event type does not match expected prefix", zap.String("eventType", eventType), zap.String("expectedPrefix", expectedPrefix))
-		return
+		return errors.New("event type does not match expected prefix")
 	}
-	handler(ctx, s, event)
+	return handler(ctx, s, event)
 }
 
 // Example handler implementations.
-func handleCampaignAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) {
+func handleCampaignAction(ctx context.Context, s *Service, event *nexusv1.EventResponse) error {
 	action, state := parseActionAndState(event.GetEventType())
 
 	// Log non-requested events and then exit.
 	if state == "started" || state == "success" {
 		s.log.Info("Processing campaign event", zap.String("action", action), zap.String("state", state))
-		return
+		return nil
 	}
 
 	switch action {
@@ -79,32 +79,37 @@ func handleCampaignAction(ctx context.Context, s *Service, event *nexusv1.EventR
 		var req campaignpb.CreateCampaignRequest
 		if err := unmarshalPayload(event, &req, s.log); err != nil {
 			s.handler.Error(ctx, action, codes.InvalidArgument, "failed to unmarshal payload", err, nil, event.GetMetadata().GetGlobalContext().GetCorrelationId())
-			return
+			return err
 		}
 		if _, err := s.CreateCampaign(ctx, &req); err != nil {
 			s.handler.Error(ctx, action, codes.Internal, "CreateCampaign failed", err, nil, event.GetMetadata().GetGlobalContext().GetCorrelationId())
+			return err
 		}
 	case "update_campaign":
 		var req campaignpb.UpdateCampaignRequest
 		if err := unmarshalPayload(event, &req, s.log); err != nil {
 			s.handler.Error(ctx, action, codes.InvalidArgument, "failed to unmarshal payload", err, nil, event.GetMetadata().GetGlobalContext().GetCorrelationId())
-			return
+			return err
 		}
 		if _, err := s.UpdateCampaign(ctx, &req); err != nil {
 			s.handler.Error(ctx, action, codes.Internal, "UpdateCampaign failed", err, nil, event.GetMetadata().GetGlobalContext().GetCorrelationId())
+			return err
 		}
 	case "delete_campaign":
 		var req campaignpb.DeleteCampaignRequest
 		if err := unmarshalPayload(event, &req, s.log); err != nil {
 			s.handler.Error(ctx, action, codes.InvalidArgument, "failed to unmarshal payload", err, nil, event.GetMetadata().GetGlobalContext().GetCorrelationId())
-			return
+			return err
 		}
 		if _, err := s.DeleteCampaign(ctx, &req); err != nil {
 			s.handler.Error(ctx, action, codes.Internal, "DeleteCampaign failed", err, nil, event.GetMetadata().GetGlobalContext().GetCorrelationId())
+			return err
 		}
 	default:
 		s.log.Warn("Unhandled campaign action", zap.String("action", action))
+		return errors.New("unhandled campaign action")
 	}
+	return nil
 }
 
 func unmarshalPayload(event *nexusv1.EventResponse, req proto.Message, log *zap.Logger) error {
@@ -179,7 +184,7 @@ func StartEventSubscribers(ctx context.Context, s *Service, log *zap.Logger) {
 		go func() {
 			log.Info("Attempting to subscribe to campaign events", zap.Strings("eventTypes", sub.EventTypes))
 			err := s.provider.SubscribeEvents(ctx, sub.EventTypes, nil, func(ctx context.Context, event *nexusv1.EventResponse) {
-				sub.Handler(ctx, s, event)
+				_ = sub.Handler(ctx, s, event)
 			})
 			if err != nil {
 				log.Error("Failed to subscribe to campaign events", zap.Strings("eventTypes", sub.EventTypes), zap.Error(err))

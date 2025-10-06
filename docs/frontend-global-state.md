@@ -2,7 +2,10 @@
 
 ## Overview
 
-This document describes the canonical approach for global state management in the OVASABI frontend, ensuring full alignment with backend event standards, WebSocket/WASM integration, and campaign-driven architecture. This pattern is required for all new features and services as of July 2025.
+This document describes the canonical approach for global state management in the OVASABI frontend,
+ensuring full alignment with backend event standards, WebSocket/WASM integration, and
+campaign-driven architecture. This pattern is required for all new features and services as of
+July 2025.
 
 ---
 
@@ -30,9 +33,12 @@ Metadata always includes campaign, user, device, and session context.
 
 ## 2. Frontend Hooks & Metadata Consistency
 
-- `useMetadata.ts`: Centralizes device, campaign, owner, scheduler, and knowledge graph metadata. Syncs with profile/session.
-- `useProfile.ts`: Manages user profile, campaign, privileges, and session state. Handles WASM bridge and WebSocket integration.
-- Both hooks propagate and merge metadata, but must ensure all canonical fields are always present and up-to-date.
+- `useMetadata.ts`: Centralizes device, campaign, owner, scheduler, and knowledge graph metadata.
+  Syncs with profile/session.
+- `useProfile.ts`: Manages user profile, campaign, privileges, and session state. Handles WASM
+  bridge and WebSocket integration.
+- Both hooks propagate and merge metadata, but must ensure all canonical fields are always present
+  and up-to-date.
 
 ---
 
@@ -40,7 +46,7 @@ Metadata always includes campaign, user, device, and session context.
 
 ### Types (Extended for Campaign, Scripts, Accessibility, GDPR)
 
-```typescript
+````typescript
 export interface EventEnvelope {
   type: string; // {service}:{action}:v{version}:{state}
   payload: any;
@@ -152,7 +158,7 @@ export const useGlobalStore = create<GlobalState>((set, get) => ({
   updateState: (eventType, newState) => set(state => ({ state: { ...state.state, [eventType]: newState } })),
   reset: () => set({ metadata: /* initialMetadata */, events: [], state: {} })
 }));
-```
+````
 
 ### WebSocket/WASM Integration Hook
 
@@ -185,33 +191,44 @@ export function useGlobalEventSync() {
 
 ## 3a. Campaign, Scripts, Accessibility, and GDPR in Global State
 
-- The `campaign` field in global state now includes all backend metadata: features, service-specific config, scheduling, versioning, and audit.
-- `serviceSpecific.localization.scripts` holds all onboarding and dialogue flows, supporting dynamic UI and accessibility for different user types (business, talent, pioneer, hustler, etc).
-- Accessibility metadata is included in each script/question for ARIA/alt text and semantic rendering.
-- GDPR/consent is tracked in both device and campaign metadata, ensuring compliance and user transparency.
+- The `campaign` field in global state now includes all backend metadata: features, service-specific
+  config, scheduling, versioning, and audit.
+- `serviceSpecific.localization.scripts` holds all onboarding and dialogue flows, supporting dynamic
+  UI and accessibility for different user types (business, talent, pioneer, hustler, etc).
+- Accessibility metadata is included in each script/question for ARIA/alt text and semantic
+  rendering.
+- GDPR/consent is tracked in both device and campaign metadata, ensuring compliance and user
+  transparency.
 
 **Best Practice:**  
-Always use the canonical campaign structure for all campaign-driven UI, onboarding, and event flows. Scripts and accessibility metadata should be dynamically loaded and rendered. GDPR/consent state must be respected in all user interactions.
+Always use the canonical campaign structure for all campaign-driven UI, onboarding, and event flows.
+Scripts and accessibility metadata should be dynamically loaded and rendered. GDPR/consent state
+must be respected in all user interactions.
 
 ---
 
 ## 3b. Localization Feedback Loop: scripts_translated
 
-- The `scripts_translated` field in `serviceSpecific.localization` enables the localization service to inject fully translated dialogue flows directly into the global state.
-- This creates a real-time feedback loop: backend/localization service updates translations, frontend state is updated, and UI reflects the latest localized content instantly.
+- The `scripts_translated` field in `serviceSpecific.localization` enables the localization service
+  to inject fully translated dialogue flows directly into the global state.
+- This creates a real-time feedback loop: backend/localization service updates translations,
+  frontend state is updated, and UI reflects the latest localized content instantly.
 - Use this for dynamic, multi-lingual onboarding, accessibility, and campaign flows.
 
-**Best Practice:**
-Always render onboarding/dialogue UI from `scripts_translated` if available, falling back to `scripts` as needed. Ensure the localization service can update this state via events or API.
+**Best Practice:** Always render onboarding/dialogue UI from `scripts_translated` if available,
+falling back to `scripts` as needed. Ensure the localization service can update this state via
+events or API.
 
 ---
 
 ## 4. Usage & Best Practices
 
-- Use `useGlobalStore()` anywhere in your app to access or update metadata, emit events, or listen for state changes.
+- Use `useGlobalStore()` anywhere in your app to access or update metadata, emit events, or listen
+  for state changes.
 - Call `useGlobalEventSync()` at the root of your app to keep state in sync with backend events.
 - All event emission and handling is standards-compliant and future-proof.
-- Never hardcode event types or metadata fields—always use the canonical format and shared constants.
+- Never hardcode event types or metadata fields—always use the canonical format and shared
+  constants.
 - Always merge/propagate metadata on every event.
 - Validate all event types and keys against the registry at build/startup.
 - Use the global state for all orchestration, UI, and business logic.
@@ -237,4 +254,5 @@ Always render onboarding/dialogue UI from `scripts_translated` if available, fal
 
 ---
 
-This document is the canonical reference for frontend global state and event architecture as of July 2025.
+This document is the canonical reference for frontend global state and event architecture as of
+July 2025.

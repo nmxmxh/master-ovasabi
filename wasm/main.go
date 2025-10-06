@@ -928,6 +928,26 @@ func genericEventHandler(event EventEnvelope) {
 		wasmLog("[WASM] No correlation ID found for event:", event.Type)
 	}
 
+	if strings.HasSuffix(event.Type, ":failed") {
+		if onMsgHandler := js.Global().Get("onWasmMessage"); onMsgHandler.Type() == js.TypeFunction {
+			jsEvent := js.ValueOf(map[string]interface{}{
+				"type":           event.Type,
+				"payload":        string(event.Payload),
+				"metadata":       string(event.Metadata),
+				"correlation_id": event.CorrelationID,
+				"timestamp":      time.Now().Format(time.RFC3339),
+				"version":        "1.0.0",
+				"environment":    "development",
+				"source":         "wasm",
+			})
+			wasmLog("[WASM] Forwarding failed event to frontend:", event.Type)
+			onMsgHandler.Invoke(jsEvent)
+		} else {
+			wasmLog("[WASM] onWasmMessage handler not available for failed event:", event.Type)
+		}
+		return
+	}
+
 	// Handle specific particle events before general forwarding
 	switch event.Type {
 	case "physics:particle:batch":

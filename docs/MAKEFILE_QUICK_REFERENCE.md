@@ -112,7 +112,7 @@ make benchmark            # Run performance benchmarks
 ### When compute operations are failing
 
 1. `make docker-ps` - Check which services are down
-2. `make docker-restart` - Restart all services  
+2. `make docker-restart` - Restart all services
 3. `make docker-logs` - Check for startup errors
 4. If still failing: `make docker-down && make docker-up`
 
@@ -128,7 +128,7 @@ make benchmark            # Run performance benchmarks
 ### ws-gateway (WebSocket Gateway for Compute)
 
 - **Status**: `docker compose -f deployments/docker/docker-compose.yml ps ws-gateway`
-- **Logs**: `docker compose -f deployments/docker/docker-compose.yml logs ws-gateway`  
+- **Logs**: `docker compose -f deployments/docker/docker-compose.yml logs ws-gateway`
 - **Restart**: `docker compose -f deployments/docker/docker-compose.yml restart ws-gateway`
 
 ### nexus (Event Bus)
@@ -160,7 +160,7 @@ make benchmark            # Run performance benchmarks
 Always use the Makefile commands instead of direct Docker commands because:
 
 - ✅ Proper dependency management
-- ✅ Environment variable handling  
+- ✅ Environment variable handling
 - ✅ Build optimization
 - ✅ Service registration validation
 - ✅ Consistent error handling
@@ -186,7 +186,7 @@ make docker-logs       # Check what caused the crash
 
 ```bash
 make clean
-make docker-clean  
+make docker-clean
 make setup
 make docker-build
 ```

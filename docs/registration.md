@@ -1,14 +1,18 @@
 # Dynamic Service Registration System
 
-This package provides a dynamic service registration system that can automatically generate service registration configurations by analyzing proto files, Go code, and runtime service information through reflection and introspection.
+This package provides a dynamic service registration system that can automatically generate service
+registration configurations by analyzing proto files, Go code, and runtime service information
+through reflection and introspection.
 
 ## Overview
 
-The dynamic service registration system addresses the question: **"Can't we dynamically create the service_registration config?"**
+The dynamic service registration system addresses the question: **"Can't we dynamically create the
+service_registration config?"**
 
 The answer is **YES**, and this package provides multiple approaches:
 
-1. **Proto-based Generation**: Analyze `.proto` files to extract service definitions, methods, and messages
+1. **Proto-based Generation**: Analyze `.proto` files to extract service definitions, methods, and
+   messages
 2. **Code Introspection**: Use Go reflection to analyze service interfaces and implementations
 3. **Runtime Inspection**: Inspect running services to validate and enhance configurations
 4. **Hybrid Approach**: Combine all three methods for comprehensive service registration
@@ -96,29 +100,27 @@ Provides runtime inspection capabilities:
 
 ## Generated Configuration Structure
 
-The system generates service registration configurations that are compatible with the existing system but enhanced with additional metadata:
+The system generates service registration configurations that are compatible with the existing
+system but enhanced with additional metadata:
 
 ```json
 {
   "name": "user",
   "version": "v1",
-  "capabilities": [
-    "user_mgmt",
-    "authentication", 
-    "authorization",
-    "metadata_enrichment"
-  ],
+  "capabilities": ["user_mgmt", "authentication", "authorization", "metadata_enrichment"],
   "dependencies": ["security", "localization"],
   "schema": {
     "proto_path": "api/protos/user/v1/user.proto",
     "methods": ["CreateUser", "GetUser", "UpdateUser", "DeleteUser"]
   },
-  "endpoints": [{
-    "path": "/api/user_ops",
-    "method": "POST", 
-    "actions": ["create_user", "get_user", "update_user", "delete_user"],
-    "description": "Composable user operations endpoint..."
-  }],
+  "endpoints": [
+    {
+      "path": "/api/user_ops",
+      "method": "POST",
+      "actions": ["create_user", "get_user", "update_user", "delete_user"],
+      "description": "Composable user operations endpoint..."
+    }
+  ],
   "models": ["User", "CreateUserRequest", "CreateUserResponse"],
   "health_check": "/health/user",
   "metrics": "/metrics/user",
@@ -126,7 +128,7 @@ The system generates service registration configurations that are compatible wit
   "action_map": {
     "create_user": {
       "proto_method": "CreateUser",
-      "request_model": "CreateUserRequest", 
+      "request_model": "CreateUserRequest",
       "response_model": "CreateUserResponse",
       "rest_required_fields": ["name", "email", "metadata"]
     }
@@ -144,7 +146,7 @@ Instead of manually maintaining `config/service_registration.json`, generate it 
 // In your service bootstrap
 generator := registration.NewDynamicServiceRegistrationGenerator(
     logger, "api/protos", ".")
-    
+
 if err := generator.GenerateAndSaveConfig(ctx, "config/service_registration.json"); err != nil {
     log.Fatal("Failed to generate service registration", zap.Error(err))
 }
@@ -160,7 +162,7 @@ inspector := registration.NewDynamicInspector(logger, container, "api/protos", "
 for _, config := range existingConfigs {
     result, err := inspector.ValidateServiceRegistration(config)
     if err != nil || !result.IsValid {
-        log.Warn("Service configuration issues", 
+        log.Warn("Service configuration issues",
             zap.String("service", config.Name),
             zap.Strings("issues", result.Issues))
     }
@@ -175,15 +177,15 @@ Replace the existing `registry-inspect` tool with the dynamic version for more c
 
 The system automatically infers service capabilities based on method patterns:
 
-| Method Pattern | Inferred Capability |
-|---------------|-------------------|
-| CreateUser, GetUser, UpdateUser | user_mgmt |
-| CreateSession, RevokeSession | authentication |
-| AssignRole, CheckPermission | authorization |
-| SendNotification, SendEmail | notification |
-| CreateContent, GetContent | content |
-| CreateOrder, InitiatePayment | commerce |
-| Search, Suggest | search |
+| Method Pattern                  | Inferred Capability |
+| ------------------------------- | ------------------- |
+| CreateUser, GetUser, UpdateUser | user_mgmt           |
+| CreateSession, RevokeSession    | authentication      |
+| AssignRole, CheckPermission     | authorization       |
+| SendNotification, SendEmail     | notification        |
+| CreateContent, GetContent       | content             |
+| CreateOrder, InitiatePayment    | commerce            |
+| Search, Suggest                 | search              |
 
 ## Dependencies Inference
 
@@ -233,12 +235,13 @@ for _, suggestion := range suggestions.Suggestions {
 
 ### Runtime Performance Integration
 
-The inspector can gather runtime performance metrics and include them in service registrations for better orchestration decisions.
+The inspector can gather runtime performance metrics and include them in service registrations for
+better orchestration decisions.
 
 ## Future Enhancements
 
 1. **Protocol Buffer Analysis**: Deeper proto analysis for field-level metadata
-2. **OpenAPI Integration**: Generate REST documentation alongside registrations  
+2. **OpenAPI Integration**: Generate REST documentation alongside registrations
 3. **Metrics Integration**: Include service metrics in registration decisions
 4. **AI-Powered Inference**: Use ML to improve capability and dependency inference
 5. **Real-time Updates**: Watch for changes and update registrations automatically

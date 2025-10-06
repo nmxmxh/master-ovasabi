@@ -10,22 +10,26 @@ follow the rules in this file.
 
 ## PostgreSQL 18 Enhancements and Modern Practices
 
-This section covers PostgreSQL 18 specific features and how to leverage them for better performance, concurrency, and maintainability in our system.
+This section covers PostgreSQL 18 specific features and how to leverage them for better performance,
+concurrency, and maintainability in our system.
 
 ### New Performance Features
 
 1. **Asynchronous I/O Subsystem**
+
    - PostgreSQL 18 introduces a new async I/O system that can significantly improve performance
    - Configure `io_method`, `io_combine_limit`, and `io_max_combine_limit` for optimal performance
    - Monitor async I/O using the new `pg_aios` system view
    - Consider increasing `effective_io_concurrency` and `maintenance_io_concurrency` from default 16
 
 2. **Skip Scans for B-tree Indexes**
+
    - New skip scan feature can optimize queries with missing leading column predicates
    - Design composite indexes with this in mind - put high-cardinality columns first when possible
    - Monitor query plans with `EXPLAIN` to verify skip scan usage
 
 3. **Improved Hash Join Performance**
+
    - Hash joins and GROUP BY operations are more memory efficient
    - Particularly beneficial for our event processing and analytics queries
    - Review existing queries that use INTERSECT, EXCEPT, and window aggregates
@@ -37,6 +41,7 @@ This section covers PostgreSQL 18 specific features and how to leverage them for
 ### Concurrency and Locking Improvements
 
 1. **Improved Locking Performance**
+
    - PostgreSQL 18 has better performance for queries accessing many relations
    - Beneficial for our multi-service queries and complex joins across master/service tables
    - Review current connection pooling and consider increasing pool sizes if needed
@@ -49,21 +54,25 @@ This section covers PostgreSQL 18 specific features and how to leverage them for
 ### Monitoring and Observability
 
 1. **Enhanced pg_stat_io**
+
    - New byte-level I/O statistics (`read_bytes`, `write_bytes`, `extend_bytes`)
    - WAL I/O activity tracking
    - Use for monitoring our event-heavy workloads
 
 2. **Improved EXPLAIN Output**
+
    - Automatic BUFFERS output in EXPLAIN ANALYZE
    - WAL, CPU, and memory statistics in VERBOSE mode
    - Update our query optimization practices to leverage these insights
 
 3. **Enhanced Vacuum Monitoring**
+
    - New vacuum timing columns in `pg_stat_all_tables`
    - Track vacuum delays with `track_cost_delay_timing`
    - Monitor vacuum effectiveness for our high-write event tables
 
 4. **Connection Pool Optimization**
+
    - Leverage Async I/O Features
    - Configure connection pools to take advantage of PostgreSQL 18's async I/O
    - Consider connection pool sizes that match `max_connections` and async I/O settings
@@ -77,13 +86,14 @@ This section covers PostgreSQL 18 specific features and how to leverage them for
 ### Virtual Generated Columns (New Default)
 
 1. **Leverage Virtual Generated Columns**
+
    - Replace computed columns in application code with virtual generated columns
    - Particularly useful for search vectors, computed aggregations, and derived fields
    - Example for content search:
 
    ```sql
-   ALTER TABLE service_content_main 
-   ADD COLUMN search_vector_computed tsvector 
+   ALTER TABLE service_content_main
+   ADD COLUMN search_vector_computed tsvector
    GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || body)) VIRTUAL;
    ```
 
@@ -150,8 +160,8 @@ This section covers PostgreSQL 18 specific features and how to leverage them for
    layer should favor using parameterized queries which leverage prepared statements.
 
 8. **Use Batch Operations for bulk data manipulation.**  
-   For bulk inserts or updates, use batching to reduce network round trips. For high-volume
-   inserts, leverage driver-specific features like `pgx.CopyFrom` for maximum efficiency.
+   For bulk inserts or updates, use batching to reduce network round trips. For high-volume inserts,
+   leverage driver-specific features like `pgx.CopyFrom` for maximum efficiency.
 
 ---
 
@@ -223,16 +233,16 @@ This section covers PostgreSQL 18 specific features and how to leverage them for
    Ensure atomicity and rollback on failure.
 
 2. **Keep transactions as short as possible.**  
-   To minimize lock contention and improve concurrency, ensure transaction blocks only contain
-   the necessary operations and commit or roll back as quickly as possible.
+   To minimize lock contention and improve concurrency, ensure transaction blocks only contain the
+   necessary operations and commit or roll back as quickly as possible.
 
 3. **Be mindful of locking and concurrency.**  
    Avoid unnecessary locks and deadlocks.
 
 4. **Use Connection Pooling.**  
    To handle Go's high concurrency, all database connections must be managed through a connection
-   pool. The standard `database/sql` package provides this by default. Ensure your repository
-   layer is configured to use it effectively.
+   pool. The standard `database/sql` package provides this by default. Ensure your repository layer
+   is configured to use it effectively.
 
 5. **Cloud-scale and sharding:**  
    Design for horizontal scaling and partitioning from the start.
@@ -349,7 +359,8 @@ For a comprehensive architectural overview, see
   frequently executed and slow queries.
 - **Monitor Index Usage:** Periodically review index effectiveness with tools like
   `pg_stat_all_indexes` to identify and remove unused or inefficient indexes.
-- **Monitor Table Health:** Monitor table sizes, partition count, and index bloat. Set up alerts for table growth.
+- **Monitor Table Health:** Monitor table sizes, partition count, and index bloat. Set up alerts for
+  table growth.
 
 ### Documentation Automation
 

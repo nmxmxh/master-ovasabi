@@ -33,6 +33,7 @@
 ### Scripts
 
 1. **`scripts/validate-env.sh`** - Comprehensive environment validation
+
    - Checks required variables
    - Validates sensitive data security
    - Ensures configuration consistency
@@ -55,7 +56,7 @@
 
 ```text
 ✅ All required variables set
-✅ All optional variables configured  
+✅ All optional variables configured
 ✅ Database variables consistent
 ✅ No port conflicts detected
 ✅ URL formats correct
@@ -102,7 +103,7 @@ make help
 ## 🔄 Next Steps
 
 1. **Test locally**: Run `docker compose up` to verify everything works
-2. **Deploy to AWS**: Use `make aws-ecr-deploy` for ECR deployment  
+2. **Deploy to AWS**: Use `make aws-ecr-deploy` for ECR deployment
 3. **Production setup**: Follow `deployments/aws/README.md` for full AWS deployment
 4. **Monitor**: Use the validation script regularly to catch configuration drift
 

@@ -141,10 +141,6 @@ type CustomInfo map[string]interface{}
 // This struct is the authoritative reference for campaign metadata and orchestration.
 // Each field is documented with its type, purpose, and relation to other services.
 type Metadata struct {
-	// ID is the unique campaign ID/slug.
-	// Used by: All services for identification and cross-referencing.
-	ID string `json:"id"`
-
 	// Type is the campaign type (e.g., "onboarding", "promo", "ugc", ...).
 	// Used by: All services for routing, orchestration, and analytics.
 	Type string `json:"type"`
@@ -344,7 +340,6 @@ func GetSubscriptionInfo(meta *commonpb.Metadata) (typ string, price float64, cu
 func CanonicalizeFromProto(meta *commonpb.Metadata, fallbackID string) (*Metadata, error) {
 	m := &Metadata{}
 	// Set defaults
-	m.ID = fallbackID
 	m.Type = CampaignTypeScheduled
 	m.Status = CampaignStatusInactive
 	m.Versioning = &VersioningInfo{
@@ -368,9 +363,6 @@ func CanonicalizeFromProto(meta *commonpb.Metadata, fallbackID string) (*Metadat
 	if meta != nil && meta.ServiceSpecific != nil {
 		ss := meta.ServiceSpecific.AsMap()
 		if cmeta, ok := ss["campaign"].(map[string]interface{}); ok {
-			if id, ok := cmeta["id"].(string); ok && id != "" {
-				m.ID = id
-			}
 			if typ, ok := cmeta["type"].(string); ok && typ != "" {
 				m.Type = typ
 			}
@@ -596,7 +588,6 @@ func CanonicalizeFromProto(meta *commonpb.Metadata, fallbackID string) (*Metadat
 // ToProto converts a canonical Metadata struct to *commonpb.Metadata under service_specific.campaign.
 func ToProto(m *Metadata) *commonpb.Metadata {
 	campaignMap := map[string]interface{}{
-		"id":     m.ID,
 		"type":   m.Type,
 		"status": m.Status,
 	}

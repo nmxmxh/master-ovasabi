@@ -18,7 +18,6 @@
     ],
     "service_specific": {
       "campaign": {
-        "id": "ovasabi_website",
         "slug": "ovasabi_website",
         "name": "ovasabi_website",
         "status": "active",

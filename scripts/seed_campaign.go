@@ -113,6 +113,11 @@ func SeedCampaign() (bool, error) {
 
 	for i, c := range campaigns {
 		fmt.Printf("[seed_campaign] Seeding campaign %d/%d: slug=%s, title=%s, start_date=%s, end_date=%s\n", i+1, len(campaigns), c.Slug, c.Title, c.StartDate, c.EndDate)
+		if c.Metadata != nil {
+			if m, ok := c.Metadata.(map[string]interface{}); ok {
+				delete(m, "id")
+			}
+		}
 		metadataJSON, err := json.Marshal(c.Metadata)
 		if err != nil {
 			fmt.Printf("[seed_campaign][ERROR] Failed to marshal metadata for campaign %s: %v\n", c.Slug, err)

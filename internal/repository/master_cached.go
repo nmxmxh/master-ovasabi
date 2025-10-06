@@ -270,6 +270,13 @@ func (r *CachedMasterRepository) GetByUUID(ctx context.Context, id uuid.UUID) (*
 	return r.repo.GetByUUID(ctx, id)
 }
 
+// GetByNameAndType retrieves a master record by name and entity type with caching.
+func (r *CachedMasterRepository) GetByNameAndType(ctx context.Context, name string, entityType EntityType) (*Master, error) {
+	// No caching for this method, as it's primarily used for existence checks before creation.
+	// Caching here might lead to stale data if a record is created but not yet reflected in cache.
+	return r.repo.GetByNameAndType(ctx, name, entityType)
+}
+
 // For redis.ContextMaster, if not defined in pkg/redis, define here:.
 const ContextMaster = "master"
 

@@ -145,6 +145,26 @@ func (r *DefaultMasterRepository) Get(ctx context.Context, id int64) (*Master, e
 	return master, nil
 }
 
+// GetByNameAndType retrieves a master record by name and entity type.
+func (r *DefaultMasterRepository) GetByNameAndType(ctx context.Context, name string, entityType EntityType) (*Master, error) {
+	master := &Master{}
+	err := r.GetDB().QueryRowContext(ctx,
+		`SELECT id, uuid, name, type, description, version, created_at, updated_at
+				FROM master
+				WHERE name = $1 AND type = $2`,
+		name, entityType).Scan(
+		&master.ID, &master.UUID, &master.Name, &master.Type,
+		&master.Description, &master.Version, &master.CreatedAt,
+		&master.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrMasterNotFound
+		}
+		return nil, fmt.Errorf("failed to get master record by name and type: %w", err)
+	}
+	return master, nil
+}
+
 // Delete removes a master record.
 func (r *DefaultMasterRepository) Delete(ctx context.Context, id int64) error {
 	tx, err := r.GetDB().BeginTx(ctx, nil)

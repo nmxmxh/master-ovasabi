@@ -1,6 +1,7 @@
 # AI System Offline Configuration
 
-This document explains how to run the AI system in offline mode when there's no internet connectivity or when Hugging Face is not accessible.
+This document explains how to run the AI system in offline mode when there's no internet
+connectivity or when Hugging Face is not accessible.
 
 ## Quick Start - Offline Mode
 
@@ -23,12 +24,14 @@ python3 main.py
 
 The system now includes graceful fallback mechanisms:
 
-1. **PhiEngine**: 
+1. **PhiEngine**:
+
    - First tries to load from local model directory (`internal/ai/python/models/`)
    - Falls back to WASM/edge mode if no models are available
    - Logs warnings but continues running
 
 2. **EmbeddingEngine**:
+
    - Tries to load cached models from `~/.cache/torch/sentence_transformers/`
    - Falls back to WASM mode if no cached models found
    - Continues operation with degraded functionality
@@ -67,8 +70,10 @@ When running offline:
 ## Troubleshooting
 
 If you see `"System bootstrap failed"` with network errors:
+
 1. Use the offline script: `./scripts/run_offline_ai.sh`
 2. Or set the environment variables manually
 3. Check that Python dependencies are installed locally
 
-The system is designed to degrade gracefully rather than fail completely when models are unavailable.
+The system is designed to degrade gracefully rather than fail completely when models are
+unavailable.

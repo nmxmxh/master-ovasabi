@@ -907,7 +907,7 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 		// Serialization failed, broadcast failed event
 		response = &nexusv1.EventResponse{
 			Success:   false,
-			EventId:   uuid.New().String(),
+			EventId:   correlationID,
 			EventType: "campaign:list:v1:failed",
 			Message:   "campaign_list_serialization_failed",
 			Metadata:  event.Metadata,
@@ -919,7 +919,7 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 		// Serialization successful, broadcast success event
 		response = &nexusv1.EventResponse{
 			Success:   true,
-			EventId:   uuid.New().String(),
+			EventId:   correlationID,
 			EventType: "campaign:list:v1:success",
 			Message:   "campaign_list_retrieved",
 			Metadata:  event.Metadata,
@@ -1191,9 +1191,6 @@ func (m *CampaignStateManager) handleCampaignSwitch(ctx context.Context, event *
 		payloadMap := event.Payload.Data.AsMap()
 		if cid, ok := payloadMap["campaignId"].(string); ok && cid != "" {
 			payload.CampaignID = cid
-		}
-		if slug, ok := payloadMap["slug"].(string); ok && slug != "" {
-			payload.Slug = slug
 		}
 		if updates, ok := payloadMap["updates"].(map[string]any); ok {
 			payload.Updates = updates

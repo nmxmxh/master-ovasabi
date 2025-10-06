@@ -59,6 +59,7 @@ type MasterRepository interface {
 	CreateMasterRecord(ctx context.Context, entityType, name string) (int64, string, error)            // Non-transactional convenience
 	Create(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (int64, string, error) // Transactional
 	Get(ctx context.Context, id int64) (*Master, error)
+	GetByNameAndType(ctx context.Context, name string, entityType EntityType) (*Master, error)
 	Delete(ctx context.Context, id int64) error
 	List(ctx context.Context, limit, offset int) ([]*Master, error)
 	GetByUUID(ctx context.Context, id uuid.UUID) (*Master, error)

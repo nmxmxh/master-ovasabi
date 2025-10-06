@@ -2,7 +2,8 @@
 
 ## 🎯 What's Ready
 
-Your Master Ovasabi application is now **fully configured and ready for AWS deployment**. Here's what has been set up:
+Your Master Ovasabi application is now **fully configured and ready for AWS deployment**. Here's
+what has been set up:
 
 ### ✅ Environment Configuration
 
@@ -164,9 +165,11 @@ AWS_ACCOUNT_ID=322424815667
    ```
 
 3. **Permission errors**
+
    - Ensure your AWS user has permissions for ECS, ECR, RDS, VPC
 
 4. **Region issues**
+
    - Script uses `af-south-1` (Africa - Cape Town)
    - Change `AWS_REGION` environment variable if needed
 

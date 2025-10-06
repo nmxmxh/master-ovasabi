@@ -338,10 +338,10 @@ docs-generate-tests:
 	go run scripts/gen_test_docs.go
 
 # Main documentation workflow (add docs-generate-tests as a prerequisite)
-docs: docs-generate-tests docs-format docs-validate
+docs: docs-format docs-validate
 	@echo "All documentation generated and validated."
 
-docs-all: docs-generate-tests docs-format docs-validate docs-serve
+docs-all: docs-format docs-validate docs-serve
 	@echo "Full documentation workflow complete."
 
 # JS dependencies

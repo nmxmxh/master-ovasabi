@@ -68,10 +68,16 @@ type EndpointConfig struct {
 
 // ActionConfig represents an action configuration.
 type ActionConfig struct {
-	ProtoMethod        string   `json:"proto_method"`
-	RequestModel       string   `json:"request_model"`
-	ResponseModel      string   `json:"response_model"`
-	RestRequiredFields []string `json:"rest_required_fields,omitempty"`
+	ProtoMethod        string                 `json:"proto_method"`
+	RequestModel       string                 `json:"request_model"`
+	ResponseModel      string                 `json:"response_model"`
+	RestRequiredFields []string               `json:"rest_required_fields,omitempty"`
+	Fields             map[string]FieldConfig `json:"fields,omitempty"`
+}
+
+type FieldConfig struct {
+	Type     string `json:"type"`
+	Required bool   `json:"required"`
 }
 
 // ProtoServiceInfo contains information extracted from proto files.
@@ -118,6 +124,12 @@ func (g *DynamicServiceRegistrationGenerator) discoverProtoServices() ([]ProtoSe
 		}
 
 		if !strings.HasSuffix(path, ".proto") {
+			return nil
+		}
+
+		// Skip proto files in the 'common' directory as they do not contain service definitions
+		if strings.Contains(path, "api/protos/common/") {
+			g.logger.Debug("Skipping proto file in common directory", zap.String("path", path))
 			return nil
 		}
 
@@ -440,17 +452,89 @@ func (g *DynamicServiceRegistrationGenerator) methodToAction(methodName string) 
 func (g *DynamicServiceRegistrationGenerator) generateActionMap(service ProtoServiceInfo) map[string]ActionConfig {
 	actionMap := make(map[string]ActionConfig)
 
+	// Build a map of message name to fields for proto messages
+	messageFields := g.extractProtoMessageFields(service)
+
 	for _, method := range service.Methods {
 		actionName := g.methodToAction(method.Name)
+		requiredFields := g.inferRequiredFields(method)
+		fields := make(map[string]FieldConfig)
+		// Use extracted proto message fields if available
+		if msgFields, ok := messageFields[method.InputType]; ok {
+			for fname, ftype := range msgFields {
+				fields[fname] = FieldConfig{
+					Type:     ftype,
+					Required: contains(requiredFields, fname),
+				}
+			}
+		} else {
+			// Fallback: just mark required fields as string type
+			for _, fname := range requiredFields {
+				fields[fname] = FieldConfig{Type: "string", Required: true}
+			}
+		}
 		actionMap[actionName] = ActionConfig{
 			ProtoMethod:        method.Name,
 			RequestModel:       method.InputType,
 			ResponseModel:      method.OutputType,
-			RestRequiredFields: g.inferRequiredFields(method),
+			RestRequiredFields: requiredFields,
+			Fields:             fields,
 		}
 	}
 
 	return actionMap
+}
+
+// extractProtoMessageFields parses proto messages and returns a map of message name to field name/type
+func (g *DynamicServiceRegistrationGenerator) extractProtoMessageFields(service ProtoServiceInfo) map[string]map[string]string {
+	// This is a simple parser for proto message fields
+	// Only supports basic types and ignores nested/complex fields for now
+	messageFields := make(map[string]map[string]string)
+	protoPath := g.inferProtoPath(service.ServiceName)
+	content, err := os.ReadFile(protoPath)
+	if err != nil {
+		return messageFields
+	}
+	lines := strings.Split(string(content), "\n")
+	var currentMsg string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "message ") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				currentMsg = parts[1]
+				messageFields[currentMsg] = make(map[string]string)
+			}
+			continue
+		}
+		if currentMsg != "" && line == "}" {
+			currentMsg = ""
+			continue
+		}
+		if currentMsg != "" && line != "" && !strings.HasPrefix(line, "//") {
+			// Example: string name = 1;
+			fieldParts := strings.Fields(line)
+			if len(fieldParts) >= 3 {
+				ftype := fieldParts[0]
+				fname := fieldParts[1]
+				// Remove trailing semicolon and '='
+				fname = strings.Split(fname, "=")[0]
+				fname = strings.TrimSpace(strings.TrimSuffix(fname, ";"))
+				messageFields[currentMsg][fname] = ftype
+			}
+		}
+	}
+	return messageFields
+}
+
+// contains checks if a slice contains a string
+func contains(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // inferRequiredFields infers required fields for REST endpoints.
