@@ -1,236 +1,190 @@
-# Documentation
+# OVASABI Platform Communication Standards
 
-version: 2025-05-14
-
-version: 2025-05-14
-
-version: 2025-05-14
-
-> **Reference:** See [Amadeus Context](../amadeus/amadeus_context.md) for system-wide architecture,
-> metadata, and service integration patterns.
+> **Version:** 2025-10-06
+>
+> **Audience:** All Engineers and Architects
+>
+> **Reference:** See [Amadeus Context](../amadeus/amadeus_context.md) for the system-wide orchestration and knowledge graph patterns that these standards support.
 
 ---
 
-## Overview
+## 1. Overview
 
-This document defines the **central communication standards** for all application-based interactions
-on the OVASABI platform. It establishes:
+This document defines the **single, unified communication standard** for all service and client interactions on the OVASABI platform. It establishes a hybrid architectural pattern that combines the directness of **Remote Procedure Calls (RPC)** with the ubiquity and web-friendliness of **REST and WebSockets**.
 
-- A unified, dynamic REST API pattern for all updates and commands
-- A real-time WebSocket event system for feedback and streaming
-- Metadata-driven extensibility for campaign, user, and system context
-- Integration guidance for streaming and media uploading services
+The core principles are:
+- **A Unified Command Endpoint:** All state-changing operations are treated as RPC-style "actions," sent as JSON payloads to a single, dynamic HTTP endpoint.
+- **A Real-Time Event Bus:** A WebSocket-based system provides real-time feedback, streaming, and notifications using a strictly-defined, canonical event structure.
+- **Metadata-Driven Orchestration:** All communication is enriched with metadata, enabling dynamic routing, feature flagging, and deep integration with the Amadeus knowledge graph.
 
-These standards ensure all services—current and future—are interoperable, extensible, and compliant
-with the Amadeus knowledge graph and orchestration system.
+These standards are the foundation of our "API Factory" model, ensuring that all services—current and future—are interoperable, observable, scalable, and provide a consistent developer experience.
 
 ---
 
-## 1. Central Communication Pattern
+## 2. Architectural Philosophy: RPC-Style Commands over Web Protocols
 
-### REST API (Dynamic, Metadata-Driven)
+To understand our approach, it's useful to compare it with traditional API paradigms.
 
-- **Single endpoint:** `/api/{campaign}/update` for all user/system actions
-- **Dynamic fields:** `data` and `metadata` objects allow flexible, campaign- and user-specific
-  payloads
-- **Action routing:** The `action` field determines backend logic (e.g., `submit_quote`, `register`,
-  `upload_media`, `start_stream`)
-- **Extensible:** New actions and data fields can be added without new endpoints
+| Paradigm | Style | Pros | Cons |
+| :--- | :--- | :--- | :--- |
+| **REST** | **Resource-Oriented (Nouns)** | Standard, stateless, great for public-facing CRUD APIs. | Can be rigid and verbose for complex, action-based workflows. Leads to endpoint sprawl. |
+| **gRPC (RPC)** | **Action-Oriented (Verbs)** | High-performance, strongly-typed, ideal for internal service-to-service communication. | Less web-native; gRPC-Web has limitations and doesn't support true bidirectional streaming. |
+| **Our Hybrid** | **Action-Oriented over HTTP/WS** | Combines RPC's directness with the web's native protocols. Single endpoint, flexible, real-time. | Requires a smart gateway and disciplined adherence to the standard. |
 
-### WebSocket Event System (Unified Event Bus)
+Our system adopts an **RPC-style philosophy** but implements it over standard web protocols. Instead of creating dozens of resource-specific REST endpoints (e.g., `POST /quotes`, `POST /users`), we treat every operation as a procedure call.
 
-- **Endpoint:** `/ws/{campaign}/{user_id}` (or `/ws` for general event bus)
-- **Unified event envelope:** All messages (from client or server) use:
+This provides the conceptual clarity of RPC (`commerce.createQuote({...})`) while avoiding the client-side complexity of gRPC-Web. It is the key to bridging our high-performance gRPC backend with any web or mobile client, seamlessly.
+
+---
+
+## 3. The Unified Communication Pattern
+
+### 3.1. Command Endpoint (HTTP)
+
+All write operations, commands, and actions MUST be sent to a single, unified endpoint. This endpoint acts as the primary ingress for client-initiated actions.
+
+- **Endpoint:** `POST /api/v1/execute`
+- **Request Envelope:** All requests MUST use the following JSON structure:
   ```json
   {
-    "type": "event_type",
+    "action": "service.method",
     "payload": { ... },
     "metadata": { ... }
   }
   ```
-- **Clients as emitters and receivers:** Any client (browser, WASM, mobile, etc.) can emit events
-  (e.g., search, actions) and receive events (e.g., search results, campaign updates, notifications)
-  via the WebSocket connection.
-- **Event routing:** The WebSocket server emits all incoming events to the Nexus event bus, and
-  routes all relevant events from the bus to the appropriate clients.
-- **Loose coupling and orchestration:** All communication is event-driven and metadata-rich,
-  enabling orchestration, automation, and extensibility.
+  - **`action`**: A string identifying the target service and method (e.g., `commerce.createQuote`). This is the "Remote Procedure Call."
+  - **`payload`**: An object containing the specific data for the action.
+  - **`metadata`**: An object containing contextual information for routing, orchestration, and analytics (see Section 6).
 
-### Metadata-Driven Orchestration
+### 3.2. Real-Time Event Bus (WebSocket)
 
-- **All payloads include `metadata`:** Used for scheduling, features, custom rules, audit, tags, and
-  service-specific extensions
-- **Nexus orchestration:** Backend routes and composes logic based on metadata, campaign, and user
-  context
-- **Knowledge graph integration:** All communication is tracked and enriched in Amadeus
+The WebSocket connection is the primary channel for real-time, server-to-client communication.
 
----
-
-## 2. OpenAPI Specification (REST)
-
-See [OpenAPI Spec Example](#openapi-spec-example) below for a canonical definition. All REST
-endpoints must:
-
-- Accept `user_id`, `action`, `data`, and `metadata`
-- Respond with dynamic fields based on action/campaign
-- Use JWT or session authentication
-
----
-
-## 3. WebSocket Event Schema
-
-- All clients connect to `/ws/{campaign}/{user_id}`
-- Events are JSON objects with a `type` field and dynamic payload
-- Event types include:
-  - `update_ack`: Acknowledgement of REST action
-  - `campaign_event`: Campaign-specific events (e.g., referral milestones)
-  - `stats_update`: Real-time stats (active users, leaderboards)
-  - `media_event`: Media upload/progress/completion notifications
-  - `stream_event`: Streaming status, errors, or data
-  - `error`: Error messages
-  - `notification`: General notifications
-
----
-
-## 4. Streaming and Media Uploading Services
-
-### Streaming Services
-
-- **Initiation:**
-  - Client sends a REST `POST /api/{campaign}/update` with `action: start_stream` and relevant
-    `data`/`metadata`
-  - Backend processes, allocates resources, and responds with stream info (e.g., stream ID,
-    endpoints)
-  - WebSocket event (`stream_event`) notifies client of stream status, errors, or data
-- **Real-Time Data:**
-  - All real-time stream updates (e.g., viewer count, stream health, chat) are pushed via WebSocket
-    as `stream_event`
-  - Clients can send control commands (e.g., stop, pause) via REST or a dedicated WebSocket message
-    (if bi-directional)
-- **Extensibility:**
-  - New stream types or features are added by extending the `action` and `data` fields, and
-    documenting new `stream_event` payloads
-
-### Media Uploading Services
-
-- **Initiation:**
-  - Client sends a REST `POST /api/{campaign}/update` with `action: upload_media` and file metadata
-    in `data`/`metadata`
-  - Backend responds with upload URL or instructions (e.g., pre-signed S3 URL)
-- **Upload Progress:**
-  - Client uploads media directly (e.g., to object storage)
-  - Backend pushes `media_event` via WebSocket for progress, completion, or errors
-- **Completion:**
-  - On upload completion, backend processes media (e.g., transcoding, validation)
-  - Client receives `media_event` updates (e.g., `processing`, `ready`, `failed`)
-- **Extensibility:**
-  - Support for new media types, processing steps, or notifications is added by extending the
-    `action`, `data`, and `media_event` schema
-
----
-
-## 5. Example OpenAPI Spec
-
-```
-openapi: 3.0.0
-info:
-  title: OVASABI Central Communication API
-  version: 1.0.0
-paths:
-  /api/{campaign}/update:
-    post:
-      summary: Submit an update or command for a campaign
-      parameters:
-        - in: path
-          name: campaign
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                user_id:
-                  type: string
-                action:
-                  type: string
-                data:
-                  type: object
-                metadata:
-                  type: object
-              required:
-                - user_id
-                - action
-                - data
-      responses:
-        '200':
-          description: Dynamic response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  result:
-                    type: object
-                  message:
-                    type: string
-```
-
----
-
-## 6. Example WebSocket Event Types
-
-- **update_ack**
+- **Endpoint:** `/ws/v1`
+- **Unified Event Envelope:** All messages (from server to client) MUST use the canonical event structure:
   ```json
   {
-    "type": "update_ack",
-    "action": "upload_media",
-    "status": "success",
-    "result": { "media_id": "m_123" }
+    "event": "service:action:v1:state",
+    "payload": { ... },
+    "metadata": { ... }
   }
   ```
-- **media_event**
-  ```json
-  { "type": "media_event", "media_id": "m_123", "status": "processing", "progress": 42 }
-  { "type": "media_event", "media_id": "m_123", "status": "ready", "url": "https://..." }
-  ```
-- **stream_event**
-  ```json
-  { "type": "stream_event", "stream_id": "s_456", "status": "started", "viewers": 10 }
-  { "type": "stream_event", "stream_id": "s_456", "status": "ended" }
-  ```
+  - **`event`**: The canonical event type (see Section 4).
+  - **`payload`**: The data associated with the event.
+  - **`metadata`**: Contextual information, including a `correlation_id` linking the event to the initial command.
 
 ---
 
-## 7. Extensibility & Best Practices
+## 4. Canonical Event Naming Standard
 
-- **All new features** (streaming, media, campaigns, etc.) use the same REST/WebSocket pattern
-- **Document new actions and event types** in this standard and in the Amadeus context
-- **Use metadata** for all extensible fields and orchestration
-- **Integrate with Amadeus/Nexus** for registration, orchestration, and knowledge graph enrichment
-- **Secure all endpoints** (JWT/session for REST, token/cookie for WebSocket)
-- **Monitor and log** all communication for observability and compliance
+To ensure consistency, observability, and predictability, all events, channels, and cache keys MUST use the following standardized format.
+
+**Format:** `{service}:{action}:v{version}:{state}`
+
+- **`service`**: Normalized, lowercase service name (e.g., `commerce`, `user`).
+- **`action`**: Snake_case action/method name (e.g., `create_quote`, `get_profile`).
+- **`version`**: API/service version (e.g., `v1`).
+- **`state`**: A controlled term describing the event's position in the action lifecycle.
+
+### 4.1. Controlled State Vocabulary
+
+All event `state` fields MUST use one of the following values:
+
+| State | Description |
+| :--- | :--- |
+| `requested` | An action has been accepted by the system and is queued for processing. |
+| `started` | A worker has begun processing the action. |
+| `success` | The action completed successfully. The payload contains the result. |
+| `failed` | The action failed. The payload contains error details. |
+| `completed` | A terminal state, often used for workflows to signal the entire process is finished. |
+
+This strict naming convention allows for powerful, automated tooling, monitoring, and creates a predictable, observable lifecycle for every action in the system.
 
 ---
 
-## 8. References
+## 5. Event Routing: System, Campaign, and User Scope
 
-- [Amadeus Context](../amadeus/amadeus_context.md)
-- [Service Implementation Pattern](../services/implementation_pattern.md)
-- [OpenAPI Specification](https://swagger.io/specification/)
-- [AsyncAPI (for WebSocket/Event Docs)](https://www.asyncapi.com/)
+The WebSocket gateway and Nexus route events based on the **presence of `campaign_id` and `user_id` fields in the event payload**, not the event name itself. This enables generic, extensible routing for all canonical event types.
 
-### Example Event Flow
+| Event Scope | `campaign_id` Present? | `user_id` Present? | Gateway Broadcast | Recipients |
+| :--- | :--- | :--- | :--- | :--- |
+| **System-wide** | ❌ | ❌ | `broadcastSystem` | All connected clients |
+| **Campaign-specific** | ✅ | ❌ | `broadcastCampaign` | All clients in that campaign |
+| **User-specific** | (any) | ✅ | `broadcastUser` | Only that specific user |
 
-- Client sends a `search` event via WebSocket → WebSocket server emits `search.requested` to Nexus →
-  Search service processes and emits `search.completed` → WebSocket server routes result to client.
+This design decouples event creation from routing logic. New services and event types require no changes to the gateway, ensuring scalability.
 
-### Extensibility
+---
 
-- New event types and workflows can be added without changing endpoints or protocol.
-- All events are tracked, versioned, and auditable via metadata and the knowledge graph.
+## 6. Metadata-Driven Orchestration
+
+The `metadata` object is present in every command and event and is critical for orchestration.
+
+- **All payloads MUST include `metadata`**.
+- It is used for: scheduling, feature flags, custom business rules, audit trails, A/B testing, and service-specific extensions.
+- The Nexus and Amadeus systems use this metadata to route, compose logic, and enrich the platform's knowledge graph.
+
+---
+
+## 7. End-to-End Example Flow: Creating a Quote
+
+1.  **Client Sends Command:** The client sends a command to the unified HTTP endpoint.
+    ```http
+    POST /api/v1/execute
+    Content-Type: application/json
+
+    {
+      "action": "commerce.createQuote",
+      "payload": {
+        "amount": 100,
+        "currency": "USD",
+        "product_id": "prod_123"
+      },
+      "metadata": {
+        "user_id": "user_abc",
+        "campaign_id": "camp_xyz",
+        "correlation_id": "uuid-1"
+      }
+    }
+    ```
+
+2.  **API Gateway & Nexus:**
+    - The gateway accepts the request and immediately returns a `202 Accepted`.
+    - It publishes a `commerce:create_quote:v1:requested` event to the internal message bus.
+
+3.  **Commerce Service:**
+    - Subscribed to `*:*:v1:requested` events, it picks up the job.
+    - It begins processing, and may optionally emit a `commerce:create_quote:v1:started` event.
+    - Upon successful processing, it emits the `commerce:create_quote:v1:success` event with the result.
+
+4.  **WebSocket Gateway:**
+    - It is subscribed to all `*:*:v1:success` and `*:*:v1:failed` events.
+    - It receives the `success` event and inspects its `metadata`.
+    - Seeing `user_id: "user_abc"`, it uses the `broadcastUser` function to send the event only to that user's WebSocket connection.
+
+5.  **Client Receives Real-Time Event:** The client's UI receives the event and updates reactively.
+    ```json
+    {
+      "event": "commerce:create_quote:v1:success",
+      "payload": {
+        "quote_id": "quote_789",
+        "expires_at": "2025-10-06T22:00:00Z"
+      },
+      "metadata": {
+        "user_id": "user_abc",
+        "campaign_id": "camp_xyz",
+        "correlation_id": "uuid-1"
+      }
+    }
+    ```
+
+---
+
+## 8. Enforcement & Best Practices
+
+- **Source of Truth:** All valid event types are generated from service registration and proto definitions. Use these generated constants.
+- **Validation:** CI pipelines and service startup routines MUST validate that all subscribed and emitted event types are registered.
+- **Observability:** All logs MUST include the full event type and `correlation_id`.
+- **Security:** Use prefixes and namespaces to prevent collisions. Access control should restrict which services can publish/subscribe to which event channels.
+- **Compliance:** All new code and services MUST comply with these standards.
+

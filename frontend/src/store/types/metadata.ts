@@ -1,5 +1,5 @@
 // Metadata-related type definitions
-import type { CampaignMetadata } from './campaign';
+import type { Campaign } from './campaign';
 
 export interface UserMetadata {
   userId?: string;
@@ -56,7 +56,7 @@ export interface SessionMetadata {
 }
 
 export interface Metadata {
-  campaign: CampaignMetadata;
+  campaign: Campaign;
   user: UserMetadata;
   device: DeviceMetadata;
   session: SessionMetadata;

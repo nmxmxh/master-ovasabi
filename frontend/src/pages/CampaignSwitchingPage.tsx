@@ -262,7 +262,7 @@ const CampaignSwitchingPage: React.FC = () => {
   // Enhanced campaign information with detailed logging
   const getCampaignInfo = (campaign: any) => {
     const info = {
-      id: campaign.id || campaign.campaignId || 'Unknown',
+      id: campaign.id || 'Unknown',
       title: campaign.title || campaign.name || 'Untitled Campaign',
       slug: campaign.slug || 'unknown',
       description: campaign.description || 'No description available',
@@ -329,8 +329,7 @@ const CampaignSwitchingPage: React.FC = () => {
   const handleCampaignSwitch = async (campaign: any) => {
     const campaignInfo = getCampaignInfo(campaign);
     const isCurrent =
-      currentCampaign?.campaignId === campaign.id ||
-      currentCampaign?.campaignId === campaign.campaignId;
+      currentCampaign?.id === campaign.id;
 
     console.log('[CampaignSwitchingPage] Switch attempt:', {
       campaign: campaignInfo,
@@ -591,8 +590,7 @@ const CampaignSwitchingPage: React.FC = () => {
                   {campaigns.map(campaign => {
                     const campaignInfo = getCampaignInfo(campaign);
                     const isCurrent =
-                      currentCampaign?.campaignId === campaign.id ||
-                      currentCampaign?.campaignId === campaign.campaignId;
+                      currentCampaign?.id === campaign.id;
 
                     return (
                       <div

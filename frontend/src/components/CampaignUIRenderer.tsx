@@ -1,9 +1,10 @@
 import React from 'react';
-import type { CampaignMetadata } from '../store/types/campaign';
+import type { Campaign } from '../store/types/campaign';
 import DummyComponentGenerator from './DummyComponentGenerator';
+import { extractUIComponents, extractTheme } from './ui/ComponentRegistry';
 
 interface CampaignUIRendererProps {
-  campaign?: CampaignMetadata;
+  campaign?: Campaign;
   isLoading?: boolean;
 }
 
@@ -16,9 +17,8 @@ const CampaignUIRenderer: React.FC<CampaignUIRendererProps> = ({ campaign, isLoa
     return <div className="minimal-text">No campaign data provided.</div>;
   }
 
-  const campaignData = (campaign as any).metadata?.service_specific?.campaign || campaign.serviceSpecific?.campaign || campaign;
-  const uiComponents = campaignData.ui_components || (campaign as any).ui_components || {};
-  const theme = campaignData.theme || (campaign as any).theme || {};
+  const uiComponents = extractUIComponents(campaign);
+  const theme = extractTheme(campaign);
 
   return (
     <div className="minimal-section">

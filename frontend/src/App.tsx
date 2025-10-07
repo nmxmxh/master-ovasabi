@@ -430,7 +430,7 @@ function CampaignManagementPage() {
       <div className="minimal-section">
         <div className="minimal-title">CURRENT CAMPAIGN</div>
         <div className="minimal-text">
-          ID: {currentCampaign.campaignId || 'N/A'} | Status: {currentCampaign.status || 'UNKNOWN'}
+          ID: {currentCampaign.id || 'N/A'} | Status: {currentCampaign.status || 'UNKNOWN'}
         </div>
         {currentCampaign.title && (
           <div className="minimal-text">Title: {currentCampaign.title}</div>
@@ -450,8 +450,6 @@ function CampaignManagementPage() {
           <div className="minimal-grid">
             {campaigns.map((campaign, index) => {
               const isCurrentCampaign =
-                currentCampaign.campaignId === campaign.id ||
-                currentCampaign.campaignId === campaign.campaignId ||
                 currentCampaign.id === campaign.id;
 
               return (
@@ -532,7 +530,7 @@ function CampaignManagementPage() {
           {JSON.stringify(
             {
               campaigns: campaigns.length,
-              currentCampaign: currentCampaign.campaignId,
+              currentCampaign: currentCampaign.id,
               events: events.length,
               metadata: metadata?.campaign
             },

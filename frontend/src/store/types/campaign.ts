@@ -1,39 +1,17 @@
 // Campaign-related type definitions
-export interface CampaignMetadata {
-  campaignId: number | string;
-  campaignName?: string;
-  slug?: string;
+export interface Campaign {
+  id: string;
+  name: string;
+  title: string;
+  slug: string;
+  description: string;
+  status: 'active' | 'inactive' | 'draft';
   features: string[];
-  // Core campaign fields
-  title?: string;
-  description?: string;
-  status?: 'active' | 'inactive' | 'draft';
-  tags?: string[];
+  tags: string[];
   createdAt?: string;
   updatedAt?: string;
-  // Backend campaign structure
-  about?: {
-    order?: Array<{
-      p?: string;
-      title?: string;
-      type?: 'content' | 'list' | 'image' | 'video';
-      list?: string[];
-      subtitle?: string;
-    }>;
-  };
-  ui_content?: {
-    banner?: string;
-    cta?: string;
-    architecture_overview?: {
-      description?: string;
-      sections?: string[];
-    };
-    lead_form?: {
-      fields?: string[];
-      submit_text?: string;
-    };
-    [key: string]: any;
-  };
+  about?: Record<string, any>;
+  ui_content?: Record<string, any>;
   broadcast_enabled?: boolean;
   channels?: string[];
   i18n_keys?: string[];
@@ -45,17 +23,7 @@ export interface CampaignMetadata {
   owner_id?: string;
   master_id?: number;
   master_uuid?: string;
-  // Service-specific data
-  serviceSpecific?: {
-    campaign?: Record<string, any>;
-    localization?: {
-      scripts?: Record<string, ScriptBlock>;
-      scripts_translations?: Record<string, any>;
-      scripts_translated?: Record<string, ScriptBlock>;
-    };
-    [key: string]: any;
-  };
-  // Campaign switch tracking
+  serviceSpecific?: Record<string, any>;
   last_switched?: string;
   switch_reason?: string;
   switch_status?: string;
@@ -67,7 +35,7 @@ export interface CampaignMetadata {
     privacyPolicyUrl?: string;
     termsUrl?: string;
     consentGiven?: boolean;
-    consentTimestamp?: string; // ISO string with timezone
+    consentTimestamp?: string;
   };
 }
 
@@ -85,8 +53,4 @@ export interface ScriptBlock {
       altText?: string;
     };
   }>;
-}
-
-export interface CampaignState {
-  campaignState?: any; // Legacy field for campaign state integration
 }

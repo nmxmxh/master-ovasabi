@@ -9,6 +9,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	strings "strings"
 	"time"
 
 	"github.com/expr-lang/expr"
@@ -114,12 +115,27 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if req.Metadata.GlobalContext == nil {
 		req.Metadata.GlobalContext = &commonpb.Metadata_GlobalContext{}
 	}
-	// Check if a campaign with the same slug already exists in the master table
-	_, err := s.repo.master.GetByNameAndType(ctx, req.Slug, "campaign")
-	if err == nil {
-		err := graceful.WrapErr(ctx, codes.AlreadyExists, "campaign with this slug already exists", nil)
-		s.handler.Error(ctx, "create_campaign", codes.AlreadyExists, "campaign with this slug already exists", err, nil, req.Slug)
-		return nil, graceful.ToStatusError(err)
+	// Check if a campaign with the same slug already exists.
+	// To improve user experience, we will attempt to create a unique slug by appending a suffix
+	// if a collision is detected, rather than failing immediately.
+	originalSlug := req.Slug
+	for i := 0; i < 10; i++ { // Loop up to 10 times to prevent infinite loops.
+		_, err := s.repo.master.GetByNameAndType(ctx, req.Slug, "campaign")
+		if err != nil {
+			// A "not found" error is the success case, meaning the slug is unique.
+			// This check is broad to handle repository-specific error wrapping (e.g., "master record not found").
+			if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "not found") {
+				break // Slug is unique, we can proceed.
+			}
+			// For any other database error, we should fail.
+			gErr := graceful.MapAndWrapErr(ctx, err, "failed to check for existing campaign slug", codes.Internal)
+			s.handler.Error(ctx, "create_campaign", codes.Internal, "failed to check for existing campaign slug", gErr, nil, req.Slug)
+			return nil, graceful.ToStatusError(gErr)
+		}
+		// If err is nil, a campaign was found. The slug is not unique. Append a suffix and try again.
+		newSlug := fmt.Sprintf("%s-%d", originalSlug, time.Now().UnixNano()%1000)
+		log.Warn("Campaign slug already exists, generating a new one.", zap.String("original_slug", req.Slug), zap.String("new_slug", newSlug))
+		req.Slug = newSlug
 	}
 
 	// Start transaction
@@ -205,8 +221,44 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	if !created.EndDate.IsZero() {
 		resp.EndDate = timestamppb.New(created.EndDate)
 	}
-	// Orchestrate all post-success actions via graceful handler
-	s.handler.Success(ctx, "create_campaign", codes.OK, "campaign created", resp, created.Metadata, created.Slug, nil)
+
+	// --- Metadata Merging for Event Emission ---
+	// Start with the metadata from the incoming request. This contains the original
+	// client context, including critical routing information (user_id, campaign_id, correlation_id).
+	eventMetadata := req.Metadata
+	if eventMetadata == nil {
+		eventMetadata = &commonpb.Metadata{}
+	}
+	if eventMetadata.GlobalContext == nil {
+		eventMetadata.GlobalContext = &commonpb.Metadata_GlobalContext{}
+	}
+	if eventMetadata.ServiceSpecific == nil {
+		eventMetadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+	}
+
+	// Merge the service-specific metadata from the newly created campaign.
+	// This enriches the event with the context of the entity that was just created.
+	if created.Metadata != nil && created.Metadata.ServiceSpecific != nil {
+		for key, value := range created.Metadata.ServiceSpecific.Fields {
+			// This will overwrite if keys conflict, which is desired as the campaign's
+			// own metadata should be authoritative for its specific section.
+			eventMetadata.ServiceSpecific.Fields[key] = value
+		}
+	}
+
+	// Ensure the user ID in the event context is the authenticated user ID from the context.
+	// This is a security measure to prevent spoofing.
+	eventMetadata.GlobalContext.UserId = authUserID
+
+	// The CampaignId from the request metadata is trusted as the routing key for the response.
+	// It reflects the WebSocket connection the client is currently on. If it's missing,
+	// we fall back to the default campaign to ensure the event can be routed.
+	if eventMetadata.GlobalContext.CampaignId == "" {
+		eventMetadata.GlobalContext.CampaignId = "0"
+	}
+
+	// Orchestrate all post-success actions via graceful handler with the merged metadata.
+	s.handler.Success(ctx, "create_campaign", codes.OK, "campaign created", resp, eventMetadata, created.Slug, nil)
 	return &campaignpb.CreateCampaignResponse{Campaign: resp}, nil
 }
 
@@ -360,7 +412,7 @@ func (s *Service) DeleteCampaign(ctx context.Context, req *campaignpb.DeleteCamp
 	// --- Permission check: campaign membership/role ---
 	role := GetUserRoleInCampaign(campaign.Metadata, authUserID, campaign.OwnerID)
 	isSystem := IsSystemCampaign(campaign.Metadata)
-	if role != "admin" && role != "user" && (!isSystem || !isPlatformAdmin) {
+	if role != "admin" && (!isSystem || !isPlatformAdmin) {
 		err := graceful.WrapErr(ctx, codes.PermissionDenied, "insufficient campaign role", nil)
 		s.handler.Error(ctx, "delete_campaign", codes.PermissionDenied, "insufficient campaign role", err, nil, req.Slug)
 		return nil, graceful.ToStatusError(err)

@@ -1,9 +1,9 @@
 import React from 'react';
-import type { CampaignMetadata } from '../store/types/campaign';
+import type { Campaign } from '../store/types/campaign';
 import { renderSimpleComponent, extractUIComponents, extractTheme } from './ui/ComponentRegistry';
 
 interface SimpleCampaignUIRendererProps {
-  campaign?: CampaignMetadata;
+  campaign?: Campaign;
   isLoading?: boolean;
 }
 
@@ -14,7 +14,7 @@ const SimpleCampaignUIRenderer: React.FC<SimpleCampaignUIRendererProps> = ({
   console.log('[SimpleCampaignUIRenderer] Render called:', {
     campaign: campaign
       ? {
-          id: campaign.campaignId || (campaign as any).id,
+          id: campaign.id,
           title: campaign.title,
           status: campaign.status,
           hasUIComponents: !!(campaign as any).ui_components
@@ -193,7 +193,7 @@ const SimpleCampaignUIRenderer: React.FC<SimpleCampaignUIRendererProps> = ({
       >
         <div style={{ marginBottom: '8px' }}>
           <strong>Status:</strong> {campaign.status || 'Unknown'} |<strong> Platform:</strong>{' '}
-          {(campaign as any).platform_type || (campaign as any).focus || 'general'} |
+          {campaign.focus || 'general'} |
           <strong> Features:</strong> {campaign.features?.length || 0} enabled
         </div>
         <div>
