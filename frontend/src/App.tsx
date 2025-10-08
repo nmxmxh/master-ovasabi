@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import CampaignPage from './pages/CampaignPage';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { extractViews } from './components/ui/ComponentRegistry';
 import { useInitializeUserId } from './hooks/useInitializeUserId';
 import { useCampaignState } from './store/hooks/useCampaign';
 import { useCampaignStore } from './store/stores/campaignStore';
@@ -16,6 +17,7 @@ import { setupCampaignSwitchHandler } from './lib/wasmBridge';
 import './App.css';
 import UserServicePage from './pages/UserServicePage';
 import CreateCampaignPage from './pages/CreateCampaignPage';
+import ViewPage from './pages/ViewPage';
 
 // Wrapper to extract serviceName param for ServiceTestPage
 function ServiceTestPageWrapper() {
@@ -372,6 +374,7 @@ function App() {
                 }
               />
               <Route path="/switching" element={<CampaignSwitchingPage />} />
+              <Route path="/view/:viewName" element={<ViewPage />} />
               <Route path="/services" element={<ServiceListPage />} />
               <Route
                 path="/services/user"
@@ -412,6 +415,9 @@ function CampaignManagementPage() {
 
   const currentCampaign = campaignState.state || {};
 
+  const views = extractViews(currentCampaign);
+  const viewNames = Object.keys(views || {});
+
   return (
     <div>
       {/* System Status */}
@@ -435,6 +441,23 @@ function CampaignManagementPage() {
         {currentCampaign.title && (
           <div className="minimal-text">Title: {currentCampaign.title}</div>
         )}
+        {viewNames.length > 0 && (
+          <div className="minimal-text" style={{ marginTop: '8px' }}>
+            Views:
+            <span style={{ marginLeft: '8px' }}>
+              {viewNames.map(v => (
+                <Link
+                  key={v}
+                  to={`/view/${encodeURIComponent(v)}`}
+                  className="minimal-link"
+                  style={{ marginRight: '8px' }}
+                >
+                  {v.toUpperCase()}
+                </Link>
+              ))}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Campaign List */}
@@ -449,8 +472,7 @@ function CampaignManagementPage() {
         ) : (
           <div className="minimal-grid">
             {campaigns.map((campaign, index) => {
-              const isCurrentCampaign =
-                currentCampaign.id === campaign.id;
+              const isCurrentCampaign = currentCampaign.id === campaign.id;
 
               return (
                 <div
@@ -532,7 +554,8 @@ function CampaignManagementPage() {
               campaigns: campaigns.length,
               currentCampaign: currentCampaign.id,
               events: events.length,
-              metadata: metadata?.campaign
+              metadata: metadata?.campaign,
+              views: viewNames
             },
             null,
             2

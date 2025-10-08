@@ -4,7 +4,7 @@ import { useMetadataStore } from '../stores/metadataStore';
 
 // Campaign state hook
 export function useCampaignState() {
-  const campaignState = useCampaignStore(state => state.campaignState);
+  const campaigns = useCampaignStore(state => state.campaigns);
   const currentCampaign = useCampaignStore(state => state.currentCampaign);
   const metadata = useMetadataStore(state => state.metadata?.campaign);
 
@@ -12,13 +12,13 @@ export function useCampaignState() {
   return useMemo(() => {
     // Use currentCampaign as primary source, fallback to metadata
     const campaign = currentCampaign || metadata;
-    const state = campaignState || {};
+    const state = campaigns || {};
 
     return {
       state: {
         ...state,
         // Core campaign fields
-        campaignId: campaign?.campaignId || 0,
+        id: campaign?.id || '0',
         slug: campaign?.slug || 'default',
         features: campaign?.features || [],
         title: campaign?.title,
@@ -45,24 +45,16 @@ export function useCampaignState() {
       metadata: campaign,
       currentCampaign
     };
-  }, [campaignState, currentCampaign, metadata]);
+  }, [campaigns, currentCampaign, metadata]);
 }
 
 // Campaign updates hook
 export function useCampaignUpdates() {
-  const {
-    switchCampaign,
-    updateCampaign,
-    updateCampaignFeatures,
-    updateCampaignConfig,
-    requestCampaignState
-  } = useCampaignStore();
+  const { switchCampaign, updateCampaign, requestCampaignState } = useCampaignStore();
 
   return {
     switchCampaign,
     updateCampaign,
-    updateCampaignFeatures,
-    updateCampaignConfig,
     requestCampaignState
   };
 }

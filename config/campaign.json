@@ -29,6 +29,18 @@
             "referral_invite",
             "leaderboard_title"
           ],
+          "views": {
+            "main": {
+              "components": {
+                "hero_section": {
+                  "type": "hero",
+                  "title": "Welcome to Ovasabi Studios!",
+                  "subtitle": "Join now for exclusive rewards!",
+                  "cta_text": "Get Started"
+                }
+              }
+            }
+          },
           "ui_content": {
             "banner": "Welcome to Ovasabi Studios!",
             "cta": "Join now for exclusive rewards!",
@@ -153,6 +165,18 @@
           "status": "active",
           "focus": "architecture",
           "inos_enabled": true,
+          "views": {
+            "main": {
+              "components": {
+                "architecture_header": {
+                  "type": "hero",
+                  "title": "Explore Ovasabi's intelligent architecture!",
+                  "subtitle": "See how INOS powers the future.",
+                  "cta_text": "Explore"
+                }
+              }
+            }
+          },
           "ui_content": {
             "banner": "Explore Ovasabi's intelligent architecture!",
             "cta": "See how INOS powers the future.",
@@ -283,6 +307,18 @@
             "font_family": "Amazon Ember, Arial, sans-serif",
             "border_radius": "4px",
             "shadow": "0 2px 4px rgba(0, 0, 0, 0.1)"
+          },
+          "views": {
+            "main": {
+              "components": {
+                "amazon_header": {
+                  "type": "hero",
+                  "title": "Shop the best deals",
+                  "subtitle": "Millions of products, one place.",
+                  "cta_text": "Start shopping"
+                }
+              }
+            }
           },
           "ui_components": {
             "amazon_header": {

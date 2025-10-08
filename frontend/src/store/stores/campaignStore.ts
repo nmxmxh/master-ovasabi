@@ -9,7 +9,7 @@ import { useMetadataStore } from './metadataStore';
 const createEvent = (
   type: string,
   payload: Record<string, any>,
-  campaignId?: string,
+  campaignId?: string
 ): Omit<EventEnvelope, 'timestamp' | 'correlation_id' | 'version' | 'environment' | 'source'> => {
   const metadataStore = useMetadataStore.getState();
   const correlationId = `corr_${Date.now()}`;
@@ -28,14 +28,14 @@ const createEvent = (
         correlation_id: correlationId,
         session_id: sessionId,
         device_id: deviceId,
-        source: 'frontend',
+        source: 'frontend'
       },
       envelope_version: '1.0.0',
       environment: process.env.NODE_ENV || 'development',
       ServiceSpecific: {
-        campaign: { campaignId: currentCampaignId },
-      },
-    },
+        campaign: { campaignId: currentCampaignId }
+      }
+    }
   };
 };
 
@@ -60,13 +60,26 @@ interface CampaignStore {
     timestamp?: string;
     status: string;
   }) => void;
-  switchCampaignWithData: (campaignData: Campaign, onResponse?: (event: EventEnvelope) => void) => void;
+  switchCampaignWithData: (
+    campaignData: Campaign,
+    onResponse?: (event: EventEnvelope) => void
+  ) => void;
   updateCampaign: (updates: Partial<Campaign>, onResponse?: (event: EventEnvelope) => void) => void;
   requestCampaignState: (campaignId: string, onResponse?: (event: EventEnvelope) => void) => void;
   updateCampaignFromResponse: (campaignData: any) => void;
   updateCampaignsFromResponse: (responseData: any) => void;
   createCampaign: (campaign: Partial<Campaign>) => Promise<Campaign>;
   requestCampaignList: () => void;
+  // Debugging helpers
+  getCampaignSwitchFlow: () => {
+    currentCampaign?: Campaign;
+    syncStatus: {
+      campaignsMatch: boolean;
+      titlesMatch: boolean;
+      statusMatch: boolean;
+      featuresMatch: boolean;
+    };
+  };
 }
 
 export const useCampaignStore = create<CampaignStore>()(
@@ -87,12 +100,12 @@ export const useCampaignStore = create<CampaignStore>()(
                   id: new_campaign_id,
                   last_switched: timestamp || new Date().toISOString(),
                   switch_reason: reason,
-                  switch_status: 'switching',
+                  switch_status: 'switching'
                 }
-              : undefined,
+              : undefined
           }),
           false,
-          'handleCampaignSwitchRequired',
+          'handleCampaignSwitchRequired'
         );
       },
 
@@ -106,12 +119,12 @@ export const useCampaignStore = create<CampaignStore>()(
                   id: new_campaign_id,
                   last_switched: timestamp || new Date().toISOString(),
                   switch_reason: reason,
-                  switch_status: 'completed',
+                  switch_status: 'completed'
                 }
-              : undefined,
+              : undefined
           }),
           false,
-          'handleCampaignSwitchCompleted',
+          'handleCampaignSwitchCompleted'
         );
       },
 
@@ -130,10 +143,10 @@ export const useCampaignStore = create<CampaignStore>()(
             slug: campaignData.slug,
             updates: {
               status: 'active',
-              last_switched: new Date().toISOString(),
-            },
+              last_switched: new Date().toISOString()
+            }
           },
-          campaignData.id,
+          campaignData.id
         );
         useEventStore.getState().emitEvent(event, onResponse);
       },
@@ -141,10 +154,12 @@ export const useCampaignStore = create<CampaignStore>()(
       updateCampaign: (updates, onResponse) => {
         set(
           state => ({
-            currentCampaign: state.currentCampaign ? { ...state.currentCampaign, ...updates } : undefined,
+            currentCampaign: state.currentCampaign
+              ? { ...state.currentCampaign, ...updates }
+              : undefined
           }),
           false,
-          'updateCampaign',
+          'updateCampaign'
         );
         const campaignId = get().currentCampaign?.id;
         if (campaignId) {
@@ -158,9 +173,9 @@ export const useCampaignStore = create<CampaignStore>()(
           'campaign:state:v1:requested',
           {
             campaignId,
-            fields: ['title', 'status', 'features', 'ui_content', 'communication'],
+            fields: ['title', 'status', 'features', 'ui_content', 'communication']
           },
-          campaignId,
+          campaignId
         );
         useEventStore.getState().emitEvent(event, onResponse);
       },
@@ -170,14 +185,18 @@ export const useCampaignStore = create<CampaignStore>()(
         if (campaign) {
           const updatedCampaign = { ...campaign, ...campaignData };
           set(state => ({
-            campaigns: state.campaigns.map(c => (c.id === updatedCampaign.id ? updatedCampaign : c)),
+            campaigns: state.campaigns.map(c =>
+              c.id === updatedCampaign.id ? updatedCampaign : c
+            ),
             currentCampaign:
-              state.currentCampaign?.id === updatedCampaign.id ? updatedCampaign : state.currentCampaign,
+              state.currentCampaign?.id === updatedCampaign.id
+                ? updatedCampaign
+                : state.currentCampaign
           }));
         } else {
           // if campaign is not in the list, add it
           set(state => ({
-            campaigns: [...state.campaigns, campaignData],
+            campaigns: [...state.campaigns, campaignData]
           }));
         }
       },
@@ -218,14 +237,51 @@ export const useCampaignStore = create<CampaignStore>()(
             set(
               { loading: false, error: 'Failed to load campaigns' },
               false,
-              'requestCampaignListError',
+              'requestCampaignListError'
             );
           }
         });
       },
+
+      // Debugging helpers
+      getCampaignSwitchFlow: () => {
+        const state = get();
+        const current = state.currentCampaign;
+        // Compare currentCampaign with metadata campaign if available
+        const metadataCampaign = useMetadataStore.getState().metadata?.campaign as
+          | Partial<Campaign>
+          | undefined;
+        const syncStatus = {
+          campaignsMatch: !!(
+            current &&
+            metadataCampaign &&
+            current.id === (metadataCampaign as any).id
+          ),
+          titlesMatch: !!(
+            current &&
+            metadataCampaign &&
+            current.title === (metadataCampaign as any).title
+          ),
+          statusMatch: !!(
+            current &&
+            metadataCampaign &&
+            current.status === (metadataCampaign as any).status
+          ),
+          featuresMatch: !!(
+            current &&
+            metadataCampaign &&
+            JSON.stringify(current.features || []) ===
+              JSON.stringify((metadataCampaign as any).features || [])
+          )
+        };
+        return {
+          currentCampaign: current,
+          syncStatus
+        };
+      }
     }),
     {
-      name: 'campaign-store',
-    },
-  ),
+      name: 'campaign-store'
+    }
+  )
 );

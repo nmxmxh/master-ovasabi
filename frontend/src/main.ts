@@ -96,8 +96,12 @@ async function loadGoWasm(wasmUrl: string) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const result = await WebAssembly.instantiateStreaming(response, go.importObject);
+        // Set environment variables for the Go WASM module
+        go.env = go.env || {};
+        // Pass the current host to the WASM module for WebSocket connections
+        go.env.WASM_WS_HOST = window.location.host;
         // WASM instantiation succeeded, running Go WASM
+        const result = await WebAssembly.instantiateStreaming(response, go.importObject);
         go.run(result.instance);
         // Go WASM execution completed
 

@@ -36,16 +36,19 @@ function CreateCampaignPage() {
     }
 
     setStatus('Creating...');
+    // Build a proper Partial<Campaign> payload
     const payload = {
-      ...campaign,
-      metadata: {
-        tags: campaign.tags
-          .split(',')
-          .map(tag => tag.trim())
-          .filter(Boolean),
-        focus: campaign.focus
-      }
-    };
+      title: campaign.title,
+      name: campaign.title,
+      description: campaign.description,
+      slug: campaign.slug,
+      status: campaign.status as 'draft' | 'active' | 'inactive',
+      tags: campaign.tags
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(Boolean),
+      focus: campaign.focus
+    } as const;
     const requiredFields = getRequiredFields('campaign', 'create_campaign');
     const missingFields = validateFields(payload, requiredFields);
     if (missingFields.length > 0) {
@@ -54,7 +57,7 @@ function CreateCampaignPage() {
     }
     try {
       const result: any = await createCampaign(payload);
-      setStatus(`Success! Campaign created with ID: ${result.id || result.campaignId}`);
+      setStatus(`Success! Campaign created with ID: ${result.id}`);
       alert('Campaign created successfully!');
       setCampaign(dummyCampaign); // Reset form to dummy data
     } catch (error: any) {
@@ -99,7 +102,7 @@ function CreateCampaignPage() {
             <SelectField id="status" value={campaign.status} onChange={handleChange}>
               <option value="draft">Draft</option>
               <option value="active">Active</option>
-              <option value="archived">Archived</option>
+              <option value="inactive">Inactive</option>
             </SelectField>
           </FormField>
 

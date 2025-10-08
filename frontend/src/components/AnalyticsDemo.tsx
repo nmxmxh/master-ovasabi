@@ -442,7 +442,7 @@ export const AnalyticsDemo: React.FC<AnalyticsDemoProps> = ({ className }) => {
           </div>
           <div className="status-item">
             <span className="status-label">Campaign:</span>
-            <span className="status-value">{metadata.campaign?.campaignId || 'None'}</span>
+            <span className="status-value">{metadata.campaign?.id || 'None'}</span>
           </div>
           <div className="status-item">
             <span className="status-label">User:</span>

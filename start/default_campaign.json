@@ -39,6 +39,18 @@
           "referral_invite",
           "leaderboard_title"
         ],
+        "views": {
+          "main": {
+            "components": {
+              "hero_section": {
+                "type": "hero",
+                "title": "Welcome to OVASABI Studios",
+                "subtitle": "The home of creative innovation",
+                "cta_text": "Get Started"
+              }
+            }
+          }
+        },
         "ui_content": {
           "banner": "Welcome to OVASABI Studios!",
           "cta": "Join the creative revolution.",
