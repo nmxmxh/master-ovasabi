@@ -2,15 +2,15 @@ package nexus
 
 import "strings"
 
-// EventTypeValidator provides unified event type validation
+// EventTypeValidator provides unified event type validation.
 type EventTypeValidator struct{}
 
-// NewEventTypeValidator creates a new event type validator
+// NewEventTypeValidator creates a new event type validator.
 func NewEventTypeValidator() *EventTypeValidator {
 	return &EventTypeValidator{}
 }
 
-// IsValidEventType validates event type format and content
+// IsValidEventType validates event type format and content.
 func (v *EventTypeValidator) IsValidEventType(eventType string) bool {
 	// Allow special echo event type for testing
 	if eventType == "echo" {
@@ -31,7 +31,7 @@ func (v *EventTypeValidator) IsValidEventType(eventType string) bool {
 	return v.IsCanonicalEventType(eventType)
 }
 
-// IsCanonicalEventType validates canonical event type format: {service}:{action}:v{version}:{state}
+// IsCanonicalEventType validates canonical event type format: {service}:{action}:v{version}:{state}.
 func (v *EventTypeValidator) IsCanonicalEventType(eventType string) bool {
 	parts := strings.Split(eventType, ":")
 	if len(parts) != 4 {
@@ -54,7 +54,7 @@ func (v *EventTypeValidator) IsCanonicalEventType(eventType string) bool {
 	return ok
 }
 
-// IsHealthEventType validates health event type format: {service}:health:v{version}:{state}
+// IsHealthEventType validates health event type format: {service}:health:v{version}:{state}.
 func (v *EventTypeValidator) IsHealthEventType(eventType string) bool {
 	parts := strings.Split(eventType, ":")
 	if len(parts) != 4 {
@@ -79,7 +79,7 @@ func (v *EventTypeValidator) IsHealthEventType(eventType string) bool {
 	return ok
 }
 
-// GetEventTypeCategory returns the category of an event type
+// GetEventTypeCategory returns the category of an event type.
 func (v *EventTypeValidator) GetEventTypeCategory(eventType string) string {
 	if eventType == "echo" {
 		return "test"
@@ -95,5 +95,3 @@ func (v *EventTypeValidator) GetEventTypeCategory(eventType string) string {
 	}
 	return "unknown"
 }
-
-

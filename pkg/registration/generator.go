@@ -485,7 +485,7 @@ func (g *DynamicServiceRegistrationGenerator) generateActionMap(service ProtoSer
 	return actionMap
 }
 
-// extractProtoMessageFields parses proto messages and returns a map of message name to field name/type
+// extractProtoMessageFields parses proto messages and returns a map of message name to field name/type.
 func (g *DynamicServiceRegistrationGenerator) extractProtoMessageFields(service ProtoServiceInfo) map[string]map[string]string {
 	// This is a simple parser for proto message fields
 	// Only supports basic types and ignores nested/complex fields for now
@@ -527,7 +527,7 @@ func (g *DynamicServiceRegistrationGenerator) extractProtoMessageFields(service 
 	return messageFields
 }
 
-// contains checks if a slice contains a string
+// contains checks if a slice contains a string.
 func contains(slice []string, s string) bool {
 	for _, v := range slice {
 		if v == s {

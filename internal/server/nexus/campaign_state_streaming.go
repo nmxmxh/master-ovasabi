@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// CampaignStateStreamingHandler implements StreamingEventHandler for campaign state
+// CampaignStateStreamingHandler implements StreamingEventHandler for campaign state.
 func (m *CampaignStateManager) HandleStreamingEvent(ctx context.Context, event *nexusv1.EventResponse, streamData chan<- *nexusv1.EventResponse) error {
 	eventType := event.GetEventType()
 
@@ -30,7 +30,7 @@ func (m *CampaignStateManager) HandleStreamingEvent(ctx context.Context, event *
 	}
 }
 
-// streamCampaignState streams real-time campaign state updates
+// streamCampaignState streams real-time campaign state updates.
 func (m *CampaignStateManager) streamCampaignState(ctx context.Context, event *nexusv1.EventResponse, streamData chan<- *nexusv1.EventResponse) error {
 	campaignID, userID := m.extractCampaignAndUserIDFromResponse(event)
 
@@ -80,7 +80,7 @@ func (m *CampaignStateManager) streamCampaignState(ctx context.Context, event *n
 	}
 }
 
-// streamCampaignAnalytics streams real-time analytics data
+// streamCampaignAnalytics streams real-time analytics data.
 func (m *CampaignStateManager) streamCampaignAnalytics(ctx context.Context, event *nexusv1.EventResponse, streamData chan<- *nexusv1.EventResponse) error {
 	campaignID, _ := m.extractCampaignAndUserIDFromResponse(event)
 
@@ -112,7 +112,7 @@ func (m *CampaignStateManager) streamCampaignAnalytics(ctx context.Context, even
 	}
 }
 
-// streamCampaignEvents streams real-time event history
+// streamCampaignEvents streams real-time event history.
 func (m *CampaignStateManager) streamCampaignEvents(ctx context.Context, event *nexusv1.EventResponse, streamData chan<- *nexusv1.EventResponse) error {
 	campaignID, _ := m.extractCampaignAndUserIDFromResponse(event)
 
@@ -143,7 +143,7 @@ func (m *CampaignStateManager) streamCampaignEvents(ctx context.Context, event *
 	}
 }
 
-// collectCampaignAnalytics gathers real-time analytics
+// collectCampaignAnalytics gathers real-time analytics.
 func (m *CampaignStateManager) collectCampaignAnalytics(campaignID string) map[string]any {
 	cs := m.GetOrCreateState(campaignID)
 
@@ -185,16 +185,18 @@ func (m *CampaignStateManager) extractCampaignAndUserIDFromResponse(event *nexus
 	return campaignID, userID
 }
 
-// generateStreamingEventID creates a unique ID for streaming events
+// generateStreamingEventID creates a unique ID for streaming events.
 func generateStreamingEventID() string {
 	return fmt.Sprintf("stream:%d", time.Now().UnixNano())
 }
 
-// Event subscription management for campaign events
-var campaignEventSubscribers = make(map[string][]chan *nexusv1.EventResponse)
-var campaignEventSubscribersMu sync.RWMutex
+// Event subscription management for campaign events.
+var (
+	campaignEventSubscribers   = make(map[string][]chan *nexusv1.EventResponse)
+	campaignEventSubscribersMu sync.RWMutex
+)
 
-// subscribeToCampaignEvents subscribes to campaign events
+// subscribeToCampaignEvents subscribes to campaign events.
 func (m *CampaignStateManager) subscribeToCampaignEvents(campaignID string, eventChan chan *nexusv1.EventResponse) {
 	campaignEventSubscribersMu.Lock()
 	defer campaignEventSubscribersMu.Unlock()
@@ -205,7 +207,7 @@ func (m *CampaignStateManager) subscribeToCampaignEvents(campaignID string, even
 	campaignEventSubscribers[campaignID] = append(campaignEventSubscribers[campaignID], eventChan)
 }
 
-// unsubscribeFromCampaignEvents unsubscribes from campaign events
+// unsubscribeFromCampaignEvents unsubscribes from campaign events.
 func (m *CampaignStateManager) unsubscribeFromCampaignEvents(campaignID string, eventChan chan *nexusv1.EventResponse) {
 	campaignEventSubscribersMu.Lock()
 	defer campaignEventSubscribersMu.Unlock()
@@ -220,7 +222,7 @@ func (m *CampaignStateManager) unsubscribeFromCampaignEvents(campaignID string, 
 	}
 }
 
-// broadcastCampaignEvent broadcasts an event to all subscribers
+// broadcastCampaignEvent broadcasts an event to all subscribers.
 func (m *CampaignStateManager) broadcastCampaignEvent(campaignID string, event *nexusv1.EventResponse) {
 	campaignEventSubscribersMu.RLock()
 	defer campaignEventSubscribersMu.RUnlock()

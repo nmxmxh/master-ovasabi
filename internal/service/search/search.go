@@ -1510,7 +1510,7 @@ func (s *Service) validateSearchRequest(_ context.Context, req *searchpb.SearchR
 	return nil
 }
 
-// Helper functions for extracting values from map[string]interface{}
+// Helper functions for extracting values from map[string]interface{}.
 func getStringFromMap(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
 		if str, ok := val.(string); ok {

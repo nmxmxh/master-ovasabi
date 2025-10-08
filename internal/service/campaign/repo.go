@@ -475,9 +475,9 @@ func (r *Repository) List(ctx context.Context, limit, offset int) ([]*Campaign, 
 			}
 
 			unmarshaler := protojson.UnmarshalOptions{
-			DiscardUnknown: true,
-		}
-		err := unmarshaler.Unmarshal([]byte(metadataStr), campaign.Metadata)
+				DiscardUnknown: true,
+			}
+			err := unmarshaler.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
 				r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err))
 				return nil, err
@@ -577,9 +577,9 @@ func (r *Repository) ListActiveWithinWindow(ctx context.Context, now time.Time) 
 			}
 
 			unmarshaler := protojson.UnmarshalOptions{
-			DiscardUnknown: true,
-		}
-		err := unmarshaler.Unmarshal([]byte(metadataStr), campaign.Metadata)
+				DiscardUnknown: true,
+			}
+			err := unmarshaler.Unmarshal([]byte(metadataStr), campaign.Metadata)
 			if err != nil {
 				r.GetLogger().Warn("failed to unmarshal campaign metadata", zap.Error(err))
 				return nil, err

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// IDGenerator provides unified ID generation across all systems
+// IDGenerator provides unified ID generation across all systems.
 type IDGenerator struct {
 	// Common prefixes for different ID types
 	prefixes map[string]string
@@ -15,7 +15,7 @@ type IDGenerator struct {
 	lengths map[string]int
 }
 
-// NewIDGenerator creates a new ID generator with standardized configuration
+// NewIDGenerator creates a new ID generator with standardized configuration.
 func NewIDGenerator() *IDGenerator {
 	return &IDGenerator{
 		prefixes: map[string]string{
@@ -37,7 +37,7 @@ func NewIDGenerator() *IDGenerator {
 	}
 }
 
-// GenerateID creates a standardized ID with the given type
+// GenerateID creates a standardized ID with the given type.
 func (g *IDGenerator) GenerateID(idType string, additionalData ...string) string {
 	prefix, exists := g.prefixes[idType]
 	if !exists {
@@ -72,37 +72,37 @@ func (g *IDGenerator) GenerateID(idType string, additionalData ...string) string
 	return prefix + "_" + hashStr
 }
 
-// GenerateUserID creates a user ID
+// GenerateUserID creates a user ID.
 func (g *IDGenerator) GenerateUserID() string {
 	return g.GenerateID("user")
 }
 
-// GenerateGuestID creates a guest user ID
+// GenerateGuestID creates a guest user ID.
 func (g *IDGenerator) GenerateGuestID() string {
 	return g.GenerateID("guest")
 }
 
-// GenerateSessionID creates a session ID
+// GenerateSessionID creates a session ID.
 func (g *IDGenerator) GenerateSessionID() string {
 	return g.GenerateID("session")
 }
 
-// GenerateDeviceID creates a device ID
+// GenerateDeviceID creates a device ID.
 func (g *IDGenerator) GenerateDeviceID() string {
 	return g.GenerateID("device")
 }
 
-// GenerateCampaignID creates a campaign ID
+// GenerateCampaignID creates a campaign ID.
 func (g *IDGenerator) GenerateCampaignID() string {
 	return g.GenerateID("campaign")
 }
 
-// GenerateCorrelationID creates a correlation ID
+// GenerateCorrelationID creates a correlation ID.
 func (g *IDGenerator) GenerateCorrelationID() string {
 	return g.GenerateID("correlation")
 }
 
-// ValidateID checks if an ID follows the expected format
+// ValidateID checks if an ID follows the expected format.
 func (g *IDGenerator) ValidateID(id, expectedType string) bool {
 	expectedPrefix, exists := g.prefixes[expectedType]
 	if !exists {

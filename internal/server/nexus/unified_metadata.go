@@ -11,17 +11,17 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// UnifiedMetadataExtractor provides consistent metadata extraction across all Nexus components
+// UnifiedMetadataExtractor provides consistent metadata extraction across all Nexus components.
 type UnifiedMetadataExtractor struct {
 	log *zap.Logger
 }
 
-// NewUnifiedMetadataExtractor creates a new unified metadata extractor
+// NewUnifiedMetadataExtractor creates a new unified metadata extractor.
 func NewUnifiedMetadataExtractor(log *zap.Logger) *UnifiedMetadataExtractor {
 	return &UnifiedMetadataExtractor{log: log}
 }
 
-// ExtractedIDs contains all extracted identifiers from metadata
+// ExtractedIDs contains all extracted identifiers from metadata.
 type ExtractedIDs struct {
 	UserID     string
 	CampaignID string
@@ -31,7 +31,7 @@ type ExtractedIDs struct {
 	Source     string
 }
 
-// ExtractFromEventRequest extracts all IDs from an EventRequest
+// ExtractFromEventRequest extracts all IDs from an EventRequest.
 func (e *UnifiedMetadataExtractor) ExtractFromEventRequest(ctx context.Context, event *nexusv1.EventRequest) *ExtractedIDs {
 	ids := &ExtractedIDs{}
 
@@ -100,7 +100,7 @@ func (e *UnifiedMetadataExtractor) ExtractFromEventRequest(ctx context.Context, 
 	return ids
 }
 
-// ExtractFromEventResponse extracts all IDs from an EventResponse
+// ExtractFromEventResponse extracts all IDs from an EventResponse.
 func (e *UnifiedMetadataExtractor) ExtractFromEventResponse(event *nexusv1.EventResponse) *ExtractedIDs {
 	ids := &ExtractedIDs{}
 
@@ -124,7 +124,7 @@ func (e *UnifiedMetadataExtractor) ExtractFromEventResponse(event *nexusv1.Event
 	return ids
 }
 
-// CreateCanonicalMetadata creates standardized metadata for events
+// CreateCanonicalMetadata creates standardized metadata for events.
 func (e *UnifiedMetadataExtractor) CreateCanonicalMetadata(ids *ExtractedIDs, additionalData map[string]interface{}) *commonpb.Metadata {
 	// Create global context
 	globalContext := &commonpb.Metadata_GlobalContext{
@@ -167,7 +167,7 @@ func (e *UnifiedMetadataExtractor) CreateCanonicalMetadata(ids *ExtractedIDs, ad
 	}
 }
 
-// Helper method to safely extract string from map
+// Helper method to safely extract string from map.
 func (e *UnifiedMetadataExtractor) getStringFromMap(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
 		if str, ok := val.(string); ok {
@@ -177,7 +177,7 @@ func (e *UnifiedMetadataExtractor) getStringFromMap(m map[string]interface{}, ke
 	return ""
 }
 
-// Helper method to convert interface{} to structpb.Value
+// Helper method to convert interface{} to structpb.Value.
 func (e *UnifiedMetadataExtractor) interfaceToValue(v interface{}) *structpb.Value {
 	switch val := v.(type) {
 	case string:
@@ -192,5 +192,3 @@ func (e *UnifiedMetadataExtractor) interfaceToValue(v interface{}) *structpb.Val
 		return &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: fmt.Sprintf("%v", val)}}
 	}
 }
-
-

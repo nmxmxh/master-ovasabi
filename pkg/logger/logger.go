@@ -43,7 +43,7 @@ type logger struct {
 	isProduction bool
 }
 
-// logFilter tracks similar logs to prevent spam
+// logFilter tracks similar logs to prevent spam.
 type logFilter struct {
 	lastLogTime time.Time
 	count       int

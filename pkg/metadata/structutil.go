@@ -63,7 +63,7 @@ func NewStructFromMap(m map[string]interface{}, log *zap.Logger, existing ...*st
 	return s
 }
 
-// convertForStructpb converts problematic Go types to structpb-compatible types
+// convertForStructpb converts problematic Go types to structpb-compatible types.
 func convertForStructpb(data interface{}, log *zap.Logger) interface{} {
 	switch v := data.(type) {
 	case map[string]interface{}:

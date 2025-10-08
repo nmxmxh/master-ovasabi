@@ -629,9 +629,7 @@ func (s *Server) EmitEvent(ctx context.Context, req *nexusv1.EventRequest) (*nex
 
 	// s.log.Debug("[EmitEvent] Returning response to caller", ...) // Removed for performance
 	// Set Success=false if event type ends with ':failed', else true
-	success := true
-	if strings.HasSuffix(req.EventType, ":failed") {
-		success = false
-	}
+	success := !strings.HasSuffix(req.EventType, ":failed")
+
 	return &nexusv1.EventResponse{Success: success, Message: "Event broadcasted", Metadata: envelope.Metadata}, nil
 }

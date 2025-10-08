@@ -475,7 +475,7 @@ func MapToStruct(m map[string]interface{}) *structpb.Struct {
 	return s
 }
 
-// Recursively convert all []string and []interface{} to []interface{} for structpb compatibility
+// Recursively convert all []string and []interface{} to []interface{} for structpb compatibility.
 func NormalizeSlices(m map[string]interface{}) map[string]interface{} {
 	for k, v := range m {
 		switch vv := v.(type) {

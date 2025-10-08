@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// ValidationError represents a validation error with context
+// ValidationError represents a validation error with context.
 type ValidationError struct {
 	Field   string
 	Message string
@@ -20,10 +20,10 @@ func (e ValidationError) Error() string {
 }
 
 // EventTypePattern defines the canonical event type format
-// Format: {service}:{action}:v{version}:{state}
+// Format: {service}:{action}:v{version}:{state}.
 var EventTypePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*:v[0-9]+:[a-z][a-z0-9_]*$`)
 
-// ValidStates defines the allowed event states
+// ValidStates defines the allowed event states.
 var ValidStates = map[string]bool{
 	"request":   true,
 	"requested": true,
@@ -35,7 +35,7 @@ var ValidStates = map[string]bool{
 	"timeout":   true,
 }
 
-// ValidateEventType validates the canonical event type format
+// ValidateEventType validates the canonical event type format.
 func ValidateEventType(eventType string) error {
 	if eventType == "" {
 		return ValidationError{Field: "type", Message: "event type is required", Value: eventType}
@@ -71,7 +71,7 @@ func ValidateEventType(eventType string) error {
 	return nil
 }
 
-// ValidateTimestamp validates ISO 8601 timestamp format
+// ValidateTimestamp validates ISO 8601 timestamp format.
 func ValidateTimestamp(timestamp string) error {
 	if timestamp == "" {
 		return ValidationError{Field: "timestamp", Message: "timestamp is required", Value: timestamp}
@@ -89,7 +89,7 @@ func ValidateTimestamp(timestamp string) error {
 	return nil
 }
 
-// ValidateCorrelationID validates correlation ID format
+// ValidateCorrelationID validates correlation ID format.
 func ValidateCorrelationID(correlationID string) error {
 	if correlationID == "" {
 		return ValidationError{Field: "correlation_id", Message: "correlation ID is required", Value: correlationID}
@@ -117,7 +117,7 @@ func ValidateCorrelationID(correlationID string) error {
 	return nil
 }
 
-// ValidateUserID validates user ID format
+// ValidateUserID validates user ID format.
 func ValidateUserID(userID string) error {
 	if userID == "" {
 		return ValidationError{Field: "user_id", Message: "user ID is required", Value: userID}
@@ -136,7 +136,7 @@ func ValidateUserID(userID string) error {
 	return nil
 }
 
-// ValidateCampaignID validates campaign ID format
+// ValidateCampaignID validates campaign ID format.
 func ValidateCampaignID(campaignID string) error {
 	if campaignID == "" {
 		return ValidationError{Field: "campaign_id", Message: "campaign ID is required", Value: campaignID}
@@ -155,7 +155,7 @@ func ValidateCampaignID(campaignID string) error {
 	return nil
 }
 
-// ValidateSource validates the event source
+// ValidateSource validates the event source.
 func ValidateSource(source string) error {
 	validSources := map[string]bool{
 		"frontend": true,
@@ -174,7 +174,7 @@ func ValidateSource(source string) error {
 	return nil
 }
 
-// ValidateVersion validates the envelope version
+// ValidateVersion validates the envelope version.
 func ValidateVersion(version string) error {
 	if version == "" {
 		return ValidationError{Field: "version", Message: "version is required", Value: version}
@@ -193,7 +193,7 @@ func ValidateVersion(version string) error {
 	return nil
 }
 
-// ValidateCanonicalEventEnvelope performs comprehensive validation
+// ValidateCanonicalEventEnvelope performs comprehensive validation.
 func ValidateCanonicalEventEnvelope(envelope *CanonicalEventEnvelope) error {
 	if envelope == nil {
 		return errors.New("envelope cannot be nil")
@@ -267,7 +267,7 @@ func ValidateCanonicalEventEnvelope(envelope *CanonicalEventEnvelope) error {
 	return nil
 }
 
-// Helper functions
+// Helper functions.
 func getValidStatesString() string {
 	states := make([]string, 0, len(ValidStates))
 	for state := range ValidStates {
@@ -280,7 +280,7 @@ func getValidSourcesString() string {
 	return "frontend, backend, wasm"
 }
 
-// SanitizeEventType sanitizes an event type to ensure it follows the canonical format
+// SanitizeEventType sanitizes an event type to ensure it follows the canonical format.
 func SanitizeEventType(eventType string) string {
 	// Convert to lowercase
 	eventType = strings.ToLower(eventType)
@@ -297,7 +297,7 @@ func SanitizeEventType(eventType string) string {
 	return eventType
 }
 
-// NormalizeEventType normalizes an event type to the canonical format
+// NormalizeEventType normalizes an event type to the canonical format.
 func NormalizeEventType(eventType string) (string, error) {
 	// First sanitize
 	normalized := SanitizeEventType(eventType)

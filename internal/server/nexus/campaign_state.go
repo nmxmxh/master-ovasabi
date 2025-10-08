@@ -54,7 +54,7 @@ func (m *CampaignStateManager) safeGo(fn func()) {
 	}()
 }
 
-// isEventProcessed checks if an event has been processed recently and marks it as processed
+// isEventProcessed checks if an event has been processed recently and marks it as processed.
 func (m *CampaignStateManager) isEventProcessed(eventID string) bool {
 	m.eventMutex.Lock()
 	defer m.eventMutex.Unlock()
@@ -239,7 +239,7 @@ func NewCampaignStateManager(log *zap.Logger, feedbackBus func(event *nexusv1.Ev
 	return m
 }
 
-// GetDefaultCampaign returns the default campaign, ensuring it always exists
+// GetDefaultCampaign returns the default campaign, ensuring it always exists.
 func (m *CampaignStateManager) GetDefaultCampaign() *CampaignState {
 	// Try to get from memory first
 	if val, ok := m.campaigns.Load("ovasabi_website"); ok {
@@ -681,7 +681,7 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 				// Use slug as the key for deduplication
 				slug := c.Slug
 				if slug == "" {
-					slug = fmt.Sprintf("%v", c.ID) // Fallback to ID if no slug
+					slug = c.ID // Fallback to ID if no slug
 				}
 
 				campaignData := map[string]any{
@@ -945,7 +945,7 @@ func (m *CampaignStateManager) handleCampaignList(ctx context.Context, event *ne
 	m.feedbackBus(response)
 }
 
-// EnsureCampaignsSeeded ensures campaigns are properly seeded from config if database is empty
+// EnsureCampaignsSeeded ensures campaigns are properly seeded from config if database is empty.
 func (m *CampaignStateManager) EnsureCampaignsSeeded(ctx context.Context) error {
 	if m.repo == nil {
 		m.log.Warn("Repository not available, cannot seed campaigns")
@@ -968,7 +968,7 @@ func (m *CampaignStateManager) EnsureCampaignsSeeded(ctx context.Context) error 
 	return nil
 }
 
-// seedCampaignsFromConfig seeds campaigns from the configuration file
+// seedCampaignsFromConfig seeds campaigns from the configuration file.
 func (m *CampaignStateManager) seedCampaignsFromConfig() error {
 	m.log.Debug("Seeding campaigns from configuration file")
 
@@ -1032,7 +1032,7 @@ func (m *CampaignStateManager) seedCampaignsFromConfig() error {
 	return nil
 }
 
-// validateCampaignData validates the structure and completeness of campaign data
+// validateCampaignData validates the structure and completeness of campaign data.
 func (m *CampaignStateManager) validateCampaignData(campaigns []map[string]any) {
 	requiredFields := []string{"id", "slug", "title", "name"}
 
@@ -1505,7 +1505,7 @@ func (m *CampaignStateManager) extractCampaignAndUserID(ctx context.Context, eve
 // 	return nil
 // }
 
-// persistToDBSyncWithCampaign synchronously persists campaign state changes using a pre-retrieved campaign object
+// persistToDBSyncWithCampaign synchronously persists campaign state changes using a pre-retrieved campaign object.
 func (m *CampaignStateManager) persistToDBSyncWithCampaign(ctx context.Context, campaign *campaignrepo.Campaign, updates map[string]any) error {
 	// Get current campaign state
 	cs := m.GetOrCreateState(campaign.Slug)
@@ -1555,7 +1555,7 @@ func (m *CampaignStateManager) persistToDBSyncWithCampaign(ctx context.Context, 
 	return nil
 }
 
-// sendFailureEvent sends a failure event when database persistence fails
+// sendFailureEvent sends a failure event when database persistence fails.
 func (m *CampaignStateManager) sendFailureEvent(campaignID, userID, errorMessage string, metadata *commonpb.Metadata) {
 	// Generate unique event ID for failure event
 	// Create failure event
@@ -1623,7 +1623,7 @@ func (m *CampaignStateManager) sendFailureEvent(campaignID, userID, errorMessage
 // }
 
 // serializeCampaignResponse handles the serialization of campaign response data
-// with special handling for complex nested structures
+// with special handling for complex nested structures.
 func (m *CampaignStateManager) serializeCampaignResponse(data map[string]interface{}) *structpb.Struct {
 	// Ensure campaigns is a slice of normalized maps, not []*structpb.Struct
 	if campaigns, ok := data["campaigns"].([]map[string]interface{}); ok {

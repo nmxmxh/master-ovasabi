@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -174,7 +175,7 @@ func (p *Provider) SubscribeEvents(ctx context.Context, eventTypes []string, met
 					}
 
 					// Check if this is a recoverable error and we haven't exceeded max retries
-					if retryCount < maxRetries && (err == io.EOF || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "connection reset")) {
+					if retryCount < maxRetries && (errors.Is(err, io.EOF) || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "connection reset")) {
 						retryCount++
 						delay := time.Duration(retryCount) * baseDelay
 						if p.Log != nil {
@@ -336,7 +337,7 @@ func (p *Provider) EmitEventEnvelope(ctx context.Context, envelope *events.Event
 	return envelope.ID, nil
 }
 
-// handleEventWithLifecycle processes events with automatic lifecycle orchestration
+// handleEventWithLifecycle processes events with automatic lifecycle orchestration.
 func (p *Provider) handleEventWithLifecycle(ctx context.Context, event *nexusv1.EventResponse, handler func(context.Context, *nexusv1.EventResponse)) {
 	eventType := event.GetEventType()
 	eventID := event.EventId
@@ -491,7 +492,7 @@ func (p *Provider) handleEventWithLifecycle(ctx context.Context, event *nexusv1.
 	}
 }
 
-// isStreamingEvent determines if an event type should be handled as a streaming event
+// isStreamingEvent determines if an event type should be handled as a streaming event.
 func (p *Provider) isStreamingEvent(eventType string) bool {
 	// Define streaming event patterns
 	streamingPatterns := []string{
@@ -532,7 +533,7 @@ func (p *Provider) isStreamingEvent(eventType string) bool {
 	return streamingEventTypes[eventType]
 }
 
-// handleStreamingEvent processes streaming events with continuous event emission
+// handleStreamingEvent processes streaming events with continuous event emission.
 func (p *Provider) handleStreamingEvent(ctx context.Context, event *nexusv1.EventResponse, handler func(context.Context, *nexusv1.EventResponse)) {
 	eventType := event.GetEventType()
 	eventID := event.EventId
@@ -590,7 +591,7 @@ func (p *Provider) handleStreamingEvent(ctx context.Context, event *nexusv1.Even
 	})
 }
 
-// emitStreamResult emits the final result of a streaming operation
+// emitStreamResult emits the final result of a streaming operation.
 func (p *Provider) emitStreamResult(ctx context.Context, eventType, eventID string, metadata *commonpb.Metadata, payload map[string]interface{}) {
 	// Merge with original payload if it exists
 	if metadata != nil && metadata.ServiceSpecific != nil {

@@ -21,7 +21,7 @@ type EventEnvelope struct {
 	Timestamp int64              `json:"timestamp,omitempty"`
 }
 
-// CanonicalEventEnvelope wraps the existing protobuf structures with additional validation and consistency
+// CanonicalEventEnvelope wraps the existing protobuf structures with additional validation and consistency.
 type CanonicalEventEnvelope struct {
 	// Core event fields
 	Type          string `json:"type"`
@@ -36,7 +36,7 @@ type CanonicalEventEnvelope struct {
 	Payload  *commonpb.Payload  `json:"payload,omitempty"`
 }
 
-// NewCanonicalEventEnvelope creates a properly structured event
+// NewCanonicalEventEnvelope creates a properly structured event.
 func NewCanonicalEventEnvelope(
 	eventType string,
 	userID, campaignID, correlationID string,
@@ -88,7 +88,7 @@ func NewCanonicalEventEnvelope(
 	}
 }
 
-// ToNexusEvent converts to existing Nexus event format
+// ToNexusEvent converts to existing Nexus event format.
 func (e *CanonicalEventEnvelope) ToNexusEvent() *nexuspb.EventRequest {
 	campaignIDInt, err := strconv.ParseInt(e.Metadata.GetGlobalContext().GetCampaignId(), 10, 64)
 	if err != nil {
@@ -105,12 +105,12 @@ func (e *CanonicalEventEnvelope) ToNexusEvent() *nexuspb.EventRequest {
 	}
 }
 
-// Validate ensures the envelope is properly structured
+// Validate ensures the envelope is properly structured.
 func (e *CanonicalEventEnvelope) Validate() error {
 	return ValidateCanonicalEventEnvelope(e)
 }
 
-// UnmarshalJSON handles JSON unmarshaling from WASM module using existing conversion functions
+// UnmarshalJSON handles JSON unmarshaling from WASM module using existing conversion functions.
 func (e *CanonicalEventEnvelope) UnmarshalJSON(data []byte) error {
 	// Parse as plain JSON first
 	var temp struct {
@@ -204,7 +204,7 @@ func (e *CanonicalEventEnvelope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Helper functions
+// Helper functions.
 func getStringFromMap(m map[string]interface{}, key, defaultValue string) string {
 	if val, ok := m[key]; ok {
 		if str, ok := val.(string); ok {
@@ -230,7 +230,7 @@ func getEnvironment() string {
 	return env
 }
 
-// ValidateCanonicalEventEnvelopeComprehensive provides comprehensive validation for canonical event envelopes
+// ValidateCanonicalEventEnvelopeComprehensive provides comprehensive validation for canonical event envelopes.
 func ValidateCanonicalEventEnvelopeComprehensive(envelope *CanonicalEventEnvelope) error {
 	if envelope == nil {
 		return &ValidationErrorComprehensive{Message: "envelope cannot be nil"}
@@ -290,7 +290,7 @@ func ValidateCanonicalEventEnvelopeComprehensive(envelope *CanonicalEventEnvelop
 	return nil
 }
 
-// ValidationErrorComprehensive represents a validation error
+// ValidationErrorComprehensive represents a validation error.
 type ValidationErrorComprehensive struct {
 	Message string
 }

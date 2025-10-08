@@ -99,7 +99,7 @@ var (
 	allowedOrigins = getAllowedOrigins() // Keep for CORS checks
 	compressor     = compression.NewCompressor()
 
-	// Security: Connection and rate limiting
+	// Security: Connection and rate limiting.
 	connectionLimiter   = make(map[string]int) // IP -> connection count
 	connectionMutex     sync.RWMutex
 	maxConnectionsPerIP = 5 // Reasonable for game clients
@@ -407,16 +407,20 @@ func main() {
 
 // --- WebSocket Handlers & Pumps ---
 
-// Event deduplication map to prevent loops
+// Event deduplication map to prevent loops.
 var eventDeduplicationMap = make(map[string]time.Time)
 
-// Duplicate event metrics for monitoring
-var duplicateEventCounts = make(map[string]int)
-var duplicateEventMutex sync.RWMutex
+// Duplicate event metrics for monitoring.
+var (
+	duplicateEventCounts = make(map[string]int)
+	duplicateEventMutex  sync.RWMutex
+)
 
-// Processing events tracking
-var processingEvents = make(map[string]time.Time)
-var processingMutex sync.Mutex
+// Processing events tracking.
+var (
+	processingEvents = make(map[string]time.Time)
+	processingMutex  sync.Mutex
+)
 
 func markEventProcessed(eventID string) {
 	processingMutex.Lock()
@@ -424,7 +428,7 @@ func markEventProcessed(eventID string) {
 	delete(processingEvents, eventID)
 }
 
-// tryProcessEvent atomically checks if an event can be processed and marks it as being processed
+// tryProcessEvent atomically checks if an event can be processed and marks it as being processed.
 func tryProcessEvent(eventID, eventType string) bool {
 	processingMutex.Lock()
 	defer processingMutex.Unlock()
@@ -466,7 +470,7 @@ func tryProcessEvent(eventID, eventType string) bool {
 	return true
 }
 
-// processEvent handles the actual event processing logic
+// processEvent handles the actual event processing logic.
 func processEvent(event *nexuspb.EventResponse) {
 	eventID := event.EventId
 	eventType := event.EventType
@@ -868,7 +872,7 @@ func processEvent(event *nexuspb.EventResponse) {
 	}
 }
 
-// getDuplicateEventStats returns current duplicate event statistics
+// getDuplicateEventStats returns current duplicate event statistics.
 func getDuplicateEventStats() map[string]int {
 	duplicateEventMutex.RLock()
 	defer duplicateEventMutex.RUnlock()
@@ -880,7 +884,7 @@ func getDuplicateEventStats() map[string]int {
 	return stats
 }
 
-// resetDuplicateEventStats resets the duplicate event counters
+// resetDuplicateEventStats resets the duplicate event counters.
 func resetDuplicateEventStats() {
 	duplicateEventMutex.Lock()
 	defer duplicateEventMutex.Unlock()
@@ -890,7 +894,7 @@ func resetDuplicateEventStats() {
 	}
 }
 
-// isGodotEvent checks if an event is from Godot based on payload and metadata
+// isGodotEvent checks if an event is from Godot based on payload and metadata.
 func isGodotEvent(event *nexuspb.EventResponse) bool {
 	// Check metadata for Godot source
 	if event.Metadata != nil && event.Metadata.GlobalContext != nil {
@@ -910,7 +914,7 @@ func isGodotEvent(event *nexuspb.EventResponse) bool {
 	return false
 }
 
-// isCampaignSwitchEvent checks if an event type is related to campaign switching
+// isCampaignSwitchEvent checks if an event type is related to campaign switching.
 func isCampaignSwitchEvent(eventType string) bool {
 	switch eventType {
 	case "campaign:switch:v1:success",
@@ -924,7 +928,7 @@ func isCampaignSwitchEvent(eventType string) bool {
 	}
 }
 
-// isUserSwitchingToCampaign validates that a user is legitimately switching to the target campaign
+// isUserSwitchingToCampaign validates that a user is legitimately switching to the target campaign.
 func isUserSwitchingToCampaign(client *WSClient, targetCampaignID string, event *nexuspb.EventResponse) bool {
 	// Extract campaign ID from event payload for validation
 	if event.Payload != nil && event.Payload.Data != nil {
@@ -951,7 +955,7 @@ func isUserSwitchingToCampaign(client *WSClient, targetCampaignID string, event 
 	return client.campaignID != targetCampaignID
 }
 
-// isGodotRequestEvent checks if an event type is a Godot request that should not use request/response pattern
+// isGodotRequestEvent checks if an event type is a Godot request that should not use request/response pattern.
 func isGodotRequestEvent(eventType string) bool {
 	// Godot events that are typically one-way broadcasts, not request/response
 	godotRequestTypes := []string{
@@ -975,7 +979,7 @@ func isGodotRequestEvent(eventType string) bool {
 	return false
 }
 
-// getClientIP extracts the real client IP from request headers
+// getClientIP extracts the real client IP from request headers.
 func getClientIP(r *http.Request) string {
 	// Check X-Forwarded-For header first (for proxies/load balancers)
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
@@ -1079,7 +1083,6 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 	go client.writePump()
 	go client.readPumpWithContext(wsCtx, wsCancel)
 	// Cancel wsCtx only when you want to close the connection (e.g., on error or shutdown)
-
 }
 
 // readPump pumps messages from the WebSocket connection to the Nexus event bus.
@@ -1393,7 +1396,7 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 	}
 }
 
-// mapCampaignID maps frontend campaign IDs to WebSocket client campaign IDs
+// mapCampaignID maps frontend campaign IDs to WebSocket client campaign IDs.
 func mapCampaignID(campaignID string) string {
 	switch campaignID {
 	case "default":
@@ -1406,7 +1409,7 @@ func mapCampaignID(campaignID string) string {
 }
 
 // mapUserID maps various user ID formats to WebSocket client user IDs
-// Now simplified since WASM provides consistent guest_* format
+// Now simplified since WASM provides consistent guest_* format.
 func mapUserID(userID string) string {
 	if userID == "" {
 		return ""
@@ -1431,7 +1434,7 @@ func mapUserID(userID string) string {
 	return "guest_" + userID
 }
 
-// handleCampaignStateEvent processes campaign state events and manages WebSocket connections
+// handleCampaignStateEvent processes campaign state events and manages WebSocket connections.
 func handleCampaignStateEvent(event *nexuspb.EventResponse) {
 	if event.Payload == nil || event.Payload.Data == nil {
 		log.Warn("[WS-GATEWAY] Campaign state event has nil payload")
@@ -1526,7 +1529,7 @@ func handleCampaignStateEvent(event *nexuspb.EventResponse) {
 	}
 }
 
-// handleCampaignSwitchEvent processes campaign switch success events
+// handleCampaignSwitchEvent processes campaign switch success events.
 func handleCampaignSwitchEvent(event *nexuspb.EventResponse) {
 	if event.Payload == nil || event.Payload.Data == nil {
 		log.Warn("[WS-GATEWAY] Campaign switch event has nil payload")
@@ -1593,7 +1596,7 @@ func handleCampaignSwitchEvent(event *nexuspb.EventResponse) {
 	})
 }
 
-// mapUserIDReverse maps WebSocket client user IDs back to frontend format
+// mapUserIDReverse maps WebSocket client user IDs back to frontend format.
 func mapUserIDReverse(userID string) string {
 	if userID == "" {
 		return ""
@@ -1613,7 +1616,7 @@ func mapUserIDReverse(userID string) string {
 	return userID
 }
 
-// min returns the minimum of two integers
+// min returns the minimum of two integers.
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -1621,7 +1624,7 @@ func min(a, b int) int {
 	return b
 }
 
-// generateCryptoHash generates a 32-character crypto hash for auditability (same as WASM)
+// generateCryptoHash generates a 32-character crypto hash for auditability (same as WASM).
 func generateCryptoHash(input string) string {
 	hash := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(hash[:])[:32] // Take first 32 characters
@@ -1768,7 +1771,7 @@ func broadcastUser(userID string, payload []byte) {
 // See docs/communication_standards.md and pkg/registration/generator.go for event type generation logic.
 // This gateway is now fully generic and does not require updates for new services/actions.
 
-// extractExpectedSuccessType determines the expected success event type for request/response matching
+// extractExpectedSuccessType determines the expected success event type for request/response matching.
 func extractExpectedSuccessType(eventType string) string {
 	if strings.HasSuffix(eventType, ":request") {
 		return strings.TrimSuffix(eventType, ":request") + ":success"
@@ -1779,7 +1782,7 @@ func extractExpectedSuccessType(eventType string) string {
 	return eventType
 }
 
-// sendErrorResponse sends an error response to the client
+// sendErrorResponse sends an error response to the client.
 func sendErrorResponse(client *WSClient, errorType, message string, err error) {
 	errorEvent := WebSocketEvent{
 		Type: "error:" + errorType,

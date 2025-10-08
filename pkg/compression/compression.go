@@ -8,39 +8,39 @@ import (
 )
 
 const (
-	// Compression thresholds
+	// Compression thresholds.
 	MinCompressSize = 512
 	ZstdHeader      = "zstd:"
 
-	// Security limits to prevent ZIP bomb attacks
+	// Security limits to prevent ZIP bomb attacks.
 	MaxCompressedSize   = 50 * 1024 * 1024  // 50MB max compressed size
 	MaxDecompressedSize = 200 * 1024 * 1024 // 200MB max decompressed size
 )
 
-// Compressor is a simple compressor
+// Compressor is a simple compressor.
 type Compressor struct{}
 
-// NewCompressor creates a new compressor
+// NewCompressor creates a new compressor.
 func NewCompressor() *Compressor {
 	return &Compressor{}
 }
 
-// Compress compresses data if it's large enough
+// Compress compresses data if it's large enough.
 func (c *Compressor) Compress(data []byte) []byte {
 	return Compress(data)
 }
 
-// Decompress decompresses data if it has the zstd header
+// Decompress decompresses data if it has the zstd header.
 func (c *Compressor) Decompress(data []byte) []byte {
 	return Decompress(data)
 }
 
-// IsCompressed checks if data is compressed
+// IsCompressed checks if data is compressed.
 func (c *Compressor) IsCompressed(data []byte) bool {
 	return IsCompressed(data)
 }
 
-// Compress compresses data if it's large enough
+// Compress compresses data if it's large enough.
 func Compress(data []byte) []byte {
 	// Security check: prevent processing of oversized data
 	if len(data) > MaxDecompressedSize {
@@ -79,7 +79,7 @@ func Compress(data []byte) []byte {
 	return append([]byte(ZstdHeader), compressed...)
 }
 
-// Decompress decompresses data if it has the zstd header
+// Decompress decompresses data if it has the zstd header.
 func Decompress(data []byte) []byte {
 	// Security check: prevent processing of oversized compressed data
 	if len(data) > MaxCompressedSize {
@@ -114,7 +114,7 @@ func Decompress(data []byte) []byte {
 	return decompressed
 }
 
-// IsCompressed checks if data is compressed
+// IsCompressed checks if data is compressed.
 func IsCompressed(data []byte) bool {
 	return bytes.HasPrefix(data, []byte(ZstdHeader))
 }

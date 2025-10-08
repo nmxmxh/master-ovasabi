@@ -230,8 +230,8 @@ func (r *readSeekCloser) Close() error { return nil }
 func (s *ServiceImpl) UploadLightMedia(ctx context.Context, req *mediapb.UploadLightMediaRequest) (*mediapb.UploadLightMediaResponse, error) {
 	// Declare all needed variables at the very top for proper scope
 	var (
-		mediaMeta         *Metadata
-		
+		mediaMeta *Metadata
+
 		metaStruct        *structpb.Struct
 		metaForValidation *structpb.Struct
 		err               error
