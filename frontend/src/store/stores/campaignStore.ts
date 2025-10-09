@@ -12,7 +12,6 @@ const createEvent = (
   campaignId?: string
 ): Omit<EventEnvelope, 'timestamp' | 'correlation_id' | 'version' | 'environment' | 'source'> => {
   const metadataStore = useMetadataStore.getState();
-  const correlationId = `corr_${Date.now()}`;
   const userId = metadataStore.userId || metadataStore.metadata?.user?.userId || 'anonymous';
   const sessionId = metadataStore.metadata?.session?.sessionId || 'unknown';
   const deviceId = metadataStore.metadata?.device?.deviceId || 'unknown';
@@ -25,7 +24,6 @@ const createEvent = (
       global_context: {
         user_id: userId,
         campaign_id: currentCampaignId,
-        correlation_id: correlationId,
         session_id: sessionId,
         device_id: deviceId,
         source: 'frontend'
@@ -126,6 +124,7 @@ export const useCampaignStore = create<CampaignStore>()(
           false,
           'handleCampaignSwitchCompleted'
         );
+        get().requestCampaignState(new_campaign_id);
       },
 
       switchCampaign: (campaignId, onResponse) => {
@@ -148,7 +147,19 @@ export const useCampaignStore = create<CampaignStore>()(
           },
           campaignData.id
         );
-        useEventStore.getState().emitEvent(event, onResponse);
+
+        const responseHandler = (response: EventEnvelope) => {
+          // After a switch, always request the latest state.
+          if (response.type.includes('success') || response.type.includes('completed')) {
+            get().requestCampaignState(campaignData.id);
+          }
+          // Pass the response to the original callback if it exists.
+          if (onResponse) {
+            onResponse(response);
+          }
+        };
+
+        useEventStore.getState().emitEvent(event, responseHandler);
       },
 
       updateCampaign: (updates, onResponse) => {
@@ -233,6 +244,28 @@ export const useCampaignStore = create<CampaignStore>()(
           if (listResponse.type === 'campaign:list:v1:success') {
             get().updateCampaignsFromResponse(listResponse.payload);
             set({ loading: false, error: null }, false, 'requestCampaignListSuccess');
+
+            // After getting the list, if there's no current campaign,
+            // set one and request its state to ensure the app starts with campaign data.
+            if (!get().currentCampaign) {
+              const campaigns =
+                listResponse.payload?.campaigns || listResponse.payload?.data?.campaigns || [];
+              if (campaigns.length > 0) {
+                const metadataCampaignId = useMetadataStore.getState().metadata?.campaign?.id;
+                const campaignToSelect =
+                  campaigns.find((c: Campaign) => c.id === metadataCampaignId) || campaigns[0];
+
+                if (campaignToSelect) {
+                  set(
+                    { currentCampaign: campaignToSelect },
+                    false,
+                    'requestCampaignList/setCurrent'
+                  );
+                  useMetadataStore.getState().updateCampaignMetadata(campaignToSelect);
+                  get().requestCampaignState(campaignToSelect.id);
+                }
+              }
+            }
           } else {
             set(
               { loading: false, error: 'Failed to load campaigns' },
