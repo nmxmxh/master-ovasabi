@@ -16,6 +16,7 @@ const createEvent = (
   const sessionId = metadataStore.metadata?.session?.sessionId || 'unknown';
   const deviceId = metadataStore.metadata?.device?.deviceId || 'unknown';
   const currentCampaignId = campaignId || metadataStore.metadata?.campaign?.id || '0';
+  const correlationId = `corr_${Date.now()}`;
 
   return {
     type,
@@ -26,6 +27,7 @@ const createEvent = (
         campaign_id: currentCampaignId,
         session_id: sessionId,
         device_id: deviceId,
+        correlation_id: correlationId,
         source: 'frontend'
       },
       envelope_version: '1.0.0',
