@@ -13,7 +13,7 @@ interface EventStore extends EventState {
     event: Omit<
       EventEnvelope,
       'timestamp' | 'correlation_id' | 'version' | 'environment' | 'source'
-    >,
+    > & { correlation_id?: string },
     onResponse?: (event: EventEnvelope) => void
   ) => void;
   updateEventState: (eventType: string, state: string) => void;
@@ -98,7 +98,7 @@ export const useEventStore = create<EventStore>()(
           return;
         }
 
-        const correlationId = generateCorrelationId();
+        const correlationId = event.correlation_id || generateCorrelationId();
 
         // Transform metadata to canonical format if needed
         let canonicalMetadata = event.metadata;

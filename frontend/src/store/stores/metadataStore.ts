@@ -2,7 +2,11 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { Metadata } from '../types';
 import { merge, cloneDeep } from 'lodash';
-import { generateDeviceID, generateSessionID } from '../../utils/wasmIdExtractor';
+import {
+  generateDeviceID,
+  generateSessionID,
+  generateCorrelationIDSync
+} from '../../utils/wasmIdExtractor';
 // import { stateManager, type UserState } from '../../utils/stateManager';
 
 interface MetadataStore {
@@ -211,7 +215,7 @@ const createInitialMetadata = async (fallbackUserId?: string): Promise<Metadata>
         guestId: userId,
         authenticated: false
       },
-      correlation_id: `corr_${Date.now()}`
+      correlation_id: generateCorrelationIDSync()
     };
   } catch (error) {
     console.warn('[MetadataStore] Error creating initial metadata:', error);

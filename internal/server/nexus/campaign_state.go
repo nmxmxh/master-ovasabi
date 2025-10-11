@@ -160,6 +160,7 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 			stateWithRouting["user_id"] = userID
 			stateWithRouting["campaign_id"] = campaignID
 			stateWithRouting["correlationId"] = correlationID // Include correlation ID for request/response matching
+			stateWithRouting = metadata.NormalizeSlices(stateWithRouting) // Normalize slices for protobuf compatibility
 			structData, err := structpb.NewStruct(stateWithRouting)
 			if err != nil {
 				m.log.Error("Failed to create struct for campaign state response", zap.Error(err), zap.String("campaign_id", campaignID), zap.String("user_id", userID))

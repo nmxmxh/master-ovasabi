@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { Campaign } from '../types/campaign';
 import type { EventEnvelope } from '../types/events';
+import { generateCorrelationIDSync } from '../../utils/wasmIdExtractor';
 import { useEventStore } from './eventStore';
 import { useMetadataStore } from './metadataStore';
 
@@ -10,17 +11,23 @@ const createEvent = (
   type: string,
   payload: Record<string, any>,
   campaignId?: string
-): Omit<EventEnvelope, 'timestamp' | 'correlation_id' | 'version' | 'environment' | 'source'> => {
+): EventEnvelope => {
   const metadataStore = useMetadataStore.getState();
   const userId = metadataStore.userId || metadataStore.metadata?.user?.userId || 'anonymous';
   const sessionId = metadataStore.metadata?.session?.sessionId || 'unknown';
   const deviceId = metadataStore.metadata?.device?.deviceId || 'unknown';
   const currentCampaignId = campaignId || metadataStore.metadata?.campaign?.id || '0';
-  const correlationId = `corr_${Date.now()}`;
+  const correlationId = generateCorrelationIDSync();
+  const env = process.env.NODE_ENV || 'development';
 
   return {
     type,
     payload,
+    correlation_id: correlationId,
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    environment: env,
+    source: 'frontend',
     metadata: {
       global_context: {
         user_id: userId,
@@ -31,7 +38,7 @@ const createEvent = (
         source: 'frontend'
       },
       envelope_version: '1.0.0',
-      environment: process.env.NODE_ENV || 'development',
+      environment: env,
       ServiceSpecific: {
         campaign: { campaignId: currentCampaignId }
       }
@@ -87,7 +94,7 @@ export const useCampaignStore = create<CampaignStore>()(
     (set, get) => ({
       currentCampaign: undefined,
       campaigns: [],
-      loading: false,
+      loading: true,
       error: null,
 
       handleCampaignSwitchRequired: switchEvent => {
