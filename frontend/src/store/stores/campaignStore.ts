@@ -133,7 +133,11 @@ export const useCampaignStore = create<CampaignStore>()(
           false,
           'handleCampaignSwitchCompleted'
         );
-        get().requestCampaignState(new_campaign_id);
+        get().requestCampaignState(new_campaign_id, (response: EventEnvelope) => {
+          if (response.type === 'campaign:state:v1:success') {
+            get().updateCampaignFromResponse(response.payload);
+          }
+        });
       },
 
       switchCampaign: (campaignId, onResponse) => {
@@ -224,7 +228,15 @@ export const useCampaignStore = create<CampaignStore>()(
       updateCampaignsFromResponse: responseData => {
         const campaigns = responseData?.campaigns || responseData?.data?.campaigns || [];
         if (campaigns.length > 0) {
-          set({ campaigns }, false, 'updateCampaignsFromResponse');
+          set(
+            state => {
+              const existingCampaigns = new Map(state.campaigns.map((c: Campaign) => [c.id, c]));
+              campaigns.forEach((c: Campaign) => existingCampaigns.set(c.id, { ...existingCampaigns.get(c.id), ...c }));
+              return { campaigns: Array.from(existingCampaigns.values()) };
+            },
+            false,
+            'updateCampaignsFromResponse'
+          );
         }
       },
 
@@ -253,28 +265,6 @@ export const useCampaignStore = create<CampaignStore>()(
           if (listResponse.type === 'campaign:list:v1:success') {
             get().updateCampaignsFromResponse(listResponse.payload);
             set({ loading: false, error: null }, false, 'requestCampaignListSuccess');
-
-            // After getting the list, if there's no current campaign,
-            // set one and request its state to ensure the app starts with campaign data.
-            if (!get().currentCampaign) {
-              const campaigns =
-                listResponse.payload?.campaigns || listResponse.payload?.data?.campaigns || [];
-              if (campaigns.length > 0) {
-                const metadataCampaignId = useMetadataStore.getState().metadata?.campaign?.id;
-                const campaignToSelect =
-                  campaigns.find((c: Campaign) => c.id === metadataCampaignId) || campaigns[0];
-
-                if (campaignToSelect) {
-                  set(
-                    { currentCampaign: campaignToSelect },
-                    false,
-                    'requestCampaignList/setCurrent'
-                  );
-                  useMetadataStore.getState().updateCampaignMetadata(campaignToSelect);
-                  get().requestCampaignState(campaignToSelect.id);
-                }
-              }
-            }
           } else {
             set(
               { loading: false, error: 'Failed to load campaigns' },

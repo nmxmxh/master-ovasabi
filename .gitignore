@@ -147,3 +147,4 @@ docs-site.tar.gz
 vendor/ 
 *ovasabi_ai_env
 slim.report.json
+/amadeus/agent/

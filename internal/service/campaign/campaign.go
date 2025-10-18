@@ -110,7 +110,7 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 		req.Metadata = &commonpb.Metadata{}
 	}
 	if req.Metadata.ServiceSpecific == nil {
-		req.Metadata.ServiceSpecific = &structpb.Struct{Fields: map[string]*structpb.Value{}}
+		req.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 	}
 	if req.Metadata.GlobalContext == nil {
 		req.Metadata.GlobalContext = &commonpb.Metadata_GlobalContext{}
@@ -155,35 +155,66 @@ func (s *Service) CreateCampaign(ctx context.Context, req *campaignpb.CreateCamp
 	}()
 	// Create campaign with transaction
 	now := time.Now()
+
+	// Initialize metadata if nil
+	if req.Metadata == nil {
+		req.Metadata = &commonpb.Metadata{}
+	}
+	if req.Metadata.ServiceSpecific == nil {
+		req.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+	}
+	if _, ok := req.Metadata.ServiceSpecific.Fields["campaign"]; !ok {
+		req.Metadata.ServiceSpecific.Fields["campaign"] = structpb.NewStructValue(&structpb.Struct{Fields: make(map[string]*structpb.Value)})
+	}
+
+	campaignMeta := req.Metadata.ServiceSpecific.Fields["campaign"].GetStructValue()
+	if campaignMeta.Fields == nil {
+		campaignMeta.Fields = make(map[string]*structpb.Value)
+	}
+
+	// Populate service-specific metadata from the request
+	if len(req.Features) > 0 {
+		features := make([]*structpb.Value, len(req.Features))
+		for i, f := range req.Features {
+			features[i] = structpb.NewStringValue(f)
+		}
+		campaignMeta.Fields["features"] = structpb.NewListValue(&structpb.ListValue{Values: features})
+	}
+	if len(req.Tags) > 0 {
+		tags := make([]*structpb.Value, len(req.Tags))
+		for i, t := range req.Tags {
+			tags[i] = structpb.NewStringValue(t)
+		}
+		campaignMeta.Fields["tags"] = structpb.NewListValue(&structpb.ListValue{Values: tags})
+	}
+	if req.Focus != "" {
+		campaignMeta.Fields["focus"] = structpb.NewStringValue(req.Focus)
+	}
+	if req.Status != "" {
+		campaignMeta.Fields["status"] = structpb.NewStringValue(req.Status)
+	}
+
 	c := &Campaign{
 		Slug:           req.Slug,
 		Title:          req.Title,
 		Name:           req.Title, // Set Name to Title by default
-		Description:    "Campaign entity",
+		Description:    req.Description, // Use description from request
 		RankingFormula: req.RankingFormula,
-		Status:         "active", // Default to active status
+		Status:         req.Status, // Use status from request
 		Metadata:       req.Metadata,
 		OwnerID:        authUserID,
 		StartDate:      now,
 		EndDate:        now.AddDate(0, 3, 0),
 	}
-	if req.Description != "" {
-		if c.Metadata != nil && c.Metadata.ServiceSpecific != nil {
-			if c.Metadata.ServiceSpecific.Fields == nil {
-				c.Metadata.ServiceSpecific.Fields = make(map[string]*structpb.Value)
-			}
-			campaignMetaValue, ok := c.Metadata.ServiceSpecific.Fields["campaign"]
-			var campaignMeta *structpb.Struct
-			if ok {
-				campaignMeta = campaignMetaValue.GetStructValue()
-			}
-			if campaignMeta == nil {
-				campaignMeta = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
-				c.Metadata.ServiceSpecific.Fields["campaign"] = structpb.NewStructValue(campaignMeta)
-			}
-			campaignMeta.Fields["description"] = structpb.NewStringValue(req.Description)
-		}
+
+	// Set default status if not provided
+	if c.Status == "" {
+		c.Status = "draft"
 	}
+	if campaignMeta.Fields["status"] == nil {
+		campaignMeta.Fields["status"] = structpb.NewStringValue(c.Status)
+	}
+
 	created, err := s.repo.CreateWithTransaction(ctx, tx, c)
 	if err != nil {
 		gErr := graceful.MapAndWrapErr(ctx, err, "failed to create campaign", codes.Internal)
@@ -344,17 +375,54 @@ func (s *Service) UpdateCampaign(ctx context.Context, req *campaignpb.UpdateCamp
 
 	log.Info("Updating campaign")
 
-	// Update fields
+	// Merge new data into existing campaign
 	existing.Title = req.Campaign.Title
 	existing.Description = req.Campaign.Description
 	existing.RankingFormula = req.Campaign.RankingFormula
-	existing.Status = "active" // Keep status as active
-	existing.Metadata = req.Campaign.Metadata
+	existing.Status = req.Campaign.Status
+
 	if req.Campaign.StartDate != nil {
 		existing.StartDate = req.Campaign.StartDate.AsTime()
 	}
 	if req.Campaign.EndDate != nil {
 		existing.EndDate = req.Campaign.EndDate.AsTime()
+	}
+
+	// Merge metadata
+	if existing.Metadata == nil {
+		existing.Metadata = &commonpb.Metadata{}
+	}
+	if existing.Metadata.ServiceSpecific == nil {
+		existing.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+	}
+	if _, ok := existing.Metadata.ServiceSpecific.Fields["campaign"]; !ok {
+		existing.Metadata.ServiceSpecific.Fields["campaign"] = structpb.NewStructValue(&structpb.Struct{Fields: make(map[string]*structpb.Value)})
+	}
+	campaignMeta := existing.Metadata.ServiceSpecific.Fields["campaign"].GetStructValue()
+	if campaignMeta.Fields == nil {
+		campaignMeta.Fields = make(map[string]*structpb.Value)
+	}
+
+	// Populate service-specific metadata from the request
+	if len(req.Campaign.Features) > 0 {
+		features := make([]*structpb.Value, len(req.Campaign.Features))
+		for i, f := range req.Campaign.Features {
+			features[i] = structpb.NewStringValue(f)
+		}
+		campaignMeta.Fields["features"] = structpb.NewListValue(&structpb.ListValue{Values: features})
+	}
+	if len(req.Campaign.Tags) > 0 {
+		tags := make([]*structpb.Value, len(req.Campaign.Tags))
+		for i, t := range req.Campaign.Tags {
+			tags[i] = structpb.NewStringValue(t)
+		}
+		campaignMeta.Fields["tags"] = structpb.NewListValue(&structpb.ListValue{Values: tags})
+	}
+	if req.Campaign.Focus != "" {
+		campaignMeta.Fields["focus"] = structpb.NewStringValue(req.Campaign.Focus)
+	}
+	if req.Campaign.Status != "" {
+		campaignMeta.Fields["status"] = structpb.NewStringValue(req.Campaign.Status)
 	}
 
 	// Update in database
