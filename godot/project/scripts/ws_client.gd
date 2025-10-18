@@ -100,7 +100,7 @@ func disconnect_from_campaign(campaign_id: String):
         print("[ws_client] Disconnected from campaign:", campaign_id)
 
 # Send large data in chunks to avoid WebSocket buffer overflow
-func send_large_event(campaign_id: String, event: Dictionary, chunk_size: int = 1024 * 1024):  # 1MB chunks for better compatibility
+func send_large_event(campaign_id: String, event: Dictionary, chunk_size: int = 8 * 1024):  # 8KB chunks for max compatibility
     var json_string = JSON.stringify(event)
     var data_size = json_string.length()
     
@@ -146,7 +146,7 @@ func send_chunked_event(campaign_id: String, event: Dictionary, chunk_size: int)
         
         # Compress particle data for efficiency
         var compressed_data = compress_particle_buffer(buffer_data)
-        var compressed_size = compressed_data.size()
+        var compressed_size = compressed_data.size() * 4 # 4 bytes per float
         
         if log_enabled:
             print("[ws_client] Compressed particle data: ", buffer_size, " -> ", compressed_size, " bytes (", int((1.0 - float(compressed_size) / float(buffer_size)) * 100), "% reduction)")
@@ -159,6 +159,9 @@ func send_chunked_event(campaign_id: String, event: Dictionary, chunk_size: int)
             var start_idx = i * (chunk_size / 4)  # Convert to float indices
             var end_idx = min((i + 1) * (chunk_size / 4), compressed_data.size())
             
+            var data_slice = compressed_data.slice(start_idx, end_idx)
+            var base64_slice = Marshalls.variant_to_base64(data_slice)
+            
             var chunk = {
                 "type": "physics:particle:chunk",
                 "correlation_id": correlation_id,
@@ -170,7 +173,8 @@ func send_chunked_event(campaign_id: String, event: Dictionary, chunk_size: int)
                     "data": {
                         "chunk_index": i,
                         "total_chunks": chunk_count,
-                        "buffer": compressed_data.slice(start_idx, end_idx),
+                        "buffer": base64_slice,
+                        "encoding": "base64",
                         "original_type": event.type,
                         "compressed": true,
                         "original_size": buffer_size,
@@ -220,6 +224,17 @@ func send_chunked_event(campaign_id: String, event: Dictionary, chunk_size: int)
             return
         elif log_enabled:
             print("[ws_client] Sent chunk ", chunk.payload.data.chunk_index + 1, "/", total_chunks, " to campaign ", campaign_id)
+        
+        # Poll the connection to update its state immediately after sending.
+        # This helps detect if the connection was closed by the peer during the send process.
+        ws_peer.poll()
+        
+        # Check the state again. If it's not open, stop sending the rest of the chunks.
+        var current_state = ws_peer.get_ready_state()
+        if current_state != WebSocketPeer.STATE_OPEN:
+            if log_enabled:
+                print("[ws_client] Connection closed while sending chunks to campaign " + campaign_id + ". Aborting.")
+            return
     
     if log_enabled:
         print("[ws_client] Successfully sent ", total_chunks, " chunks to campaign ", campaign_id)
@@ -278,7 +293,7 @@ func send_event(campaign_id: String, event: Dictionary):
     var msg_size = msg.length()
     
     # Check message size before sending - use large event for big messages
-    if msg_size > 8 * 1024 * 1024:  # 8MB limit, use chunking for larger
+    if msg_size > 64 * 1024:  # 64KB limit, use chunking for larger
         if log_enabled:
             print("[ws_client] Message large (", msg_size, " bytes), using chunked sending")
         send_large_event(campaign_id, event)
@@ -478,8 +493,4 @@ func decompress_particle_buffer(compressed: PackedFloat32Array) -> PackedFloat32
         decompressed.append(value)
     
     return decompressed
-# Signals
-signal event_received(campaign_id, event)
-signal connection_failed(campaign_id)
-signal campaign_connected(campaign_id)
 

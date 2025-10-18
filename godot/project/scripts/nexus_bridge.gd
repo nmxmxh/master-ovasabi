@@ -70,7 +70,8 @@ func init_bridge():
             elif nexus_client.has_method("emit_event"):
                 nexus_client.emit_event(event)
         print("[nexus_bridge] Subscribing to event_received signal.")
-        nexus_client.connect("event_received", Callable(self, "_on_nexus_event"))
+        if not nexus_client.is_connected("event_received", Callable(self, "_on_nexus_event")):
+            nexus_client.connect("event_received", Callable(self, "_on_nexus_event"))
     else:
         print("[nexus_bridge] NexusClient NOT found!")
 
