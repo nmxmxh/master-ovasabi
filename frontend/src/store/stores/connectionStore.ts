@@ -9,6 +9,7 @@ interface ConnectionStore extends ConnectionState {
   setWasmFunctions: (funcs: { [key: string]: boolean }) => void;
   reconnect: () => void;
   handleConnectionStatus: (connected: boolean, reason: string) => void;
+  handleCampaignSwitch: (newCampaignId: string) => void;
   checkGlobalConnectionStatus: () => void;
   checkConnectionTimeout: () => void;
 
@@ -78,6 +79,15 @@ export const useConnectionStore = create<ConnectionStore>()(
           console.log(
             `[ConnectionStore] WebSocket status: ${connected ? 'CONNECTED' : 'DISCONNECTED'} (${reason})`
           );
+        }
+      },
+
+      handleCampaignSwitch: (newCampaignId: string) => {
+        console.log(`[ConnectionStore] Switching campaign to ${newCampaignId}`);
+        if (typeof (window as any).switchCampaign === 'function') {
+          (window as any).switchCampaign(newCampaignId);
+        } else {
+          console.warn('[ConnectionStore] WASM switchCampaign function not available');
         }
       },
 
@@ -192,5 +202,7 @@ export const useConnectionStore = create<ConnectionStore>()(
 // Register store actions to break circular dependencies
 storeRegistry.register('connection', {
   handleConnectionStatus: (connected: boolean, reason: string) =>
-    useConnectionStore.getState().handleConnectionStatus(connected, reason)
+    useConnectionStore.getState().handleConnectionStatus(connected, reason),
+  handleCampaignSwitch: (newCampaignId: string) =>
+    useConnectionStore.getState().handleCampaignSwitch(newCampaignId)
 });

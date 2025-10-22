@@ -93,6 +93,9 @@ services:
       NEXUS_GRPC_ADDR: 'nexus:50052'
       LOG_LEVEL: info
       WS_ALLOWED_ORIGINS: '${WS_ALLOWED_ORIGINS:-*}'
+      REDIS_HOST: '${REDIS_HOST:-redis}'
+      REDIS_PORT: '${REDIS_PORT:-6379}'
+      REDIS_PASSWORD: '${REDIS_PASSWORD}'
     ports:
       - '8090:8090'
 

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -27,6 +28,7 @@ import (
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"github.com/nmxmxh/master-ovasabi/pkg/logger"
 	"github.com/nmxmxh/master-ovasabi/pkg/metadata"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -90,12 +92,61 @@ type ClientMap struct {
 	clients map[string]map[string]*WSClient // campaign_id -> user_id -> WSClient
 }
 
-// EventDeduplicator removed - using consolidated isDuplicateEvent function instead
+func newWsClientMap() *ClientMap {
+	return &ClientMap{
+		clients: make(map[string]map[string]*WSClient),
+	}
+}
+
+func (m *ClientMap) Store(campaignID, userID string, client *WSClient) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.clients[campaignID]; !ok {
+		m.clients[campaignID] = make(map[string]*WSClient)
+	}
+	m.clients[campaignID][userID] = client
+}
+
+func (m *ClientMap) Delete(campaignID, userID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if users, ok := m.clients[campaignID]; ok {
+		delete(users, userID)
+		if len(users) == 0 {
+			delete(m.clients, campaignID)
+		}
+	}
+}
+
+func (m *ClientMap) Range(f func(campaignID, userID string, client *WSClient) bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for campaignID, users := range m.clients {
+		for userID, client := range users {
+			if !f(campaignID, userID, client) {
+				return
+			}
+		}
+	}
+}
+
+// --- Redis Session Management ---
+type UserSession struct {
+	GatewayID  string `json:"gateway_id"`
+	CampaignID string `json:"campaign_id"`
+}
+
+type SwitchCampaignEvent struct {
+	UserID      string `json:"user_id"`
+	NewCampaignID string `json:"new_campaign_id"`
+}
 
 // --- Global State ---.
 var (
 	wsClientMap    = newWsClientMap()
 	nexusClient    nexuspb.NexusServiceClient
+	redisClient    *redis.Client
+	gatewayID      string
 	allowedOrigins = getAllowedOrigins() // Keep for CORS checks
 	compressor     = compression.NewCompressor()
 
@@ -112,6 +163,11 @@ var (
 	log logger.Logger // Global logger instance
 
 	pendingRequests = newPendingRequestsMap()
+)
+
+const (
+	userSessionChannel = "user:switch_campaign"
+	sessionKeyPrefix   = "session:"
 )
 
 // Track relevant event types for dynamic subscription.
@@ -303,6 +359,11 @@ func main() {
 	}
 	log.Info("Starting application...")
 
+	// Generate a unique ID for this gateway instance
+	hostname, _ := os.Hostname()
+	gatewayID = fmt.Sprintf("%s-%s", hostname, generateCryptoHash(fmt.Sprintf("%d", time.Now().UnixNano()))[:8])
+	log.Info("Generated unique gateway ID", zap.String("gateway_id", gatewayID))
+
 	// Read max connections per IP from environment variable
 	maxConnsStr := os.Getenv("WS_MAX_CONNECTIONS_PER_IP")
 	if maxConnsStr == "" {
@@ -333,13 +394,48 @@ func main() {
 		nexusAddr = "nexus:50052" // Default Nexus service address from compose
 	}
 
+	// --- Redis Initialization ---
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisHost == "" {
+		redisHost = "redis"
+	}
+	redisPort := os.Getenv("REDIS_PORT")
+	if redisPort == "" {
+		redisPort = "6379"
+	}
+	redisPassword := os.Getenv("REDIS_PASSWORD") // Can be empty
+	redisDBStr := os.Getenv("REDIS_DB")
+	if redisDBStr == "" {
+		redisDBStr = "0"
+	}
+	redisDB, err := strconv.Atoi(redisDBStr)
+	if err != nil {
+		log.Error("Invalid REDIS_DB value", zap.Error(err))
+		os.Exit(1)
+	}
+
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", redisHost, redisPort),
+		Password: redisPassword,
+		DB:       redisDB,
+	})
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Error("Could not connect to Redis", zap.Error(err))
+		os.Exit(1)
+	}
+	log.Info("Successfully connected to Redis", zap.String("host", redisHost), zap.String("port", redisPort))
+
 	// --- Initialization ---
 	// Pre-populate all canonical :success event types before starting Nexus subscriber
 	prepopulateCanonicalSuccessEventTypes("config/service_registration.json", log)
 
 	// Connect to the Nexus gRPC server
 	// In production, use TLS credentials.
-	conn, err := grpc.NewClient(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Error("could not connect to Nexus", zap.Error(err))
 		os.Exit(1)
@@ -348,11 +444,9 @@ func main() {
 	nexusClient = nexuspb.NewNexusServiceClient(conn)
 	log.Info("Connected to Nexus gRPC server", zap.String("address", nexusAddr))
 
-	// --- Start Nexus Subscriber ---
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
+	// --- Start Nexus & Redis Subscribers ---
 	go nexusSubscriber(ctx, nexusClient)
+	go redisSubscriber(ctx)
 
 	// --- HTTP Server Setup ---
 	mux := http.NewServeMux()
@@ -400,6 +494,10 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("Error during server shutdown", zap.Error(err))
+	}
+
+	if err := redisClient.Close(); err != nil {
+		log.Error("Error closing Redis client", zap.Error(err))
 	}
 
 	log.Info("Server gracefully stopped.")
@@ -1003,6 +1101,12 @@ func getClientIP(r *http.Request) string {
 	return ip
 }
 
+func checkOrigin(r *http.Request) bool {
+	// Allow all origins for now.
+	// In production, you should have a whitelist of allowed origins.
+	return true
+}
+
 func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Connection limiting: Check if IP has too many connections
 	clientIP := getClientIP(r)
@@ -1039,27 +1143,71 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 	userID := mapUserID(rawUserID)
 	log.Debug("WebSocket connection user ID normalization", zap.String("raw_user_id", rawUserID), zap.String("mapped_user_id", userID))
 
+	// --- Redis Session Handling ---
+	ctx := context.Background()
+	sessionKey := sessionKeyPrefix + userID
+	var existingSession UserSession
+
+	// 1. Check for an existing session in Redis.
+	sessionData, err := redisClient.Get(ctx, sessionKey).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		log.Error("Failed to get user session from Redis", zap.Error(err), zap.String("user_id", userID))
+		// Decide if you should terminate or allow connection
+	}
+
+	if err == nil {
+		if err := json.Unmarshal([]byte(sessionData), &existingSession); err == nil {
+			// 2. If a session exists on a different gateway, notify it to disconnect.
+			if existingSession.GatewayID != gatewayID {
+				log.Info("User session exists on another gateway. Publishing switch event.",
+					zap.String("user_id", userID),
+					zap.String("old_gateway", existingSession.GatewayID),
+					zap.String("new_gateway", gatewayID),
+					zap.String("new_campaign_id", campaignID))
+
+				switchEvent := SwitchCampaignEvent{
+					UserID:      userID,
+					NewCampaignID: campaignID,
+				}
+				eventBytes, err := json.Marshal(switchEvent)
+				if err != nil {
+					log.Error("Failed to marshal switch campaign event", zap.Error(err))
+				} else {
+					if err := redisClient.Publish(ctx, userSessionChannel, eventBytes).Err(); err != nil {
+						log.Error("Failed to publish switch campaign event to Redis", zap.Error(err))
+					}
+				}
+			}
+		}
+	}
+
+	// --- Upgrade Connection ---
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Info("WebSocket upgrade failed", zap.Error(err))
+		// Decrement connection count on failure
+		connectionMutex.Lock()
+		connectionLimiter[clientIP]--
+		connectionMutex.Unlock()
 		return
 	}
 
-	// Check if user is already connected to a different campaign
-	// If so, disconnect them from the old campaign first
-	wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
-		if uid == userID && cid != campaignID {
-			log.Info("User switching campaigns, disconnecting from old campaign",
-				zap.String("user_id", userID),
-				zap.String("old_campaign", cid),
-				zap.String("new_campaign", campaignID))
-
-			// Close the old connection gracefully
-			close(client.done)
-			wsClientMap.Delete(cid, uid)
-		}
-		return true
-	})
+	// 3. Create and register the new session in Redis.
+	newSession := UserSession{
+		GatewayID:  gatewayID,
+		CampaignID: campaignID,
+	}
+	newSessionBytes, err := json.Marshal(newSession)
+	if err != nil {
+		log.Error("Failed to marshal new user session", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if err := redisClient.Set(ctx, sessionKey, newSessionBytes, 24*time.Hour).Err(); err != nil {
+		log.Error("Failed to set new user session in Redis", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
 	client := &WSClient{
 		conn:       conn,
@@ -1076,13 +1224,93 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 		sendBufferFull:  false,
 	}
 	wsClientMap.Store(campaignID, userID, client)
-	log.Info("Client connected", zap.String("campaign", campaignID), zap.String("user", userID), zap.String("raw_user_id", rawUserID), zap.String("remote", r.RemoteAddr))
+	log.Info("Client connected and session registered",
+		zap.String("campaign", campaignID),
+		zap.String("user", userID),
+		zap.String("gateway_id", gatewayID),
+		zap.String("remote", r.RemoteAddr))
 
 	// Use a background context for WebSocket lifecycle, not tied to HTTP request
 	wsCtx, wsCancel := context.WithCancel(context.Background())
 	go client.writePump()
 	go client.readPumpWithContext(wsCtx, wsCancel)
 	// Cancel wsCtx only when you want to close the connection (e.g., on error or shutdown)
+}
+
+func redisSubscriber(ctx context.Context) {
+	pubsub := redisClient.Subscribe(ctx, userSessionChannel)
+	defer pubsub.Close()
+
+	log.Info("Redis Pub/Sub subscriber started", zap.String("channel", userSessionChannel))
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("Redis subscriber shutting down.")
+			return
+		case msg, ok := <-pubsub.Channel():
+			if !ok {
+				log.Info("Redis Pub/Sub channel closed.")
+				return
+			}
+
+			var switchEvent SwitchCampaignEvent
+			if err := json.Unmarshal([]byte(msg.Payload), &switchEvent); err != nil {
+				log.Error("Failed to unmarshal switch campaign event from Redis", zap.Error(err))
+				continue
+			}
+
+			log.Info("Received switch campaign event",
+				zap.String("user_id", switchEvent.UserID),
+				zap.String("new_campaign_id", switchEvent.NewCampaignID))
+
+			// Find the client in the local map
+			var clientToDisconnect *WSClient
+			var oldCampaignID string
+			wsClientMap.Range(func(cid, uid string, client *WSClient) bool {
+				if uid == switchEvent.UserID {
+					clientToDisconnect = client
+					oldCampaignID = cid
+					return false // stop iterating
+				}
+				return true
+			})
+
+			if clientToDisconnect != nil {
+				log.Info("Found local client for campaign switch. Sending reconnect message.",
+					zap.String("user_id", switchEvent.UserID),
+					zap.String("old_campaign_id", oldCampaignID),
+					zap.String("new_campaign_id", switchEvent.NewCampaignID))
+
+				// Construct the reconnect message
+				reconnectMsg := WebSocketEvent{
+					Type: "reconnect:campaign_switch",
+					Payload: map[string]interface{}{
+						"newCampaignId": switchEvent.NewCampaignID,
+					},
+					Timestamp: time.Now().UTC().Format(time.RFC3339),
+					Source:    "backend",
+				}
+				msgBytes, err := json.Marshal(reconnectMsg)
+				if err != nil {
+					log.Error("Failed to marshal reconnect message", zap.Error(err))
+					continue
+				}
+
+				// Send the message and close the connection
+				select {
+				case clientToDisconnect.send <- msgBytes:
+					log.Info("Sent reconnect message to client", zap.String("user_id", switchEvent.UserID))
+				default:
+					log.Warn("Failed to send reconnect message, client channel full", zap.String("user_id", switchEvent.UserID))
+				}
+				
+				close(clientToDisconnect.done)
+				wsClientMap.Delete(oldCampaignID, switchEvent.UserID)
+				log.Info("Closed old connection after campaign switch notification.", zap.String("user_id", switchEvent.UserID))
+			}
+		}
+	}
 }
 
 // readPump pumps messages from the WebSocket connection to the Nexus event bus.
@@ -1121,36 +1349,13 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 		}
 		_, msgBytes, err := c.conn.ReadMessage()
 		if err != nil {
-			errType := fmt.Sprintf("%T", err)
-			switch {
-			case websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure):
-				// Check if this is a graceful campaign switch closure
-				if strings.Contains(err.Error(), "campaign_switch") {
-					log.Info("WebSocket closed: graceful campaign switch", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
-				} else {
-					log.Warn("Unexpected WebSocket close error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
-				}
-			case errors.Is(err, io.EOF):
-				log.Info("WebSocket closed: EOF", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
-			case errors.Is(err, context.Canceled):
-				log.Info("WebSocket closed: context canceled", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
-			case strings.Contains(err.Error(), "use of closed network connection"):
-				log.Warn("WebSocket closed: use of closed network connection", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
-			case strings.Contains(err.Error(), "timeout"):
-				log.Warn("WebSocket closed: timeout", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
-			default:
-				log.Info("WebSocket closed: other error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType), zap.String("error_msg", err.Error()))
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Warn("Unexpected WebSocket close error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
+			} else {
+				log.Info("WebSocket closed", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 			}
-			log.Info("Exiting readPump due to error", zap.Error(err), zap.String("campaign", c.campaignID), zap.String("user", c.userID), zap.String("error_type", errType))
-			break
+			return
 		}
-
-		// Log message type for debugging
-		// if messageType == websocket.BinaryMessage {
-		// 	log.Debug("Received binary message", zap.Int("size", len(msgBytes)))
-		// } else {
-		// 	log.Debug("Received text message", zap.Int("size", len(msgBytes)))
-		// }
 
 		// Rate limiting: Check if user is sending too many messages
 		now := time.Now()
@@ -1193,22 +1398,15 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 			continue
 		}
 
-		// User ID mapping removed as it was only used for logging
-		// rawMsgUserID := envelope.Metadata.GetGlobalContext().GetUserId()
-		// mappedMsgUserID := mapUserID(rawMsgUserID)
-
 		// Extract routing information from validated metadata
 		correlationID := envelope.Metadata.GetGlobalContext().GetCorrelationId()
 
 		// Store the original correlation ID for response matching
-		// This ensures we can match responses back to the original requests
 		if correlationID != "" {
-			// Store the correlation ID in the client for later use
 			c.correlationID = correlationID
 		}
 
 		// Only store pending requests for non-Godot events or specific event types
-		// Godot events are typically one-way broadcasts, not request/response patterns
 		if !isGodotRequestEvent(envelope.Type) {
 			expectedSuccessType := extractExpectedSuccessType(envelope.Type)
 			pendingRequests.Store(correlationID, pendingRequestEntry{
@@ -1287,25 +1485,7 @@ func (c *WSClient) writePump() {
 
 			// Compress message before sending
 			compressedMessage := compressor.Compress(message)
-
-			// Debug logging for compression decisions
-			// originalSize := len(message)
-			// compressedSize := len(compressedMessage)
 			isCompressed := compressor.IsCompressed(compressedMessage)
-
-			// if isCompressed {
-			// 	ratio := float64(compressedSize) / float64(originalSize)
-			// 	log.Debug("Message compressed",
-			// 		zap.Int("original_size", originalSize),
-			// 		zap.Int("compressed_size", compressedSize),
-			// 		zap.Float64("compression_ratio", ratio),
-			// 		zap.String("user_id", c.userID))
-			// } else {
-			// 	log.Debug("Message not compressed (below threshold)",
-			// 		zap.Int("size", originalSize),
-			// 		zap.Int("threshold", 1024),
-			// 		zap.String("user_id", c.userID))
-			// }
 
 			// Send as binary if compressed, text if not
 			var messageType int
@@ -1378,9 +1558,6 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 				// --- Optimized Event Processing with Atomic Deduplication ---
 				eventID := event.EventId
 				eventType := event.EventType
-
-				// Only log critical events for performance
-				// log.Debug("[WS-GATEWAY] Received event", ...) // Removed for performance
 
 				// Atomic check-and-process: prevent race conditions
 				if !tryProcessEvent(eventID, eventType) {
@@ -1810,156 +1987,50 @@ func sendErrorResponse(client *WSClient, errorType, message string, err error) {
 
 // --- Utility Functions ---
 
-func newWsClientMap() *ClientMap {
-	return &ClientMap{
-		clients: make(map[string]map[string]*WSClient),
-	}
-}
-
-func (m *ClientMap) Store(campaignID, userID string, client *WSClient) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if _, ok := m.clients[campaignID]; !ok {
-		m.clients[campaignID] = make(map[string]*WSClient)
-	}
-	m.clients[campaignID][userID] = client
-}
-
-func (m *ClientMap) Delete(campaignID, userID string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if camp, ok := m.clients[campaignID]; ok {
-		delete(camp, userID)
-		if len(camp) == 0 {
-			delete(m.clients, campaignID)
-		}
-	}
-}
-
-func (m *ClientMap) Range(f func(campaignID, userID string, client *WSClient) bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	for campID, users := range m.clients {
-		for userID, client := range users {
-			if !f(campID, userID, client) {
-				return
-			}
-		}
-	}
-}
-
 func getAllowedOrigins() []string {
-	origins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if origins == "" {
-		return []string{"*"} // Default to all origins if not set
-	}
-	return strings.Split(origins, ",")
+	// In a real application, this would be configurable.
+	return []string{"*"}
 }
 
-func checkOrigin(r *http.Request) bool {
-	if allowedOrigins[0] == "*" {
-		return true
-	}
-	origin := r.Header.Get("Origin")
-	for _, o := range allowedOrigins {
-		if o == origin {
-			return true
-		}
-	}
-	return false
-}
-
-// --- Exponential Backoff ---
-
-// ExponentialBackoff provides a simple mechanism for retrying operations with increasing delays.
-type ExponentialBackoff struct {
-	minInterval time.Duration
-	maxInterval time.Duration
-	multiplier  float64
-	jitter      float64
-	current     time.Duration
-	mu          sync.Mutex
-}
-
-// NewExponentialBackoff creates and initializes a new ExponentialBackoff instance.
-func NewExponentialBackoff(minDuration, maxDuration time.Duration, multiplier, jitter float64) *ExponentialBackoff {
-	return &ExponentialBackoff{
-		minInterval: minDuration,
-		maxInterval: maxDuration,
-		multiplier:  multiplier,
-		jitter:      jitter,
-		current:     minDuration,
-	}
-}
-
-// NextInterval calculates and returns the next backoff duration.
-func (b *ExponentialBackoff) NextInterval() time.Duration {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	interval := b.current
-	b.current = time.Duration(float64(b.current) * b.multiplier)
-
-	if b.current > b.maxInterval {
-		b.current = b.maxInterval
-	}
-
-	if b.jitter > 0 {
-		// Use crypto/rand for secure jitter
-		var randFloat float64
-		{
-			b := make([]byte, 8)
-			if _, err := rand.Read(b); err == nil {
-				bits := binary.LittleEndian.Uint64(b)
-				randFloat = float64(bits) / float64(^uint64(0)) // [0,1)
-			} else {
-				randFloat = 0.5 // fallback
-			}
-		}
-		jitterAmount := time.Duration(float64(interval) * b.jitter * (randFloat*2 - 1))
-		interval += jitterAmount
-	}
-
-	if interval < b.minInterval {
-		interval = b.minInterval
-	}
-	if interval > b.maxInterval {
-		interval = b.maxInterval
-	}
-
-	return interval
-}
-
-// Reset resets the backoff interval to its minimum value.
-func (b *ExponentialBackoff) Reset() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.current = b.minInterval
-}
-
-// isCanonicalEventType validates event type format: {service}:{action}:v{version}:{state}.
 func isCanonicalEventType(eventType string) bool {
-	// Allow the special echo event type for hello world/testing
-	if eventType == "echo" {
-		return true
-	}
-	// Allow all campaign events to pass through
-	if strings.HasPrefix(eventType, "campaign:") {
-		return true
-	}
 	parts := strings.Split(eventType, ":")
-	if len(parts) != 4 {
-		return false
+	return len(parts) == 4
+}
+
+type ExponentialBackoff struct {
+	baseInterval time.Duration
+	maxInterval  time.Duration
+	multiplier   float64
+	jitter       float64
+	attempts     int
+}
+
+func NewExponentialBackoff(base, max time.Duration, multiplier, jitter float64) *ExponentialBackoff {
+	return &ExponentialBackoff{
+		baseInterval: base,
+		maxInterval:  max,
+		multiplier:   multiplier,
+		jitter:       jitter,
 	}
-	// service: non-empty, action: non-empty, version: v[0-9]+, state: controlled vocab
-	service, action, version, state := parts[0], parts[1], parts[2], parts[3]
-	if service == "" || action == "" {
-		return false
+}
+
+func (b *ExponentialBackoff) NextInterval() time.Duration {
+	b.attempts++
+	interval := float64(b.baseInterval) * math.Pow(b.multiplier, float64(b.attempts-1))
+	if interval > float64(b.maxInterval) {
+		interval = float64(b.maxInterval)
 	}
-	if !strings.HasPrefix(version, "v") || len(version) < 2 {
-		return false
+	if b.jitter > 0 {
+		var b_rand [8]byte
+		if _, err := rand.Read(b_rand[:]); err != nil {
+			panic(err)
+		}
+		jitter := (float64(binary.LittleEndian.Uint64(b_rand[:]))/float64(math.MaxUint64)*2 - 1) * b.jitter * interval
+		interval += jitter
 	}
-	allowedStates := map[string]struct{}{"requested": {}, "started": {}, "success": {}, "failed": {}, "completed": {}}
-	_, ok := allowedStates[state]
-	return ok
+	return time.Duration(interval)
+}
+
+func (b *ExponentialBackoff) Reset() {
+	b.attempts = 0
 }

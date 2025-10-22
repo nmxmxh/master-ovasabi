@@ -265,9 +265,19 @@ export const useCampaignStore = create<CampaignStore>()(
           if (listResponse.type === 'campaign:list:v1:success') {
             get().updateCampaignsFromResponse(listResponse.payload);
             set({ loading: false, error: null }, false, 'requestCampaignListSuccess');
-          } else {
+          } else if (listResponse.type === 'campaign:error:v1:response') {
+            const errorMessage = listResponse.payload?.message || 'Failed to load campaigns';
+            console.error('Campaign error:', listResponse.payload);
             set(
-              { loading: false, error: 'Failed to load campaigns' },
+              { loading: false, error: errorMessage },
+              false,
+              'requestCampaignListError'
+            );
+          } else {
+            const errorMessage = `Received unexpected event type: ${listResponse.type}`;
+            console.error('Received unexpected event type for campaign list:', listResponse.type);
+            set(
+              { loading: false, error: errorMessage },
               false,
               'requestCampaignListError'
             );

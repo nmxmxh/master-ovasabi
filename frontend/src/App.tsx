@@ -18,6 +18,7 @@ import './App.css';
 import UserServicePage from './pages/UserServicePage';
 import CreateCampaignPage from './pages/CreateCampaignPage';
 import ViewPage from './pages/ViewPage';
+import MediaStreamingPage from './pages/MediaStreamingPage';
 
 // Wrapper to extract serviceName param for ServiceTestPage
 function ServiceTestPageWrapper() {
@@ -321,6 +322,12 @@ function Navigation() {
       >
         SERVICES
       </Link>
+      <Link
+        to="/media-streaming"
+        className={`minimal-link ${location.pathname === '/media-streaming' ? 'active' : ''}`}
+      >
+        MEDIA
+      </Link>
     </nav>
   );
 }
@@ -376,6 +383,7 @@ function App() {
               <Route path="/switching" element={<CampaignSwitchingPage />} />
               <Route path="/view/:viewName" element={<ViewPage />} />
               <Route path="/services" element={<ServiceListPage />} />
+              <Route path="/media-streaming" element={<MediaStreamingPage />} />
               <Route
                 path="/services/user"
                 element={

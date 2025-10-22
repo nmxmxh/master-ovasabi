@@ -292,6 +292,9 @@ services:
       NEXUS_GRPC_ADDR: "nexus:50052" # Connect to the Nexus service over the internal Docker network
       LOG_LEVEL: debug
       WS_ALLOWED_ORIGINS: "*" # For local development, allow all origins
+      REDIS_HOST: "${REDIS_HOST:-redis}"
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
     depends_on:
       - nexus
     networks:

@@ -1125,6 +1125,7 @@ func main() {
 				{"infer", js.FuncOf(jsInfer)},
 				{"migrateUser", js.FuncOf(jsMigrateUser)},
 				{"reconnectWebSocket", js.FuncOf(jsReconnectWebSocket)},
+				{"switchCampaign", js.FuncOf(jsSwitchCampaign)},
 				{"initializeState", js.FuncOf(jsInitializeState)},
 				{"migrateOldState", js.FuncOf(jsMigrateOldState)},
 				{"clearAllStorage", js.FuncOf(jsClearAllStorage)},

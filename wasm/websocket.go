@@ -36,65 +36,28 @@ func updateWasmMetadata(key string, value interface{}) {
 func getWebSocketURL() string {
 	campaignId := "0" // Default fallback
 
-	// First try to use the global variable if set
+	// 1. Prioritize the global variable, which is explicitly set during a campaign switch.
 	if currentCampaignID != "" {
 		campaignId = currentCampaignID
 		wasmLog("[WASM] Using campaign ID from global variable:", campaignId)
-	}
-	if js.Global().Get("__WASM_GLOBAL_METADATA").Truthy() {
+	} else if js.Global().Get("__WASM_GLOBAL_METADATA").Truthy() {
+		// 2. Fallback to the global metadata object.
 		metadata := js.Global().Get("__WASM_GLOBAL_METADATA")
-		wasmLog("[WASM] Debug: Full metadata object:", metadata)
-
-		// Check if campaign object exists
-		campaignObj := metadata.Get("campaign")
-		if campaignObj.Truthy() {
-			wasmLog("[WASM] Debug: Campaign object found:", campaignObj)
-
-			// Try to get campaignId with better error handling
-			campaignIdValue := campaignObj.Get("campaignId")
-			if campaignIdValue.Truthy() {
-				campaignId = fmt.Sprintf("%v", campaignIdValue)
-				currentCampaignID = campaignId // Update global variable
-				wasmLog("[WASM] Using campaign ID from global metadata:", campaignId)
-			} else {
-				wasmLog("[WASM] Debug: campaignId field not found or falsy in campaign object")
-
-				// Fallback: try to access campaignId directly from metadata
-				directCampaignId := metadata.Get("campaignId")
-				if directCampaignId.Truthy() {
-					campaignId = fmt.Sprintf("%v", directCampaignId)
-					currentCampaignID = campaignId // Update global variable
-					wasmLog("[WASM] Using campaign ID from direct metadata access:", campaignId)
-				}
-			}
-		} else {
-			wasmLog("[WASM] Debug: Campaign object not found in metadata")
-
-			// Fallback: try to access campaignId directly from metadata
-			directCampaignId := metadata.Get("campaignId")
-			if directCampaignId.Truthy() {
-				campaignId = fmt.Sprintf("%v", directCampaignId)
-				currentCampaignID = campaignId // Update global variable
-				wasmLog("[WASM] Using campaign ID from direct metadata access:", campaignId)
+		if campaignObj := metadata.Get("campaign"); campaignObj.Truthy() {
+			if campaignIdValue := campaignObj.Get("campaignId"); campaignIdValue.Truthy() {
+				campaignId = campaignIdValue.String()
+				currentCampaignID = campaignId // Sync global variable
+				wasmLog("[WASM] Using campaign ID from metadata campaign object:", campaignId)
 			}
 		}
-	} else {
-		wasmLog("[WASM] Debug: __WASM_GLOBAL_METADATA not found")
 	}
-	userId := userID // Use the global userID variable instead of hardcoded guest_0
+
+	userId := userID // Use the global userID
 	if userId == "" {
-		// Fallback: try to get from global
-		if js.Global().Get("userID").Truthy() {
-			userId = js.Global().Get("userID").String()
-		} else {
-			// Generate a proper crypto hash guest ID
-			randVal := js.Global().Get("Math").Call("random")
-			str := js.Global().Get("Number").Get("prototype").Get("toString").Call("call", randVal, 36)
-			cryptoId := generateCryptoHash(str.String() + time.Now().String())
-			userId = "guest_" + cryptoId
-			wasmLog("[WASM] getWebSocketURL: Generated fallback guest ID:", userId)
-		}
+		userId = "guest_" + generateCryptoHash(js.Global().Get("Math").Call("random").String()+time.Now().String())
+		wasmLog("[WASM] Generated fallback guest ID:", userId)
 	}
+
 	location := js.Global().Get("location")
 	protocol := "ws:"
 	if location.Get("protocol").String() == "https:" {
@@ -240,6 +203,23 @@ func jsReconnectWebSocket(this js.Value, args []js.Value) interface{} {
 		reconnectWebSocket()
 		wsReconnectInProgress = false
 	}()
+	return nil
+}
+
+// jsSwitchCampaign is called from the frontend to switch the campaign and reconnect.
+func jsSwitchCampaign(this js.Value, args []js.Value) interface{} {
+	if len(args) == 0 || args[0].Type() != js.TypeString {
+		wasmError("[WASM] switchCampaign called with invalid arguments.")
+		return nil
+	}
+	newCampaignID := args[0].String()
+	wasmLog("[WASM] Switching campaign to", newCampaignID)
+
+	currentCampaignID = newCampaignID
+
+	// Trigger reconnection which will now use the new campaign ID
+	go reconnectWebSocket()
+
 	return nil
 }
 
@@ -424,7 +404,7 @@ func configureWebSocketCallbacks() {
 			// Default: Handle as string message
 			wasmLog("[WASM] Processing string message (default)")
 			msgStr := msg.String()
-			decompressed := Decompress([]byte(msgStr))
+				decompressed := Decompress([]byte(msgStr))
 			wasmLog("[WASM] Adding string message to queue, size:", len(msgStr), "->", len(decompressed))
 			messageQueue <- wsMessage{dataType: 0, payload: decompressed}
 		}()
