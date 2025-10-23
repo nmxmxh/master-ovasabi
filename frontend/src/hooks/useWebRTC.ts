@@ -124,10 +124,24 @@ export function useWebRTC(roomId: string, userId: string) {
     };
   }, []);
 
+  const stop = useCallback(() => {
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
+    setState(DEFAULT_STATE);
+  }, []);
+
   return {
     ...state,
     start,
-    sendSignal
+    stop,
+    sendSignal,
+    peerConnection: pcRef.current
     // Expose more helpers as needed
   };
 }

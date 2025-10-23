@@ -72,11 +72,11 @@ interface CampaignStore {
     onResponse?: (event: EventEnvelope) => void
   ) => void;
   updateCampaign: (updates: Partial<Campaign>, onResponse?: (event: EventEnvelope) => void) => void;
-  requestCampaignState: (campaignId: string, onResponse?: (event: EventEnvelope) => void) => void;
+  requestCampaignState: (campaignId: string) => Promise<Campaign>;
   updateCampaignFromResponse: (campaignData: any) => void;
   updateCampaignsFromResponse: (responseData: any) => void;
   createCampaign: (campaign: Partial<Campaign>) => Promise<Campaign>;
-  requestCampaignList: () => void;
+  requestCampaignList: () => Promise<void>;
   // Debugging helpers
   getCampaignSwitchFlow: () => {
     currentCampaign?: Campaign;
@@ -133,11 +133,7 @@ export const useCampaignStore = create<CampaignStore>()(
           false,
           'handleCampaignSwitchCompleted'
         );
-        get().requestCampaignState(new_campaign_id, (response: EventEnvelope) => {
-          if (response.type === 'campaign:state:v1:success') {
-            get().updateCampaignFromResponse(response.payload);
-          }
-        });
+        get().requestCampaignState(new_campaign_id);
       },
 
       switchCampaign: (campaignId, onResponse) => {
@@ -192,16 +188,26 @@ export const useCampaignStore = create<CampaignStore>()(
         }
       },
 
-      requestCampaignState: (campaignId, onResponse) => {
-        const event = createEvent(
-          'campaign:state:v1:requested',
-          {
-            campaignId,
-            fields: ['title', 'status', 'features', 'ui_content', 'communication']
-          },
-          campaignId
-        );
-        useEventStore.getState().emitEvent(event, onResponse);
+      requestCampaignState: campaignId => {
+        return new Promise<Campaign>((resolve, reject) => {
+          const event = createEvent(
+            'campaign:state:v1:requested',
+            {
+              campaignId,
+              fields: ['title', 'status', 'features', 'ui_content', 'communication']
+            },
+            campaignId
+          );
+          useEventStore.getState().emitEvent(event, (response: EventEnvelope) => {
+            if (response.type === 'campaign:state:v1:success') {
+              get().updateCampaignFromResponse(response.payload);
+              resolve(response.payload as Campaign);
+            } else if (response.type.includes('error')) {
+              console.error('Campaign state error:', response.payload);
+              reject(response.payload);
+            }
+          });
+        });
       },
 
       updateCampaignFromResponse: campaignData => {
@@ -259,29 +265,29 @@ export const useCampaignStore = create<CampaignStore>()(
       },
 
       requestCampaignList: () => {
-        set({ loading: true, error: null }, false, 'requestCampaignList');
-        const event = createEvent('campaign:list:v1:requested', { limit: 50, offset: 0 });
-        useEventStore.getState().emitEvent(event, (listResponse: EventEnvelope) => {
-          if (listResponse.type === 'campaign:list:v1:success') {
-            get().updateCampaignsFromResponse(listResponse.payload);
-            set({ loading: false, error: null }, false, 'requestCampaignListSuccess');
-          } else if (listResponse.type === 'campaign:error:v1:response') {
-            const errorMessage = listResponse.payload?.message || 'Failed to load campaigns';
-            console.error('Campaign error:', listResponse.payload);
-            set(
-              { loading: false, error: errorMessage },
-              false,
-              'requestCampaignListError'
-            );
-          } else {
-            const errorMessage = `Received unexpected event type: ${listResponse.type}`;
-            console.error('Received unexpected event type for campaign list:', listResponse.type);
-            set(
-              { loading: false, error: errorMessage },
-              false,
-              'requestCampaignListError'
-            );
-          }
+        return new Promise<void>((resolve, reject) => {
+          set({ loading: true, error: null }, false, 'requestCampaignList');
+          const event = createEvent('campaign:list:v1:requested', { limit: 50, offset: 0 });
+          useEventStore.getState().emitEvent(event, (listResponse: EventEnvelope) => {
+            if (listResponse.type === 'campaign:list:v1:success') {
+              get().updateCampaignsFromResponse(listResponse.payload);
+              set({ loading: false, error: null }, false, 'requestCampaignListSuccess');
+              resolve();
+            } else if (listResponse.type === 'campaign:error:v1:response') {
+              const errorMessage = listResponse.payload?.message || 'Failed to load campaigns';
+              console.error('Campaign error:', listResponse.payload);
+              set(
+                { loading: false, error: errorMessage },
+                false,
+                'requestCampaignListError'
+              );
+              reject(new Error(errorMessage));
+            } else {
+              console.warn(
+                `requestCampaignList received an unexpected event type: ${listResponse.type}`
+              );
+            }
+          });
         });
       },
 

@@ -41,7 +41,13 @@ export const useConnectionStore = create<ConnectionStore>()(
       // Initial media streaming state
       mediaStreaming: {
         connected: false,
+        connecting: false,
+        campaignId: '0',
+        contextId: 'webgpu-particles',
         peerId: '',
+        url: '',
+        localStream: null,
+        remoteStream: null,
         streamInfo: null,
         error: undefined,
         lastConnectAttempt: ''
@@ -182,7 +188,13 @@ export const useConnectionStore = create<ConnectionStore>()(
           {
             mediaStreaming: {
               connected: false,
+              connecting: false,
+              campaignId: '0',
+              contextId: 'webgpu-particles',
               peerId: '',
+              url: '',
+              localStream: null,
+              remoteStream: null,
               streamInfo: null,
               error: undefined,
               lastConnectAttempt: ''

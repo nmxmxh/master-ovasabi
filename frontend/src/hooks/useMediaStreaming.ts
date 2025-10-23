@@ -1,4 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
+import { useConnectionStore } from '../store/stores/connectionStore';
 
 /**
  * useMediaStreaming - React hook for event-driven media streaming integration.
@@ -14,22 +15,19 @@ export function useMediaStreaming({
   campaignId = '0',
   contextId = 'webgpu-particles'
 }: UseMediaStreamingOptions = {}) {
-  const apiRef = useRef<any>(null);
-  const readyRef = useRef(false);
+  const { mediaStreaming, setMediaStreamingState } = useConnectionStore();
 
   // Handler to set API ref when ready
   const handleReady = useCallback(() => {
     if (typeof window !== 'undefined' && window.mediaStreaming) {
-      apiRef.current = window.mediaStreaming;
-      readyRef.current = true;
+      setMediaStreamingState({ connected: true, peerId: window.mediaStreaming.peerId, url: window.mediaStreaming.getURL() });
     }
-  }, []);
+  }, [setMediaStreamingState]);
 
   useEffect(() => {
     // If already ready, set immediately
     if (typeof window !== 'undefined' && window.mediaStreaming) {
-      apiRef.current = window.mediaStreaming;
-      readyRef.current = true;
+      handleReady();
     } else {
       window.addEventListener('mediaStreamingReady', handleReady);
       return () => window.removeEventListener('mediaStreamingReady', handleReady);
@@ -38,24 +36,24 @@ export function useMediaStreaming({
 
   // Connect to campaign only when ready
   const connectToCampaign = useCallback(() => {
-    const peerId = typeof window !== 'undefined' && window.userID ? window.userID : undefined;
+    const peerId = typeof window !== 'undefined' && (window as any).userID ? (window as any).userID : undefined;
     if (
-      readyRef.current &&
-      apiRef.current &&
-      typeof apiRef.current.connectToCampaign === 'function'
+      mediaStreaming.connected &&
+      window.mediaStreaming &&
+      typeof window.mediaStreaming.connectToCampaign === 'function'
     ) {
-      apiRef.current.connectToCampaign(campaignId, contextId, peerId);
+      window.mediaStreaming.connectToCampaign(campaignId, contextId, peerId);
     } else {
       console.warn(
         '[Media-Streaming] connectToCampaign: Media streaming not ready, waiting for event...'
       );
     }
-  }, [campaignId, contextId]);
+  }, [campaignId, contextId, mediaStreaming.connected]);
 
   // Optionally expose other API methods (send, onMessage, etc.)
   return {
-    mediaStreaming: apiRef,
+    mediaStreaming,
     connectToCampaign,
-    isReady: readyRef.current
+    isReady: mediaStreaming.connected
   };
 }

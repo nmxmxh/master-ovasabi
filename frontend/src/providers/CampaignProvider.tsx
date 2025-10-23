@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { useMetadataStore } from '../store/stores/metadataStore';
 import { useCampaignStore } from '../store/stores/campaignStore';
-import type { Campaign, EventEnvelope } from '../store/types';
+import type { Campaign } from '../store/types';
 
 interface CampaignProviderContextType {
   campaigns: Campaign[];
@@ -18,26 +18,20 @@ interface CampaignProviderProps {
 
 export function CampaignProvider({ children }: CampaignProviderProps) {
   const userId = useMetadataStore(state => state.metadata?.user?.userId || state.userId);
-  const {
-    campaigns,
-    requestCampaignList,
-    requestCampaignState,
-    updateCampaignFromResponse,
-    loading,
-    error
-  } = useCampaignStore();
+  const { campaigns, requestCampaignList, requestCampaignState, loading, error } =
+    useCampaignStore();
 
   useEffect(() => {
     if (userId && userId !== 'loading') {
-      // Request the default campaign state first
-      requestCampaignState('0', (response: EventEnvelope) => {
-        if (response.type === 'campaign:state:v1:success') {
-          updateCampaignFromResponse(response.payload);
+      const fetchInitialData = async () => {
+        try {
+          await requestCampaignList();
+          await requestCampaignState('0');
+        } catch (err) {
+          console.error('Error fetching initial campaign data:', err);
         }
-      });
-
-      // Then, request the full list of campaigns
-      requestCampaignList();
+      };
+      fetchInitialData();
     }
   }, [userId, requestCampaignList, requestCampaignState]);
 
