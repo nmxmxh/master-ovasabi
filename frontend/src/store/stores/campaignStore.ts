@@ -51,6 +51,7 @@ interface CampaignStore {
   campaigns: Campaign[];
   loading: boolean;
   error: string | null;
+  updateCount: number;
 
   // Actions
   switchCampaign: (campaignId: string, onResponse?: (event: EventEnvelope) => void) => void;
@@ -77,6 +78,7 @@ interface CampaignStore {
   updateCampaignsFromResponse: (responseData: any) => void;
   createCampaign: (campaign: Partial<Campaign>) => Promise<Campaign>;
   requestCampaignList: () => Promise<void>;
+  startRapidUpdates: (campaignId: string, count: number) => void;
   // Debugging helpers
   getCampaignSwitchFlow: () => {
     currentCampaign?: Campaign;
@@ -96,6 +98,25 @@ export const useCampaignStore = create<CampaignStore>()(
       campaigns: [],
       loading: true,
       error: null,
+      updateCount: 0,
+
+      startRapidUpdates: count => {
+        const dummyUpdates: Partial<Campaign>[] = [
+          { title: 'New Awesome Campaign Title', description: 'This is a new description.' },
+          { status: 'active', features: ['new-feature', 'beta'] },
+          {
+            description: 'An updated description for the campaign.',
+            title: 'Updated Campaign Title'
+          },
+          { status: 'inactive', features: ['new-feature'] }
+        ];
+
+        for (let i = 0; i < count; i++) {
+          const updates = dummyUpdates[i % dummyUpdates.length];
+          get().updateCampaign(updates);
+          set({ updateCount: i + 1 });
+        }
+      },
 
       handleCampaignSwitchRequired: switchEvent => {
         const { new_campaign_id, reason, timestamp } = switchEvent;
@@ -237,7 +258,9 @@ export const useCampaignStore = create<CampaignStore>()(
           set(
             state => {
               const existingCampaigns = new Map(state.campaigns.map((c: Campaign) => [c.id, c]));
-              campaigns.forEach((c: Campaign) => existingCampaigns.set(c.id, { ...existingCampaigns.get(c.id), ...c }));
+              campaigns.forEach((c: Campaign) =>
+                existingCampaigns.set(c.id, { ...existingCampaigns.get(c.id), ...c })
+              );
               return { campaigns: Array.from(existingCampaigns.values()) };
             },
             false,
@@ -276,11 +299,7 @@ export const useCampaignStore = create<CampaignStore>()(
             } else if (listResponse.type === 'campaign:error:v1:response') {
               const errorMessage = listResponse.payload?.message || 'Failed to load campaigns';
               console.error('Campaign error:', listResponse.payload);
-              set(
-                { loading: false, error: errorMessage },
-                false,
-                'requestCampaignListError'
-              );
+              set({ loading: false, error: errorMessage }, false, 'requestCampaignListError');
               reject(new Error(errorMessage));
             } else {
               console.warn(

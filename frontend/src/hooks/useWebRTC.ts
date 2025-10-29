@@ -14,26 +14,20 @@ interface WebRTCState {
   connected: boolean;
   connecting: boolean;
   error?: string | null;
-  localStream?: MediaStream | null;
-  remoteStream?: MediaStream | null;
   peerConnection?: RTCPeerConnection | null;
-  // Add more fields as needed
 }
 
 const DEFAULT_STATE: WebRTCState = {
   connected: false,
   connecting: false,
   error: null,
-  localStream: null,
-  remoteStream: null,
   peerConnection: null
 };
 
-export function useWebRTC(roomId: string, userId: string) {
+export function useWebRTC(roomId: string, userId: string, onDataMessage?: (data: any) => void) {
   const [state, setState] = useState<WebRTCState>(DEFAULT_STATE);
   const pcRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
 
   // Helper: Send a signal via wasmBridge
   const sendSignal = useCallback(
@@ -69,28 +63,20 @@ export function useWebRTC(roomId: string, userId: string) {
     return () => unsubscribe && unsubscribe();
   }, [sendSignal]);
 
-  // Start local media and create/join connection
+  // Start and create/join connection
   const start = useCallback(async () => {
     setState(s => ({ ...s, connecting: true, error: null }));
     try {
-      const localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      localStreamRef.current = localStream;
-      setState(s => ({ ...s, localStream }));
-
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-      const remoteStream = new MediaStream();
-      remoteStreamRef.current = remoteStream;
-      setState(s => ({ ...s, remoteStream }));
-
-      pc.ontrack = event => {
-        event.streams[0].getTracks().forEach(track => {
-          remoteStream.addTrack(track);
-        });
-        setState(s => ({ ...s, remoteStream }));
-      };
+      const dataChannel = pc.createDataChannel("particles");
+      dataChannelRef.current = dataChannel;
+      if (onDataMessage) {
+        dataChannel.onmessage = (event) => {
+          onDataMessage(event.data);
+        };
+      }
 
       pc.onicecandidate = event => {
         if (event.candidate) {
@@ -98,7 +84,6 @@ export function useWebRTC(roomId: string, userId: string) {
         }
       };
 
-      // Create offer and send
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       sendSignal({ type: 'offer', payload: offer });
@@ -107,7 +92,7 @@ export function useWebRTC(roomId: string, userId: string) {
     } catch (err: any) {
       setState(s => ({ ...s, error: err.message || 'Failed to start WebRTC' }));
     }
-  }, [sendSignal]);
+  }, [sendSignal, onDataMessage]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -115,10 +100,6 @@ export function useWebRTC(roomId: string, userId: string) {
       if (pcRef.current) {
         pcRef.current.close();
         pcRef.current = null;
-      }
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-        localStreamRef.current = null;
       }
       setState(DEFAULT_STATE);
     };
@@ -129,19 +110,20 @@ export function useWebRTC(roomId: string, userId: string) {
       pcRef.current.close();
       pcRef.current = null;
     }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
-    }
     setState(DEFAULT_STATE);
+  }, []);
+
+  const sendData = useCallback((data: string) => {
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      dataChannelRef.current.send(data);
+    }
   }, []);
 
   return {
     ...state,
     start,
     stop,
-    sendSignal,
+    sendData,
     peerConnection: pcRef.current
-    // Expose more helpers as needed
   };
 }

@@ -9,23 +9,51 @@ import { useConnectionStore } from '../store/stores/connectionStore';
 export interface UseMediaStreamingOptions {
   campaignId?: string;
   contextId?: string;
+  onMessage?: (message: any) => void;
+  onState?: (state: string) => void;
 }
 
 export function useMediaStreaming({
   campaignId = '0',
-  contextId = 'webgpu-particles'
+  contextId = 'webgpu-particles',
+  onMessage,
+  onState
 }: UseMediaStreamingOptions = {}) {
-  const { mediaStreaming, setMediaStreamingState } = useConnectionStore();
+  const { mediaStreaming, setMediaStreamingState, wasmReady } = useConnectionStore();
 
-  // Handler to set API ref when ready
   const handleReady = useCallback(() => {
     if (typeof window !== 'undefined' && window.mediaStreaming) {
-      setMediaStreamingState({ connected: true, peerId: window.mediaStreaming.peerId, url: window.mediaStreaming.getURL() });
+      if (typeof window.mediaStreaming.onState === 'function') {
+        window.mediaStreaming.onState((state: string) => {
+          switch (state) {
+            case 'connecting':
+              setMediaStreamingState({ connecting: true });
+              break;
+            case 'connected':
+              setMediaStreamingState({
+                connected: true,
+                connecting: false,
+                peerId: window.mediaStreaming!.getPeerID(),
+                url: window.mediaStreaming!.getURL(),
+              });
+              break;
+            case 'disconnected':
+            case 'failed':
+              setMediaStreamingState({ connected: false, connecting: false });
+              break;
+          }
+          if (onState) {
+            onState(state);
+          }
+        });
+      }
+      if (onMessage && typeof window.mediaStreaming.onMessage === 'function') {
+        window.mediaStreaming.onMessage(onMessage);
+      }
     }
-  }, [setMediaStreamingState]);
+  }, [setMediaStreamingState, onMessage, onState]);
 
   useEffect(() => {
-    // If already ready, set immediately
     if (typeof window !== 'undefined' && window.mediaStreaming) {
       handleReady();
     } else {
@@ -34,11 +62,14 @@ export function useMediaStreaming({
     }
   }, [handleReady]);
 
-  // Connect to campaign only when ready
   const connectToCampaign = useCallback(() => {
     const peerId = typeof window !== 'undefined' && (window as any).userID ? (window as any).userID : undefined;
+    if (!peerId) {
+        console.error("Peer ID not found on window.userID");
+        return;
+    }
     if (
-      mediaStreaming.connected &&
+      wasmReady &&
       window.mediaStreaming &&
       typeof window.mediaStreaming.connectToCampaign === 'function'
     ) {
@@ -48,12 +79,11 @@ export function useMediaStreaming({
         '[Media-Streaming] connectToCampaign: Media streaming not ready, waiting for event...'
       );
     }
-  }, [campaignId, contextId, mediaStreaming.connected]);
+  }, [campaignId, contextId, wasmReady]);
 
-  // Optionally expose other API methods (send, onMessage, etc.)
   return {
     mediaStreaming,
     connectToCampaign,
-    isReady: mediaStreaming.connected
+    isReady: mediaStreaming.connected,
   };
 }

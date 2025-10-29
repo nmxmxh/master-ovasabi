@@ -1125,7 +1125,11 @@ func (m *CampaignStateManager) handleCampaignUpdate(ctx context.Context, event *
 
 	// First, validate that the campaign exists before attempting to persist
 	var persistErr error
-	if m.repo != nil {
+	if _, ok := payload.Updates["rapid_update_counter"]; ok {
+		m.log.Info("Rapid update detected, skipping database persistence",
+			zap.String("campaign_id", payload.CampaignID),
+			zap.String("user_id", userID))
+	} else if m.repo != nil {
 		// Use a separate context with timeout for database operations
 		dbCtx, dbCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer dbCancel()

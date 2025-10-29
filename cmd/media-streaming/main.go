@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -58,11 +60,12 @@ type Peer struct {
 }
 
 type Room struct {
-	CampaignID string
-	ContextID  string
-	Peers      map[string]*Peer
-	State      map[string]interface{}
-	mu         sync.RWMutex
+	CampaignID      string
+	ContextID       string
+	Peers           map[string]*Peer
+	State           map[string]interface{}
+	PointerPosition map[string]interface{}
+	mu              sync.RWMutex
 }
 
 // NexusClient wraps the gRPC client and connection.
@@ -121,14 +124,78 @@ func (s *Server) getOrCreateRoom(campaignID, contextID string) *Room {
 	room, ok := s.rooms[key]
 	if !ok {
 		room = &Room{
-			CampaignID: campaignID,
-			ContextID:  contextID,
-			Peers:      make(map[string]*Peer),
-			State:      make(map[string]interface{}),
+			CampaignID:      campaignID,
+			ContextID:       contextID,
+			Peers:           make(map[string]*Peer),
+			State:           make(map[string]interface{}),
+			PointerPosition: make(map[string]interface{}),
 		}
 		s.rooms[key] = room
+
+		// If this is the webgpu-particles room, start streaming particle data.
+		if contextID == "webgpu-particles" {
+			go s.streamParticleData(room)
+		}
 	}
 	return room
+}
+
+// streamParticleData generates and broadcasts particle data to a room.
+func (s *Server) streamParticleData(room *Room) {
+	ticker := time.NewTicker(100 * time.Millisecond) // ~10 fps
+	defer ticker.Stop()
+
+	particleCount := 10000
+	particles := make([]float32, particleCount*3)
+
+	for {
+		<-ticker.C
+
+		room.mu.RLock()
+		if len(room.Peers) == 0 {
+			room.mu.RUnlock()
+			continue
+		}
+		pointerX, xOk := room.PointerPosition["x"].(float64)
+		pointerY, yOk := room.PointerPosition["y"].(float64)
+		room.mu.RUnlock()
+
+		// Simple particle animation
+		t := float32(time.Now().UnixNano()) / 1e9
+		for i := 0; i < particleCount; i++ {
+			ix := i * 3
+			iy := i*3 + 1
+			iz := i*3 + 2
+
+			angle := rand.Float32()*2*math.Pi + t
+			radius := rand.Float32() * 10.0
+
+			particles[ix] = radius * float32(math.Cos(float64(angle)))
+			particles[iy] = radius * float32(math.Sin(float64(angle)))
+			particles[iz] = (rand.Float32() - 0.5) * 2.0
+
+			if xOk && yOk {
+				dx := particles[ix] - float32(pointerX)
+				dy := particles[iy] - float32(pointerY)
+				distSq := dx*dx + dy*dy
+				if distSq < 25.0 { // 5 unit radius
+					force := 10.0 / (distSq + 0.1)
+					particles[ix] += dx * float32(force) * 0.1
+					particles[iy] += dy * float32(force) * 0.1
+				}
+			}
+		}
+
+		msg := Message{
+			Type: "particle_data",
+			Data: map[string]interface{}{
+				"particles": particles,
+			},
+			CampaignID: room.CampaignID,
+			ContextID:  room.ContextID,
+		}
+		room.broadcastMessage(msg, nil)
+	}
 }
 
 func (s *Server) subscribeToNexusEvents(ctx context.Context, campaignID int64, meta *commonpb.Metadata) {
@@ -383,6 +450,14 @@ func (p *Peer) readPump(ctx context.Context) {
 		case "data":
 			if s, ok := msg.Data.(string); ok {
 				p.Room.broadcastPartialUpdate(map[string]interface{}{"msg": s}, p)
+			}
+		case "pointer_move":
+			if data, ok := msg.Data.(map[string]interface{}); ok {
+				p.Room.mu.Lock()
+				p.Room.PointerPosition["x"] = data["x"]
+				p.Room.PointerPosition["y"] = data["y"]
+				p.Room.PointerPosition["z"] = data["z"]
+				p.Room.mu.Unlock()
 			}
 		default:
 			p.Room.broadcastPartialUpdate(map[string]interface{}{"msg": msg.Data}, p)
