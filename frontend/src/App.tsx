@@ -18,6 +18,7 @@ import './App.css';
 import UserServicePage from './pages/UserServicePage';
 import CreateCampaignPage from './pages/CreateCampaignPage';
 import ViewPage from './pages/ViewPage';
+import MediaStreamingPage from './pages/MediaStreamingPage';
 
 // Wrapper to extract serviceName param for ServiceTestPage
 function ServiceTestPageWrapper() {
@@ -321,6 +322,12 @@ function Navigation() {
       >
         SERVICES
       </Link>
+      <Link
+        to="/media-streaming"
+        className={`minimal-link ${location.pathname === '/media-streaming' ? 'active' : ''}`}
+      >
+        MEDIA
+      </Link>
     </nav>
   );
 }
@@ -376,6 +383,7 @@ function App() {
               <Route path="/switching" element={<CampaignSwitchingPage />} />
               <Route path="/view/:viewName" element={<ViewPage />} />
               <Route path="/services" element={<ServiceListPage />} />
+              <Route path="/media-streaming" element={<MediaStreamingPage />} />
               <Route
                 path="/services/user"
                 element={
@@ -411,6 +419,7 @@ function CampaignManagementPage() {
   } = useCampaignData();
   const { metadata } = useMetadata();
   const campaignState = useCampaignState();
+  const { updateCount } = useCampaignStore();
   const events = useEventHistory(undefined, 20);
 
   const currentCampaign = campaignState.state || {};
@@ -430,13 +439,16 @@ function CampaignManagementPage() {
         <button onClick={refreshCampaigns} className="minimal-button" disabled={campaignsLoading}>
           {campaignsLoading ? 'LOADING...' : 'REFRESH'}
         </button>
+        <button onClick={() => useCampaignStore.getState().startRapidUpdates(currentCampaign.id, 1000)} className="minimal-button" disabled={!currentCampaign.id}>
+          Start Rapid Update Test
+        </button>
       </div>
 
       {/* Current Campaign */}
       <div className="minimal-section">
         <div className="minimal-title">CURRENT CAMPAIGN</div>
         <div className="minimal-text">
-          ID: {currentCampaign.id || 'N/A'} | Status: {currentCampaign.status || 'UNKNOWN'}
+          ID: {currentCampaign.id || 'N/A'} | Status: {currentCampaign.status || 'UNKNOWN'} | Rapid Updates: {updateCount}
         </div>
         {currentCampaign.title && (
           <div className="minimal-text">Title: {currentCampaign.title}</div>

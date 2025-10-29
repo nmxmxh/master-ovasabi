@@ -23,6 +23,9 @@ message Campaign {
   string master_uuid = 12; // Global UUID reference to master table
   int64 master_id = 13; // Internal integer ID reference to master table
   string owner_id = 14; // User ID of the campaign owner
+  repeated string tags = 15;
+  repeated string features = 16;
+  string focus = 17;
 }
 
 message CreateCampaignRequest {
@@ -34,6 +37,10 @@ message CreateCampaignRequest {
   google.protobuf.Timestamp end_date = 6;
   common.Metadata metadata = 7;
   string owner_id = 8; // User ID of the campaign owner
+  repeated string tags = 9;
+  repeated string features = 10;
+  string status = 11;
+  string focus = 12;
 }
 
 message CreateCampaignResponse {
@@ -99,4 +106,4 @@ service CampaignService {
   rpc UpdateCampaign(UpdateCampaignRequest) returns (UpdateCampaignResponse);
   rpc DeleteCampaign(DeleteCampaignRequest) returns (DeleteCampaignResponse);
   rpc ListCampaigns(ListCampaignsRequest) returns (ListCampaignsResponse);
-} 
+}

@@ -96,12 +96,16 @@ func emitToNexus(eventType string, payload interface{}, metadata json.RawMessage
 
 	// Try to get campaign ID from incoming metadata, fallback to default
 	currentCampaignID := "0" // Default campaign
+	var correlationID string
 	if len(metadata) > 0 {
 		var metaMap map[string]interface{}
 		if err := json.Unmarshal(metadata, &metaMap); err == nil {
 			if globalContext, ok := metaMap["global_context"].(map[string]interface{}); ok {
 				if campaignID, ok := globalContext["campaign_id"].(string); ok && campaignID != "" {
 					currentCampaignID = campaignID
+				}
+				if cid, ok := globalContext["correlation_id"].(string); ok && cid != "" {
+					correlationID = cid
 				}
 			}
 		}
@@ -110,7 +114,9 @@ func emitToNexus(eventType string, payload interface{}, metadata json.RawMessage
 	// Generate other IDs using the established pattern
 	sessionID := generateSessionID()
 	deviceID := generateDeviceID()
-	correlationID := generateCorrelationID()
+	if correlationID == "" {
+		correlationID = generateCorrelationID()
+	}
 
 	// Create canonical envelope format for WebSocket gateway using established pattern
 	canonicalEnvelope := map[string]interface{}{

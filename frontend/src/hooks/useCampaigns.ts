@@ -117,14 +117,12 @@ export function useCampaigns(): UseCampaignsReturn {
       emitEvent(
         {
           type: 'campaign:list:v1:requested',
+          correlation_id: listCorrelationId,
           payload: {
             limit: 50,
             offset: 0
           },
-          metadata: {
-            ...metadata,
-            correlation_id: listCorrelationId
-          }
+          metadata
         },
         response => {
           console.log('[useCampaigns] Campaign list response:', response.type);
@@ -143,22 +141,21 @@ export function useCampaigns(): UseCampaignsReturn {
       );
 
       // Request 2: Default Campaign State (always request this for robust initialization)
+      const stateMetadata = {
+        ...metadata,
+        campaign: {
+          ...(metadata.campaign || {}),
+          campaignId: 'ovasabi_website', // Ensure we request the default campaign state
+          slug: 'ovasabi_website'
+        }
+      };
+
       emitEvent(
         {
           type: 'campaign:state:v1:requested',
+          correlation_id: stateCorrelationId,
           payload: {},
-          metadata: {
-            ...metadata,
-            correlation_id: stateCorrelationId,
-            global_context: {
-              campaign_id: 'ovasabi_website',
-              user_id: metadata.userId || 'guest_unknown',
-              device_id: metadata.deviceId || 'device_unknown',
-              session_id: metadata.sessionId || 'session_unknown',
-              correlation_id: stateCorrelationId,
-              source: 'frontend'
-            }
-          }
+          metadata: stateMetadata
         },
         response => {
           console.log('[useCampaigns] Campaign state response:', response.type);

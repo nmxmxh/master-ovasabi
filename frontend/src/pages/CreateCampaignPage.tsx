@@ -39,7 +39,6 @@ function CreateCampaignPage() {
     // Build a proper Partial<Campaign> payload
     const payload = {
       title: campaign.title,
-      name: campaign.title,
       description: campaign.description,
       slug: campaign.slug,
       status: campaign.status as 'draft' | 'active' | 'inactive',
@@ -47,8 +46,9 @@ function CreateCampaignPage() {
         .split(',')
         .map(tag => tag.trim())
         .filter(Boolean),
-      focus: campaign.focus
-    } as const;
+      focus: campaign.focus,
+      features: ['messaging', 'media', 'notification'] // Add default features
+    };
     const requiredFields = getRequiredFields('campaign', 'create_campaign');
     const missingFields = validateFields(payload, requiredFields);
     if (missingFields.length > 0) {

@@ -2,7 +2,9 @@
 
 declare global {
   interface MediaStreamingAPI {
+    getPeerID: () => string;
     connect: () => void;
+    disconnect: () => void;
     connectToCampaign: (campaignId: string, contextId: string, peerId: string) => void;
     send: (message: any) => void;
     onMessage: (callback: (data: any) => void) => void;

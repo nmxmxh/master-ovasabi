@@ -376,7 +376,7 @@ export function subscribeToMediaSignals(cb: (msg: any) => void): () => void {
 export function sendMediaSignal(msg: any) {
   if (typeof window.sendWasmMessage === 'function') {
     window.sendWasmMessage({
-      type: 'media:signal',
+      type: 'media:signal:v1:requested',
       payload: msg,
       metadata: { timestamp: Date.now() }
     });

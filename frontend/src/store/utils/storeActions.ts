@@ -13,6 +13,7 @@ export interface StoreActions {
   handleUserIDChange?: (newUserId: string) => void;
   updateCampaignMetadata?: (campaignData: any) => void;
   syncWithCampaignState?: (campaignState: any) => void;
+  handleCampaignSwitch?: (newCampaignId: string) => void;
 }
 
 // Store registry to avoid circular imports

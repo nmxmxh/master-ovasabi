@@ -160,6 +160,7 @@ func (m *CampaignStateManager) HandleEvent(ctx context.Context, event *nexusv1.E
 			stateWithRouting["user_id"] = userID
 			stateWithRouting["campaign_id"] = campaignID
 			stateWithRouting["correlationId"] = correlationID // Include correlation ID for request/response matching
+			stateWithRouting = metadata.NormalizeSlices(stateWithRouting) // Normalize slices for protobuf compatibility
 			structData, err := structpb.NewStruct(stateWithRouting)
 			if err != nil {
 				m.log.Error("Failed to create struct for campaign state response", zap.Error(err), zap.String("campaign_id", campaignID), zap.String("user_id", userID))
@@ -1124,7 +1125,11 @@ func (m *CampaignStateManager) handleCampaignUpdate(ctx context.Context, event *
 
 	// First, validate that the campaign exists before attempting to persist
 	var persistErr error
-	if m.repo != nil {
+	if _, ok := payload.Updates["rapid_update_counter"]; ok {
+		m.log.Info("Rapid update detected, skipping database persistence",
+			zap.String("campaign_id", payload.CampaignID),
+			zap.String("user_id", userID))
+	} else if m.repo != nil {
 		// Use a separate context with timeout for database operations
 		dbCtx, dbCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer dbCancel()
@@ -1507,40 +1512,50 @@ func (m *CampaignStateManager) extractCampaignAndUserID(ctx context.Context, eve
 
 // persistToDBSyncWithCampaign synchronously persists campaign state changes using a pre-retrieved campaign object.
 func (m *CampaignStateManager) persistToDBSyncWithCampaign(ctx context.Context, campaign *campaignrepo.Campaign, updates map[string]any) error {
-	// Get current campaign state
+	// Apply updates to the top-level campaign fields
+	if title, ok := updates["title"].(string); ok {
+		campaign.Title = title
+	}
+	if description, ok := updates["description"].(string); ok {
+		campaign.Description = description
+	}
+	if status, ok := updates["status"].(string); ok {
+		campaign.Status = status
+	}
+	if rankingFormula, ok := updates["ranking_formula"].(string); ok {
+		campaign.RankingFormula = rankingFormula
+	}
+
+	// Get current campaign state and merge updates
 	cs := m.GetOrCreateState(campaign.Slug)
-	// Merge updates into campaign state before persisting
 	if updates != nil {
 		maps.Copy(cs.State, updates)
 	}
 
-	// Update metadata with state changes
-	if campaign.Metadata != nil && campaign.Metadata.ServiceSpecific != nil {
-		// Merge current state into campaign metadata
-		if campaignField, ok := campaign.Metadata.ServiceSpecific.Fields["campaign"]; ok && campaignField != nil {
-			if campaignStruct := campaignField.GetStructValue(); campaignStruct != nil {
-				// Merge state into existing campaign metadata
-				existingMap := campaignStruct.AsMap()
-				maps.Copy(existingMap, cs.State)
-				structData, err := structpb.NewStruct(existingMap)
-				if err != nil {
-					return fmt.Errorf("failed to create struct from existing map: %w", err)
-				}
-				campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
-					Kind: &structpb.Value_StructValue{StructValue: structData},
-				}
-			}
-		} else {
-			// Create new campaign metadata
-			structData, err := structpb.NewStruct(cs.State)
-			if err != nil {
-				return fmt.Errorf("failed to create struct from campaign state: %w", err)
-			}
-			campaign.Metadata.ServiceSpecific.Fields["campaign"] = &structpb.Value{
-				Kind: &structpb.Value_StructValue{StructValue: structData},
-			}
-		}
+	// Ensure metadata fields are initialized
+	if campaign.Metadata == nil {
+		campaign.Metadata = &commonpb.Metadata{}
 	}
+	if campaign.Metadata.ServiceSpecific == nil {
+		campaign.Metadata.ServiceSpecific = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+	}
+	if _, ok := campaign.Metadata.ServiceSpecific.Fields["campaign"]; !ok {
+		campaign.Metadata.ServiceSpecific.Fields["campaign"] = structpb.NewStructValue(&structpb.Struct{Fields: make(map[string]*structpb.Value)})
+	}
+	campaignMeta := campaign.Metadata.ServiceSpecific.Fields["campaign"].GetStructValue()
+	if campaignMeta.Fields == nil {
+		campaignMeta.Fields = make(map[string]*structpb.Value)
+	}
+
+	// Merge updates into the service-specific campaign metadata
+	existingMap := campaignMeta.AsMap()
+	maps.Copy(existingMap, updates)
+
+	newCampaignMeta, err := structpb.NewStruct(existingMap)
+	if err != nil {
+		return fmt.Errorf("failed to create struct from updated map: %w", err)
+	}
+	campaign.Metadata.ServiceSpecific.Fields["campaign"] = structpb.NewStructValue(newCampaignMeta)
 
 	// Update in database
 	if err := m.repo.Update(ctx, campaign); err != nil {

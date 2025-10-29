@@ -13,7 +13,7 @@ interface EventStore extends EventState {
     event: Omit<
       EventEnvelope,
       'timestamp' | 'correlation_id' | 'version' | 'environment' | 'source'
-    >,
+    > & { correlation_id?: string },
     onResponse?: (event: EventEnvelope) => void
   ) => void;
   updateEventState: (eventType: string, state: string) => void;
@@ -98,7 +98,7 @@ export const useEventStore = create<EventStore>()(
           return;
         }
 
-        const correlationId = generateCorrelationId();
+        const correlationId = event.correlation_id || generateCorrelationId();
 
         // Transform metadata to canonical format if needed
         let canonicalMetadata = event.metadata;
@@ -258,6 +258,20 @@ export const useEventStore = create<EventStore>()(
           return; // Don't add connection status messages to event history
         }
 
+        // Handle forced campaign switch
+        if (msg.type === 'reconnect:campaign_switch') {
+          console.log('[EventStore] Received reconnect:campaign_switch event', msg);
+          const newCampaignId = msg.payload?.newCampaignId;
+          if (newCampaignId) {
+            import('./connectionStore').then(mod => {
+              if (mod && mod.useConnectionStore) {
+                mod.useConnectionStore.getState().handleCampaignSwitch(newCampaignId);
+              }
+            });
+          }
+          return; // Stop further processing for this event
+        }
+
         // Process the message and potentially emit events
         if (msg.type && msg.payload) {
           console.log(
@@ -401,20 +415,7 @@ export const useEventStore = create<EventStore>()(
             'handleWasmMessage'
           );
 
-          // Check if this resolves a pending request
           const correlationId = msg.correlation_id || msg.correlationId || event.correlation_id;
-          console.log('[EventStore] Checking correlation ID match:', {
-            receivedCorrelationId: correlationId,
-            availablePendingRequests: Object.keys(get().pendingRequests),
-            exactMatch: correlationId && get().pendingRequests[correlationId],
-            partialMatch:
-              correlationId &&
-              Object.keys(get().pendingRequests).find(
-                key => key.includes(correlationId) || correlationId.includes(key)
-              )
-          });
-
-          // If no correlation ID from backend, try to match by event type and recent timing
           let matchedCorrelationId = correlationId;
           if (!correlationId || !get().pendingRequests[correlationId]) {
             // Try to find a matching pending request by event type and timing
@@ -436,13 +437,6 @@ export const useEventStore = create<EventStore>()(
             }
           }
 
-          if (event.type === 'search:search:v1:success') {
-            console.log(
-              '[EventStore] Processing search success event correlation ID:',
-              correlationId
-            );
-          }
-
           if (matchedCorrelationId && get().pendingRequests[matchedCorrelationId]) {
             const pendingRequest = get().pendingRequests[matchedCorrelationId];
             console.log(
@@ -460,28 +454,35 @@ export const useEventStore = create<EventStore>()(
               false,
               'resolvePendingRequest'
             );
-          } else if (correlationId) {
-            // Try partial matching for correlation IDs that might have been modified
-            const partialMatch = Object.keys(get().pendingRequests).find(
-              key => key.includes(correlationId) || correlationId.includes(key)
-            );
+          } else {
+            // If no exact correlation ID match, try to find a matching pending request by event type and timing
+            const pendingKeys = Object.keys(get().pendingRequests);
+            const matchingKey = pendingKeys.find(key => {
+              const pendingRequest = get().pendingRequests[key] as any;
+              const timeDiff = Date.now() - pendingRequest.timestamp;
+              // Match if it's the expected event type and within 5 seconds
+              return pendingRequest.expectedEventType === event.type && timeDiff < 5000;
+            });
 
-            if (partialMatch) {
-              console.log('[EventStore] Found partial correlation ID match:', {
-                received: correlationId,
-                stored: partialMatch
+            if (matchingKey) {
+              matchedCorrelationId = matchingKey;
+              console.log('[EventStore] Found matching request by type and timing:', {
+                eventType: event.type,
+                matchedKey: matchingKey,
+                timeDiff: Date.now() - (get().pendingRequests[matchingKey] as any).timestamp
               });
-              const pendingRequest = get().pendingRequests[partialMatch];
+
+              const pendingRequest = get().pendingRequests[matchedCorrelationId];
               pendingRequest.resolve(event);
 
               set(
                 state => {
                   const newPendingRequests = { ...state.pendingRequests };
-                  delete newPendingRequests[partialMatch];
+                  delete newPendingRequests[matchedCorrelationId];
                   return { pendingRequests: newPendingRequests };
                 },
                 false,
-                'resolvePendingRequestPartial'
+                'resolvePendingRequestByType'
               );
             } else {
               console.log(

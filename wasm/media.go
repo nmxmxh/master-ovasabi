@@ -20,6 +20,7 @@ type MediaStreamingClient struct {
 	jsConnecting bool // JS-side: true if a connect is in progress
 	ws           js.Value
 	url          string
+	peerID       string
 	connected    bool
 	connecting   bool
 	reconnecting bool
@@ -255,6 +256,7 @@ func (msc *MediaStreamingClient) ConnectToCampaign(campaignID, contextID, peerID
 	}
 
 	msc.url = baseURL + "?campaign=" + campaignID + "&context=" + contextID + "&peer=" + peerID
+	msc.peerID = peerID
 	wasmLog("[MEDIA-STREAMING] Updated URL for campaign:", msc.url)
 
 	// Start new connection
@@ -321,6 +323,9 @@ func ExposeMediaStreamingAPI() {
 		}),
 		"getURL": js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			return mediaStreamingClient.url
+		}),
+		"getPeerID": js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			return mediaStreamingClient.peerID
 		}),
 		"shutdown": js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			wasmLog("[MEDIA-STREAMING] JS requested shutdown via context cancellation")

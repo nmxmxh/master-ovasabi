@@ -17,7 +17,13 @@ export interface ConnectionState {
 
 export interface MediaStreamingState {
   connected: boolean;
+  connecting: boolean;
+  campaignId: string;
+  contextId: string;
   peerId: string;
+  url: string;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
   streamInfo?: any;
   error?: string;
   lastConnectAttempt?: string;

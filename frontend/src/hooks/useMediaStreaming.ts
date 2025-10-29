@@ -1,4 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
+import { useConnectionStore } from '../store/stores/connectionStore';
 
 /**
  * useMediaStreaming - React hook for event-driven media streaming integration.
@@ -8,54 +9,81 @@ import { useEffect, useRef, useCallback } from 'react';
 export interface UseMediaStreamingOptions {
   campaignId?: string;
   contextId?: string;
+  onMessage?: (message: any) => void;
+  onState?: (state: string) => void;
 }
 
 export function useMediaStreaming({
   campaignId = '0',
-  contextId = 'webgpu-particles'
+  contextId = 'webgpu-particles',
+  onMessage,
+  onState
 }: UseMediaStreamingOptions = {}) {
-  const apiRef = useRef<any>(null);
-  const readyRef = useRef(false);
+  const { mediaStreaming, setMediaStreamingState, wasmReady } = useConnectionStore();
 
-  // Handler to set API ref when ready
   const handleReady = useCallback(() => {
     if (typeof window !== 'undefined' && window.mediaStreaming) {
-      apiRef.current = window.mediaStreaming;
-      readyRef.current = true;
+      if (typeof window.mediaStreaming.onState === 'function') {
+        window.mediaStreaming.onState((state: string) => {
+          switch (state) {
+            case 'connecting':
+              setMediaStreamingState({ connecting: true });
+              break;
+            case 'connected':
+              setMediaStreamingState({
+                connected: true,
+                connecting: false,
+                peerId: window.mediaStreaming!.getPeerID(),
+                url: window.mediaStreaming!.getURL(),
+              });
+              break;
+            case 'disconnected':
+            case 'failed':
+              setMediaStreamingState({ connected: false, connecting: false });
+              break;
+          }
+          if (onState) {
+            onState(state);
+          }
+        });
+      }
+      if (onMessage && typeof window.mediaStreaming.onMessage === 'function') {
+        window.mediaStreaming.onMessage(onMessage);
+      }
     }
-  }, []);
+  }, [setMediaStreamingState, onMessage, onState]);
 
   useEffect(() => {
-    // If already ready, set immediately
     if (typeof window !== 'undefined' && window.mediaStreaming) {
-      apiRef.current = window.mediaStreaming;
-      readyRef.current = true;
+      handleReady();
     } else {
       window.addEventListener('mediaStreamingReady', handleReady);
       return () => window.removeEventListener('mediaStreamingReady', handleReady);
     }
   }, [handleReady]);
 
-  // Connect to campaign only when ready
   const connectToCampaign = useCallback(() => {
-    const peerId = typeof window !== 'undefined' && window.userID ? window.userID : undefined;
+    const peerId = typeof window !== 'undefined' && (window as any).userID ? (window as any).userID : undefined;
+    if (!peerId) {
+        console.error("Peer ID not found on window.userID");
+        return;
+    }
     if (
-      readyRef.current &&
-      apiRef.current &&
-      typeof apiRef.current.connectToCampaign === 'function'
+      wasmReady &&
+      window.mediaStreaming &&
+      typeof window.mediaStreaming.connectToCampaign === 'function'
     ) {
-      apiRef.current.connectToCampaign(campaignId, contextId, peerId);
+      window.mediaStreaming.connectToCampaign(campaignId, contextId, peerId);
     } else {
       console.warn(
         '[Media-Streaming] connectToCampaign: Media streaming not ready, waiting for event...'
       );
     }
-  }, [campaignId, contextId]);
+  }, [campaignId, contextId, wasmReady]);
 
-  // Optionally expose other API methods (send, onMessage, etc.)
   return {
-    mediaStreaming: apiRef,
+    mediaStreaming,
     connectToCampaign,
-    isReady: readyRef.current
+    isReady: mediaStreaming.connected,
   };
 }

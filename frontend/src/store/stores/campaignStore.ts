@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { Campaign } from '../types/campaign';
 import type { EventEnvelope } from '../types/events';
+import { generateCorrelationIDSync } from '../../utils/wasmIdExtractor';
 import { useEventStore } from './eventStore';
 import { useMetadataStore } from './metadataStore';
 
@@ -10,28 +11,34 @@ const createEvent = (
   type: string,
   payload: Record<string, any>,
   campaignId?: string
-): Omit<EventEnvelope, 'timestamp' | 'correlation_id' | 'version' | 'environment' | 'source'> => {
+): EventEnvelope => {
   const metadataStore = useMetadataStore.getState();
-  const correlationId = `corr_${Date.now()}`;
   const userId = metadataStore.userId || metadataStore.metadata?.user?.userId || 'anonymous';
   const sessionId = metadataStore.metadata?.session?.sessionId || 'unknown';
   const deviceId = metadataStore.metadata?.device?.deviceId || 'unknown';
   const currentCampaignId = campaignId || metadataStore.metadata?.campaign?.id || '0';
+  const correlationId = generateCorrelationIDSync();
+  const env = process.env.NODE_ENV || 'development';
 
   return {
     type,
     payload,
+    correlation_id: correlationId,
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    environment: env,
+    source: 'frontend',
     metadata: {
       global_context: {
         user_id: userId,
         campaign_id: currentCampaignId,
-        correlation_id: correlationId,
         session_id: sessionId,
         device_id: deviceId,
+        correlation_id: correlationId,
         source: 'frontend'
       },
       envelope_version: '1.0.0',
-      environment: process.env.NODE_ENV || 'development',
+      environment: env,
       ServiceSpecific: {
         campaign: { campaignId: currentCampaignId }
       }
@@ -44,6 +51,7 @@ interface CampaignStore {
   campaigns: Campaign[];
   loading: boolean;
   error: string | null;
+  updateCount: number;
 
   // Actions
   switchCampaign: (campaignId: string, onResponse?: (event: EventEnvelope) => void) => void;
@@ -65,11 +73,12 @@ interface CampaignStore {
     onResponse?: (event: EventEnvelope) => void
   ) => void;
   updateCampaign: (updates: Partial<Campaign>, onResponse?: (event: EventEnvelope) => void) => void;
-  requestCampaignState: (campaignId: string, onResponse?: (event: EventEnvelope) => void) => void;
+  requestCampaignState: (campaignId: string) => Promise<Campaign>;
   updateCampaignFromResponse: (campaignData: any) => void;
   updateCampaignsFromResponse: (responseData: any) => void;
   createCampaign: (campaign: Partial<Campaign>) => Promise<Campaign>;
-  requestCampaignList: () => void;
+  requestCampaignList: () => Promise<void>;
+  startRapidUpdates: (campaignId: string, count: number) => void;
   // Debugging helpers
   getCampaignSwitchFlow: () => {
     currentCampaign?: Campaign;
@@ -87,8 +96,27 @@ export const useCampaignStore = create<CampaignStore>()(
     (set, get) => ({
       currentCampaign: undefined,
       campaigns: [],
-      loading: false,
+      loading: true,
       error: null,
+      updateCount: 0,
+
+      startRapidUpdates: count => {
+        const dummyUpdates: Partial<Campaign>[] = [
+          { title: 'New Awesome Campaign Title', description: 'This is a new description.' },
+          { status: 'active', features: ['new-feature', 'beta'] },
+          {
+            description: 'An updated description for the campaign.',
+            title: 'Updated Campaign Title'
+          },
+          { status: 'inactive', features: ['new-feature'] }
+        ];
+
+        for (let i = 0; i < count; i++) {
+          const updates = dummyUpdates[i % dummyUpdates.length];
+          get().updateCampaign(updates);
+          set({ updateCount: i + 1 });
+        }
+      },
 
       handleCampaignSwitchRequired: switchEvent => {
         const { new_campaign_id, reason, timestamp } = switchEvent;
@@ -126,6 +154,7 @@ export const useCampaignStore = create<CampaignStore>()(
           false,
           'handleCampaignSwitchCompleted'
         );
+        get().requestCampaignState(new_campaign_id);
       },
 
       switchCampaign: (campaignId, onResponse) => {
@@ -148,7 +177,19 @@ export const useCampaignStore = create<CampaignStore>()(
           },
           campaignData.id
         );
-        useEventStore.getState().emitEvent(event, onResponse);
+
+        const responseHandler = (response: EventEnvelope) => {
+          // After a switch, always request the latest state.
+          if (response.type.includes('success') || response.type.includes('completed')) {
+            get().requestCampaignState(campaignData.id);
+          }
+          // Pass the response to the original callback if it exists.
+          if (onResponse) {
+            onResponse(response);
+          }
+        };
+
+        useEventStore.getState().emitEvent(event, responseHandler);
       },
 
       updateCampaign: (updates, onResponse) => {
@@ -168,16 +209,26 @@ export const useCampaignStore = create<CampaignStore>()(
         }
       },
 
-      requestCampaignState: (campaignId, onResponse) => {
-        const event = createEvent(
-          'campaign:state:v1:requested',
-          {
-            campaignId,
-            fields: ['title', 'status', 'features', 'ui_content', 'communication']
-          },
-          campaignId
-        );
-        useEventStore.getState().emitEvent(event, onResponse);
+      requestCampaignState: campaignId => {
+        return new Promise<Campaign>((resolve, reject) => {
+          const event = createEvent(
+            'campaign:state:v1:requested',
+            {
+              campaignId,
+              fields: ['title', 'status', 'features', 'ui_content', 'communication']
+            },
+            campaignId
+          );
+          useEventStore.getState().emitEvent(event, (response: EventEnvelope) => {
+            if (response.type === 'campaign:state:v1:success') {
+              get().updateCampaignFromResponse(response.payload);
+              resolve(response.payload as Campaign);
+            } else if (response.type.includes('error')) {
+              console.error('Campaign state error:', response.payload);
+              reject(response.payload);
+            }
+          });
+        });
       },
 
       updateCampaignFromResponse: campaignData => {
@@ -204,7 +255,17 @@ export const useCampaignStore = create<CampaignStore>()(
       updateCampaignsFromResponse: responseData => {
         const campaigns = responseData?.campaigns || responseData?.data?.campaigns || [];
         if (campaigns.length > 0) {
-          set({ campaigns }, false, 'updateCampaignsFromResponse');
+          set(
+            state => {
+              const existingCampaigns = new Map(state.campaigns.map((c: Campaign) => [c.id, c]));
+              campaigns.forEach((c: Campaign) =>
+                existingCampaigns.set(c.id, { ...existingCampaigns.get(c.id), ...c })
+              );
+              return { campaigns: Array.from(existingCampaigns.values()) };
+            },
+            false,
+            'updateCampaignsFromResponse'
+          );
         }
       },
 
@@ -227,19 +288,25 @@ export const useCampaignStore = create<CampaignStore>()(
       },
 
       requestCampaignList: () => {
-        set({ loading: true, error: null }, false, 'requestCampaignList');
-        const event = createEvent('campaign:list:v1:requested', { limit: 50, offset: 0 });
-        useEventStore.getState().emitEvent(event, (listResponse: EventEnvelope) => {
-          if (listResponse.type === 'campaign:list:v1:success') {
-            get().updateCampaignsFromResponse(listResponse.payload);
-            set({ loading: false, error: null }, false, 'requestCampaignListSuccess');
-          } else {
-            set(
-              { loading: false, error: 'Failed to load campaigns' },
-              false,
-              'requestCampaignListError'
-            );
-          }
+        return new Promise<void>((resolve, reject) => {
+          set({ loading: true, error: null }, false, 'requestCampaignList');
+          const event = createEvent('campaign:list:v1:requested', { limit: 50, offset: 0 });
+          useEventStore.getState().emitEvent(event, (listResponse: EventEnvelope) => {
+            if (listResponse.type === 'campaign:list:v1:success') {
+              get().updateCampaignsFromResponse(listResponse.payload);
+              set({ loading: false, error: null }, false, 'requestCampaignListSuccess');
+              resolve();
+            } else if (listResponse.type === 'campaign:error:v1:response') {
+              const errorMessage = listResponse.payload?.message || 'Failed to load campaigns';
+              console.error('Campaign error:', listResponse.payload);
+              set({ loading: false, error: errorMessage }, false, 'requestCampaignListError');
+              reject(new Error(errorMessage));
+            } else {
+              console.warn(
+                `requestCampaignList received an unexpected event type: ${listResponse.type}`
+              );
+            }
+          });
         });
       },
 

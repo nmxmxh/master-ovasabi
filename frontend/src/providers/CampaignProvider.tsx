@@ -18,13 +18,22 @@ interface CampaignProviderProps {
 
 export function CampaignProvider({ children }: CampaignProviderProps) {
   const userId = useMetadataStore(state => state.metadata?.user?.userId || state.userId);
-  const { campaigns, requestCampaignList, loading, error } = useCampaignStore();
+  const { campaigns, requestCampaignList, requestCampaignState, loading, error } =
+    useCampaignStore();
 
   useEffect(() => {
     if (userId && userId !== 'loading') {
-      requestCampaignList();
+      const fetchInitialData = async () => {
+        try {
+          await requestCampaignList();
+          await requestCampaignState('0');
+        } catch (err) {
+          console.error('Error fetching initial campaign data:', err);
+        }
+      };
+      fetchInitialData();
     }
-  }, [userId, requestCampaignList]);
+  }, [userId, requestCampaignList, requestCampaignState]);
 
   const refresh = React.useCallback(() => {
     requestCampaignList();
