@@ -1,4 +1,3 @@
-
 package compute
 
 import (
@@ -10,7 +9,8 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -117,15 +117,9 @@ func (a *Aggregator) handleChunkSuccess(ctx context.Context, event *nexusv1.Even
 				{
 					Name: "aggregated_results",
 					Body: &commonpb.DataRef_InlineJson{
-						InlineJson: &commonpb.Struct{
-							Fields: map[string]*commonpb.Value{
-								"result_uris": {
-									Kind: &commonpb.Value_ListValue{
-										ListValue: &commonpb.ListValue{
-											Values: urisToValues(resultURIs),
-										},
-									},
-								},
+						InlineJson: &structpb.Struct{
+							Fields: map[string]*structpb.Value{
+								"result_uris": structpb.NewListValue(&structpb.ListValue{Values: urisToValues(resultURIs)}),
 							},
 						},
 					},
@@ -133,12 +127,18 @@ func (a *Aggregator) handleChunkSuccess(ctx context.Context, event *nexusv1.Even
 			},
 		}
 
-		resultBody, err := proto.Marshal(finalResult)
+		// Marshal finalResult proto message to structpb.Struct for Payload.Data
+		jsonBytes, err := protojson.Marshal(finalResult)
 		if err != nil {
-			a.log.Error("Failed to marshal final result", zap.Error(err))
+			a.log.Error("Failed to marshal final result to JSON", zap.Error(err))
 			return
 		}
-		resultPayload := &commonpb.Payload{Data: resultBody}
+		resultStruct := &structpb.Struct{}
+		if err := protojson.Unmarshal(jsonBytes, resultStruct); err != nil {
+			a.log.Error("Failed to unmarshal JSON to structpb.Struct", zap.Error(err))
+			return
+		}
+		resultPayload := &commonpb.Payload{Data: resultStruct}
 
 		canonicalResult := events.NewCanonicalEventEnvelope(
 			EventTaskSuccess,
@@ -168,14 +168,10 @@ func getParentTaskID(chunkID string) string {
 	return ""
 }
 
-func urisToValues(uris []string) []*commonpb.Value {
-	values := make([]*commonpb.Value, len(uris))
+func urisToValues(uris []string) []*structpb.Value {
+	values := make([]*structpb.Value, len(uris))
 	for i, uri := range uris {
-		values[i] = &commonpb.Value{
-			Kind: &commonpb.Value_StringValue{
-				StringValue: uri,
-			},
-		}
+		values[i] = structpb.NewStringValue(uri)
 	}
 	return values
 }

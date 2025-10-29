@@ -11,7 +11,9 @@ import (
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -84,12 +86,19 @@ func (s *Scheduler) handleTaskRequest(ctx context.Context, event *nexusv1.EventR
 		// In a real implementation, you would modify the inputs for each chunk.
 		// For now, we just forward the same envelope with a new task ID.
 
-		assignedBody, err := proto.Marshal(chunkEnvelope)
+
+		// Marshal chunk envelope to structpb.Struct for Payload.Data
+		jsonBytes, err := protojson.Marshal(chunkEnvelope)
 		if err != nil {
-			s.log.Error("Failed to create assigned payload", zap.Error(err), zap.String("task_id", chunk.ID))
+			s.log.Error("Failed to marshal chunk envelope to JSON", zap.Error(err), zap.String("task_id", chunk.ID))
 			continue
 		}
-		assignedPayload := &commonpb.Payload{Data: assignedBody}
+		dataStruct := &structpb.Struct{}
+		if err := protojson.Unmarshal(jsonBytes, dataStruct); err != nil {
+			s.log.Error("Failed to unmarshal JSON to structpb.Struct", zap.Error(err), zap.String("task_id", chunk.ID))
+			continue
+		}
+		assignedPayload := &commonpb.Payload{Data: dataStruct}
 
 		canonicalAssigned := events.NewCanonicalEventEnvelope(
 			EventComputeRequested,

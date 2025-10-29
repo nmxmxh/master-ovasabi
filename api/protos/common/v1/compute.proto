@@ -2,10 +2,11 @@
 // Fits Nexus event bus using common.Payload and common.Metadata
 syntax = "proto3";
 
-package common.v1;
+package common;
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+import "common/v1/metadata.proto";
 
 option go_package = "github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpb";
 
@@ -65,6 +66,7 @@ message Capability {
   GPUDescriptor gpu = 7; // optional
   repeated string labels = 8; // camera, low-power, 5g, wifi
   map<string, string> attributes = 9; // os, arch, browser, driver_version...
+  common.Metadata metadata = 10; // device traits, trust, energy, network, location buckets
 }
 
 // Requirements expresses hard and soft constraints.
@@ -74,6 +76,7 @@ message Requirements {
   map<string, string> qos = 3; // priority, deadline_ms, retries, preemptible, budget_ms
   string isolation = 4; // sandbox|trusted|exclusive
   map<string, string> locality = 5; // region, az, affinity labels
+  common.Metadata metadata = 6; // policy, pricing/SLA context, provenance
 }
 
 // ModuleSpec defines how to locate and invoke the module.
@@ -86,6 +89,7 @@ message ModuleSpec {
   repeated TensorSpec expected_outputs = 6;
   map<string, string> params = 7; // hyperparameters
   map<string, string> permissions = 8; // wasi_fs, net, gpu_access, memory_limit_mb
+  common.Metadata metadata = 9; // module provenance, signature, policy
 }
 
 // ComputeEnvelope is the task definition carried over the event bus.
@@ -102,6 +106,7 @@ message ComputeEnvelope {
   // carry timing hints
   google.protobuf.Timestamp not_before = 10;
   google.protobuf.Timestamp deadline = 11;
+  common.Metadata metadata = 12; // task-level provenance (requester, purpose, tags)
 }
 
 // Claim emitted by a worker or used in assignment acknowledgement.
@@ -109,6 +114,7 @@ message ComputeClaim {
   string task_id = 1;
   string worker_id = 2;
   Capability capabilities = 3;
+  common.Metadata metadata = 4; // bid score, rationale, current load
 }
 
 // Assignment confirms scheduler routing.
@@ -116,6 +122,7 @@ message ComputeAssignment {
   string task_id = 1;
   string worker_id = 2;
   map<string, string> metadata = 3;
+  common.Metadata meta = 4; // routing, pricing, SLA snapshot
 }
 
 // Progress updates with optional metrics.
@@ -124,6 +131,7 @@ message ComputeProgress {
   uint32 pct = 2; // 0..100
   string note = 3;
   map<string, string> metrics = 4; // throughput, tokens_s, tf_ops, mem_used_mb
+  common.Metadata metadata = 5; // device health, counters, provenance
 }
 
 // Result carries outputs and a brief summary for indexing.
@@ -131,6 +139,7 @@ message ComputeResult {
   string task_id = 1;
   repeated DataRef outputs = 2;
   map<string, string> summary = 3; // quick, queryable fields
+  common.Metadata metadata = 4; // proofs, quality, audit, lineage
 }
 
 // Failure describes terminal errors.
@@ -138,6 +147,7 @@ message ComputeFailure {
   string task_id = 1;
   string reason = 2;
   map<string, string> details = 3;
+  common.Metadata metadata = 4; // error taxonomy, remediation hints
 }
 
 

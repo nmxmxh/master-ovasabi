@@ -246,6 +246,9 @@ func configureWebSocketCallbacks() {
 		// Process any queued outgoing messages
 		go processOutgoingQueue()
 
+		// Announce this device's compute capabilities to the backend
+		go sendComputeCapabilities()
+
 		return nil
 	}))
 

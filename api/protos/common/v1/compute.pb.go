@@ -392,6 +392,7 @@ type Capability struct {
 	Gpu           *GPUDescriptor         `protobuf:"bytes,7,opt,name=gpu,proto3" json:"gpu,omitempty"`                                                                                         // optional
 	Labels        []string               `protobuf:"bytes,8,rep,name=labels,proto3" json:"labels,omitempty"`                                                                                   // camera, low-power, 5g, wifi
 	Attributes    map[string]string      `protobuf:"bytes,9,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // os, arch, browser, driver_version...
+	Metadata      *Metadata              `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                                              // device traits, trust, energy, network, location buckets
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -489,6 +490,13 @@ func (x *Capability) GetAttributes() map[string]string {
 	return nil
 }
 
+func (x *Capability) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 // Requirements expresses hard and soft constraints.
 type Requirements struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -497,6 +505,7 @@ type Requirements struct {
 	Qos           map[string]string      `protobuf:"bytes,3,rep,name=qos,proto3" json:"qos,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`           // priority, deadline_ms, retries, preemptible, budget_ms
 	Isolation     string                 `protobuf:"bytes,4,opt,name=isolation,proto3" json:"isolation,omitempty"`                                                                         // sandbox|trusted|exclusive
 	Locality      map[string]string      `protobuf:"bytes,5,rep,name=locality,proto3" json:"locality,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // region, az, affinity labels
+	Metadata      *Metadata              `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                                           // policy, pricing/SLA context, provenance
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -566,6 +575,13 @@ func (x *Requirements) GetLocality() map[string]string {
 	return nil
 }
 
+func (x *Requirements) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 // ModuleSpec defines how to locate and invoke the module.
 type ModuleSpec struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -577,6 +593,7 @@ type ModuleSpec struct {
 	ExpectedOutputs []*TensorSpec          `protobuf:"bytes,6,rep,name=expected_outputs,json=expectedOutputs,proto3" json:"expected_outputs,omitempty"`
 	Params          map[string]string      `protobuf:"bytes,7,rep,name=params,proto3" json:"params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`           // hyperparameters
 	Permissions     map[string]string      `protobuf:"bytes,8,rep,name=permissions,proto3" json:"permissions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // wasi_fs, net, gpu_access, memory_limit_mb
+	Metadata        *Metadata              `protobuf:"bytes,9,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                                                 // module provenance, signature, policy
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -667,6 +684,13 @@ func (x *ModuleSpec) GetPermissions() map[string]string {
 	return nil
 }
 
+func (x *ModuleSpec) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 // ComputeEnvelope is the task definition carried over the event bus.
 type ComputeEnvelope struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -682,6 +706,7 @@ type ComputeEnvelope struct {
 	// carry timing hints
 	NotBefore     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
 	Deadline      *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=deadline,proto3" json:"deadline,omitempty"`
+	Metadata      *Metadata              `protobuf:"bytes,12,opt,name=metadata,proto3" json:"metadata,omitempty"` // task-level provenance (requester, purpose, tags)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -793,12 +818,20 @@ func (x *ComputeEnvelope) GetDeadline() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *ComputeEnvelope) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 // Claim emitted by a worker or used in assignment acknowledgement.
 type ComputeClaim struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	WorkerId      string                 `protobuf:"bytes,2,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
 	Capabilities  *Capability            `protobuf:"bytes,3,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
+	Metadata      *Metadata              `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"` // bid score, rationale, current load
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -854,12 +887,20 @@ func (x *ComputeClaim) GetCapabilities() *Capability {
 	return nil
 }
 
+func (x *ComputeClaim) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 // Assignment confirms scheduler routing.
 type ComputeAssignment struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	WorkerId      string                 `protobuf:"bytes,2,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
 	Metadata      map[string]string      `protobuf:"bytes,3,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Meta          *Metadata              `protobuf:"bytes,4,opt,name=meta,proto3" json:"meta,omitempty"` // routing, pricing, SLA snapshot
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -915,6 +956,13 @@ func (x *ComputeAssignment) GetMetadata() map[string]string {
 	return nil
 }
 
+func (x *ComputeAssignment) GetMeta() *Metadata {
+	if x != nil {
+		return x.Meta
+	}
+	return nil
+}
+
 // Progress updates with optional metrics.
 type ComputeProgress struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -922,6 +970,7 @@ type ComputeProgress struct {
 	Pct           uint32                 `protobuf:"varint,2,opt,name=pct,proto3" json:"pct,omitempty"` // 0..100
 	Note          string                 `protobuf:"bytes,3,opt,name=note,proto3" json:"note,omitempty"`
 	Metrics       map[string]string      `protobuf:"bytes,4,rep,name=metrics,proto3" json:"metrics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // throughput, tokens_s, tf_ops, mem_used_mb
+	Metadata      *Metadata              `protobuf:"bytes,5,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                                         // device health, counters, provenance
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -984,12 +1033,20 @@ func (x *ComputeProgress) GetMetrics() map[string]string {
 	return nil
 }
 
+func (x *ComputeProgress) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 // Result carries outputs and a brief summary for indexing.
 type ComputeResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	Outputs       []*DataRef             `protobuf:"bytes,2,rep,name=outputs,proto3" json:"outputs,omitempty"`
 	Summary       map[string]string      `protobuf:"bytes,3,rep,name=summary,proto3" json:"summary,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // quick, queryable fields
+	Metadata      *Metadata              `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                                         // proofs, quality, audit, lineage
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1045,12 +1102,20 @@ func (x *ComputeResult) GetSummary() map[string]string {
 	return nil
 }
 
+func (x *ComputeResult) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 // Failure describes terminal errors.
 type ComputeFailure struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	Details       map[string]string      `protobuf:"bytes,3,rep,name=details,proto3" json:"details,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Metadata      *Metadata              `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"` // error taxonomy, remediation hints
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1102,6 +1167,13 @@ func (x *ComputeFailure) GetReason() string {
 func (x *ComputeFailure) GetDetails() map[string]string {
 	if x != nil {
 		return x.Details
+	}
+	return nil
+}
+
+func (x *ComputeFailure) GetMetadata() *Metadata {
+	if x != nil {
+		return x.Metadata
 	}
 	return nil
 }
@@ -1171,27 +1243,27 @@ var File_common_v1_compute_proto protoreflect.FileDescriptor
 
 const file_common_v1_compute_proto_rawDesc = "" +
 	"\n" +
-	"\x17common/v1/compute.proto\x12\tcommon.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc4\x02\n" +
+	"\x17common/v1/compute.proto\x12\x06common\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18common/v1/metadata.proto\"\xc1\x02\n" +
 	"\aDataRef\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fcontent_type\x18\x02 \x01(\tR\vcontentType\x12#\n" +
 	"\finline_bytes\x18\x03 \x01(\fH\x00R\vinlineBytes\x12:\n" +
 	"\vinline_json\x18\x04 \x01(\v2\x17.google.protobuf.StructH\x00R\n" +
 	"inlineJson\x12\x12\n" +
-	"\x03uri\x18\x05 \x01(\tH\x00R\x03uri\x12E\n" +
-	"\vannotations\x18\x06 \x03(\v2#.common.v1.DataRef.AnnotationsEntryR\vannotations\x1a>\n" +
+	"\x03uri\x18\x05 \x01(\tH\x00R\x03uri\x12B\n" +
+	"\vannotations\x18\x06 \x03(\v2 .common.DataRef.AnnotationsEntryR\vannotations\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x06\n" +
-	"\x04body\"\x8a\x02\n" +
+	"\x04body\"\x87\x02\n" +
 	"\n" +
 	"TensorSpec\x12\x14\n" +
 	"\x05dtype\x18\x01 \x01(\tR\x05dtype\x12\x16\n" +
 	"\x06shapes\x18\x02 \x03(\x03R\x06shapes\x12\x16\n" +
 	"\x06layout\x18\x03 \x01(\tR\x06layout\x12\x1f\n" +
 	"\vdevice_hint\x18\x04 \x01(\tR\n" +
-	"deviceHint\x128\n" +
-	"\x05quant\x18\x05 \x01(\v2\".common.v1.TensorSpec.QuantizationR\x05quant\x1a[\n" +
+	"deviceHint\x125\n" +
+	"\x05quant\x18\x05 \x01(\v2\x1f.common.TensorSpec.QuantizationR\x05quant\x1a[\n" +
 	"\fQuantization\x12\x14\n" +
 	"\x05scale\x18\x01 \x01(\x01R\x05scale\x12\x1d\n" +
 	"\n" +
@@ -1203,17 +1275,17 @@ const file_common_v1_compute_proto_rawDesc = "" +
 	"byteLength\x12\x16\n" +
 	"\x06stride\x18\x02 \x01(\rR\x06stride\x12\x16\n" +
 	"\x06offset\x18\x03 \x01(\rR\x06offset\x12\x1c\n" +
-	"\talignment\x18\x04 \x01(\rR\talignment\"\x9c\x02\n" +
+	"\talignment\x18\x04 \x01(\rR\talignment\"\x99\x02\n" +
 	"\rGPUDescriptor\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\x12\x16\n" +
 	"\x06vendor\x18\x02 \x01(\tR\x06vendor\x12!\n" +
 	"\fadapter_name\x18\x03 \x01(\tR\vadapterName\x12!\n" +
 	"\fadapter_uuid\x18\x04 \x01(\tR\vadapterUuid\x12\x1a\n" +
-	"\bfeatures\x18\x05 \x03(\tR\bfeatures\x12<\n" +
-	"\x06limits\x18\x06 \x03(\v2$.common.v1.GPUDescriptor.LimitsEntryR\x06limits\x1a9\n" +
+	"\bfeatures\x18\x05 \x03(\tR\bfeatures\x129\n" +
+	"\x06limits\x18\x06 \x03(\v2!.common.GPUDescriptor.LimitsEntryR\x06limits\x1a9\n" +
 	"\vLimitsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x04R\x05value:\x028\x01\"\xea\x02\n" +
+	"\x05value\x18\x02 \x01(\x04R\x05value:\x028\x01\"\x92\x03\n" +
 	"\n" +
 	"Capability\x12\x12\n" +
 	"\x04wasm\x18\x01 \x01(\bR\x04wasm\x12\x18\n" +
@@ -1221,93 +1293,103 @@ const file_common_v1_compute_proto_rawDesc = "" +
 	"\x04simd\x18\x03 \x01(\bR\x04simd\x12\x16\n" +
 	"\x06webgpu\x18\x04 \x01(\bR\x06webgpu\x12\x1b\n" +
 	"\tcpu_cores\x18\x05 \x01(\rR\bcpuCores\x12\x1b\n" +
-	"\tmemory_mb\x18\x06 \x01(\rR\bmemoryMb\x12*\n" +
-	"\x03gpu\x18\a \x01(\v2\x18.common.v1.GPUDescriptorR\x03gpu\x12\x16\n" +
-	"\x06labels\x18\b \x03(\tR\x06labels\x12E\n" +
+	"\tmemory_mb\x18\x06 \x01(\rR\bmemoryMb\x12'\n" +
+	"\x03gpu\x18\a \x01(\v2\x15.common.GPUDescriptorR\x03gpu\x12\x16\n" +
+	"\x06labels\x18\b \x03(\tR\x06labels\x12B\n" +
 	"\n" +
-	"attributes\x18\t \x03(\v2%.common.v1.Capability.AttributesEntryR\n" +
-	"attributes\x1a=\n" +
+	"attributes\x18\t \x03(\v2\".common.Capability.AttributesEntryR\n" +
+	"attributes\x12,\n" +
+	"\bmetadata\x18\n" +
+	" \x01(\v2\x10.common.MetadataR\bmetadata\x1a=\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf6\x02\n" +
-	"\fRequirements\x12'\n" +
-	"\x03min\x18\x01 \x01(\v2\x15.common.v1.CapabilityR\x03min\x123\n" +
-	"\tpreferred\x18\x02 \x01(\v2\x15.common.v1.CapabilityR\tpreferred\x122\n" +
-	"\x03qos\x18\x03 \x03(\v2 .common.v1.Requirements.QosEntryR\x03qos\x12\x1c\n" +
-	"\tisolation\x18\x04 \x01(\tR\tisolation\x12A\n" +
-	"\blocality\x18\x05 \x03(\v2%.common.v1.Requirements.LocalityEntryR\blocality\x1a6\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x98\x03\n" +
+	"\fRequirements\x12$\n" +
+	"\x03min\x18\x01 \x01(\v2\x12.common.CapabilityR\x03min\x120\n" +
+	"\tpreferred\x18\x02 \x01(\v2\x12.common.CapabilityR\tpreferred\x12/\n" +
+	"\x03qos\x18\x03 \x03(\v2\x1d.common.Requirements.QosEntryR\x03qos\x12\x1c\n" +
+	"\tisolation\x18\x04 \x01(\tR\tisolation\x12>\n" +
+	"\blocality\x18\x05 \x03(\v2\".common.Requirements.LocalityEntryR\blocality\x12,\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x1a6\n" +
 	"\bQosEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
 	"\rLocalityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xde\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x80\x04\n" +
 	"\n" +
 	"ModuleSpec\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x10\n" +
 	"\x03uri\x18\x02 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04hash\x18\x03 \x01(\tR\x04hash\x12\x14\n" +
-	"\x05entry\x18\x04 \x01(\tR\x05entry\x12>\n" +
-	"\x0fexpected_inputs\x18\x05 \x03(\v2\x15.common.v1.TensorSpecR\x0eexpectedInputs\x12@\n" +
-	"\x10expected_outputs\x18\x06 \x03(\v2\x15.common.v1.TensorSpecR\x0fexpectedOutputs\x129\n" +
-	"\x06params\x18\a \x03(\v2!.common.v1.ModuleSpec.ParamsEntryR\x06params\x12H\n" +
-	"\vpermissions\x18\b \x03(\v2&.common.v1.ModuleSpec.PermissionsEntryR\vpermissions\x1a9\n" +
+	"\x05entry\x18\x04 \x01(\tR\x05entry\x12;\n" +
+	"\x0fexpected_inputs\x18\x05 \x03(\v2\x12.common.TensorSpecR\x0eexpectedInputs\x12=\n" +
+	"\x10expected_outputs\x18\x06 \x03(\v2\x12.common.TensorSpecR\x0fexpectedOutputs\x126\n" +
+	"\x06params\x18\a \x03(\v2\x1e.common.ModuleSpec.ParamsEntryR\x06params\x12E\n" +
+	"\vpermissions\x18\b \x03(\v2#.common.ModuleSpec.PermissionsEntryR\vpermissions\x12,\n" +
+	"\bmetadata\x18\t \x01(\v2\x10.common.MetadataR\bmetadata\x1a9\n" +
 	"\vParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10PermissionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x84\x05\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa3\x05\n" +
 	"\x0fComputeEnvelope\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x0e\n" +
 	"\x02op\x18\x02 \x01(\tR\x02op\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\x12-\n" +
-	"\x06module\x18\x04 \x01(\v2\x15.common.v1.ModuleSpecR\x06module\x12;\n" +
-	"\frequirements\x18\x05 \x01(\v2\x17.common.v1.RequirementsR\frequirements\x12*\n" +
-	"\x06inputs\x18\x06 \x03(\v2\x12.common.v1.DataRefR\x06inputs\x12>\n" +
-	"\x06params\x18\a \x03(\v2&.common.v1.ComputeEnvelope.ParamsEntryR\x06params\x12%\n" +
-	"\x0ereturn_channel\x18\b \x01(\tR\rreturnChannel\x12D\n" +
-	"\bsecurity\x18\t \x03(\v2(.common.v1.ComputeEnvelope.SecurityEntryR\bsecurity\x129\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12*\n" +
+	"\x06module\x18\x04 \x01(\v2\x12.common.ModuleSpecR\x06module\x128\n" +
+	"\frequirements\x18\x05 \x01(\v2\x14.common.RequirementsR\frequirements\x12'\n" +
+	"\x06inputs\x18\x06 \x03(\v2\x0f.common.DataRefR\x06inputs\x12;\n" +
+	"\x06params\x18\a \x03(\v2#.common.ComputeEnvelope.ParamsEntryR\x06params\x12%\n" +
+	"\x0ereturn_channel\x18\b \x01(\tR\rreturnChannel\x12A\n" +
+	"\bsecurity\x18\t \x03(\v2%.common.ComputeEnvelope.SecurityEntryR\bsecurity\x129\n" +
 	"\n" +
 	"not_before\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\x126\n" +
-	"\bdeadline\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\bdeadline\x1a9\n" +
+	"\bdeadline\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\bdeadline\x12,\n" +
+	"\bmetadata\x18\f \x01(\v2\x10.common.MetadataR\bmetadata\x1a9\n" +
 	"\vParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
 	"\rSecurityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x7f\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xaa\x01\n" +
 	"\fComputeClaim\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x1b\n" +
-	"\tworker_id\x18\x02 \x01(\tR\bworkerId\x129\n" +
-	"\fcapabilities\x18\x03 \x01(\v2\x15.common.v1.CapabilityR\fcapabilities\"\xce\x01\n" +
+	"\tworker_id\x18\x02 \x01(\tR\bworkerId\x126\n" +
+	"\fcapabilities\x18\x03 \x01(\v2\x12.common.CapabilityR\fcapabilities\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\"\xf1\x01\n" +
 	"\x11ComputeAssignment\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x1b\n" +
-	"\tworker_id\x18\x02 \x01(\tR\bworkerId\x12F\n" +
-	"\bmetadata\x18\x03 \x03(\v2*.common.v1.ComputeAssignment.MetadataEntryR\bmetadata\x1a;\n" +
+	"\tworker_id\x18\x02 \x01(\tR\bworkerId\x12C\n" +
+	"\bmetadata\x18\x03 \x03(\v2'.common.ComputeAssignment.MetadataEntryR\bmetadata\x12$\n" +
+	"\x04meta\x18\x04 \x01(\v2\x10.common.MetadataR\x04meta\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcf\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xfa\x01\n" +
 	"\x0fComputeProgress\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x10\n" +
 	"\x03pct\x18\x02 \x01(\rR\x03pct\x12\x12\n" +
-	"\x04note\x18\x03 \x01(\tR\x04note\x12A\n" +
-	"\ametrics\x18\x04 \x03(\v2'.common.v1.ComputeProgress.MetricsEntryR\ametrics\x1a:\n" +
+	"\x04note\x18\x03 \x01(\tR\x04note\x12>\n" +
+	"\ametrics\x18\x04 \x03(\v2$.common.ComputeProgress.MetricsEntryR\ametrics\x12,\n" +
+	"\bmetadata\x18\x05 \x01(\v2\x10.common.MetadataR\bmetadata\x1a:\n" +
 	"\fMetricsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd3\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xfb\x01\n" +
 	"\rComputeResult\x12\x17\n" +
-	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12,\n" +
-	"\aoutputs\x18\x02 \x03(\v2\x12.common.v1.DataRefR\aoutputs\x12?\n" +
-	"\asummary\x18\x03 \x03(\v2%.common.v1.ComputeResult.SummaryEntryR\asummary\x1a:\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12)\n" +
+	"\aoutputs\x18\x02 \x03(\v2\x0f.common.DataRefR\aoutputs\x12<\n" +
+	"\asummary\x18\x03 \x03(\v2\".common.ComputeResult.SummaryEntryR\asummary\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x1a:\n" +
 	"\fSummaryEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbf\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xea\x01\n" +
 	"\x0eComputeFailure\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\x12@\n" +
-	"\adetails\x18\x03 \x03(\v2&.common.v1.ComputeFailure.DetailsEntryR\adetails\x1a:\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12=\n" +
+	"\adetails\x18\x03 \x03(\v2#.common.ComputeFailure.DetailsEntryR\adetails\x12,\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x10.common.MetadataR\bmetadata\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B@Z>github.com/nmxmxh/master-ovasabi/api/protos/common/v1;commonpbb\x06proto3"
@@ -1326,69 +1408,79 @@ func file_common_v1_compute_proto_rawDescGZIP() []byte {
 
 var file_common_v1_compute_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_common_v1_compute_proto_goTypes = []any{
-	(*DataRef)(nil),                 // 0: common.v1.DataRef
-	(*TensorSpec)(nil),              // 1: common.v1.TensorSpec
-	(*BufferSpec)(nil),              // 2: common.v1.BufferSpec
-	(*GPUDescriptor)(nil),           // 3: common.v1.GPUDescriptor
-	(*Capability)(nil),              // 4: common.v1.Capability
-	(*Requirements)(nil),            // 5: common.v1.Requirements
-	(*ModuleSpec)(nil),              // 6: common.v1.ModuleSpec
-	(*ComputeEnvelope)(nil),         // 7: common.v1.ComputeEnvelope
-	(*ComputeClaim)(nil),            // 8: common.v1.ComputeClaim
-	(*ComputeAssignment)(nil),       // 9: common.v1.ComputeAssignment
-	(*ComputeProgress)(nil),         // 10: common.v1.ComputeProgress
-	(*ComputeResult)(nil),           // 11: common.v1.ComputeResult
-	(*ComputeFailure)(nil),          // 12: common.v1.ComputeFailure
-	nil,                             // 13: common.v1.DataRef.AnnotationsEntry
-	(*TensorSpec_Quantization)(nil), // 14: common.v1.TensorSpec.Quantization
-	nil,                             // 15: common.v1.GPUDescriptor.LimitsEntry
-	nil,                             // 16: common.v1.Capability.AttributesEntry
-	nil,                             // 17: common.v1.Requirements.QosEntry
-	nil,                             // 18: common.v1.Requirements.LocalityEntry
-	nil,                             // 19: common.v1.ModuleSpec.ParamsEntry
-	nil,                             // 20: common.v1.ModuleSpec.PermissionsEntry
-	nil,                             // 21: common.v1.ComputeEnvelope.ParamsEntry
-	nil,                             // 22: common.v1.ComputeEnvelope.SecurityEntry
-	nil,                             // 23: common.v1.ComputeAssignment.MetadataEntry
-	nil,                             // 24: common.v1.ComputeProgress.MetricsEntry
-	nil,                             // 25: common.v1.ComputeResult.SummaryEntry
-	nil,                             // 26: common.v1.ComputeFailure.DetailsEntry
+	(*DataRef)(nil),                 // 0: common.DataRef
+	(*TensorSpec)(nil),              // 1: common.TensorSpec
+	(*BufferSpec)(nil),              // 2: common.BufferSpec
+	(*GPUDescriptor)(nil),           // 3: common.GPUDescriptor
+	(*Capability)(nil),              // 4: common.Capability
+	(*Requirements)(nil),            // 5: common.Requirements
+	(*ModuleSpec)(nil),              // 6: common.ModuleSpec
+	(*ComputeEnvelope)(nil),         // 7: common.ComputeEnvelope
+	(*ComputeClaim)(nil),            // 8: common.ComputeClaim
+	(*ComputeAssignment)(nil),       // 9: common.ComputeAssignment
+	(*ComputeProgress)(nil),         // 10: common.ComputeProgress
+	(*ComputeResult)(nil),           // 11: common.ComputeResult
+	(*ComputeFailure)(nil),          // 12: common.ComputeFailure
+	nil,                             // 13: common.DataRef.AnnotationsEntry
+	(*TensorSpec_Quantization)(nil), // 14: common.TensorSpec.Quantization
+	nil,                             // 15: common.GPUDescriptor.LimitsEntry
+	nil,                             // 16: common.Capability.AttributesEntry
+	nil,                             // 17: common.Requirements.QosEntry
+	nil,                             // 18: common.Requirements.LocalityEntry
+	nil,                             // 19: common.ModuleSpec.ParamsEntry
+	nil,                             // 20: common.ModuleSpec.PermissionsEntry
+	nil,                             // 21: common.ComputeEnvelope.ParamsEntry
+	nil,                             // 22: common.ComputeEnvelope.SecurityEntry
+	nil,                             // 23: common.ComputeAssignment.MetadataEntry
+	nil,                             // 24: common.ComputeProgress.MetricsEntry
+	nil,                             // 25: common.ComputeResult.SummaryEntry
+	nil,                             // 26: common.ComputeFailure.DetailsEntry
 	(*structpb.Struct)(nil),         // 27: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),   // 28: google.protobuf.Timestamp
+	(*Metadata)(nil),                // 28: common.Metadata
+	(*timestamppb.Timestamp)(nil),   // 29: google.protobuf.Timestamp
 }
 var file_common_v1_compute_proto_depIdxs = []int32{
-	27, // 0: common.v1.DataRef.inline_json:type_name -> google.protobuf.Struct
-	13, // 1: common.v1.DataRef.annotations:type_name -> common.v1.DataRef.AnnotationsEntry
-	14, // 2: common.v1.TensorSpec.quant:type_name -> common.v1.TensorSpec.Quantization
-	15, // 3: common.v1.GPUDescriptor.limits:type_name -> common.v1.GPUDescriptor.LimitsEntry
-	3,  // 4: common.v1.Capability.gpu:type_name -> common.v1.GPUDescriptor
-	16, // 5: common.v1.Capability.attributes:type_name -> common.v1.Capability.AttributesEntry
-	4,  // 6: common.v1.Requirements.min:type_name -> common.v1.Capability
-	4,  // 7: common.v1.Requirements.preferred:type_name -> common.v1.Capability
-	17, // 8: common.v1.Requirements.qos:type_name -> common.v1.Requirements.QosEntry
-	18, // 9: common.v1.Requirements.locality:type_name -> common.v1.Requirements.LocalityEntry
-	1,  // 10: common.v1.ModuleSpec.expected_inputs:type_name -> common.v1.TensorSpec
-	1,  // 11: common.v1.ModuleSpec.expected_outputs:type_name -> common.v1.TensorSpec
-	19, // 12: common.v1.ModuleSpec.params:type_name -> common.v1.ModuleSpec.ParamsEntry
-	20, // 13: common.v1.ModuleSpec.permissions:type_name -> common.v1.ModuleSpec.PermissionsEntry
-	6,  // 14: common.v1.ComputeEnvelope.module:type_name -> common.v1.ModuleSpec
-	5,  // 15: common.v1.ComputeEnvelope.requirements:type_name -> common.v1.Requirements
-	0,  // 16: common.v1.ComputeEnvelope.inputs:type_name -> common.v1.DataRef
-	21, // 17: common.v1.ComputeEnvelope.params:type_name -> common.v1.ComputeEnvelope.ParamsEntry
-	22, // 18: common.v1.ComputeEnvelope.security:type_name -> common.v1.ComputeEnvelope.SecurityEntry
-	28, // 19: common.v1.ComputeEnvelope.not_before:type_name -> google.protobuf.Timestamp
-	28, // 20: common.v1.ComputeEnvelope.deadline:type_name -> google.protobuf.Timestamp
-	4,  // 21: common.v1.ComputeClaim.capabilities:type_name -> common.v1.Capability
-	23, // 22: common.v1.ComputeAssignment.metadata:type_name -> common.v1.ComputeAssignment.MetadataEntry
-	24, // 23: common.v1.ComputeProgress.metrics:type_name -> common.v1.ComputeProgress.MetricsEntry
-	0,  // 24: common.v1.ComputeResult.outputs:type_name -> common.v1.DataRef
-	25, // 25: common.v1.ComputeResult.summary:type_name -> common.v1.ComputeResult.SummaryEntry
-	26, // 26: common.v1.ComputeFailure.details:type_name -> common.v1.ComputeFailure.DetailsEntry
-	27, // [27:27] is the sub-list for method output_type
-	27, // [27:27] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	27, // 0: common.DataRef.inline_json:type_name -> google.protobuf.Struct
+	13, // 1: common.DataRef.annotations:type_name -> common.DataRef.AnnotationsEntry
+	14, // 2: common.TensorSpec.quant:type_name -> common.TensorSpec.Quantization
+	15, // 3: common.GPUDescriptor.limits:type_name -> common.GPUDescriptor.LimitsEntry
+	3,  // 4: common.Capability.gpu:type_name -> common.GPUDescriptor
+	16, // 5: common.Capability.attributes:type_name -> common.Capability.AttributesEntry
+	28, // 6: common.Capability.metadata:type_name -> common.Metadata
+	4,  // 7: common.Requirements.min:type_name -> common.Capability
+	4,  // 8: common.Requirements.preferred:type_name -> common.Capability
+	17, // 9: common.Requirements.qos:type_name -> common.Requirements.QosEntry
+	18, // 10: common.Requirements.locality:type_name -> common.Requirements.LocalityEntry
+	28, // 11: common.Requirements.metadata:type_name -> common.Metadata
+	1,  // 12: common.ModuleSpec.expected_inputs:type_name -> common.TensorSpec
+	1,  // 13: common.ModuleSpec.expected_outputs:type_name -> common.TensorSpec
+	19, // 14: common.ModuleSpec.params:type_name -> common.ModuleSpec.ParamsEntry
+	20, // 15: common.ModuleSpec.permissions:type_name -> common.ModuleSpec.PermissionsEntry
+	28, // 16: common.ModuleSpec.metadata:type_name -> common.Metadata
+	6,  // 17: common.ComputeEnvelope.module:type_name -> common.ModuleSpec
+	5,  // 18: common.ComputeEnvelope.requirements:type_name -> common.Requirements
+	0,  // 19: common.ComputeEnvelope.inputs:type_name -> common.DataRef
+	21, // 20: common.ComputeEnvelope.params:type_name -> common.ComputeEnvelope.ParamsEntry
+	22, // 21: common.ComputeEnvelope.security:type_name -> common.ComputeEnvelope.SecurityEntry
+	29, // 22: common.ComputeEnvelope.not_before:type_name -> google.protobuf.Timestamp
+	29, // 23: common.ComputeEnvelope.deadline:type_name -> google.protobuf.Timestamp
+	28, // 24: common.ComputeEnvelope.metadata:type_name -> common.Metadata
+	4,  // 25: common.ComputeClaim.capabilities:type_name -> common.Capability
+	28, // 26: common.ComputeClaim.metadata:type_name -> common.Metadata
+	23, // 27: common.ComputeAssignment.metadata:type_name -> common.ComputeAssignment.MetadataEntry
+	28, // 28: common.ComputeAssignment.meta:type_name -> common.Metadata
+	24, // 29: common.ComputeProgress.metrics:type_name -> common.ComputeProgress.MetricsEntry
+	28, // 30: common.ComputeProgress.metadata:type_name -> common.Metadata
+	0,  // 31: common.ComputeResult.outputs:type_name -> common.DataRef
+	25, // 32: common.ComputeResult.summary:type_name -> common.ComputeResult.SummaryEntry
+	28, // 33: common.ComputeResult.metadata:type_name -> common.Metadata
+	26, // 34: common.ComputeFailure.details:type_name -> common.ComputeFailure.DetailsEntry
+	28, // 35: common.ComputeFailure.metadata:type_name -> common.Metadata
+	36, // [36:36] is the sub-list for method output_type
+	36, // [36:36] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_common_v1_compute_proto_init() }
@@ -1396,6 +1488,7 @@ func file_common_v1_compute_proto_init() {
 	if File_common_v1_compute_proto != nil {
 		return
 	}
+	file_common_v1_metadata_proto_init()
 	file_common_v1_compute_proto_msgTypes[0].OneofWrappers = []any{
 		(*DataRef_InlineBytes)(nil),
 		(*DataRef_InlineJson)(nil),

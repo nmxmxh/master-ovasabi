@@ -730,6 +730,53 @@ func processEvent(event *nexuspb.EventResponse) {
 		handleCampaignSwitchEvent(event)
 	}
 
+	// Compute targeted assignment delivery: route compute:dispatch:v1:assigned to a specific device
+	if event.EventType == "compute:dispatch:v1:assigned" {
+		if targetID, targetClient, ok := ComputeTargetClientForEvent(event); ok && targetClient != nil {
+			payloadMap := map[string]interface{}{}
+			if event.Payload != nil && event.Payload.Data != nil {
+				payloadMap = event.Payload.GetData().AsMap()
+			}
+			var metadataMap map[string]interface{}
+			if event.Metadata != nil {
+				metadataMap = metadata.ProtoToMap(event.Metadata)
+			}
+			correlationID := ""
+			if event.Metadata != nil && event.Metadata.GlobalContext != nil {
+				correlationID = event.Metadata.GlobalContext.CorrelationId
+			}
+			wsEvent := WebSocketEvent{
+				Type:          event.EventType,
+				Payload:       payloadMap,
+				CorrelationID: correlationID,
+				Metadata:      metadataMap,
+				Timestamp:     time.Now().UTC().Format(time.RFC3339),
+				Version:       "1.0.0",
+				Environment:   "development",
+				Source:        "backend",
+			}
+			payloadBytes, err := json.Marshal(wsEvent)
+			if err != nil {
+				log.Error("Failed to marshal compute assignment for client", zap.Error(err), zap.String("event_type", event.EventType))
+				return
+			}
+			select {
+			case targetClient.send <- payloadBytes:
+				log.Info("[COMPUTE] Forwarded assigned task to device",
+					zap.String("device_id", targetID),
+					zap.String("user_id", targetClient.userID),
+					zap.String("campaign_id", targetClient.campaignID))
+			default:
+				log.Error("[COMPUTE] Dropped assignment: target client buffer full",
+					zap.String("device_id", targetID),
+					zap.String("event_type", event.EventType))
+			}
+			return
+		} else {
+			log.Warn("[COMPUTE] No bound client for assigned task", zap.String("event_type", event.EventType))
+		}
+	}
+
 	// Forward canonical event types (service:action:v1:state) to the correct client
 	// BUT NOT 'requested' events - those should only be sent from frontend to backend
 	parts := strings.Split(event.EventType, ":")
@@ -1424,6 +1471,11 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 
 		// Convert to Nexus event and emit
 		nexusEvent := envelope.ToNexusEvent()
+
+		// Compute: if client is announcing capabilities, bind device_id -> WSClient
+		if envelope.Type == "compute:capabilities:v1:update" {
+			RegisterCapabilitiesFromClient(nexusEvent.Metadata, c, nil)
+		}
 
 		go func(ctx context.Context) {
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
