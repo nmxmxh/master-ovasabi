@@ -321,7 +321,7 @@ func isCanonicalEventType(eventType string) bool {
 	if !strings.HasPrefix(version, "v") || len(version) < 2 {
 		return false
 	}
-	allowedStates := map[string]struct{}{"requested": {}, "started": {}, "success": {}, "failed": {}, "completed": {}}
+	allowedStates := map[string]struct{}{"requested": {}, "started": {}, "success": {}, "failed": {}, "completed": {}, "update": {}}
 	_, ok := allowedStates[state]
 	return ok
 }

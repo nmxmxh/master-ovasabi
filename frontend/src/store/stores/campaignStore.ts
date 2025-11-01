@@ -100,7 +100,7 @@ export const useCampaignStore = create<CampaignStore>()(
       error: null,
       updateCount: 0,
 
-      startRapidUpdates: count => {
+      startRapidUpdates: (count: number) => {
         const dummyUpdates: Partial<Campaign>[] = [
           { title: 'New Awesome Campaign Title', description: 'This is a new description.' },
           { status: 'active', features: ['new-feature', 'beta'] },

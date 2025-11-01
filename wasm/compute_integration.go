@@ -11,8 +11,9 @@ import (
 
 // sendComputeCapabilities builds a minimal Capability payload and sends
 // compute:capabilities:v1:update to the ws-gateway. It uses a stable device ID
-// in metadata.global_context.source so the gateway can bind this client.
+// in metadata.global_context.device_id so the gateway can bind this client.
 func sendComputeCapabilities() {
+	correlationID := newCorrelationID()
 	capability := map[string]interface{}{
 		"wasm":      true,
 		"threads":   detectWASMThreads(),
@@ -28,19 +29,29 @@ func sendComputeCapabilities() {
 
 	metadata := map[string]interface{}{
 		"global_context": map[string]interface{}{
-			"source":         getStableDeviceID(),
-			"correlation_id": newCorrelationID(),
+			"source":         "wasm",
+			"device_id":      getStableDeviceID(),
+			"correlation_id": correlationID,
 			"campaign_id":    getCurrentCampaignID(),
 			"emitted_at":     time.Now().UTC().Format(time.RFC3339Nano),
+			"user_id":        getCurrentUserID(),
+			"session_id":     generateSessionID(),
 		},
+		"environment":      "production",
+		"envelope_version": "1.0.0",
 	}
 
 	envelope := map[string]interface{}{
-		"type": "compute:capabilities:v1:update",
+		"type":           "compute:capabilities:v1:update",
+		"correlation_id": correlationID,
+		"source":         "wasm",
 		"payload": map[string]interface{}{
 			"data": capability,
 		},
-		"metadata": metadata,
+		"metadata":       metadata,
+		"timestamp":      time.Now().Format(time.RFC3339),
+		"version":        "1.0.0",
+		"environment":    "production",
 	}
 
 	bytes, err := json.Marshal(envelope)
@@ -162,4 +173,21 @@ func getCurrentCampaignID() string {
 		return currentCampaignID
 	}
 	return "0"
+}
+
+func getCurrentUserID() string {
+	// The global `userID` is initialized and maintained in `main.go`'s `initUserSession` function.
+	// This is the most reliable source of truth for the user's ID.
+	if userID != "" {
+		return userID
+	}
+
+	// As a fallback, check the JS global scope (`window.userID`), as it might be set there
+	// by other parts of the application.
+	if jsUserID := js.Global().Get("userID"); jsUserID.Truthy() {
+		return jsUserID.String()
+	}
+
+	// If no user ID is found, return a default value.
+	return "guest_wasm"
 }

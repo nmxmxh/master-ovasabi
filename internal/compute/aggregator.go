@@ -21,7 +21,7 @@ const (
 type Aggregator struct {
 	provider *service.Provider
 	log      *zap.Logger
-	store    Store
+	store    Store // Use the new Store interface
 }
 
 // NewAggregator creates a new Aggregator.

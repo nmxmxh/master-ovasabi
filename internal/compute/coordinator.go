@@ -23,10 +23,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strings"
-	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
@@ -37,27 +39,45 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// Coordinator subscribes to compute requests, tracks worker capabilities,
-// and dispatches tasks to suitable workers.
+// CapabilityStore defines the interface for storing and retrieving worker capabilities.
+type CapabilityStore interface {
+	AddOrUpdate(ctx context.Context, workerID string, caps *commonpb.Capability, ttl time.Duration) error
+	FindSuitableWorkers(ctx context.Context, minReqs *commonpb.Capability) ([]string, error)
+	GetCapabilities(ctx context.Context, workerID string) (*commonpb.Capability, error)
+	GetRandomWorkers(ctx context.Context, count int) ([]string, error)
+}
+
 type Coordinator struct {
 	provider     *service.Provider
 	log          *zap.Logger
-	mu           sync.RWMutex
-	capabilities map[string]*commonpb.Capability // worker_id -> capability
+	capabilities CapabilityStore
+	taskStore    Store // New: Store for managing parent tasks and chunks
 }
 
-// Canonical event types (follow service:action:v1:lifecycle convention).
 const (
-	EventComputeRequested   = "compute:dispatch:v1:requested"
-	EventComputeAccepted    = "compute:dispatch:v1:accepted"
-	EventComputeAssigned    = "compute:dispatch:v1:assigned" // Targeted event for the worker
-	EventComputeProgress    = "compute:dispatch:v1:progress"
-	EventComputeSuccess     = "compute:dispatch:v1:success"
-	EventComputeFailed      = "compute:dispatch:v1:failed"
-	EventComputeCancelled   = "compute:dispatch:v1:cancelled"
-	EventCapabilitiesUpdate = "compute:capabilities:v1:update"
-	EventModuleRegister     = "compute:module:v1:register"
-	EventModuleValidate     = "compute:module:v1:validate"
+
+	EventComputeRequested    = "compute:dispatch:v1:requested"
+
+	EventComputeAccepted     = "compute:dispatch:v1:accepted"
+
+	EventComputeAssigned     = "compute:dispatch:v1:assigned" // Targeted event for the worker
+
+	EventComputeProgress     = "compute:dispatch:v1:progress"
+
+	EventComputeSuccess      = "compute:dispatch:v1:success"
+
+	EventComputeFailed       = "compute:dispatch:v1:failed"
+
+	EventComputeCancelled    = "compute:dispatch:v1:cancelled"
+
+	EventCapabilitiesUpdate  = "compute:capabilities:v1:update"
+
+	EventCapabilitiesSuccess = "compute:capabilities:v1:success"
+
+	EventModuleRegister      = "compute:module:v1:register"
+
+	EventModuleValidate      = "compute:module:v1:validate"
+
 )
 
 // Minimal validation rule set identifiers for docs/reference.
@@ -69,11 +89,12 @@ const (
 )
 
 // NewCoordinator creates a new compute coordinator.
-func NewCoordinator(provider *service.Provider, log *zap.Logger) *Coordinator {
+func NewCoordinator(provider *service.Provider, log *zap.Logger, capsStore CapabilityStore, taskStore Store) *Coordinator {
 	return &Coordinator{
 		provider:     provider,
 		log:          log,
-		capabilities: make(map[string]*commonpb.Capability),
+		capabilities: capsStore,
+		taskStore:    taskStore,
 	}
 }
 
@@ -103,7 +124,13 @@ func (c *Coordinator) Start(ctx context.Context) error {
 
 // handleCapabilityUpdate processes incoming capability announcements from workers.
 func (c *Coordinator) handleCapabilityUpdate(ctx context.Context, event *nexusv1.EventResponse) {
-	workerID := event.GetMetadata().GetGlobalContext().GetSource()
+	meta := event.GetMetadata()
+	if meta == nil || meta.GetGlobalContext() == nil {
+		c.log.Warn("Received capability update with missing metadata or global context")
+		return
+	}
+	globalCtx := meta.GetGlobalContext()
+	workerID := globalCtx.GetSource()
 	if workerID == "" {
 		c.log.Warn("Received capability update without source in metadata")
 		return
@@ -117,10 +144,47 @@ func (c *Coordinator) handleCapabilityUpdate(ctx context.Context, event *nexusv1
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.capabilities[workerID] = &caps
+	// Add a TTL to the capability to handle stale workers
+	const capabilityTTL = 10 * time.Minute
+	if err := c.capabilities.AddOrUpdate(ctx, workerID, &caps, capabilityTTL); err != nil {
+		c.log.Error("Failed to update capabilities in store", zap.Error(err), zap.String("worker_id", workerID))
+		return
+	}
 	c.log.Info("Updated capabilities for worker", zap.String("worker_id", workerID))
+
+	// Emit a success event to acknowledge registration
+	successPayloadData := &structpb.Struct{
+		Fields: map[string]*structpb.Value{
+			"worker_id": structpb.NewStringValue(workerID),
+			"status":    structpb.NewStringValue("REGISTERED"),
+		},
+	}
+	successPayload := &commonpb.Payload{Data: successPayloadData}
+
+	// The event is targeted back at the worker who sent the update.
+	serviceSpecific := map[string]interface{}{
+		"routing": map[string]interface{}{
+			"target_worker_id": workerID,
+		},
+	}
+
+	canonicalAck := events.NewCanonicalEventEnvelope(
+		EventCapabilitiesSuccess,
+		globalCtx.GetSource(),
+		globalCtx.GetCampaignId(),
+		globalCtx.GetCorrelationId(),
+		successPayload,
+		serviceSpecific,
+	)
+	ackEnvelope := &events.EventEnvelope{
+		ID:       uuid.New().String(),
+		Type:     canonicalAck.Type,
+		Payload:  canonicalAck.Payload,
+		Metadata: canonicalAck.Metadata,
+	}
+	if _, err := c.provider.EmitEventEnvelope(ctx, ackEnvelope); err != nil {
+		c.log.Error("Failed to emit capability success event", zap.Error(err), zap.String("worker_id", workerID))
+	}
 }
 
 // handleDispatchRequest processes compute requests, finds a worker, and dispatches the task.
@@ -140,7 +204,16 @@ func (c *Coordinator) handleDispatchRequest(ctx context.Context, event *nexusv1.
 		return
 	}
 
-	workerID, err := c.findBestWorker(&envelope)
+	// Check for parallelism strategy
+	if envelope.GetRequirements() != nil &&
+		envelope.GetRequirements().GetParallelism() != nil &&
+		envelope.GetRequirements().GetParallelism().GetStrategy() == "map" {
+		c.handleParallelDispatchRequest(ctx, event, &envelope)
+		return
+	}
+
+	// --- Existing single-task dispatch logic ---
+	workerID, err := c.findBestWorker(ctx, &envelope)
 	if err != nil {
 		c.log.Warn("No suitable worker found for task", zap.String("task_id", envelope.GetTaskId()), zap.Error(err))
 		c.emitFailureEvent(ctx, event, envelope.GetTaskId(), err.Error())
@@ -172,7 +245,7 @@ func (c *Coordinator) handleDispatchRequest(ctx context.Context, event *nexusv1.
 		nil,
 	)
 	acceptedEnvelope := &events.EventEnvelope{
-		ID:       canonicalAccepted.CorrelationID,
+		ID:       uuid.New().String(),
 		Type:     canonicalAccepted.Type,
 		Payload:  canonicalAccepted.Payload,
 		Metadata: canonicalAccepted.Metadata,
@@ -205,7 +278,7 @@ func (c *Coordinator) handleDispatchRequest(ctx context.Context, event *nexusv1.
 		serviceSpecific,
 	)
 	assignedEnvelope := &events.EventEnvelope{
-		ID:       canonicalAssigned.CorrelationID,
+		ID:       uuid.New().String(),
 		Type:     canonicalAssigned.Type,
 		Payload:  canonicalAssigned.Payload,
 		Metadata: canonicalAssigned.Metadata,
@@ -213,6 +286,181 @@ func (c *Coordinator) handleDispatchRequest(ctx context.Context, event *nexusv1.
 	if _, err := c.provider.EmitEventEnvelope(ctx, assignedEnvelope); err != nil {
 		c.log.Error("Failed to emit targeted assigned event", zap.Error(err), zap.String("task_id", envelope.GetTaskId()))
 	}
+}
+
+func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *nexusv1.EventResponse, parentEnvelope *commonpb.ComputeEnvelope) {
+	parentTaskID := parentEnvelope.GetTaskId()
+	if parentTaskID == "" {
+		parentTaskID = uuid.New().String() // Generate if not provided
+	}
+
+	c.log.Info("Handling parallel dispatch request", zap.String("parent_task_id", parentTaskID))
+
+	// 1. Determine chunk count and find suitable workers
+	minReqs := parentEnvelope.GetRequirements().GetMin()
+	if minReqs == nil {
+		c.log.Warn("Parallel task requires minimum requirements", zap.String("parent_task_id", parentTaskID))
+		c.emitFailureEvent(ctx, event, parentTaskID, "Parallel task requires minimum requirements")
+		return
+	}
+
+	suitableWorkers, err := c.capabilities.FindSuitableWorkers(ctx, minReqs)
+	if err != nil {
+		c.log.Error("Failed to find suitable workers for parallel task", zap.Error(err), zap.String("parent_task_id", parentTaskID))
+		c.emitFailureEvent(ctx, event, parentTaskID, fmt.Sprintf("Failed to find suitable workers: %v", err))
+		return
+	}
+
+	if len(suitableWorkers) == 0 {
+		c.log.Warn("No suitable workers found for parallel task", zap.String("parent_task_id", parentTaskID))
+		c.emitFailureEvent(ctx, event, parentTaskID, "No suitable workers found for parallel task")
+		return
+	}
+
+	// Determine actual chunk count
+	requestedMaxChunks := parentEnvelope.GetRequirements().GetParallelism().GetMaxChunks()
+	chunkCount := len(suitableWorkers) // Default: one chunk per suitable worker
+	if requestedMaxChunks > 0 && requestedMaxChunks < uint32(chunkCount) {
+		chunkCount = int(requestedMaxChunks)
+	}
+
+	c.log.Info("Dispatching parallel task", zap.String("parent_task_id", parentTaskID), zap.Int("chunk_count", chunkCount), zap.Int("suitable_workers", len(suitableWorkers)))
+
+	// 2. Create parent task in store
+	chunks := make([]*Chunk, chunkCount)
+	for i := 0; i < chunkCount; i++ {
+		chunks[i] = &Chunk{
+			ID:     fmt.Sprintf("%s-chunk-%d", parentTaskID, i),
+			Status: "pending",
+		}
+	}
+
+	parentTask := &Task{
+		ID:          parentTaskID,
+		TotalChunks: chunkCount,
+		Chunks:      chunks,
+		Status:      "in-progress",
+	}
+
+	if err := c.taskStore.CreateTask(parentTask); err != nil {
+		c.log.Error("Failed to create parent task in store", zap.Error(err), zap.String("parent_task_id", parentTaskID))
+		c.emitFailureEvent(ctx, event, parentTaskID, fmt.Sprintf("Failed to create parent task in store: %v", err))
+		return
+	}
+
+	// 3. Generate and Dispatch Sub-Envelopes (Chunks)
+	globalCtx := event.GetMetadata().GetGlobalContext()
+	workersForChunks := make([]string, chunkCount)
+
+	// Simple round-robin assignment for now
+	for i := 0; i < chunkCount; i++ {
+		workersForChunks[i] = suitableWorkers[i%len(suitableWorkers)]
+	}
+
+	// Shuffle workers to ensure better distribution if chunkCount > len(suitableWorkers)
+	rand.Shuffle(len(workersForChunks), func(i, j int) {
+		workersForChunks[i], workersForChunks[j] = workersForChunks[j], workersForChunks[i]
+	})
+
+	for i := 0; i < chunkCount; i++ {
+		chunkID := fmt.Sprintf("%s-chunk-%d", parentTaskID, i)
+		workerID := workersForChunks[i]
+
+		// Create a new envelope for the chunk
+		chunkEnvelope := proto.Clone(parentEnvelope).(*commonpb.ComputeEnvelope)
+		chunkEnvelope.TaskId = chunkID // IMPORTANT: TaskId for chunk is its unique ID
+
+		// Add chunk-specific metadata
+		if chunkEnvelope.Metadata == nil {
+			chunkEnvelope.Metadata = &commonpb.Metadata{}
+		}
+		if chunkEnvelope.Metadata.ServiceSpecific == nil {
+			chunkEnvelope.Metadata.ServiceSpecific = &structpb.Struct{}
+		}
+		if chunkEnvelope.Metadata.ServiceSpecific.Fields == nil {
+			chunkEnvelope.Metadata.ServiceSpecific.Fields = make(map[string]*structpb.Value)
+		}
+		chunkEnvelope.Metadata.ServiceSpecific.Fields["parent_task_id"] = structpb.NewStringValue(parentTaskID)
+		chunkEnvelope.Metadata.ServiceSpecific.Fields["chunk_index"] = structpb.NewNumberValue(float64(i))
+		chunkEnvelope.Metadata.ServiceSpecific.Fields["total_chunks"] = structpb.NewNumberValue(float64(chunkCount))
+
+		// TODO: Dynamically modify input data for each chunk (e.g., specify data range)
+		// This would involve modifying chunkEnvelope.Inputs based on the parentEnvelope.Inputs
+		// For example, if parentEnvelope.Inputs[0] is a large file URI, this could specify byte ranges.
+
+		assignedStruct, err := c.marshalToStruct(chunkEnvelope)
+		if err != nil {
+			c.log.Error("Failed to create assigned payload for chunk", zap.Error(err), zap.String("chunk_id", chunkID))
+			// Handle partial failures - mark chunk as failed in store
+			if updateErr := c.taskStore.UpdateChunk(parentTaskID, &Chunk{ID: chunkID, Status: "failed"}); updateErr != nil {
+				c.log.Error("Failed to mark chunk as failed in store", zap.Error(updateErr), zap.String("chunk_id", chunkID))
+			}
+			continue
+		}
+		assignedPayload := &commonpb.Payload{Data: assignedStruct}
+
+		serviceSpecific := map[string]interface{}{
+			"routing": map[string]interface{}{
+				"target_worker_id": workerID,
+			},
+		}
+
+		canonicalAssigned := events.NewCanonicalEventEnvelope(
+			EventComputeAssigned,
+			globalCtx.GetSource(),
+			globalCtx.GetCampaignId(),
+			globalCtx.GetCorrelationId(),
+			assignedPayload,
+			serviceSpecific,
+		)
+		assignedEnvelope := &events.EventEnvelope{
+			ID:       uuid.New().String(),
+			Type:     canonicalAssigned.Type,
+			Payload:  canonicalAssigned.Payload,
+			Metadata: canonicalAssigned.Metadata,
+		}
+		if _, err := c.provider.EmitEventEnvelope(ctx, assignedEnvelope); err != nil {
+			c.log.Error("Failed to emit targeted assigned event for chunk", zap.Error(err), zap.String("chunk_id", chunkID))
+			// Handle partial failures - mark chunk as failed in store
+			if updateErr := c.taskStore.UpdateChunk(parentTaskID, &Chunk{ID: chunkID, Status: "failed"}); updateErr != nil {
+				c.log.Error("Failed to mark chunk as failed in store", zap.Error(updateErr), zap.String("chunk_id", chunkID))
+			}
+			continue
+		}
+		c.log.Debug("Dispatched chunk to worker", zap.String("chunk_id", chunkID), zap.String("worker_id", workerID))
+	}
+
+	// 4. Emit EventComputeAccepted for Parent Task
+	assignment := &commonpb.ComputeAssignment{
+		TaskId:   parentTaskID,
+		WorkerId: "", // No single worker for parent task
+	}
+	assignmentStruct, err := c.marshalToStruct(assignment)
+	if err != nil {
+		c.log.Error("Failed to create assignment payload for parent task", zap.Error(err), zap.String("task_id", parentTaskID))
+		return
+	}
+	assignmentPayload := &commonpb.Payload{Data: assignmentStruct}
+
+	canonicalAccepted := events.NewCanonicalEventEnvelope(
+		EventComputeAccepted,
+		globalCtx.GetSource(),
+		globalCtx.GetCampaignId(),
+		globalCtx.GetCorrelationId(),
+		assignmentPayload,
+		nil,
+	)
+	acceptedEnvelope := &events.EventEnvelope{
+		ID:       uuid.New().String(),
+		Type:     canonicalAccepted.Type,
+		Payload:  canonicalAccepted.Payload,
+		Metadata: canonicalAccepted.Metadata,
+	}
+	if _, err := c.provider.EmitEventEnvelope(ctx, acceptedEnvelope); err != nil {
+		c.log.Error("Failed to emit accepted event for parent task", zap.Error(err), zap.String("task_id", parentTaskID))
+	}
+
+	c.log.Info("Successfully initiated parallel task dispatch", zap.String("parent_task_id", parentTaskID), zap.Int("chunks_dispatched", chunkCount))
 }
 
 // emitFailureEvent is a helper to construct and send a compute failure event.
@@ -240,7 +488,7 @@ func (c *Coordinator) emitFailureEvent(ctx context.Context, originalEvent *nexus
 		nil,
 	)
 	failureEnvelope := &events.EventEnvelope{
-		ID:       canonicalEnvelope.CorrelationID,
+		ID:       uuid.New().String(),
 		Type:     canonicalEnvelope.Type,
 		Payload:  canonicalEnvelope.Payload,
 		Metadata: canonicalEnvelope.Metadata,
@@ -308,31 +556,26 @@ func (c *Coordinator) validateComputeEnvelope(envelope *commonpb.ComputeEnvelope
 }
 
 // findBestWorker selects a worker based on requirements.
-func (c *Coordinator) findBestWorker(envelope *commonpb.ComputeEnvelope) (string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
+func (c *Coordinator) findBestWorker(ctx context.Context, envelope *commonpb.ComputeEnvelope) (string, error) {
 	reqs := envelope.GetRequirements()
 	minReqs := reqs.GetMin()
+
 	if minReqs == nil {
 		// No requirements, pick any worker in a deterministic way.
-		if len(c.capabilities) == 0 {
+		// Fetch a single random worker as a fallback.
+		workerIDs, err := c.capabilities.GetRandomWorkers(ctx, 1)
+		if err != nil {
+			return "", fmt.Errorf("failed to get random worker: %w", err)
+		}
+		if len(workerIDs) == 0 {
 			return "", errors.New("no workers available")
 		}
-		// Sort keys for deterministic selection.
-		workerIDs := make([]string, 0, len(c.capabilities))
-		for id := range c.capabilities {
-			workerIDs = append(workerIDs, id)
-		}
-		sort.Strings(workerIDs)
 		return workerIDs[0], nil
 	}
 
-	var suitableWorkers []string
-	for id, caps := range c.capabilities {
-		if c.workerSatisfiesMinRequirements(caps, minReqs) {
-			suitableWorkers = append(suitableWorkers, id)
-		}
+	suitableWorkers, err := c.capabilities.FindSuitableWorkers(ctx, minReqs)
+	if err != nil {
+		return "", fmt.Errorf("failed to find suitable workers: %w", err)
 	}
 
 	if len(suitableWorkers) == 0 {
@@ -356,8 +599,12 @@ func (c *Coordinator) findBestWorker(envelope *commonpb.ComputeEnvelope) (string
 	maxScore := -1
 
 	for _, workerID := range suitableWorkers {
-		workerCaps := c.capabilities[workerID]
-		score := c.scoreWorker(workerCaps, prefReqs)
+		workerCaps, err := c.capabilities.GetCapabilities(ctx, workerID)
+		if err != nil {
+			c.log.Warn("Failed to get capabilities for scoring", zap.String("worker_id", workerID), zap.Error(err))
+			continue
+		}
+		score := c.scoreWorker(ctx, workerCaps, prefReqs)
 		if score > maxScore {
 			maxScore = score
 			bestWorkerID = workerID
@@ -375,7 +622,7 @@ func (c *Coordinator) findBestWorker(envelope *commonpb.ComputeEnvelope) (string
 
 // scoreWorker calculates a score for a worker based on preferred requirements.
 // A higher score is better. This is a simple stub implementation.
-func (c *Coordinator) scoreWorker(workerCaps, preferred *commonpb.Capability) int {
+func (c *Coordinator) scoreWorker(ctx context.Context, workerCaps, preferred *commonpb.Capability) int {
 	if preferred == nil {
 		return 0 // No preference, no score.
 	}
@@ -416,59 +663,4 @@ func (c *Coordinator) scoreWorker(workerCaps, preferred *commonpb.Capability) in
 	return score
 }
 
-// workerSatisfiesMinRequirements checks if a worker's capabilities meet the minimum requirements.
-func (c *Coordinator) workerSatisfiesMinRequirements(workerCaps, minReqs *commonpb.Capability) bool {
-	if minReqs == nil {
-		return true // No minimum requirements specified.
-	}
-	if workerCaps == nil {
-		return false // Worker has no capabilities, but requirements exist.
-	}
 
-	// Boolean capability checks
-	if minReqs.GetWasm() && !workerCaps.GetWasm() {
-		return false
-	}
-	if minReqs.GetThreads() && !workerCaps.GetThreads() {
-		return false
-	}
-	if minReqs.GetSimd() && !workerCaps.GetSimd() {
-		return false
-	}
-	if minReqs.GetWebgpu() && !workerCaps.GetWebgpu() {
-		return false
-	}
-
-	// Resource checks
-	if workerCaps.GetCpuCores() < minReqs.GetCpuCores() {
-		return false
-	}
-	if workerCaps.GetMemoryMb() < minReqs.GetMemoryMb() {
-		return false
-	}
-
-	// GPU checks
-	if minReqs.GetGpu() != nil {
-		if workerCaps.GetGpu() == nil {
-			return false
-		}
-		if minReqs.GetGpu().GetBackend() != "" && minReqs.GetGpu().GetBackend() != workerCaps.GetGpu().GetBackend() {
-			return false
-		}
-		// Check if worker supports all required GPU features.
-		for _, requiredFeature := range minReqs.GetGpu().GetFeatures() {
-			found := false
-			for _, workerFeature := range workerCaps.GetGpu().GetFeatures() {
-				if requiredFeature == workerFeature {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-	}
-
-	return true
-}

@@ -22,6 +22,11 @@ func (v *EventTypeValidator) IsValidEventType(eventType string) bool {
 		return true
 	}
 
+	// Allow all compute events to pass through
+	if strings.HasPrefix(eventType, "compute:") {
+		return true
+	}
+
 	// Check if it's a health event
 	if v.IsHealthEventType(eventType) {
 		return true
@@ -86,6 +91,9 @@ func (v *EventTypeValidator) GetEventTypeCategory(eventType string) string {
 	}
 	if strings.HasPrefix(eventType, "campaign:") {
 		return "campaign"
+	}
+	if strings.HasPrefix(eventType, "compute:") {
+		return "compute"
 	}
 	if v.IsHealthEventType(eventType) {
 		return "health"

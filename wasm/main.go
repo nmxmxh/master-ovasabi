@@ -164,7 +164,7 @@ var (
 	outgoingQueue = make(chan []byte, 1024)    // Buffered queue for outgoing messages
 	resourcePool  = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
 	computeQueue  = make(chan computeTask, 32)
-	eventBus      *WASMEventBus // Our internal WASM event bus
+	eventBus      *WASMEventBus = NewWASMEventBus() // Our internal WASM event bus
 
 	// Threading configuration
 	enableThreading       string = "true" // Can be overridden by ldflags
@@ -837,6 +837,8 @@ func loadCanonicalEventTypes() {
 		"campaign:state:v1:success",
 		"campaign:state:v1:failed",
 		"campaign:state:v1:completed",
+		// Compute capabilities events
+		"compute:capabilities:v1:update",
 	}
 
 	// Add campaign event types to the canonical event type set

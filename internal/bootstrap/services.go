@@ -14,6 +14,7 @@ import (
 	// Import all service provider packages.
 
 	"github.com/nmxmxh/master-ovasabi/internal/ai"
+	"github.com/nmxmxh/master-ovasabi/internal/compute" // Added import
 
 	"github.com/nmxmxh/master-ovasabi/internal/service/admin"
 	"github.com/nmxmxh/master-ovasabi/internal/service/analytics"
@@ -109,6 +110,7 @@ func (b *ServiceBootstrapper) RegisterAll() error {
 		"crawler":           createRegisterAdapter(crawler.Register),
 		"waitlist":          createRegisterAdapter(waitlist.Register),
 		"ai":                createRegisterAdapter(ai.Register),
+		"compute":           createRegisterAdapter(compute.Register), // Added compute service
 	}
 	// Use the JSON-driven registration from the shared registration package.
 	err := registration.RegisterAllFromJSON(

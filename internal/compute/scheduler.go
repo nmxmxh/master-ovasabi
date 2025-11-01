@@ -4,8 +4,8 @@ package compute
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"github.com/google/uuid"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
@@ -19,6 +19,7 @@ import (
 const (
 	EventTaskRequested = "compute:task:v1:requested"
 )
+
 
 // Scheduler service for decomposing tasks.
 type Scheduler struct {
@@ -58,34 +59,97 @@ func (s *Scheduler) handleTaskRequest(ctx context.Context, event *nexusv1.EventR
 
 	s.log.Info("Received compute task request", zap.String("task_id", envelope.GetTaskId()))
 
-	// Simple chunking strategy: 1 chunk for now
+	// --- Smart Chunking Logic ---
+	var chunkableInputs []*commonpb.DataRef
+	var taskContext *structpb.Struct
+	chunkingHint := "auto" // default
+
+	// Safely extract hints and context from the raw payload data
+	if event.GetPayload() != nil {
+		if data := event.GetPayload().GetData(); data != nil && data.Fields != nil {
+			if ctxVal, ok := data.Fields["task_context"]; ok {
+				if sc, ok := ctxVal.GetKind().(*structpb.Value_StructValue); ok {
+					taskContext = sc.StructValue
+				}
+			}
+		}
+	}
+	if meta := event.GetMetadata(); meta != nil && meta.GetServiceSpecific() != nil {
+		if hintVal, ok := meta.GetServiceSpecific().Fields["chunking_hint"]; ok {
+			if str, ok := hintVal.GetKind().(*structpb.Value_StringValue); ok {
+				chunkingHint = str.StringValue
+			}
+		}
+	}
+
+	// Determine if the task should be chunked based on hint and input structure
+	if chunkingHint != "none" {
+		if len(envelope.GetInputs()) > 1 {
+			// Strategy 1: Multiple top-level inputs. Treat each as a chunk.
+			chunkableInputs = envelope.GetInputs()
+		} else if len(envelope.GetInputs()) == 1 {
+			input := envelope.GetInputs()[0]
+			// Strategy 2: Single input that is a list. Break down the list into chunks.
+			if ij := input.GetInlineJson(); ij != nil && ij.Fields != nil {
+				if itemsVal, ok := ij.Fields["items"]; ok {
+					if lv, ok := itemsVal.GetKind().(*structpb.Value_ListValue); ok {
+						// Input is a JSON object with an "items" list, e.g., {"items": [...]}
+						items := lv.ListValue.GetValues()
+						for _, item := range items {
+							chunkableInputs = append(chunkableInputs, &commonpb.DataRef{
+								Body: &commonpb.DataRef_InlineJson{
+									InlineJson: &structpb.Struct{
+										Fields: map[string]*structpb.Value{"item": item},
+									},
+								},
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	isChunking := len(chunkableInputs) > 0
 	numChunks := 1
-	chunks := make([]*ChunkState, numChunks)
+	if isChunking {
+		numChunks = len(chunkableInputs)
+	}
+
+	if numChunks == 1 && len(envelope.GetInputs()) == 0 {
+		s.log.Warn("Task has no inputs to process, creating one default chunk.", zap.String("task_id", envelope.GetTaskId()))
+	}
+
+	chunks := make([]*Chunk, numChunks)
 	for i := 0; i < numChunks; i++ {
-		chunks[i] = &ChunkState{
+		chunks[i] = &Chunk{
 			ID:     fmt.Sprintf("%s-chunk-%d", envelope.GetTaskId(), i),
-			Index:  i,
 			Status: "pending",
 		}
 	}
 
-	task := &TaskState{
-		ID:        envelope.GetTaskId(),
-		Chunks:    chunks,
-		CreatedAt: time.Now(),
+	task := &Task{
+		ID:          envelope.GetTaskId(),
+		TotalChunks: numChunks,
+		Chunks:      chunks,
+		Status:      "in-progress",
 	}
 	if err := s.store.CreateTask(task); err != nil {
 		s.log.Error("Failed to create task in store", zap.Error(err))
 		return
 	}
 
-	for _, chunk := range chunks {
+	for i, chunk := range chunks {
 		chunkEnvelope := proto.Clone(&envelope).(*commonpb.ComputeEnvelope)
 		chunkEnvelope.TaskId = chunk.ID
 
-		// In a real implementation, you would modify the inputs for each chunk.
-		// For now, we just forward the same envelope with a new task ID.
-
+		// Set the specific input(s) for this chunk
+		if isChunking {
+			chunkEnvelope.Inputs = []*commonpb.DataRef{chunkableInputs[i]}
+		} else {
+			// Not chunking, so the single chunk gets all original inputs
+			chunkEnvelope.Inputs = envelope.GetInputs()
+		}
 
 		// Marshal chunk envelope to structpb.Struct for Payload.Data
 		jsonBytes, err := protojson.Marshal(chunkEnvelope)
@@ -98,18 +162,32 @@ func (s *Scheduler) handleTaskRequest(ctx context.Context, event *nexusv1.EventR
 			s.log.Error("Failed to unmarshal JSON to structpb.Struct", zap.Error(err), zap.String("task_id", chunk.ID))
 			continue
 		}
+
+		// Add the shared task context back into the final payload struct for the worker
+		if taskContext != nil {
+			if dataStruct.Fields == nil {
+				dataStruct.Fields = make(map[string]*structpb.Value)
+			}
+			dataStruct.Fields["task_context"] = structpb.NewStructValue(taskContext)
+		}
 		assignedPayload := &commonpb.Payload{Data: dataStruct}
 
+		if event.GetMetadata() == nil || event.GetMetadata().GetGlobalContext() == nil {
+			s.log.Error("Event is missing metadata, cannot emit chunk", zap.String("task_id", chunk.ID))
+			continue
+		}
+
+		globalCtx := event.GetMetadata().GetGlobalContext()
 		canonicalAssigned := events.NewCanonicalEventEnvelope(
-			EventComputeRequested,
-			event.GetMetadata().GetGlobalContext().GetUserId(),
-			event.GetMetadata().GetGlobalContext().GetCampaignId(),
-			event.GetMetadata().GetGlobalContext().GetCorrelationId(),
+			EventComputeRequested, // Use the constant from coordinator.go
+			globalCtx.GetSource(),
+			globalCtx.GetCampaignId(),
+			globalCtx.GetCorrelationId(),
 			assignedPayload,
 			nil,
 		)
 		assignedEnvelope := &events.EventEnvelope{
-			ID:       canonicalAssigned.CorrelationID,
+			ID:       uuid.New().String(),
 			Type:     canonicalAssigned.Type,
 			Payload:  canonicalAssigned.Payload,
 			Metadata: canonicalAssigned.Metadata,

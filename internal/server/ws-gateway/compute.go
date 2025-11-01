@@ -61,7 +61,7 @@ func RegisterCapabilitiesFromClient(meta *commonpb.Metadata, client *WSClient, l
 	if meta == nil || meta.GlobalContext == nil || client == nil {
 		return
 	}
-	deviceID := meta.GlobalContext.Source
+	deviceID := meta.GlobalContext.DeviceId
 	if deviceID == "" {
 		return
 	}

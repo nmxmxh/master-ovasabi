@@ -506,6 +506,7 @@ type Requirements struct {
 	Isolation     string                 `protobuf:"bytes,4,opt,name=isolation,proto3" json:"isolation,omitempty"`                                                                         // sandbox|trusted|exclusive
 	Locality      map[string]string      `protobuf:"bytes,5,rep,name=locality,proto3" json:"locality,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // region, az, affinity labels
 	Metadata      *Metadata              `protobuf:"bytes,6,opt,name=metadata,proto3" json:"metadata,omitempty"`                                                                           // policy, pricing/SLA context, provenance
+	Parallelism   *ParallelismConfig     `protobuf:"bytes,7,opt,name=parallelism,proto3" json:"parallelism,omitempty"`                                                                     // New field for parallelism configuration
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -582,6 +583,66 @@ func (x *Requirements) GetMetadata() *Metadata {
 	return nil
 }
 
+func (x *Requirements) GetParallelism() *ParallelismConfig {
+	if x != nil {
+		return x.Parallelism
+	}
+	return nil
+}
+
+// ParallelismConfig defines how a task should be parallelized.
+type ParallelismConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Strategy      string                 `protobuf:"bytes,1,opt,name=strategy,proto3" json:"strategy,omitempty"`                     // e.g., "map", "scatter", "none"
+	MaxChunks     uint32                 `protobuf:"varint,2,opt,name=max_chunks,json=maxChunks,proto3" json:"max_chunks,omitempty"` // Max number of chunks to create. 0 for auto/unlimited.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ParallelismConfig) Reset() {
+	*x = ParallelismConfig{}
+	mi := &file_common_v1_compute_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParallelismConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParallelismConfig) ProtoMessage() {}
+
+func (x *ParallelismConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_common_v1_compute_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParallelismConfig.ProtoReflect.Descriptor instead.
+func (*ParallelismConfig) Descriptor() ([]byte, []int) {
+	return file_common_v1_compute_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ParallelismConfig) GetStrategy() string {
+	if x != nil {
+		return x.Strategy
+	}
+	return ""
+}
+
+func (x *ParallelismConfig) GetMaxChunks() uint32 {
+	if x != nil {
+		return x.MaxChunks
+	}
+	return 0
+}
+
 // ModuleSpec defines how to locate and invoke the module.
 type ModuleSpec struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -600,7 +661,7 @@ type ModuleSpec struct {
 
 func (x *ModuleSpec) Reset() {
 	*x = ModuleSpec{}
-	mi := &file_common_v1_compute_proto_msgTypes[6]
+	mi := &file_common_v1_compute_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -612,7 +673,7 @@ func (x *ModuleSpec) String() string {
 func (*ModuleSpec) ProtoMessage() {}
 
 func (x *ModuleSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_compute_proto_msgTypes[6]
+	mi := &file_common_v1_compute_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -625,7 +686,7 @@ func (x *ModuleSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModuleSpec.ProtoReflect.Descriptor instead.
 func (*ModuleSpec) Descriptor() ([]byte, []int) {
-	return file_common_v1_compute_proto_rawDescGZIP(), []int{6}
+	return file_common_v1_compute_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ModuleSpec) GetKind() string {
@@ -713,7 +774,7 @@ type ComputeEnvelope struct {
 
 func (x *ComputeEnvelope) Reset() {
 	*x = ComputeEnvelope{}
-	mi := &file_common_v1_compute_proto_msgTypes[7]
+	mi := &file_common_v1_compute_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -725,7 +786,7 @@ func (x *ComputeEnvelope) String() string {
 func (*ComputeEnvelope) ProtoMessage() {}
 
 func (x *ComputeEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_compute_proto_msgTypes[7]
+	mi := &file_common_v1_compute_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -738,7 +799,7 @@ func (x *ComputeEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeEnvelope.ProtoReflect.Descriptor instead.
 func (*ComputeEnvelope) Descriptor() ([]byte, []int) {
-	return file_common_v1_compute_proto_rawDescGZIP(), []int{7}
+	return file_common_v1_compute_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ComputeEnvelope) GetTaskId() string {
@@ -838,7 +899,7 @@ type ComputeClaim struct {
 
 func (x *ComputeClaim) Reset() {
 	*x = ComputeClaim{}
-	mi := &file_common_v1_compute_proto_msgTypes[8]
+	mi := &file_common_v1_compute_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -850,7 +911,7 @@ func (x *ComputeClaim) String() string {
 func (*ComputeClaim) ProtoMessage() {}
 
 func (x *ComputeClaim) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_compute_proto_msgTypes[8]
+	mi := &file_common_v1_compute_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -863,7 +924,7 @@ func (x *ComputeClaim) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeClaim.ProtoReflect.Descriptor instead.
 func (*ComputeClaim) Descriptor() ([]byte, []int) {
-	return file_common_v1_compute_proto_rawDescGZIP(), []int{8}
+	return file_common_v1_compute_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ComputeClaim) GetTaskId() string {
@@ -907,7 +968,7 @@ type ComputeAssignment struct {
 
 func (x *ComputeAssignment) Reset() {
 	*x = ComputeAssignment{}
-	mi := &file_common_v1_compute_proto_msgTypes[9]
+	mi := &file_common_v1_compute_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -919,7 +980,7 @@ func (x *ComputeAssignment) String() string {
 func (*ComputeAssignment) ProtoMessage() {}
 
 func (x *ComputeAssignment) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_compute_proto_msgTypes[9]
+	mi := &file_common_v1_compute_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -932,7 +993,7 @@ func (x *ComputeAssignment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeAssignment.ProtoReflect.Descriptor instead.
 func (*ComputeAssignment) Descriptor() ([]byte, []int) {
-	return file_common_v1_compute_proto_rawDescGZIP(), []int{9}
+	return file_common_v1_compute_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ComputeAssignment) GetTaskId() string {
@@ -977,7 +1038,7 @@ type ComputeProgress struct {
 
 func (x *ComputeProgress) Reset() {
 	*x = ComputeProgress{}
-	mi := &file_common_v1_compute_proto_msgTypes[10]
+	mi := &file_common_v1_compute_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -989,7 +1050,7 @@ func (x *ComputeProgress) String() string {
 func (*ComputeProgress) ProtoMessage() {}
 
 func (x *ComputeProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_compute_proto_msgTypes[10]
+	mi := &file_common_v1_compute_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1002,7 +1063,7 @@ func (x *ComputeProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeProgress.ProtoReflect.Descriptor instead.
 func (*ComputeProgress) Descriptor() ([]byte, []int) {
-	return file_common_v1_compute_proto_rawDescGZIP(), []int{10}
+	return file_common_v1_compute_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ComputeProgress) GetTaskId() string {
@@ -1053,7 +1114,7 @@ type ComputeResult struct {
 
 func (x *ComputeResult) Reset() {
 	*x = ComputeResult{}
-	mi := &file_common_v1_compute_proto_msgTypes[11]
+	mi := &file_common_v1_compute_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1065,7 +1126,7 @@ func (x *ComputeResult) String() string {
 func (*ComputeResult) ProtoMessage() {}
 
 func (x *ComputeResult) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_compute_proto_msgTypes[11]
+	mi := &file_common_v1_compute_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1078,7 +1139,7 @@ func (x *ComputeResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeResult.ProtoReflect.Descriptor instead.
 func (*ComputeResult) Descriptor() ([]byte, []int) {
-	return file_common_v1_compute_proto_rawDescGZIP(), []int{11}
+	return file_common_v1_compute_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ComputeResult) GetTaskId() string {
@@ -1122,7 +1183,7 @@ type ComputeFailure struct {
 
 func (x *ComputeFailure) Reset() {
 	*x = ComputeFailure{}
-	mi := &file_common_v1_compute_proto_msgTypes[12]
+	mi := &file_common_v1_compute_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1134,7 +1195,7 @@ func (x *ComputeFailure) String() string {
 func (*ComputeFailure) ProtoMessage() {}
 
 func (x *ComputeFailure) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_compute_proto_msgTypes[12]
+	mi := &file_common_v1_compute_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1147,7 +1208,7 @@ func (x *ComputeFailure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeFailure.ProtoReflect.Descriptor instead.
 func (*ComputeFailure) Descriptor() ([]byte, []int) {
-	return file_common_v1_compute_proto_rawDescGZIP(), []int{12}
+	return file_common_v1_compute_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ComputeFailure) GetTaskId() string {
@@ -1190,7 +1251,7 @@ type TensorSpec_Quantization struct {
 
 func (x *TensorSpec_Quantization) Reset() {
 	*x = TensorSpec_Quantization{}
-	mi := &file_common_v1_compute_proto_msgTypes[14]
+	mi := &file_common_v1_compute_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1202,7 +1263,7 @@ func (x *TensorSpec_Quantization) String() string {
 func (*TensorSpec_Quantization) ProtoMessage() {}
 
 func (x *TensorSpec_Quantization) ProtoReflect() protoreflect.Message {
-	mi := &file_common_v1_compute_proto_msgTypes[14]
+	mi := &file_common_v1_compute_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1303,20 +1364,25 @@ const file_common_v1_compute_proto_rawDesc = "" +
 	" \x01(\v2\x10.common.MetadataR\bmetadata\x1a=\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x98\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd5\x03\n" +
 	"\fRequirements\x12$\n" +
 	"\x03min\x18\x01 \x01(\v2\x12.common.CapabilityR\x03min\x120\n" +
 	"\tpreferred\x18\x02 \x01(\v2\x12.common.CapabilityR\tpreferred\x12/\n" +
 	"\x03qos\x18\x03 \x03(\v2\x1d.common.Requirements.QosEntryR\x03qos\x12\x1c\n" +
 	"\tisolation\x18\x04 \x01(\tR\tisolation\x12>\n" +
 	"\blocality\x18\x05 \x03(\v2\".common.Requirements.LocalityEntryR\blocality\x12,\n" +
-	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x1a6\n" +
+	"\bmetadata\x18\x06 \x01(\v2\x10.common.MetadataR\bmetadata\x12;\n" +
+	"\vparallelism\x18\a \x01(\v2\x19.common.ParallelismConfigR\vparallelism\x1a6\n" +
 	"\bQosEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
 	"\rLocalityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x80\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"N\n" +
+	"\x11ParallelismConfig\x12\x1a\n" +
+	"\bstrategy\x18\x01 \x01(\tR\bstrategy\x12\x1d\n" +
+	"\n" +
+	"max_chunks\x18\x02 \x01(\rR\tmaxChunks\"\x80\x04\n" +
 	"\n" +
 	"ModuleSpec\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x10\n" +
@@ -1406,7 +1472,7 @@ func file_common_v1_compute_proto_rawDescGZIP() []byte {
 	return file_common_v1_compute_proto_rawDescData
 }
 
-var file_common_v1_compute_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_common_v1_compute_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_common_v1_compute_proto_goTypes = []any{
 	(*DataRef)(nil),                 // 0: common.DataRef
 	(*TensorSpec)(nil),              // 1: common.TensorSpec
@@ -1414,73 +1480,75 @@ var file_common_v1_compute_proto_goTypes = []any{
 	(*GPUDescriptor)(nil),           // 3: common.GPUDescriptor
 	(*Capability)(nil),              // 4: common.Capability
 	(*Requirements)(nil),            // 5: common.Requirements
-	(*ModuleSpec)(nil),              // 6: common.ModuleSpec
-	(*ComputeEnvelope)(nil),         // 7: common.ComputeEnvelope
-	(*ComputeClaim)(nil),            // 8: common.ComputeClaim
-	(*ComputeAssignment)(nil),       // 9: common.ComputeAssignment
-	(*ComputeProgress)(nil),         // 10: common.ComputeProgress
-	(*ComputeResult)(nil),           // 11: common.ComputeResult
-	(*ComputeFailure)(nil),          // 12: common.ComputeFailure
-	nil,                             // 13: common.DataRef.AnnotationsEntry
-	(*TensorSpec_Quantization)(nil), // 14: common.TensorSpec.Quantization
-	nil,                             // 15: common.GPUDescriptor.LimitsEntry
-	nil,                             // 16: common.Capability.AttributesEntry
-	nil,                             // 17: common.Requirements.QosEntry
-	nil,                             // 18: common.Requirements.LocalityEntry
-	nil,                             // 19: common.ModuleSpec.ParamsEntry
-	nil,                             // 20: common.ModuleSpec.PermissionsEntry
-	nil,                             // 21: common.ComputeEnvelope.ParamsEntry
-	nil,                             // 22: common.ComputeEnvelope.SecurityEntry
-	nil,                             // 23: common.ComputeAssignment.MetadataEntry
-	nil,                             // 24: common.ComputeProgress.MetricsEntry
-	nil,                             // 25: common.ComputeResult.SummaryEntry
-	nil,                             // 26: common.ComputeFailure.DetailsEntry
-	(*structpb.Struct)(nil),         // 27: google.protobuf.Struct
-	(*Metadata)(nil),                // 28: common.Metadata
-	(*timestamppb.Timestamp)(nil),   // 29: google.protobuf.Timestamp
+	(*ParallelismConfig)(nil),       // 6: common.ParallelismConfig
+	(*ModuleSpec)(nil),              // 7: common.ModuleSpec
+	(*ComputeEnvelope)(nil),         // 8: common.ComputeEnvelope
+	(*ComputeClaim)(nil),            // 9: common.ComputeClaim
+	(*ComputeAssignment)(nil),       // 10: common.ComputeAssignment
+	(*ComputeProgress)(nil),         // 11: common.ComputeProgress
+	(*ComputeResult)(nil),           // 12: common.ComputeResult
+	(*ComputeFailure)(nil),          // 13: common.ComputeFailure
+	nil,                             // 14: common.DataRef.AnnotationsEntry
+	(*TensorSpec_Quantization)(nil), // 15: common.TensorSpec.Quantization
+	nil,                             // 16: common.GPUDescriptor.LimitsEntry
+	nil,                             // 17: common.Capability.AttributesEntry
+	nil,                             // 18: common.Requirements.QosEntry
+	nil,                             // 19: common.Requirements.LocalityEntry
+	nil,                             // 20: common.ModuleSpec.ParamsEntry
+	nil,                             // 21: common.ModuleSpec.PermissionsEntry
+	nil,                             // 22: common.ComputeEnvelope.ParamsEntry
+	nil,                             // 23: common.ComputeEnvelope.SecurityEntry
+	nil,                             // 24: common.ComputeAssignment.MetadataEntry
+	nil,                             // 25: common.ComputeProgress.MetricsEntry
+	nil,                             // 26: common.ComputeResult.SummaryEntry
+	nil,                             // 27: common.ComputeFailure.DetailsEntry
+	(*structpb.Struct)(nil),         // 28: google.protobuf.Struct
+	(*Metadata)(nil),                // 29: common.Metadata
+	(*timestamppb.Timestamp)(nil),   // 30: google.protobuf.Timestamp
 }
 var file_common_v1_compute_proto_depIdxs = []int32{
-	27, // 0: common.DataRef.inline_json:type_name -> google.protobuf.Struct
-	13, // 1: common.DataRef.annotations:type_name -> common.DataRef.AnnotationsEntry
-	14, // 2: common.TensorSpec.quant:type_name -> common.TensorSpec.Quantization
-	15, // 3: common.GPUDescriptor.limits:type_name -> common.GPUDescriptor.LimitsEntry
+	28, // 0: common.DataRef.inline_json:type_name -> google.protobuf.Struct
+	14, // 1: common.DataRef.annotations:type_name -> common.DataRef.AnnotationsEntry
+	15, // 2: common.TensorSpec.quant:type_name -> common.TensorSpec.Quantization
+	16, // 3: common.GPUDescriptor.limits:type_name -> common.GPUDescriptor.LimitsEntry
 	3,  // 4: common.Capability.gpu:type_name -> common.GPUDescriptor
-	16, // 5: common.Capability.attributes:type_name -> common.Capability.AttributesEntry
-	28, // 6: common.Capability.metadata:type_name -> common.Metadata
+	17, // 5: common.Capability.attributes:type_name -> common.Capability.AttributesEntry
+	29, // 6: common.Capability.metadata:type_name -> common.Metadata
 	4,  // 7: common.Requirements.min:type_name -> common.Capability
 	4,  // 8: common.Requirements.preferred:type_name -> common.Capability
-	17, // 9: common.Requirements.qos:type_name -> common.Requirements.QosEntry
-	18, // 10: common.Requirements.locality:type_name -> common.Requirements.LocalityEntry
-	28, // 11: common.Requirements.metadata:type_name -> common.Metadata
-	1,  // 12: common.ModuleSpec.expected_inputs:type_name -> common.TensorSpec
-	1,  // 13: common.ModuleSpec.expected_outputs:type_name -> common.TensorSpec
-	19, // 14: common.ModuleSpec.params:type_name -> common.ModuleSpec.ParamsEntry
-	20, // 15: common.ModuleSpec.permissions:type_name -> common.ModuleSpec.PermissionsEntry
-	28, // 16: common.ModuleSpec.metadata:type_name -> common.Metadata
-	6,  // 17: common.ComputeEnvelope.module:type_name -> common.ModuleSpec
-	5,  // 18: common.ComputeEnvelope.requirements:type_name -> common.Requirements
-	0,  // 19: common.ComputeEnvelope.inputs:type_name -> common.DataRef
-	21, // 20: common.ComputeEnvelope.params:type_name -> common.ComputeEnvelope.ParamsEntry
-	22, // 21: common.ComputeEnvelope.security:type_name -> common.ComputeEnvelope.SecurityEntry
-	29, // 22: common.ComputeEnvelope.not_before:type_name -> google.protobuf.Timestamp
-	29, // 23: common.ComputeEnvelope.deadline:type_name -> google.protobuf.Timestamp
-	28, // 24: common.ComputeEnvelope.metadata:type_name -> common.Metadata
-	4,  // 25: common.ComputeClaim.capabilities:type_name -> common.Capability
-	28, // 26: common.ComputeClaim.metadata:type_name -> common.Metadata
-	23, // 27: common.ComputeAssignment.metadata:type_name -> common.ComputeAssignment.MetadataEntry
-	28, // 28: common.ComputeAssignment.meta:type_name -> common.Metadata
-	24, // 29: common.ComputeProgress.metrics:type_name -> common.ComputeProgress.MetricsEntry
-	28, // 30: common.ComputeProgress.metadata:type_name -> common.Metadata
-	0,  // 31: common.ComputeResult.outputs:type_name -> common.DataRef
-	25, // 32: common.ComputeResult.summary:type_name -> common.ComputeResult.SummaryEntry
-	28, // 33: common.ComputeResult.metadata:type_name -> common.Metadata
-	26, // 34: common.ComputeFailure.details:type_name -> common.ComputeFailure.DetailsEntry
-	28, // 35: common.ComputeFailure.metadata:type_name -> common.Metadata
-	36, // [36:36] is the sub-list for method output_type
-	36, // [36:36] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	18, // 9: common.Requirements.qos:type_name -> common.Requirements.QosEntry
+	19, // 10: common.Requirements.locality:type_name -> common.Requirements.LocalityEntry
+	29, // 11: common.Requirements.metadata:type_name -> common.Metadata
+	6,  // 12: common.Requirements.parallelism:type_name -> common.ParallelismConfig
+	1,  // 13: common.ModuleSpec.expected_inputs:type_name -> common.TensorSpec
+	1,  // 14: common.ModuleSpec.expected_outputs:type_name -> common.TensorSpec
+	20, // 15: common.ModuleSpec.params:type_name -> common.ModuleSpec.ParamsEntry
+	21, // 16: common.ModuleSpec.permissions:type_name -> common.ModuleSpec.PermissionsEntry
+	29, // 17: common.ModuleSpec.metadata:type_name -> common.Metadata
+	7,  // 18: common.ComputeEnvelope.module:type_name -> common.ModuleSpec
+	5,  // 19: common.ComputeEnvelope.requirements:type_name -> common.Requirements
+	0,  // 20: common.ComputeEnvelope.inputs:type_name -> common.DataRef
+	22, // 21: common.ComputeEnvelope.params:type_name -> common.ComputeEnvelope.ParamsEntry
+	23, // 22: common.ComputeEnvelope.security:type_name -> common.ComputeEnvelope.SecurityEntry
+	30, // 23: common.ComputeEnvelope.not_before:type_name -> google.protobuf.Timestamp
+	30, // 24: common.ComputeEnvelope.deadline:type_name -> google.protobuf.Timestamp
+	29, // 25: common.ComputeEnvelope.metadata:type_name -> common.Metadata
+	4,  // 26: common.ComputeClaim.capabilities:type_name -> common.Capability
+	29, // 27: common.ComputeClaim.metadata:type_name -> common.Metadata
+	24, // 28: common.ComputeAssignment.metadata:type_name -> common.ComputeAssignment.MetadataEntry
+	29, // 29: common.ComputeAssignment.meta:type_name -> common.Metadata
+	25, // 30: common.ComputeProgress.metrics:type_name -> common.ComputeProgress.MetricsEntry
+	29, // 31: common.ComputeProgress.metadata:type_name -> common.Metadata
+	0,  // 32: common.ComputeResult.outputs:type_name -> common.DataRef
+	26, // 33: common.ComputeResult.summary:type_name -> common.ComputeResult.SummaryEntry
+	29, // 34: common.ComputeResult.metadata:type_name -> common.Metadata
+	27, // 35: common.ComputeFailure.details:type_name -> common.ComputeFailure.DetailsEntry
+	29, // 36: common.ComputeFailure.metadata:type_name -> common.Metadata
+	37, // [37:37] is the sub-list for method output_type
+	37, // [37:37] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_common_v1_compute_proto_init() }
@@ -1500,7 +1568,7 @@ func file_common_v1_compute_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_v1_compute_proto_rawDesc), len(file_common_v1_compute_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   27,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

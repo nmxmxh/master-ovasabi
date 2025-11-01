@@ -57,7 +57,7 @@ func handleComputeAssigned(event EventEnvelope) {
 	// Determine GPU/CPU preference
 	minReq := getMap(requirements, "min")
 	needsWebGPU := getBool(minReq, "webgpu") || (getMap(minReq, "gpu") != nil)
-	webgpuAvailable := detectWebGPUAvailable()
+	webgpuAvailable := UtilDetectWebGPUAvailable()
 
 	// Emit started progress
 	emitComputeProgress(extractTaskID(event), 1, map[string]string{"stage": "started"})
@@ -99,46 +99,18 @@ func handleComputeAssigned(event EventEnvelope) {
 
 // executeWithGPU adapts known operations to existing GPU functions.
 func executeWithGPU(op string, inputs []any, params map[string]string) (any, error) {
-	// Currently support particle/transform style tasks via wasmGPU
-	// Users can extend this registry as needed.
-	if op == "particles" || op == "runParticlePhysics" {
-		// Expect positions in inputs[0].inline_json.positions []float32 (sampled)
-		positions := extractPositions(inputs)
-		delta := parseFloat(params["deltaTime"], 0.016)
-		animation := parseFloat(params["animationMode"], 0)
-		// Use existing WebGPU JS bridge via wasmGPU (returns metrics/result summary)
-		res := js.Global().Get("wasmGPU")
-		if res.Truthy() {
-			out := res.Call("runParticlePhysics", toJSFloat32Array(positions), delta, animation)
-			// Convert js.Value -> Go via JSON stringify
-			str := js.Global().Get("JSON").Call("stringify", out).String()
-			var anyOut any
-			_ = json.Unmarshal([]byte(str), &anyOut)
-			return anyOut, nil
-		}
+	if out, ok := ExecuteGPU(op, inputs, params); ok {
+		return out, nil
 	}
-	// Fallback: return empty result
-	return map[string]any{"status": "gpu_executed"}, nil
+	return map[string]any{"status": "gpu_executed", "op": op}, nil
 }
 
 // executeWithCPU routes to worker pool for known ops.
 func executeWithCPU(op string, inputs []any, params map[string]string) (any, error) {
-	if op == "particles" || op == "runParticlePhysics" {
-		positions := extractPositions(inputs)
-		delta := parseFloat(params["deltaTime"], 0.016)
-		animation := parseFloat(params["animationMode"], 0)
-		// Ensure pool is up
-		if particleWorkerPool == nil {
-			particleWorkerPool = NewParticleWorkerPool(0)
-		}
-		out := particleWorkerPool.ProcessParticlesConcurrently(positions, delta, animation)
-		// Sample result for compactness
-		return map[string]any{
-			"total":  len(out) / 3,
-			"sample": samplePositions(out, 500),
-		}, nil
+	if out, ok := ExecuteCPU(op, inputs, params); ok {
+		return out, nil
 	}
-	return map[string]any{"status": "cpu_executed"}, nil
+	return map[string]any{"status": "cpu_executed", "op": op}, nil
 }
 
 // Helpers

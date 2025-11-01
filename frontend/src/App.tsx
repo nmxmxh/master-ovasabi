@@ -19,6 +19,7 @@ import UserServicePage from './pages/UserServicePage';
 import CreateCampaignPage from './pages/CreateCampaignPage';
 import ViewPage from './pages/ViewPage';
 import MediaStreamingPage from './pages/MediaStreamingPage';
+import ComputeDashboardPage from './pages/ComputeDashboardPage';
 
 // Wrapper to extract serviceName param for ServiceTestPage
 function ServiceTestPageWrapper() {
@@ -328,6 +329,12 @@ function Navigation() {
       >
         MEDIA
       </Link>
+      <Link
+        to="/compute"
+        className={`minimal-link ${location.pathname === '/compute' ? 'active' : ''}`}
+      >
+        COMPUTE
+      </Link>
     </nav>
   );
 }
@@ -384,6 +391,14 @@ function App() {
               <Route path="/view/:viewName" element={<ViewPage />} />
               <Route path="/services" element={<ServiceListPage />} />
               <Route path="/media-streaming" element={<MediaStreamingPage />} />
+              <Route
+                path="/compute"
+                element={
+                  <React.Suspense fallback={<div className="minimal-text">Loading...</div>}>
+                    <ComputeDashboardPage />
+                  </React.Suspense>
+                }
+              />
               <Route
                 path="/services/user"
                 element={

@@ -77,6 +77,13 @@ message Requirements {
   string isolation = 4; // sandbox|trusted|exclusive
   map<string, string> locality = 5; // region, az, affinity labels
   common.Metadata metadata = 6; // policy, pricing/SLA context, provenance
+  ParallelismConfig parallelism = 7; // New field for parallelism configuration
+}
+
+// ParallelismConfig defines how a task should be parallelized.
+message ParallelismConfig {
+  string strategy = 1; // e.g., "map", "scatter", "none"
+  uint32 max_chunks = 2; // Max number of chunks to create. 0 for auto/unlimited.
 }
 
 // ModuleSpec defines how to locate and invoke the module.

@@ -33,6 +33,7 @@ var ValidStates = map[string]bool{
 	"completed": true,
 	"cancelled": true,
 	"timeout":   true,
+	"update":    true,
 }
 
 // ValidateEventType validates the canonical event type format.
