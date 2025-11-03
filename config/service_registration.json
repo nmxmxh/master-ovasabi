@@ -1,17 +1,170 @@
 [
   {
+    "name": "compute",
+    "version": "v1",
+    "capabilities": ["compute", "metadata_enrichment"],
+    "dependencies": [],
+    "schema": {
+      "proto_path": "api/protos/common/v1/compute.proto",
+      "methods": [
+        "DispatchTask",
+        "ClaimTask",
+        "UpdateProgress",
+        "CompleteTask",
+        "ReportFailure",
+        "UpdateCapabilities"
+      ]
+    },
+    "endpoints": [
+      {
+        "path": "/api/compute_ops",
+        "method": "POST",
+        "actions": [
+          "dispatch_task",
+          "claim_task",
+          "update_progress",
+          "complete_task",
+          "report_failure",
+          "update_capabilities"
+        ],
+        "description": "Composable compute operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
+      }
+    ],
+    "models": [
+      "ComputeEnvelope",
+      "ComputeClaim",
+      "ComputeAssignment",
+      "ComputeProgress",
+      "ComputeResult",
+      "ComputeFailure"
+    ],
+    "health_check": "/health/compute",
+    "metrics": "/metrics/compute",
+    "metadata_enrichment": true,
+    "action_map": {
+      "dispatch_task": {
+        "proto_method": "DispatchTask",
+        "request_model": "ComputeEnvelope",
+        "response_model": "ComputeAssignment",
+        "rest_required_fields": ["metadata"],
+        "fields": {
+          "task_id": {
+            "type": "string",
+            "required": true
+          },
+          "task_type": {
+            "type": "string",
+            "required": true
+          },
+          "payload": {
+            "type": "bytes",
+            "required": true
+          },
+          "requirements": {
+            "type": "map<string,string>",
+            "required": false
+          }
+        }
+      },
+      "claim_task": {
+        "proto_method": "ClaimTask",
+        "request_model": "ComputeClaim",
+        "response_model": "ComputeAssignment",
+        "rest_required_fields": ["metadata"],
+        "fields": {
+          "task_id": {
+            "type": "string",
+            "required": true
+          },
+          "worker_id": {
+            "type": "string",
+            "required": true
+          }
+        }
+      },
+      "update_progress": {
+        "proto_method": "UpdateProgress",
+        "request_model": "ComputeProgress",
+        "response_model": "google.protobuf.Empty",
+        "rest_required_fields": ["metadata"],
+        "fields": {
+          "task_id": {
+            "type": "string",
+            "required": true
+          },
+          "progress": {
+            "type": "float",
+            "required": true
+          },
+          "status": {
+            "type": "string",
+            "required": false
+          }
+        }
+      },
+      "complete_task": {
+        "proto_method": "CompleteTask",
+        "request_model": "ComputeResult",
+        "response_model": "google.protobuf.Empty",
+        "rest_required_fields": ["metadata"],
+        "fields": {
+          "task_id": {
+            "type": "string",
+            "required": true
+          },
+          "result": {
+            "type": "bytes",
+            "required": true
+          }
+        }
+      },
+      "report_failure": {
+        "proto_method": "ReportFailure",
+        "request_model": "ComputeFailure",
+        "response_model": "google.protobuf.Empty",
+        "rest_required_fields": ["metadata"],
+        "fields": {
+          "task_id": {
+            "type": "string",
+            "required": true
+          },
+          "error": {
+            "type": "string",
+            "required": true
+          },
+          "details": {
+            "type": "string",
+            "required": false
+          }
+        }
+      },
+      "update_capabilities": {
+        "proto_method": "UpdateCapabilities",
+        "request_model": "WorkerCapabilities",
+        "response_model": "google.protobuf.Empty",
+        "rest_required_fields": ["metadata"],
+        "fields": {
+          "worker_id": {
+            "type": "string",
+            "required": true
+          },
+          "capabilities": {
+            "type": "map<string,string>",
+            "required": true
+          },
+          "status": {
+            "type": "string",
+            "required": false
+          }
+        }
+      }
+    }
+  },
+  {
     "name": "admin",
     "version": "v1",
-    "capabilities": [
-      "authorization",
-      "user_mgmt",
-      "admin",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "user",
-      "security"
-    ],
+    "capabilities": ["authorization", "user_mgmt", "admin", "metadata_enrichment"],
+    "dependencies": ["user", "security"],
     "schema": {
       "proto_path": "api/protos/admin/v1/admin.proto",
       "methods": [
@@ -103,9 +256,7 @@
         "proto_method": "AssignRole",
         "request_model": "AssignRoleRequest",
         "response_model": "AssignRoleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "role_id": {
             "type": "string",
@@ -121,9 +272,7 @@
         "proto_method": "CheckPermission",
         "request_model": "CheckPermissionRequest",
         "response_model": "CheckPermissionResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "action": {
             "type": "string",
@@ -147,9 +296,7 @@
         "proto_method": "CreateRole",
         "request_model": "CreateRoleRequest",
         "response_model": "CreateRoleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "role": {
             "type": "Role",
@@ -161,11 +308,7 @@
         "proto_method": "CreateUser",
         "request_model": "CreateUserRequest",
         "response_model": "CreateUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "name",
-          "email"
-        ],
+        "rest_required_fields": ["metadata", "name", "email"],
         "fields": {
           "user": {
             "type": "User",
@@ -177,9 +320,7 @@
         "proto_method": "DeleteRole",
         "request_model": "DeleteRoleRequest",
         "response_model": "DeleteRoleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "role_id": {
             "type": "string",
@@ -191,10 +332,7 @@
         "proto_method": "DeleteUser",
         "request_model": "DeleteUserRequest",
         "response_model": "DeleteUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "user_id": {
             "type": "string",
@@ -206,9 +344,7 @@
         "proto_method": "GetAuditLogs",
         "request_model": "GetAuditLogsRequest",
         "response_model": "GetAuditLogsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "action": {
             "type": "string",
@@ -232,18 +368,13 @@
         "proto_method": "GetSettings",
         "request_model": "GetSettingsRequest",
         "response_model": "GetSettingsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ]
+        "rest_required_fields": ["metadata"]
       },
       "get_user": {
         "proto_method": "GetUser",
         "request_model": "GetUserRequest",
         "response_model": "GetUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "user_id": {
             "type": "string",
@@ -255,11 +386,7 @@
         "proto_method": "ListRoles",
         "request_model": "ListRolesRequest",
         "response_model": "ListRolesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "page": {
             "type": "int32",
@@ -275,11 +402,7 @@
         "proto_method": "ListUsers",
         "request_model": "ListUsersRequest",
         "response_model": "ListUsersResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "page": {
             "type": "int32",
@@ -295,9 +418,7 @@
         "proto_method": "RevokeRole",
         "request_model": "RevokeRoleRequest",
         "response_model": "RevokeRoleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "role_id": {
             "type": "string",
@@ -313,9 +434,7 @@
         "proto_method": "UpdateRole",
         "request_model": "UpdateRoleRequest",
         "response_model": "UpdateRoleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "role": {
             "type": "Role",
@@ -327,9 +446,7 @@
         "proto_method": "UpdateSettings",
         "request_model": "UpdateSettingsRequest",
         "response_model": "UpdateSettingsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "settings": {
             "type": "Settings",
@@ -341,10 +458,7 @@
         "proto_method": "UpdateUser",
         "request_model": "UpdateUserRequest",
         "response_model": "UpdateUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "user": {
             "type": "User",
@@ -358,10 +472,7 @@
     "name": "ai",
     "version": "v1",
     "capabilities": [],
-    "dependencies": [
-      "content",
-      "analytics"
-    ],
+    "dependencies": ["content", "analytics"],
     "schema": {
       "proto_path": "api/protos/ai/v1/ai.proto",
       "methods": [
@@ -410,9 +521,7 @@
         "proto_method": "GenerateEmbeddings",
         "request_model": "EnrichmentRequest",
         "response_model": "EnrichmentResponse.Vector",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "string",
@@ -424,9 +533,7 @@
         "proto_method": "GetCurrentModel",
         "request_model": "ModelRequest",
         "response_model": "Model",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "string",
@@ -438,9 +545,7 @@
         "proto_method": "HandleClientEvent",
         "request_model": "ClientEvent",
         "response_model": "ClientEventAck",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "string",
@@ -452,9 +557,7 @@
         "proto_method": "ProcessContent",
         "request_model": "stream EnrichmentRequest",
         "response_model": "EnrichmentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "string",
@@ -466,9 +569,7 @@
         "proto_method": "SubmitModelUpdate",
         "request_model": "ModelUpdate",
         "response_model": "ModelUpdateAck",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "string",
@@ -481,13 +582,8 @@
   {
     "name": "analytics",
     "version": "v1",
-    "capabilities": [
-      "analytics",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "user"
-    ],
+    "capabilities": ["analytics", "metadata_enrichment"],
+    "dependencies": ["user"],
     "schema": {
       "proto_path": "api/protos/analytics/v1/analytics.proto",
       "methods": [
@@ -551,9 +647,7 @@
         "proto_method": "BatchTrackEvents",
         "request_model": "BatchTrackEventsRequest",
         "response_model": "BatchTrackEventsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "Event": {
             "type": "repeated",
@@ -565,9 +659,7 @@
         "proto_method": "CaptureEvent",
         "request_model": "CaptureEventRequest",
         "response_model": "CaptureEventResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -607,9 +699,7 @@
         "proto_method": "EnrichEventMetadata",
         "request_model": "EnrichEventMetadataRequest",
         "response_model": "EnrichEventMetadataResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -629,9 +719,7 @@
         "proto_method": "GetProductEvents",
         "request_model": "GetProductEventsRequest",
         "response_model": "GetProductEventsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -655,9 +743,7 @@
         "proto_method": "GetReport",
         "request_model": "GetReportRequest",
         "response_model": "GetReportResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "report_id": {
             "type": "string",
@@ -673,10 +759,7 @@
         "proto_method": "GetUserEvents",
         "request_model": "GetUserEventsRequest",
         "response_model": "GetUserEventsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -700,21 +783,13 @@
         "proto_method": "ListEvents",
         "request_model": "ListEventsRequest",
         "response_model": "ListEventsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ]
+        "rest_required_fields": ["metadata", "page", "page_size"]
       },
       "list_reports": {
         "proto_method": "ListReports",
         "request_model": "ListReportsRequest",
         "response_model": "ListReportsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "page": {
             "type": "int32",
@@ -730,9 +805,7 @@
         "proto_method": "TrackEvent",
         "request_model": "TrackEventRequest",
         "response_model": "TrackEventResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "event": {
             "type": "Event",
@@ -793,9 +866,7 @@
         "proto_method": "CreateCampaign",
         "request_model": "CreateCampaignRequest",
         "response_model": "CreateCampaignResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "description": {
             "type": "string",
@@ -835,9 +906,7 @@
         "proto_method": "DeleteCampaign",
         "request_model": "DeleteCampaignRequest",
         "response_model": "DeleteCampaignResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "id": {
             "type": "int32",
@@ -853,9 +922,7 @@
         "proto_method": "GetCampaign",
         "request_model": "GetCampaignRequest",
         "response_model": "GetCampaignResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "slug": {
             "type": "string",
@@ -867,11 +934,7 @@
         "proto_method": "ListCampaigns",
         "request_model": "ListCampaignsRequest",
         "response_model": "ListCampaignsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "page": {
             "type": "int32",
@@ -887,9 +950,7 @@
         "proto_method": "UpdateCampaign",
         "request_model": "UpdateCampaignRequest",
         "response_model": "UpdateCampaignResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign": {
             "type": "Campaign",
@@ -902,13 +963,8 @@
   {
     "name": "commerce",
     "version": "v1",
-    "capabilities": [
-      "commerce",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "analytics"
-    ],
+    "capabilities": ["commerce", "metadata_enrichment"],
+    "dependencies": ["analytics"],
     "schema": {
       "proto_path": "api/protos/commerce/v1/commerce.proto",
       "methods": [
@@ -1088,9 +1144,7 @@
         "proto_method": "ConfirmPayment",
         "request_model": "ConfirmPaymentRequest",
         "response_model": "ConfirmPaymentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1114,9 +1168,7 @@
         "proto_method": "CreateBankAccount",
         "request_model": "CreateBankAccountRequest",
         "response_model": "CreateBankAccountResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "balance": {
             "type": "double",
@@ -1152,9 +1204,7 @@
         "proto_method": "CreateExchangePair",
         "request_model": "CreateExchangePairRequest",
         "response_model": "CreateExchangePairResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "base_asset": {
             "type": "string",
@@ -1178,9 +1228,7 @@
         "proto_method": "CreateExchangeRate",
         "request_model": "CreateExchangeRateRequest",
         "response_model": "CreateExchangeRateResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1208,9 +1256,7 @@
         "proto_method": "CreateInvestmentAccount",
         "request_model": "CreateInvestmentAccountRequest",
         "response_model": "CreateInvestmentAccountResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "balance": {
             "type": "double",
@@ -1242,11 +1288,7 @@
         "proto_method": "CreateListing",
         "request_model": "CreateListingRequest",
         "response_model": "CreateListingResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1278,9 +1320,7 @@
         "proto_method": "CreateOrder",
         "request_model": "CreateOrderRequest",
         "response_model": "CreateOrderResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "OrderItem": {
             "type": "repeated",
@@ -1308,9 +1348,7 @@
         "proto_method": "CreateQuote",
         "request_model": "CreateQuoteRequest",
         "response_model": "CreateQuoteResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "amount": {
             "type": "double",
@@ -1342,9 +1380,7 @@
         "proto_method": "GetBalance",
         "request_model": "GetBalanceRequest",
         "response_model": "GetBalanceResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1364,9 +1400,7 @@
         "proto_method": "GetBankStatement",
         "request_model": "GetBankStatementRequest",
         "response_model": "GetBankStatementResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "account_id": {
             "type": "string",
@@ -1382,9 +1416,7 @@
         "proto_method": "GetExchangeRate",
         "request_model": "GetExchangeRateRequest",
         "response_model": "GetExchangeRateResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1400,9 +1432,7 @@
         "proto_method": "GetInvestmentAccount",
         "request_model": "GetInvestmentAccountRequest",
         "response_model": "GetInvestmentAccountResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "account_id": {
             "type": "string",
@@ -1418,9 +1448,7 @@
         "proto_method": "GetOrder",
         "request_model": "GetOrderRequest",
         "response_model": "GetOrderResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1436,9 +1464,7 @@
         "proto_method": "GetPortfolio",
         "request_model": "GetPortfolioRequest",
         "response_model": "GetPortfolioResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1454,9 +1480,7 @@
         "proto_method": "GetQuote",
         "request_model": "GetQuoteRequest",
         "response_model": "GetQuoteResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1472,9 +1496,7 @@
         "proto_method": "GetTransaction",
         "request_model": "GetTransactionRequest",
         "response_model": "GetTransactionResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1490,9 +1512,7 @@
         "proto_method": "InitiateBankTransfer",
         "request_model": "InitiateBankTransferRequest",
         "response_model": "InitiateBankTransferResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "amount": {
             "type": "double",
@@ -1524,9 +1544,7 @@
         "proto_method": "InitiatePayment",
         "request_model": "InitiatePaymentRequest",
         "response_model": "InitiatePaymentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "amount": {
             "type": "double",
@@ -1562,11 +1580,7 @@
         "proto_method": "ListAssets",
         "request_model": "ListAssetsRequest",
         "response_model": "ListAssetsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1590,11 +1604,7 @@
         "proto_method": "ListBalances",
         "request_model": "ListBalancesRequest",
         "response_model": "ListBalancesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1610,11 +1620,7 @@
         "proto_method": "ListEvents",
         "request_model": "ListEventsRequest",
         "response_model": "ListEventsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1642,11 +1648,7 @@
         "proto_method": "ListExchangePairs",
         "request_model": "ListExchangePairsRequest",
         "response_model": "ListExchangePairsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1670,11 +1672,7 @@
         "proto_method": "ListListings",
         "request_model": "ListListingsRequest",
         "response_model": "ListListingsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1698,11 +1696,7 @@
         "proto_method": "ListOrders",
         "request_model": "ListOrdersRequest",
         "response_model": "ListOrdersResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1726,11 +1720,7 @@
         "proto_method": "ListPortfolios",
         "request_model": "ListPortfoliosRequest",
         "response_model": "ListPortfoliosResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "account_id": {
             "type": "string",
@@ -1746,11 +1736,7 @@
         "proto_method": "ListQuotes",
         "request_model": "ListQuotesRequest",
         "response_model": "ListQuotesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1774,11 +1760,7 @@
         "proto_method": "ListTransactions",
         "request_model": "ListTransactionsRequest",
         "response_model": "ListTransactionsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1802,9 +1784,7 @@
         "proto_method": "MakeOffer",
         "request_model": "MakeOfferRequest",
         "response_model": "MakeOfferResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "buyer_id": {
             "type": "string",
@@ -1836,9 +1816,7 @@
         "proto_method": "PlaceExchangeOrder",
         "request_model": "PlaceExchangeOrderRequest",
         "response_model": "PlaceExchangeOrderResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "account_id": {
             "type": "string",
@@ -1874,9 +1852,7 @@
         "proto_method": "PlaceInvestmentOrder",
         "request_model": "PlaceInvestmentOrderRequest",
         "response_model": "PlaceInvestmentOrderResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "account_id": {
             "type": "string",
@@ -1912,9 +1888,7 @@
         "proto_method": "PlaceMarketplaceOrder",
         "request_model": "PlaceMarketplaceOrderRequest",
         "response_model": "PlaceMarketplaceOrderResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "buyer_id": {
             "type": "string",
@@ -1946,9 +1920,7 @@
         "proto_method": "RefundPayment",
         "request_model": "RefundPaymentRequest",
         "response_model": "RefundPaymentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "amount": {
             "type": "double",
@@ -1976,9 +1948,7 @@
         "proto_method": "UpdateOrderStatus",
         "request_model": "UpdateOrderStatusRequest",
         "response_model": "UpdateOrderStatusResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -1999,14 +1969,8 @@
   {
     "name": "content",
     "version": "v1",
-    "capabilities": [
-      "content",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "search",
-      "analytics"
-    ],
+    "capabilities": ["content", "metadata_enrichment"],
+    "dependencies": ["search", "analytics"],
     "schema": {
       "proto_path": "api/protos/content/v1/content.proto",
       "methods": [
@@ -2083,9 +2047,7 @@
         "proto_method": "AddComment",
         "request_model": "AddCommentRequest",
         "response_model": "CommentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "author_id": {
             "type": "string",
@@ -2109,9 +2071,7 @@
         "proto_method": "AddReaction",
         "request_model": "AddReactionRequest",
         "response_model": "ReactionResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "content_id": {
             "type": "string",
@@ -2131,12 +2091,7 @@
         "proto_method": "CreateContent",
         "request_model": "CreateContentRequest",
         "response_model": "ContentResponse",
-        "rest_required_fields": [
-          "metadata",
-          "title",
-          "content",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "title", "content", "user_id"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -2152,9 +2107,7 @@
         "proto_method": "DeleteComment",
         "request_model": "DeleteCommentRequest",
         "response_model": "DeleteCommentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "comment_id": {
             "type": "string",
@@ -2166,10 +2119,7 @@
         "proto_method": "DeleteContent",
         "request_model": "DeleteContentRequest",
         "response_model": "DeleteContentResponse",
-        "rest_required_fields": [
-          "metadata",
-          "content_id"
-        ],
+        "rest_required_fields": ["metadata", "content_id"],
         "fields": {
           "id": {
             "type": "string",
@@ -2181,10 +2131,7 @@
         "proto_method": "GetContent",
         "request_model": "GetContentRequest",
         "response_model": "ContentResponse",
-        "rest_required_fields": [
-          "metadata",
-          "content_id"
-        ],
+        "rest_required_fields": ["metadata", "content_id"],
         "fields": {
           "id": {
             "type": "string",
@@ -2196,11 +2143,7 @@
         "proto_method": "ListComments",
         "request_model": "ListCommentsRequest",
         "response_model": "ListCommentsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "content_id": {
             "type": "string",
@@ -2220,11 +2163,7 @@
         "proto_method": "ListContent",
         "request_model": "ListContentRequest",
         "response_model": "ListContentResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "11": {
             "type": "reserved",
@@ -2276,11 +2215,7 @@
         "proto_method": "ListReactions",
         "request_model": "ListReactionsRequest",
         "response_model": "ListReactionsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "content_id": {
             "type": "string",
@@ -2292,9 +2227,7 @@
         "proto_method": "LogContentEvent",
         "request_model": "LogContentEventRequest",
         "response_model": "LogContentEventResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "event": {
             "type": "ContentEvent",
@@ -2306,9 +2239,7 @@
         "proto_method": "ModerateContent",
         "request_model": "ModerateContentRequest",
         "response_model": "ModerateContentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "action": {
             "type": "string",
@@ -2332,9 +2263,7 @@
         "proto_method": "SearchContent",
         "request_model": "SearchContentRequest",
         "response_model": "ListContentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "7": {
             "type": "reserved",
@@ -2370,10 +2299,7 @@
         "proto_method": "UpdateContent",
         "request_model": "UpdateContentRequest",
         "response_model": "ContentResponse",
-        "rest_required_fields": [
-          "metadata",
-          "content_id"
-        ],
+        "rest_required_fields": ["metadata", "content_id"],
         "fields": {
           "content": {
             "type": "Content",
@@ -2386,10 +2312,7 @@
   {
     "name": "contentmoderation",
     "version": "v1",
-    "capabilities": [
-      "moderation",
-      "metadata_enrichment"
-    ],
+    "capabilities": ["moderation", "metadata_enrichment"],
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/contentmoderation/v1/contentmoderation.proto",
@@ -2437,9 +2360,7 @@
         "proto_method": "ApproveContent",
         "request_model": "ApproveContentRequest",
         "response_model": "ApproveContentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -2459,9 +2380,7 @@
         "proto_method": "GetModerationResult",
         "request_model": "GetModerationResultRequest",
         "response_model": "GetModerationResultResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -2477,11 +2396,7 @@
         "proto_method": "ListFlaggedContent",
         "request_model": "ListFlaggedContentRequest",
         "response_model": "ListFlaggedContentResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -2505,9 +2420,7 @@
         "proto_method": "RejectContent",
         "request_model": "RejectContentRequest",
         "response_model": "RejectContentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -2531,9 +2444,7 @@
         "proto_method": "SubmitContentForModeration",
         "request_model": "SubmitContentForModerationRequest",
         "response_model": "SubmitContentForModerationResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -2570,21 +2481,13 @@
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/crawler/v1/crawler.proto",
-      "methods": [
-        "SubmitTask",
-        "GetTaskStatus",
-        "StreamResults"
-      ]
+      "methods": ["SubmitTask", "GetTaskStatus", "StreamResults"]
     },
     "endpoints": [
       {
         "path": "/api/crawler_ops",
         "method": "POST",
-        "actions": [
-          "submit_task",
-          "get_task_status",
-          "stream_results"
-        ],
+        "actions": ["submit_task", "get_task_status", "stream_results"],
         "description": "Composable crawler operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -2604,9 +2507,7 @@
         "proto_method": "GetTaskStatus",
         "request_model": "GetTaskStatusRequest",
         "response_model": "CrawlTask",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "uuid": {
             "type": "string",
@@ -2618,9 +2519,7 @@
         "proto_method": "StreamResults",
         "request_model": "StreamResultsRequest",
         "response_model": "stream CrawlResult",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "task_uuid": {
             "type": "string",
@@ -2632,9 +2531,7 @@
         "proto_method": "SubmitTask",
         "request_model": "SubmitTaskRequest",
         "response_model": "SubmitTaskResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "task": {
             "type": "CrawlTask",
@@ -2717,9 +2614,7 @@
         "proto_method": "BatchTranslate",
         "request_model": "BatchTranslateRequest",
         "response_model": "BatchTranslateResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "locale": {
             "type": "string",
@@ -2735,9 +2630,7 @@
         "proto_method": "CreateTranslation",
         "request_model": "CreateTranslationRequest",
         "response_model": "CreateTranslationResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -2765,9 +2658,7 @@
         "proto_method": "GetLocaleMetadata",
         "request_model": "GetLocaleMetadataRequest",
         "response_model": "GetLocaleMetadataResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "locale": {
             "type": "string",
@@ -2779,9 +2670,7 @@
         "proto_method": "GetPricingRule",
         "request_model": "GetPricingRuleRequest",
         "response_model": "GetPricingRuleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "city": {
             "type": "string",
@@ -2801,9 +2690,7 @@
         "proto_method": "GetTranslation",
         "request_model": "GetTranslationRequest",
         "response_model": "GetTranslationResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "translation_id": {
             "type": "string",
@@ -2815,21 +2702,13 @@
         "proto_method": "ListLocales",
         "request_model": "ListLocalesRequest",
         "response_model": "ListLocalesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ]
+        "rest_required_fields": ["metadata", "page", "page_size"]
       },
       "list_pricing_rules": {
         "proto_method": "ListPricingRules",
         "request_model": "ListPricingRulesRequest",
         "response_model": "ListPricingRulesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "country_code": {
             "type": "string",
@@ -2853,11 +2732,7 @@
         "proto_method": "ListTranslations",
         "request_model": "ListTranslationsRequest",
         "response_model": "ListTranslationsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -2881,9 +2756,7 @@
         "proto_method": "SetPricingRule",
         "request_model": "SetPricingRuleRequest",
         "response_model": "SetPricingRuleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "rule": {
             "type": "PricingRule",
@@ -2895,9 +2768,7 @@
         "proto_method": "Translate",
         "request_model": "TranslateRequest",
         "response_model": "TranslateResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "key": {
             "type": "string",
@@ -2914,14 +2785,8 @@
   {
     "name": "media",
     "version": "v1",
-    "capabilities": [
-      "media",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "content",
-      "user"
-    ],
+    "capabilities": ["media", "metadata_enrichment"],
+    "dependencies": ["content", "user"],
     "schema": {
       "proto_path": "api/protos/media/v1/media.proto",
       "methods": [
@@ -2996,9 +2861,7 @@
         "proto_method": "BroadcastSystemMedia",
         "request_model": "BroadcastSystemMediaRequest",
         "response_model": "BroadcastSystemMediaResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "id": {
             "type": "string",
@@ -3014,9 +2877,7 @@
         "proto_method": "CompleteMediaUpload",
         "request_model": "CompleteMediaUploadRequest",
         "response_model": "CompleteMediaUploadResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "upload_id": {
             "type": "string",
@@ -3032,9 +2893,7 @@
         "proto_method": "DeleteMedia",
         "request_model": "DeleteMediaRequest",
         "response_model": "DeleteMediaResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "id": {
             "type": "string",
@@ -3050,9 +2909,7 @@
         "proto_method": "GetMedia",
         "request_model": "GetMediaRequest",
         "response_model": "GetMediaResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "id": {
             "type": "string",
@@ -3068,11 +2925,7 @@
         "proto_method": "ListSystemMedia",
         "request_model": "ListSystemMediaRequest",
         "response_model": "ListSystemMediaResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "filters": {
             "type": "common.Metadata",
@@ -3092,11 +2945,7 @@
         "proto_method": "ListUserMedia",
         "request_model": "ListUserMediaRequest",
         "response_model": "ListUserMediaResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "filters": {
             "type": "common.Metadata",
@@ -3120,9 +2969,7 @@
         "proto_method": "StartHeavyMediaUpload",
         "request_model": "StartHeavyMediaUploadRequest",
         "response_model": "StartHeavyMediaUploadResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -3150,9 +2997,7 @@
         "proto_method": "StreamMediaChunk",
         "request_model": "StreamMediaChunkRequest",
         "response_model": "StreamMediaChunkResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "chunk": {
             "type": "MediaChunk",
@@ -3168,9 +3013,7 @@
         "proto_method": "StreamMediaContent",
         "request_model": "StreamMediaContentRequest",
         "response_model": "StreamMediaContentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "id": {
             "type": "string",
@@ -3194,17 +3037,13 @@
         "proto_method": "SubscribeToSystemMedia",
         "request_model": "SubscribeToSystemMediaRequest",
         "response_model": "SubscribeToSystemMediaResponse",
-        "rest_required_fields": [
-          "metadata"
-        ]
+        "rest_required_fields": ["metadata"]
       },
       "subscribe_to_user_media": {
         "proto_method": "SubscribeToUserMedia",
         "request_model": "SubscribeToUserMediaRequest",
         "response_model": "SubscribeToUserMediaResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "user_id": {
             "type": "string",
@@ -3216,9 +3055,7 @@
         "proto_method": "UploadLightMedia",
         "request_model": "UploadLightMediaRequest",
         "response_model": "UploadLightMediaResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "data": {
             "type": "bytes",
@@ -3251,13 +3088,8 @@
   {
     "name": "messaging",
     "version": "v1",
-    "capabilities": [
-      "messaging",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "analytics"
-    ],
+    "capabilities": ["messaging", "metadata_enrichment"],
+    "dependencies": ["analytics"],
     "schema": {
       "proto_path": "api/protos/messaging/v1/messaging.proto",
       "methods": [
@@ -3373,9 +3205,7 @@
         "proto_method": "AcknowledgeMessage",
         "request_model": "AcknowledgeMessageRequest",
         "response_model": "AcknowledgeMessageResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3407,9 +3237,7 @@
         "proto_method": "AddChatGroupMember",
         "request_model": "AddChatGroupMemberRequest",
         "response_model": "AddChatGroupMemberResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3445,9 +3273,7 @@
         "proto_method": "CreateChatGroup",
         "request_model": "CreateChatGroupRequest",
         "response_model": "CreateChatGroupResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3487,9 +3313,7 @@
         "proto_method": "DeleteMessage",
         "request_model": "DeleteMessageRequest",
         "response_model": "DeleteMessageResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3521,9 +3345,7 @@
         "proto_method": "EditMessage",
         "request_model": "EditMessageRequest",
         "response_model": "EditMessageResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "Attachment": {
             "type": "repeated",
@@ -3563,9 +3385,7 @@
         "proto_method": "GetMessage",
         "request_model": "GetMessageRequest",
         "response_model": "GetMessageResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "message_id": {
             "type": "string",
@@ -3577,11 +3397,7 @@
         "proto_method": "ListChatGroupMembers",
         "request_model": "ListChatGroupMembersRequest",
         "response_model": "ListChatGroupMembersResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3617,11 +3433,7 @@
         "proto_method": "ListConversations",
         "request_model": "ListConversationsRequest",
         "response_model": "ListConversationsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3661,11 +3473,7 @@
         "proto_method": "ListMessageEvents",
         "request_model": "ListMessageEventsRequest",
         "response_model": "ListMessageEventsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3705,11 +3513,7 @@
         "proto_method": "ListMessages",
         "request_model": "ListMessagesRequest",
         "response_model": "ListMessagesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3757,11 +3561,7 @@
         "proto_method": "ListThreads",
         "request_model": "ListThreadsRequest",
         "response_model": "ListThreadsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3801,9 +3601,7 @@
         "proto_method": "MarkAsDelivered",
         "request_model": "MarkAsDeliveredRequest",
         "response_model": "MarkAsDeliveredResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3835,9 +3633,7 @@
         "proto_method": "MarkAsRead",
         "request_model": "MarkAsReadRequest",
         "response_model": "MarkAsReadResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3869,9 +3665,7 @@
         "proto_method": "ReactToMessage",
         "request_model": "ReactToMessageRequest",
         "response_model": "ReactToMessageResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3907,9 +3701,7 @@
         "proto_method": "RemoveChatGroupMember",
         "request_model": "RemoveChatGroupMemberRequest",
         "response_model": "RemoveChatGroupMemberResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -3941,9 +3733,7 @@
         "proto_method": "SendGroupMessage",
         "request_model": "SendGroupMessageRequest",
         "response_model": "SendGroupMessageResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "Attachment": {
             "type": "repeated",
@@ -3987,9 +3777,7 @@
         "proto_method": "SendMessage",
         "request_model": "SendMessageRequest",
         "response_model": "SendMessageResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "Attachment": {
             "type": "repeated",
@@ -4045,9 +3833,7 @@
         "proto_method": "StreamMessages",
         "request_model": "StreamMessagesRequest",
         "response_model": "stream MessageEvent",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -4083,9 +3869,7 @@
         "proto_method": "StreamPresence",
         "request_model": "StreamPresenceRequest",
         "response_model": "stream PresenceEvent",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -4113,9 +3897,7 @@
         "proto_method": "StreamTyping",
         "request_model": "StreamTypingRequest",
         "response_model": "stream TypingEvent",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -4151,9 +3933,7 @@
         "proto_method": "UpdateMessagingPreferences",
         "request_model": "UpdateMessagingPreferencesRequest",
         "response_model": "UpdateMessagingPreferencesResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "string",
@@ -4182,13 +3962,8 @@
   {
     "name": "nexus",
     "version": "v1",
-    "capabilities": [
-      "orchestration",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "analytics"
-    ],
+    "capabilities": ["orchestration", "metadata_enrichment"],
+    "dependencies": ["analytics"],
     "schema": {
       "proto_path": "api/protos/nexus/v1/nexus.proto",
       "methods": [
@@ -4251,9 +4026,7 @@
         "proto_method": "EmitEvent",
         "request_model": "EventRequest",
         "response_model": "EventResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4285,9 +4058,7 @@
         "proto_method": "Feedback",
         "request_model": "FeedbackRequest",
         "response_model": "FeedbackResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4315,9 +4086,7 @@
         "proto_method": "HandleOps",
         "request_model": "HandleOpsRequest",
         "response_model": "HandleOpsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4341,11 +4110,7 @@
         "proto_method": "ListPatterns",
         "request_model": "ListPatternsRequest",
         "response_model": "ListPatternsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4365,9 +4130,7 @@
         "proto_method": "MinePatterns",
         "request_model": "MinePatternsRequest",
         "response_model": "MinePatternsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4387,9 +4150,7 @@
         "proto_method": "Orchestrate",
         "request_model": "OrchestrateRequest",
         "response_model": "OrchestrateResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4413,9 +4174,7 @@
         "proto_method": "RegisterPattern",
         "request_model": "RegisterPatternRequest",
         "response_model": "RegisterPatternResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4451,9 +4210,7 @@
         "proto_method": "SubscribeEvents",
         "request_model": "SubscribeRequest",
         "response_model": "stream EventResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4473,9 +4230,7 @@
         "proto_method": "TracePattern",
         "request_model": "TracePatternRequest",
         "response_model": "TracePatternResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -4492,13 +4247,8 @@
   {
     "name": "notification",
     "version": "v1",
-    "capabilities": [
-      "notification",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "analytics"
-    ],
+    "capabilities": ["notification", "metadata_enrichment"],
+    "dependencies": ["analytics"],
     "schema": {
       "proto_path": "api/protos/notification/v1/notification.proto",
       "methods": [
@@ -4577,9 +4327,7 @@
         "proto_method": "AcknowledgeNotification",
         "request_model": "AcknowledgeNotificationRequest",
         "response_model": "AcknowledgeNotificationResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "notification_id": {
             "type": "string",
@@ -4595,9 +4343,7 @@
         "proto_method": "BroadcastEvent",
         "request_model": "BroadcastEventRequest",
         "response_model": "BroadcastEventResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4629,9 +4375,7 @@
         "proto_method": "GetNotification",
         "request_model": "GetNotificationRequest",
         "response_model": "GetNotificationResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "notification_id": {
             "type": "string",
@@ -4643,11 +4387,7 @@
         "proto_method": "ListNotificationEvents",
         "request_model": "ListNotificationEventsRequest",
         "response_model": "ListNotificationEventsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4675,11 +4415,7 @@
         "proto_method": "ListNotifications",
         "request_model": "ListNotificationsRequest",
         "response_model": "ListNotificationsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4711,9 +4447,7 @@
         "proto_method": "PublishAssetChunk",
         "request_model": "PublishAssetChunkRequest",
         "response_model": "PublishAssetChunkResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "asset_id": {
             "type": "string",
@@ -4729,9 +4463,7 @@
         "proto_method": "SendEmail",
         "request_model": "SendEmailRequest",
         "response_model": "SendEmailResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "body": {
             "type": "string",
@@ -4763,9 +4495,7 @@
         "proto_method": "SendNotification",
         "request_model": "SendNotificationRequest",
         "response_model": "SendNotificationResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "body": {
             "type": "string",
@@ -4801,9 +4531,7 @@
         "proto_method": "SendPushNotification",
         "request_model": "SendPushNotificationRequest",
         "response_model": "SendPushNotificationResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4835,9 +4563,7 @@
         "proto_method": "SendSMS",
         "request_model": "SendSMSRequest",
         "response_model": "SendSMSResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -4861,9 +4587,7 @@
         "proto_method": "StreamAssetChunks",
         "request_model": "StreamAssetChunksRequest",
         "response_model": "stream AssetChunk",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "asset_id": {
             "type": "string",
@@ -4875,9 +4599,7 @@
         "proto_method": "SubscribeToEvents",
         "request_model": "SubscribeToEventsRequest",
         "response_model": "stream NotificationEvent",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "filters": {
             "type": "common.Metadata",
@@ -4897,9 +4619,7 @@
         "proto_method": "UpdateNotificationPreferences",
         "request_model": "UpdateNotificationPreferencesRequest",
         "response_model": "UpdateNotificationPreferencesResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "preferences": {
             "type": "NotificationPreferences",
@@ -4917,9 +4637,7 @@
     "name": "product",
     "version": "v1",
     "capabilities": [],
-    "dependencies": [
-      "search"
-    ],
+    "dependencies": ["search"],
     "schema": {
       "proto_path": "api/protos/product/v1/product.proto",
       "methods": [
@@ -4978,9 +4696,7 @@
         "proto_method": "CreateProduct",
         "request_model": "CreateProductRequest",
         "response_model": "CreateProductResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "product": {
             "type": "Product",
@@ -4992,9 +4708,7 @@
         "proto_method": "DeleteProduct",
         "request_model": "DeleteProductRequest",
         "response_model": "DeleteProductResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "product_id": {
             "type": "string",
@@ -5006,9 +4720,7 @@
         "proto_method": "GetProduct",
         "request_model": "GetProductRequest",
         "response_model": "GetProductResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "product_id": {
             "type": "string",
@@ -5020,11 +4732,7 @@
         "proto_method": "ListProductVariants",
         "request_model": "ListProductVariantsRequest",
         "response_model": "ListProductVariantsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "product_id": {
             "type": "string",
@@ -5036,11 +4744,7 @@
         "proto_method": "ListProducts",
         "request_model": "ListProductsRequest",
         "response_model": "ListProductsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5076,9 +4780,7 @@
         "proto_method": "SearchProducts",
         "request_model": "SearchProductsRequest",
         "response_model": "SearchProductsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5114,9 +4816,7 @@
         "proto_method": "UpdateInventory",
         "request_model": "UpdateInventoryRequest",
         "response_model": "UpdateInventoryResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "delta": {
             "type": "int32",
@@ -5132,9 +4832,7 @@
         "proto_method": "UpdateProduct",
         "request_model": "UpdateProductRequest",
         "response_model": "UpdateProductResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "product": {
             "type": "Product",
@@ -5147,10 +4845,7 @@
   {
     "name": "referral",
     "version": "v1",
-    "capabilities": [
-      "referral",
-      "metadata_enrichment"
-    ],
+    "capabilities": ["referral", "metadata_enrichment"],
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/referral/v1/referral.proto",
@@ -5198,9 +4893,7 @@
         "proto_method": "CreateReferral",
         "request_model": "CreateReferralRequest",
         "response_model": "CreateReferralResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5228,9 +4921,7 @@
         "proto_method": "GetReferral",
         "request_model": "GetReferralRequest",
         "response_model": "GetReferralResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "referral_code": {
             "type": "string",
@@ -5242,9 +4933,7 @@
         "proto_method": "GetReferralStats",
         "request_model": "GetReferralStatsRequest",
         "response_model": "GetReferralStatsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "master_id": {
             "type": "int64",
@@ -5260,9 +4949,7 @@
         "proto_method": "RegisterReferral",
         "request_model": "RegisterReferralRequest",
         "response_model": "RegisterReferralResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5290,9 +4977,7 @@
         "proto_method": "RewardReferral",
         "request_model": "RewardReferralRequest",
         "response_model": "RewardReferralResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -5313,10 +4998,7 @@
   {
     "name": "scheduler",
     "version": "v1",
-    "capabilities": [
-      "scheduler",
-      "metadata_enrichment"
-    ],
+    "capabilities": ["scheduler", "metadata_enrichment"],
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/scheduler/v1/scheduler.proto",
@@ -5375,9 +5057,7 @@
         "proto_method": "CreateJob",
         "request_model": "CreateJobRequest",
         "response_model": "CreateJobResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5393,9 +5073,7 @@
         "proto_method": "DeleteJob",
         "request_model": "DeleteJobRequest",
         "response_model": "DeleteJobResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5411,9 +5089,7 @@
         "proto_method": "GetJob",
         "request_model": "GetJobRequest",
         "response_model": "GetJobResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5429,11 +5105,7 @@
         "proto_method": "ListJobRuns",
         "request_model": "ListJobRunsRequest",
         "response_model": "ListJobRunsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5457,11 +5129,7 @@
         "proto_method": "ListJobs",
         "request_model": "ListJobsRequest",
         "response_model": "ListJobsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5485,9 +5153,7 @@
         "proto_method": "RunJob",
         "request_model": "RunJobRequest",
         "response_model": "RunJobResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5503,9 +5169,7 @@
         "proto_method": "UpdateJob",
         "request_model": "UpdateJobRequest",
         "response_model": "UpdateJobResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5522,28 +5186,17 @@
   {
     "name": "search",
     "version": "v1",
-    "capabilities": [
-      "search",
-      "metadata_enrichment"
-    ],
+    "capabilities": ["search", "metadata_enrichment"],
     "dependencies": [],
     "schema": {
       "proto_path": "api/protos/search/v1/search.proto",
-      "methods": [
-        "Search",
-        "Suggest",
-        "ListSearchableFields"
-      ]
+      "methods": ["Search", "Suggest", "ListSearchableFields"]
     },
     "endpoints": [
       {
         "path": "/api/search_ops",
         "method": "POST",
-        "actions": [
-          "search",
-          "suggest",
-          "list_searchable_fields"
-        ],
+        "actions": ["search", "suggest", "list_searchable_fields"],
         "description": "Composable search operations endpoint. Each action maps to a gRPC/proto method and supports metadata enrichment."
       }
     ],
@@ -5565,11 +5218,7 @@
         "proto_method": "ListSearchableFields",
         "request_model": "google.protobuf.Empty",
         "response_model": "ListSearchableFieldsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "metadata": {
             "type": "string",
@@ -5589,9 +5238,7 @@
         "proto_method": "Search",
         "request_model": "SearchRequest",
         "response_model": "SearchResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5623,9 +5270,7 @@
         "proto_method": "Suggest",
         "request_model": "SuggestRequest",
         "response_model": "SuggestResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -5654,16 +5299,8 @@
   {
     "name": "security",
     "version": "v1",
-    "capabilities": [
-      "authentication",
-      "authorization",
-      "metadata_enrichment"
-    ],
-    "dependencies": [
-      "user",
-      "analytics",
-      "search"
-    ],
+    "capabilities": ["authentication", "authorization", "metadata_enrichment"],
+    "dependencies": ["user", "analytics", "search"],
     "schema": {
       "proto_path": "api/protos/security/v1/security.proto",
       "methods": [
@@ -5726,9 +5363,7 @@
         "proto_method": "AuditEvent",
         "request_model": "AuditEventRequest",
         "response_model": "AuditEventResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "action": {
             "type": "string",
@@ -5756,9 +5391,7 @@
         "proto_method": "Authenticate",
         "request_model": "AuthenticateRequest",
         "response_model": "AuthenticateResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "credential": {
             "type": "string",
@@ -5778,9 +5411,7 @@
         "proto_method": "Authorize",
         "request_model": "AuthorizeRequest",
         "response_model": "AuthorizeResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "action": {
             "type": "string",
@@ -5804,9 +5435,7 @@
         "proto_method": "DetectThreats",
         "request_model": "DetectThreatsRequest",
         "response_model": "DetectThreatsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "context_type": {
             "type": "string",
@@ -5826,9 +5455,7 @@
         "proto_method": "GetPolicy",
         "request_model": "GetPolicyRequest",
         "response_model": "GetPolicyResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -5844,9 +5471,7 @@
         "proto_method": "IssueSecret",
         "request_model": "IssueSecretRequest",
         "response_model": "IssueSecretResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -5866,9 +5491,7 @@
         "proto_method": "QueryEvents",
         "request_model": "QueryEventsRequest",
         "response_model": "QueryEventsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "event_type": {
             "type": "string",
@@ -5896,9 +5519,7 @@
         "proto_method": "SetPolicy",
         "request_model": "SetPolicyRequest",
         "response_model": "SetPolicyResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -5918,9 +5539,7 @@
         "proto_method": "ValidateCredential",
         "request_model": "ValidateCredentialRequest",
         "response_model": "ValidateCredentialResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "credential": {
             "type": "string",
@@ -5942,10 +5561,7 @@
     "name": "talent",
     "version": "v1",
     "capabilities": [],
-    "dependencies": [
-      "user",
-      "search"
-    ],
+    "dependencies": ["user", "search"],
     "schema": {
       "proto_path": "api/protos/talent/v1/talent.proto",
       "methods": [
@@ -6006,9 +5622,7 @@
         "proto_method": "BookTalent",
         "request_model": "BookTalentRequest",
         "response_model": "BookTalentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -6044,9 +5658,7 @@
         "proto_method": "CreateTalentProfile",
         "request_model": "CreateTalentProfileRequest",
         "response_model": "CreateTalentProfileResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -6062,9 +5674,7 @@
         "proto_method": "DeleteTalentProfile",
         "request_model": "DeleteTalentProfileRequest",
         "response_model": "DeleteTalentProfileResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -6080,9 +5690,7 @@
         "proto_method": "GetTalentProfile",
         "request_model": "GetTalentProfileRequest",
         "response_model": "GetTalentProfileResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -6098,11 +5706,7 @@
         "proto_method": "ListBookings",
         "request_model": "ListBookingsRequest",
         "response_model": "ListBookingsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -6126,11 +5730,7 @@
         "proto_method": "ListTalentProfiles",
         "request_model": "ListTalentProfilesRequest",
         "response_model": "ListTalentProfilesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -6158,9 +5758,7 @@
         "proto_method": "SearchTalentProfiles",
         "request_model": "SearchTalentProfilesRequest",
         "response_model": "SearchTalentProfilesResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -6192,9 +5790,7 @@
         "proto_method": "UpdateTalentProfile",
         "request_model": "UpdateTalentProfileRequest",
         "response_model": "UpdateTalentProfileResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_id": {
             "type": "int64",
@@ -6219,13 +5815,7 @@
       "authorization",
       "metadata_enrichment"
     ],
-    "dependencies": [
-      "notification",
-      "security",
-      "analytics",
-      "search",
-      "content"
-    ],
+    "dependencies": ["notification", "security", "analytics", "search", "content"],
     "schema": {
       "proto_path": "api/protos/user/v1/user.proto",
       "methods": [
@@ -6466,9 +6056,7 @@
         "proto_method": "AddFriend",
         "request_model": "AddFriendRequest",
         "response_model": "AddFriendResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "friend_id": {
             "type": "string",
@@ -6488,9 +6076,7 @@
         "proto_method": "AssignRole",
         "request_model": "AssignRoleRequest",
         "response_model": "AssignRoleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "role": {
             "type": "string",
@@ -6506,9 +6092,7 @@
         "proto_method": "BlockGroupContent",
         "request_model": "BlockGroupContentRequest",
         "response_model": "BlockGroupContentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "content_id": {
             "type": "string",
@@ -6532,9 +6116,7 @@
         "proto_method": "BlockGroupIndividuals",
         "request_model": "BlockGroupIndividualsRequest",
         "response_model": "BlockGroupIndividualsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "duration_minutes": {
             "type": "int32",
@@ -6558,9 +6140,7 @@
         "proto_method": "BlockUser",
         "request_model": "BlockUserRequest",
         "response_model": "BlockUserResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -6580,9 +6160,7 @@
         "proto_method": "CreateReferral",
         "request_model": "CreateReferralRequest",
         "response_model": "CreateReferralResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "campaign_slug": {
             "type": "string",
@@ -6598,9 +6176,7 @@
         "proto_method": "CreateSession",
         "request_model": "CreateSessionRequest",
         "response_model": "CreateSessionResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "device_info": {
             "type": "string",
@@ -6620,11 +6196,7 @@
         "proto_method": "CreateUser",
         "request_model": "CreateUserRequest",
         "response_model": "CreateUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "name",
-          "email"
-        ],
+        "rest_required_fields": ["metadata", "name", "email"],
         "fields": {
           "email": {
             "type": "string",
@@ -6656,11 +6228,7 @@
         "proto_method": "CreateUserGroup",
         "request_model": "CreateUserGroupRequest",
         "response_model": "CreateUserGroupResponse",
-        "rest_required_fields": [
-          "metadata",
-          "name",
-          "email"
-        ],
+        "rest_required_fields": ["metadata", "name", "email"],
         "fields": {
           "description": {
             "type": "string",
@@ -6688,10 +6256,7 @@
         "proto_method": "DeleteUser",
         "request_model": "DeleteUserRequest",
         "response_model": "DeleteUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "hard_delete": {
             "type": "bool",
@@ -6711,10 +6276,7 @@
         "proto_method": "DeleteUserGroup",
         "request_model": "DeleteUserGroupRequest",
         "response_model": "DeleteUserGroupResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -6730,9 +6292,7 @@
         "proto_method": "FollowUser",
         "request_model": "FollowUserRequest",
         "response_model": "FollowUserResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "followee_id": {
             "type": "string",
@@ -6752,9 +6312,7 @@
         "proto_method": "GetSession",
         "request_model": "GetSessionRequest",
         "response_model": "GetSessionResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "session_id": {
             "type": "string",
@@ -6766,10 +6324,7 @@
         "proto_method": "GetUser",
         "request_model": "GetUserRequest",
         "response_model": "GetUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "user_id": {
             "type": "string",
@@ -6781,10 +6336,7 @@
         "proto_method": "GetUserByEmail",
         "request_model": "GetUserByEmailRequest",
         "response_model": "GetUserByEmailResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "email": {
             "type": "string",
@@ -6796,10 +6348,7 @@
         "proto_method": "GetUserByUsername",
         "request_model": "GetUserByUsernameRequest",
         "response_model": "GetUserByUsernameResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "username": {
             "type": "string",
@@ -6811,9 +6360,7 @@
         "proto_method": "InitiateMFA",
         "request_model": "InitiateMFARequest",
         "response_model": "InitiateMFAResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "mfa_type": {
             "type": "string",
@@ -6829,9 +6376,7 @@
         "proto_method": "InitiateSSO",
         "request_model": "InitiateSSORequest",
         "response_model": "InitiateSSOResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "provider": {
             "type": "string",
@@ -6847,11 +6392,7 @@
         "proto_method": "ListAuditLogs",
         "request_model": "ListAuditLogsRequest",
         "response_model": "ListAuditLogsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "page": {
             "type": "int32",
@@ -6871,11 +6412,7 @@
         "proto_method": "ListConnections",
         "request_model": "ListConnectionsRequest",
         "response_model": "ListConnectionsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -6895,11 +6432,7 @@
         "proto_method": "ListFollowers",
         "request_model": "ListFollowersRequest",
         "response_model": "ListFollowersResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -6923,11 +6456,7 @@
         "proto_method": "ListFollowing",
         "request_model": "ListFollowingRequest",
         "response_model": "ListFollowingResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -6951,11 +6480,7 @@
         "proto_method": "ListFriends",
         "request_model": "ListFriendsRequest",
         "response_model": "ListFriendsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -6979,11 +6504,7 @@
         "proto_method": "ListPermissions",
         "request_model": "ListPermissionsRequest",
         "response_model": "ListPermissionsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "user_id": {
             "type": "string",
@@ -6995,11 +6516,7 @@
         "proto_method": "ListRoles",
         "request_model": "ListRolesRequest",
         "response_model": "ListRolesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "user_id": {
             "type": "string",
@@ -7011,11 +6528,7 @@
         "proto_method": "ListSessions",
         "request_model": "ListSessionsRequest",
         "response_model": "ListSessionsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "user_id": {
             "type": "string",
@@ -7027,11 +6540,7 @@
         "proto_method": "ListUserEvents",
         "request_model": "ListUserEventsRequest",
         "response_model": "ListUserEventsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "page": {
             "type": "int32",
@@ -7051,11 +6560,7 @@
         "proto_method": "ListUserGroupMembers",
         "request_model": "ListUserGroupMembersRequest",
         "response_model": "ListUserGroupMembersResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -7079,11 +6584,7 @@
         "proto_method": "ListUserGroups",
         "request_model": "ListUserGroupsRequest",
         "response_model": "ListUserGroupsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -7107,11 +6608,7 @@
         "proto_method": "ListUsers",
         "request_model": "ListUsersRequest",
         "response_model": "ListUsersResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "9": {
             "type": "reserved",
@@ -7155,9 +6652,7 @@
         "proto_method": "MuteGroupContent",
         "request_model": "MuteGroupContentRequest",
         "response_model": "MuteGroupContentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "content_id": {
             "type": "string",
@@ -7185,9 +6680,7 @@
         "proto_method": "MuteGroupIndividuals",
         "request_model": "MuteGroupIndividualsRequest",
         "response_model": "MuteGroupIndividualsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "duration_minutes": {
             "type": "int32",
@@ -7211,9 +6704,7 @@
         "proto_method": "MuteUser",
         "request_model": "MuteUserRequest",
         "response_model": "MuteUserResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "duration_minutes": {
             "type": "int32",
@@ -7237,9 +6728,7 @@
         "proto_method": "RefreshSession",
         "request_model": "RefreshSessionRequest",
         "response_model": "RefreshSessionResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "refresh_token": {
             "type": "string",
@@ -7251,9 +6740,7 @@
         "proto_method": "RegisterInterest",
         "request_model": "RegisterInterestRequest",
         "response_model": "RegisterInterestResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "email": {
             "type": "string",
@@ -7265,9 +6752,7 @@
         "proto_method": "RemoveFriend",
         "request_model": "RemoveFriendRequest",
         "response_model": "RemoveFriendResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "friend_id": {
             "type": "string",
@@ -7287,9 +6772,7 @@
         "proto_method": "RemoveRole",
         "request_model": "RemoveRoleRequest",
         "response_model": "RemoveRoleResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "role": {
             "type": "string",
@@ -7305,9 +6788,7 @@
         "proto_method": "ReportGroupContent",
         "request_model": "ReportGroupContentRequest",
         "response_model": "ReportGroupContentResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "content_id": {
             "type": "string",
@@ -7339,9 +6820,7 @@
         "proto_method": "ReportUser",
         "request_model": "ReportUserRequest",
         "response_model": "ReportUserResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "details": {
             "type": "string",
@@ -7369,9 +6848,7 @@
         "proto_method": "RevokeSession",
         "request_model": "RevokeSessionRequest",
         "response_model": "RevokeSessionResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "session_id": {
             "type": "string",
@@ -7383,9 +6860,7 @@
         "proto_method": "SuggestConnections",
         "request_model": "SuggestConnectionsRequest",
         "response_model": "SuggestConnectionsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -7401,9 +6876,7 @@
         "proto_method": "SyncSCIM",
         "request_model": "SyncSCIMRequest",
         "response_model": "SyncSCIMResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "scim_payload": {
             "type": "string",
@@ -7415,9 +6888,7 @@
         "proto_method": "UnblockGroupIndividuals",
         "request_model": "UnblockGroupIndividualsRequest",
         "response_model": "UnblockGroupIndividualsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "group_id": {
             "type": "string",
@@ -7437,9 +6908,7 @@
         "proto_method": "UnblockUser",
         "request_model": "UnblockUserRequest",
         "response_model": "UnblockUserResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "target_user_id": {
             "type": "string",
@@ -7451,9 +6920,7 @@
         "proto_method": "UnfollowUser",
         "request_model": "UnfollowUserRequest",
         "response_model": "UnfollowUserResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "followee_id": {
             "type": "string",
@@ -7473,9 +6940,7 @@
         "proto_method": "UnmuteGroup",
         "request_model": "UnmuteGroupRequest",
         "response_model": "UnmuteGroupResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "group_id": {
             "type": "string",
@@ -7491,9 +6956,7 @@
         "proto_method": "UnmuteGroupIndividuals",
         "request_model": "UnmuteGroupIndividualsRequest",
         "response_model": "UnmuteGroupIndividualsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "group_id": {
             "type": "string",
@@ -7513,9 +6976,7 @@
         "proto_method": "UnmuteUser",
         "request_model": "UnmuteUserRequest",
         "response_model": "UnmuteUserResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "target_user_id": {
             "type": "string",
@@ -7527,9 +6988,7 @@
         "proto_method": "UpdatePassword",
         "request_model": "UpdatePasswordRequest",
         "response_model": "UpdatePasswordResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "current_password": {
             "type": "string",
@@ -7549,9 +7008,7 @@
         "proto_method": "UpdateProfile",
         "request_model": "UpdateProfileRequest",
         "response_model": "UpdateProfileResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "profile": {
             "type": "UserProfile",
@@ -7571,10 +7028,7 @@
         "proto_method": "UpdateUser",
         "request_model": "UpdateUserRequest",
         "response_model": "UpdateUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -7598,10 +7052,7 @@
         "proto_method": "UpdateUserGroup",
         "request_model": "UpdateUserGroupRequest",
         "response_model": "UpdateUserGroupResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "metadata": {
             "type": "common.Metadata",
@@ -7627,9 +7078,7 @@
     "name": "waitlist",
     "version": "v1",
     "capabilities": [],
-    "dependencies": [
-      "user"
-    ],
+    "dependencies": ["user"],
     "schema": {
       "proto_path": "api/protos/waitlist/v1/waitlist.proto",
       "methods": [
@@ -7708,9 +7157,7 @@
         "proto_method": "CheckUsernameAvailability",
         "request_model": "CheckUsernameAvailabilityRequest",
         "response_model": "CheckUsernameAvailabilityResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "username": {
             "type": "string",
@@ -7722,11 +7169,7 @@
         "proto_method": "CreateWaitlistEntry",
         "request_model": "CreateWaitlistEntryRequest",
         "response_model": "CreateWaitlistEntryResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "campaign_name": {
             "type": "string",
@@ -7778,9 +7221,7 @@
         "proto_method": "GetLeaderboard",
         "request_model": "GetLeaderboardRequest",
         "response_model": "GetLeaderboardResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "limit": {
             "type": "int32",
@@ -7796,9 +7237,7 @@
         "proto_method": "GetLocationStats",
         "request_model": "GetLocationStatsRequest",
         "response_model": "GetLocationStatsResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "string": {
             "type": "optional",
@@ -7810,10 +7249,7 @@
         "proto_method": "GetReferralsByUser",
         "request_model": "GetReferralsByUserRequest",
         "response_model": "GetReferralsByUserResponse",
-        "rest_required_fields": [
-          "metadata",
-          "user_id"
-        ],
+        "rest_required_fields": ["metadata", "user_id"],
         "fields": {
           "user_id": {
             "type": "int64",
@@ -7825,11 +7261,7 @@
         "proto_method": "GetWaitlistEntry",
         "request_model": "GetWaitlistEntryRequest",
         "response_model": "GetWaitlistEntryResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "email": {
             "type": "string",
@@ -7853,11 +7285,7 @@
         "proto_method": "GetWaitlistPosition",
         "request_model": "GetWaitlistPositionRequest",
         "response_model": "GetWaitlistPositionResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "id": {
             "type": "int64",
@@ -7869,11 +7297,7 @@
         "proto_method": "GetWaitlistStats",
         "request_model": "GetWaitlistStatsRequest",
         "response_model": "GetWaitlistStatsResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "string": {
             "type": "optional",
@@ -7885,9 +7309,7 @@
         "proto_method": "InviteUser",
         "request_model": "InviteUserRequest",
         "response_model": "InviteUserResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "id": {
             "type": "int64",
@@ -7899,11 +7321,7 @@
         "proto_method": "ListWaitlistEntries",
         "request_model": "ListWaitlistEntriesRequest",
         "response_model": "ListWaitlistEntriesResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "limit": {
             "type": "int32",
@@ -7923,11 +7341,7 @@
         "proto_method": "UpdateWaitlistEntry",
         "request_model": "UpdateWaitlistEntryRequest",
         "response_model": "UpdateWaitlistEntryResponse",
-        "rest_required_fields": [
-          "metadata",
-          "page",
-          "page_size"
-        ],
+        "rest_required_fields": ["metadata", "page", "page_size"],
         "fields": {
           "contact_preferences": {
             "type": "google.protobuf.Struct",
@@ -7959,9 +7373,7 @@
         "proto_method": "ValidateReferralUsername",
         "request_model": "ValidateReferralUsernameRequest",
         "response_model": "ValidateReferralUsernameResponse",
-        "rest_required_fields": [
-          "metadata"
-        ],
+        "rest_required_fields": ["metadata"],
         "fields": {
           "username": {
             "type": "string",

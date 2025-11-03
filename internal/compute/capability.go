@@ -1,15 +1,17 @@
 package compute
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"time"
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "math/rand"
+    "time"
 
-	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
-	"github.com/nmxmxh/master-ovasabi/pkg/redis"
-	go_redis "github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
+    commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
+    "github.com/nmxmxh/master-ovasabi/pkg/redis"
+    go_redis "github.com/redis/go-redis/v9"
+    "go.uber.org/zap"
 )
 
 // RedisCapabilityStore is an implementation of CapabilityStore using Redis.
@@ -42,14 +44,26 @@ func (s *RedisCapabilityStore) AddOrUpdate(ctx context.Context, workerID string,
 	pipe := s.cache.GetClient().Pipeline()
 	pipe.Set(ctx, key, capsJSON, ttl)
 
+	s.log.Info("📥 Storing worker capabilities",
+		zap.String("worker_id", workerID),
+		zap.Duration("ttl", ttl),
+		zap.Int("json_size", len(capsJSON)))
+
 	// Index the worker based on its capabilities for faster searching
 	s.addIndexes(pipe, workerID, caps)
 
 	if _, err := pipe.Exec(ctx); err != nil {
+		s.log.Error("❌ Failed to store worker capabilities",
+			zap.Error(err),
+			zap.String("worker_id", workerID))
 		return fmt.Errorf("failed to execute redis pipeline for AddOrUpdate: %w", err)
 	}
 
-	s.log.Debug("Added/updated worker capability in Redis", zap.String("worker_id", workerID))
+	s.log.Info("✅ Successfully stored worker capabilities",
+		zap.String("worker_id", workerID),
+		zap.Bool("webgpu", caps.GetWebgpu()),
+		zap.Bool("wasm", caps.GetWasm()),
+		zap.String("gpu_backend", caps.GetGpu().GetBackend()))
 	return nil
 }
 
@@ -112,11 +126,17 @@ func (s *RedisCapabilityStore) findAllAndFilter(ctx context.Context, minReqs *co
 // filterByNumericRequirements filters a list of worker IDs by numeric requirements.
 func (s *RedisCapabilityStore) filterByNumericRequirements(ctx context.Context, workerIDs []string, minReqs *commonpb.Capability) ([]string, error) {
 	var suitableWorkers []string
+    var missingCaps []string
 
 	for _, workerID := range workerIDs {
 		caps, err := s.GetCapabilities(ctx, workerID)
 		if err != nil {
-			s.log.Warn("failed to get capabilities for worker during numeric filtering", zap.String("worker_id", workerID), zap.Error(err))
+			// Missing Redis key is normal for new workers; log at debug instead of warn.
+            if errors.Is(err, go_redis.Nil) {
+                missingCaps = append(missingCaps, workerID)
+            } else {
+				s.log.Warn("failed to get capabilities for worker during numeric filtering", zap.String("worker_id", workerID), zap.Error(err))
+			}
 			continue
 		}
 
@@ -124,6 +144,17 @@ func (s *RedisCapabilityStore) filterByNumericRequirements(ctx context.Context, 
 			suitableWorkers = append(suitableWorkers, workerID)
 		}
 	}
+
+    // Emit a single aggregated debug message instead of spamming per worker
+    if len(missingCaps) > 0 {
+        sample := missingCaps
+        if len(sample) > 5 {
+            sample = sample[:5]
+        }
+        s.log.Debug("capabilities missing in redis for some workers during numeric filtering",
+            zap.Int("missing_count", len(missingCaps)),
+            zap.Strings("sample_worker_ids", sample))
+    }
 
 	return suitableWorkers, nil
 }
@@ -146,15 +177,29 @@ func (s *RedisCapabilityStore) GetCapabilities(ctx context.Context, workerID str
 
 // GetRandomWorkers returns a list of random worker IDs.
 func (s *RedisCapabilityStore) GetRandomWorkers(ctx context.Context, count int) ([]string, error) {
-	if count <= 0 {
-		return []string{}, nil
-	}
-	// Use SRANDMEMBER to get random members from the set of all workers.
-	workerIDs, err := s.cache.GetClient().SRandMemberN(ctx, "workers:all", int64(count)).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get random workers from redis: %w", err)
-	}
-	return workerIDs, nil
+    // Always derive from live capability keys to avoid stale IDs lingering in sets.
+    // This ensures counts and selections only include workers with non-expired capability data.
+    keys, err := s.cache.GetClient().Keys(ctx, "worker:caps:*").Result()
+    if err != nil {
+        return nil, fmt.Errorf("failed to list capability keys: %w", err)
+    }
+
+    var allIDs []string
+    for _, k := range keys {
+        allIDs = append(allIDs, extractWorkerID(k))
+    }
+
+    if count <= 0 || count >= len(allIDs) {
+        return allIDs, nil
+    }
+
+    // Sample without replacement from allIDs
+    // Simple Fisher-Yates partial shuffle for the first 'count' elements
+    for i := 0; i < count && i < len(allIDs); i++ {
+        j := i + rand.Intn(len(allIDs)-i)
+        allIDs[i], allIDs[j] = allIDs[j], allIDs[i]
+    }
+    return allIDs[:count], nil
 }
 
 // addIndexes adds the worker to various sets for indexing.

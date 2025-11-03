@@ -59,6 +59,14 @@ func handleComputeAssigned(event EventEnvelope) {
 	needsWebGPU := getBool(minReq, "webgpu") || (getMap(minReq, "gpu") != nil)
 	webgpuAvailable := UtilDetectWebGPUAvailable()
 
+	wasmLog("[WASM][COMPUTE] ✅ Processing task:", map[string]interface{}{
+		"task_id":        extractTaskID(event),
+		"op":             op,
+		"needs_gpu":      needsWebGPU,
+		"gpu_available":  webgpuAvailable,
+		"correlation_id": event.CorrelationID,
+	})
+
 	// Emit started progress
 	emitComputeProgress(extractTaskID(event), 1, map[string]string{"stage": "started"})
 
@@ -66,12 +74,37 @@ func handleComputeAssigned(event EventEnvelope) {
 	var result any
 	var execErr error
 	if needsWebGPU && webgpuAvailable {
+		wasmLog("[WASM][COMPUTE] ✅ Executing with GPU", map[string]interface{}{
+			"task_id": extractTaskID(event),
+			"op":      op,
+		})
 		result, execErr = executeWithGPU(op, inputs, params)
 	} else {
+		wasmLog("[WASM][COMPUTE] ✅ Executing with CPU", map[string]interface{}{
+			"task_id": extractTaskID(event),
+			"op":      op,
+		})
 		result, execErr = executeWithCPU(op, inputs, params)
 	}
 
 	if execErr != nil {
+		// Dispatch DOM event for task failure
+		dispatchEvent := js.Global().Get("CustomEvent").New(
+			"compute:task",
+			map[string]interface{}{
+				"detail": map[string]interface{}{
+					"status":         "failed",
+					"task_id":        extractTaskID(event),
+					"worker_id":      getStableDeviceID(),
+					"correlation_id": event.CorrelationID,
+					"error":          execErr.Error(),
+					"timestamp":      time.Now().Format(time.RFC3339Nano),
+				},
+				"bubbles": true,
+			},
+		)
+		js.Global().Get("window").Call("dispatchEvent", dispatchEvent)
+
 		emitComputeFailed(extractTaskID(event), execErr.Error())
 		return
 	}
@@ -284,6 +317,24 @@ func emitComputeProgress(taskID string, pct uint32, metrics map[string]string) {
 	env := map[string]any{"type": "compute:dispatch:v1:progress", "payload": payload, "metadata": meta}
 	b, _ := json.Marshal(env)
 	sendWSMessage(b)
+
+	// Dispatch DOM event for task progress
+	dispatchEvent := js.Global().Get("CustomEvent").New(
+		"compute:task",
+		map[string]interface{}{
+			"detail": map[string]interface{}{
+				"status":         "in-progress",
+				"task_id":        taskID,
+				"worker_id":      getStableDeviceID(),
+				"correlation_id": meta["global_context"].(map[string]any)["correlation_id"].(string),
+				"progress":       pct,
+				"metrics":        metrics,
+				"timestamp":      time.Now().Format(time.RFC3339Nano),
+			},
+			"bubbles": true,
+		},
+	)
+	js.Global().Get("window").Call("dispatchEvent", dispatchEvent)
 }
 
 func emitComputeSuccess(taskID string, outputs []map[string]any, summary map[string]string) {
@@ -304,6 +355,24 @@ func emitComputeSuccess(taskID string, outputs []map[string]any, summary map[str
 	env := map[string]any{"type": "compute:dispatch:v1:success", "payload": payload, "metadata": meta}
 	b, _ := json.Marshal(env)
 	sendWSMessage(b)
+
+	// Dispatch DOM event for task success
+	dispatchEvent := js.Global().Get("CustomEvent").New(
+		"compute:task",
+		map[string]interface{}{
+			"detail": map[string]interface{}{
+				"status":         "success",
+				"task_id":        taskID,
+				"worker_id":      getStableDeviceID(),
+				"correlation_id": meta["global_context"].(map[string]any)["correlation_id"].(string),
+				"outputs":        outputs,
+				"summary":        summary,
+				"timestamp":      time.Now().Format(time.RFC3339Nano),
+			},
+			"bubbles": true,
+		},
+	)
+	js.Global().Get("window").Call("dispatchEvent", dispatchEvent)
 }
 
 func emitComputeFailed(taskID string, reason string) {

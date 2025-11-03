@@ -160,10 +160,10 @@ var (
 	userID        string
 	ws            js.Value
 	messageMutex  sync.Mutex
-	messageQueue  = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
-	outgoingQueue = make(chan []byte, 1024)    // Buffered queue for outgoing messages
-	resourcePool  = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
-	computeQueue  = make(chan computeTask, 32)
+	messageQueue                = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
+	outgoingQueue               = make(chan []byte, 1024)    // Buffered queue for outgoing messages
+	resourcePool                = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
+	computeQueue                = make(chan computeTask, 32)
 	eventBus      *WASMEventBus = NewWASMEventBus() // Our internal WASM event bus
 
 	// Threading configuration
@@ -424,14 +424,31 @@ func processMessages() {
 
 		// wasmError("[WASM] Successfully parsed event:", event.Type, "correlation_id:", event.CorrelationID)
 
+		// Log the event type we received
+		wasmLog("[WASM] ✅ Received event:", event.Type)
+
 		if handler := eventBus.GetHandler(event.Type); handler != nil {
+			wasmLog("[WASM] ✅ Found registered handler for:", event.Type)
 			go handler(event)
 		} else {
 			// Handle error events specially
 			if strings.HasPrefix(event.Type, "error:") {
+				wasmLog("[WASM] ✅ Processing error event:", event.Type)
 				handleErrorEvent(event)
+			} else if event.Type == "compute:capabilities:v1:update" {
+				wasmLog("[WASM] ✅ Processing compute capabilities update")
+				// Forward to frontend via CustomEvent
+				dispatchEvent := js.Global().Get("CustomEvent").New(
+					event.Type,
+					map[string]interface{}{
+						"detail":  event.Payload,
+						"bubbles": true,
+					},
+				)
+				js.Global().Get("window").Call("dispatchEvent", dispatchEvent)
 			} else {
 				// Use generic handler for unhandled events
+				wasmLog("[WASM] ✅ Using generic handler for:", event.Type)
 				go genericEventHandler(event)
 			}
 		}

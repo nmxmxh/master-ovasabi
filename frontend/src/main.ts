@@ -321,6 +321,13 @@ window.addEventListener('wasmReady', () => {
   // Clear initialization progress flag
   wasmInitializationInProgress = false;
 
+  // Initialize compute events integration
+  import('./store/integrations/computeEvents').then(mod => {
+    if (mod && mod.initComputeEvents) {
+      mod.initComputeEvents();
+    }
+  });
+
   // Clear any cached user IDs from localStorage to ensure fresh WASM user ID
   if (typeof window !== 'undefined' && window.localStorage) {
     // Clearing cached user IDs
@@ -377,6 +384,19 @@ window.addEventListener('wasmReady', () => {
       );
     }
   });
+
+  // Log local resource sizes available to the browser environment
+  try {
+    const cores = navigator.hardwareConcurrency || 'unknown';
+    const mem = (performance as any).memory;
+    const jsHeapLimitMb = mem && mem.jsHeapSizeLimit ? Math.round(mem.jsHeapSizeLimit / (1024 * 1024)) : 'unknown';
+    console.log('[Resources] Local environment:', {
+      cpu_cores: cores,
+      js_heap_limit_mb: jsHeapLimitMb,
+    });
+  } catch (e) {
+    // Ignore resource logging errors
+  }
   // Continue with polling logic as before
   type WasmFunctions = {
     initWebGPU: boolean;

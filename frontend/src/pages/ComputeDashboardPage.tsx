@@ -366,6 +366,8 @@ const ComputeDashboardPage: React.FC = () => {
   // Listen to compute capability events
   const capabilityEvents = useEventsByType('compute:capabilities:v1:update');
   const capabilitySuccessEvents = useEventsByType('compute:capabilities:v1:success');
+  // Listen to compute metrics broadcast
+  const computeMetricsEvents = useEventsByType('compute:metrics:v1:broadcast');
   
   // Listen to compute task events
   const computeTaskEvents = useEventHistory(undefined, 100).filter(event => 
@@ -387,11 +389,17 @@ const ComputeDashboardPage: React.FC = () => {
 
     // Process capability success events (also contain worker info)
     capabilitySuccessEvents.forEach(event => {
-      const source = event.metadata?.global_context?.source;
-      if (source && workerMap.has(source)) {
-        const worker = workerMap.get(source)!;
+      const payload = event.payload?.data || event.payload || {};
+      const workerId =
+        payload.worker_id ||
+        payload.workerId ||
+        event.metadata?.global_context?.device_id ||
+        event.metadata?.global_context?.source;
+
+      if (workerId && workerMap.has(workerId)) {
+        const worker = workerMap.get(workerId)!;
         worker.status = 'active';
-        workerMap.set(source, worker);
+        workerMap.set(workerId, worker);
       }
     });
 
@@ -448,17 +456,26 @@ const ComputeDashboardPage: React.FC = () => {
       ? workers.reduce((sum, w) => sum + (w.currentLoad || 0), 0) / workers.length 
       : 0;
 
+    // Prefer backend metrics if available
+    const latestMetrics = computeMetricsEvents[computeMetricsEvents.length - 1];
+    const backend = latestMetrics?.payload?.data || latestMetrics?.payload;
+
     return {
-      activeWorkers,
-      totalWorkers: workers.length,
+      activeWorkers: backend?.active_workers ?? activeWorkers,
+      totalWorkers: backend?.total_registered_workers ?? workers.length,
       totalTasks,
       activeTasks,
       completedTasks,
       failedTasks,
       avgLoad: Math.round(avgLoad * 100),
       connectionStatus: connected && wasmReady ? 'connected' : connected ? 'connecting' : 'disconnected',
-    };
-  }, [workers, tasks, connected, wasmReady]);
+      // Additional backend resource metrics
+      cpuCoresTotal: backend?.cpu_cores_total,
+      averageCpuCores: backend?.average_cpu_cores,
+      totalMemoryMb: backend?.total_memory_mb,
+      averageMemoryMb: backend?.average_memory_mb,
+    } as any;
+  }, [workers, tasks, connected, wasmReady, computeMetricsEvents]);
 
   const handleTaskSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -540,7 +557,7 @@ const ComputeDashboardPage: React.FC = () => {
             <div className="minimal-card-title">Workers</div>
             <div className="minimal-card-description">
               Active: {systemMetrics.activeWorkers}<br />
-              Total: {systemMetrics.totalWorkers}<br />
+              Total (backend): {systemMetrics.totalWorkers}<br />
               Avg Load: {systemMetrics.avgLoad}%
             </div>
           </div>
@@ -551,6 +568,15 @@ const ComputeDashboardPage: React.FC = () => {
               Active: {systemMetrics.activeTasks}<br />
               Completed: {systemMetrics.completedTasks}<br />
               Failed: {systemMetrics.failedTasks}
+            </div>
+          </div>
+          <div className="minimal-card">
+            <div className="minimal-card-title">Resources</div>
+            <div className="minimal-card-description">
+              CPU Total (backend): {systemMetrics.cpuCoresTotal ?? '—'}<br />
+              CPU Avg (backend): {systemMetrics.averageCpuCores ?? '—'}<br />
+              Mem Total MB (backend): {systemMetrics.totalMemoryMb ?? '—'}<br />
+              Mem Avg MB (backend): {systemMetrics.averageMemoryMb ?? '—'}
             </div>
           </div>
         </div>

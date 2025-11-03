@@ -33,6 +33,7 @@ import (
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
 	"github.com/nmxmxh/master-ovasabi/internal/service"
 	"github.com/nmxmxh/master-ovasabi/pkg/events"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -52,32 +53,34 @@ type Coordinator struct {
 	log          *zap.Logger
 	capabilities CapabilityStore
 	taskStore    Store // New: Store for managing parent tasks and chunks
+	eventEmitter events.EventEmitter
 }
 
 const (
+	EventComputeRequested = "compute:dispatch:v1:requested"
 
-	EventComputeRequested    = "compute:dispatch:v1:requested"
+	EventComputeAccepted = "compute:dispatch:v1:accepted"
 
-	EventComputeAccepted     = "compute:dispatch:v1:accepted"
+	EventComputeAssigned = "compute:dispatch:v1:assigned" // Targeted event for the worker
 
-	EventComputeAssigned     = "compute:dispatch:v1:assigned" // Targeted event for the worker
+	EventComputeProgress = "compute:dispatch:v1:progress"
 
-	EventComputeProgress     = "compute:dispatch:v1:progress"
+	EventComputeSuccess = "compute:dispatch:v1:success"
 
-	EventComputeSuccess      = "compute:dispatch:v1:success"
+	EventComputeFailed = "compute:dispatch:v1:failed"
 
-	EventComputeFailed       = "compute:dispatch:v1:failed"
+	EventComputeCancelled = "compute:dispatch:v1:cancelled"
 
-	EventComputeCancelled    = "compute:dispatch:v1:cancelled"
-
-	EventCapabilitiesUpdate  = "compute:capabilities:v1:update"
+	EventCapabilitiesUpdate = "compute:capabilities:v1:update"
 
 	EventCapabilitiesSuccess = "compute:capabilities:v1:success"
 
-	EventModuleRegister      = "compute:module:v1:register"
+	EventModuleRegister = "compute:module:v1:register"
 
-	EventModuleValidate      = "compute:module:v1:validate"
+	EventModuleValidate = "compute:module:v1:validate"
 
+	// EventComputeMetrics is emitted periodically with compute system metrics
+	EventComputeMetrics = "compute:metrics:v1:broadcast"
 )
 
 // Minimal validation rule set identifiers for docs/reference.
@@ -89,37 +92,242 @@ const (
 )
 
 // NewCoordinator creates a new compute coordinator.
-func NewCoordinator(provider *service.Provider, log *zap.Logger, capsStore CapabilityStore, taskStore Store) *Coordinator {
+func NewCoordinator(provider *service.Provider, log *zap.Logger, capsStore CapabilityStore, taskStore Store, eventEmitter events.EventEmitter) *Coordinator {
 	return &Coordinator{
 		provider:     provider,
 		log:          log,
 		capabilities: capsStore,
 		taskStore:    taskStore,
+		eventEmitter: eventEmitter,
 	}
+}
+
+// stringSliceToStructValues converts a slice of strings to a slice of structpb.Value
+func stringSliceToStructValues(strings []string) []*structpb.Value {
+	values := make([]*structpb.Value, len(strings))
+	for i, s := range strings {
+		values[i] = structpb.NewStringValue(s)
+	}
+	return values
+}
+
+// ComputeMetrics represents the current state of the compute system
+type ComputeMetrics struct {
+	ActiveWorkers          int      `json:"active_workers"`
+	TotalRegisteredWorkers int      `json:"total_registered_workers"`
+	WorkerIDs              []string `json:"worker_ids"`
+	WebGPUEnabled          int      `json:"webgpu_enabled"`
+	WASMEnabled            int      `json:"wasm_enabled"`
+	SIMDEnabled            int      `json:"simd_enabled"`
+    CpuCoresTotal          uint32   `json:"cpu_cores_total"`
+    AverageCpuCores        uint32   `json:"average_cpu_cores"`
+	TotalMemoryMB          uint32   `json:"total_memory_mb"`
+	AverageMemoryMB        uint32   `json:"average_memory_mb"`
+    WorkersWithCaps        int      `json:"workers_with_caps"`
+    WorkersMissingCaps     int      `json:"workers_missing_caps"`
+    MissingCapsSample      []string `json:"missing_caps_sample"`
+	Timestamp              int64    `json:"timestamp"`
+}
+
+// broadcastComputeMetrics collects and broadcasts the current compute system metrics
+func (c *Coordinator) broadcastComputeMetrics(ctx context.Context) error {
+	// Initialize metrics structure
+	metrics := &ComputeMetrics{
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Get workers by capability using the store's FindSuitableWorkers with specific requirements
+	webgpuWorkers, err := c.capabilities.FindSuitableWorkers(ctx, &commonpb.Capability{Webgpu: true})
+	if err != nil {
+		c.log.Error("Failed to get WebGPU workers", zap.Error(err))
+	}
+	metrics.WebGPUEnabled = len(webgpuWorkers)
+
+	wasmWorkers, err := c.capabilities.FindSuitableWorkers(ctx, &commonpb.Capability{Wasm: true})
+	if err != nil {
+		c.log.Error("Failed to get WASM workers", zap.Error(err))
+	}
+	metrics.WASMEnabled = len(wasmWorkers)
+
+	simdWorkers, err := c.capabilities.FindSuitableWorkers(ctx, &commonpb.Capability{Simd: true})
+	if err != nil {
+		c.log.Error("Failed to get SIMD workers", zap.Error(err))
+	}
+	metrics.SIMDEnabled = len(simdWorkers)
+
+	// Get all workers for total counts
+	allWorkers, err := c.capabilities.GetRandomWorkers(ctx, -1)
+	if err != nil {
+		return fmt.Errorf("failed to get all workers for metrics: %w", err)
+	}
+
+	metrics.TotalRegisteredWorkers = len(allWorkers)
+	metrics.ActiveWorkers = len(allWorkers) // For now these are the same
+	metrics.WorkerIDs = allWorkers
+
+	// Calculate memory metrics
+    var totalMemory uint32
+    var totalCpuCores uint32
+    var validWorkers int
+    var missingCaps []string
+	for _, workerID := range allWorkers {
+		caps, err := c.capabilities.GetCapabilities(ctx, workerID)
+		if err != nil {
+			// Treat missing capabilities (redis.Nil) as expected for new workers - debug level
+            if errors.Is(err, redis.Nil) {
+                missingCaps = append(missingCaps, workerID)
+			} else {
+				c.log.Warn("Failed to get capabilities for worker memory metrics",
+					zap.String("worker_id", workerID),
+					zap.Error(err))
+			}
+			continue
+		}
+        totalMemory += caps.GetMemoryMb()
+        totalCpuCores += caps.GetCpuCores()
+		validWorkers++
+	}
+
+	metrics.TotalMemoryMB = totalMemory
+	if validWorkers > 0 {
+		metrics.AverageMemoryMB = totalMemory / uint32(validWorkers)
+        metrics.CpuCoresTotal = totalCpuCores
+        metrics.AverageCpuCores = totalCpuCores / uint32(validWorkers)
+	}
+    metrics.WorkersWithCaps = validWorkers
+    metrics.WorkersMissingCaps = len(missingCaps)
+    if len(missingCaps) > 5 {
+        metrics.MissingCapsSample = missingCaps[:5]
+    } else {
+        metrics.MissingCapsSample = missingCaps
+    }
+
+	// Convert metrics to structpb fields
+    metricsFields := map[string]*structpb.Value{
+		"active_workers":           structpb.NewNumberValue(float64(metrics.ActiveWorkers)),
+		"total_registered_workers": structpb.NewNumberValue(float64(metrics.TotalRegisteredWorkers)),
+		"worker_ids":               structpb.NewListValue(&structpb.ListValue{Values: stringSliceToStructValues(metrics.WorkerIDs)}),
+		"webgpu_enabled":           structpb.NewNumberValue(float64(metrics.WebGPUEnabled)),
+		"wasm_enabled":             structpb.NewNumberValue(float64(metrics.WASMEnabled)),
+		"simd_enabled":             structpb.NewNumberValue(float64(metrics.SIMDEnabled)),
+        "cpu_cores_total":          structpb.NewNumberValue(float64(metrics.CpuCoresTotal)),
+        "average_cpu_cores":        structpb.NewNumberValue(float64(metrics.AverageCpuCores)),
+		"total_memory_mb":          structpb.NewNumberValue(float64(metrics.TotalMemoryMB)),
+		"average_memory_mb":        structpb.NewNumberValue(float64(metrics.AverageMemoryMB)),
+        "workers_with_caps":        structpb.NewNumberValue(float64(metrics.WorkersWithCaps)),
+        "workers_missing_caps":     structpb.NewNumberValue(float64(metrics.WorkersMissingCaps)),
+        "missing_caps_sample":      structpb.NewListValue(&structpb.ListValue{Values: stringSliceToStructValues(metrics.MissingCapsSample)}),
+		"timestamp":                structpb.NewNumberValue(float64(metrics.Timestamp)),
+	}
+
+	// Create the metrics event payload
+	payload := &commonpb.Payload{
+		Data: &structpb.Struct{Fields: metricsFields},
+	}
+
+	// Create canonical event envelope for metrics
+	canonicalEnvelope := events.NewCanonicalEventEnvelope(
+		EventComputeMetrics,
+		"compute-coordinator",
+		"system",
+		uuid.New().String(),
+		payload,
+		nil,
+	)
+
+	// Create and emit the metrics event envelope
+	envelope := &events.EventEnvelope{
+		ID:       uuid.New().String(),
+		Type:     canonicalEnvelope.Type,
+		Payload:  canonicalEnvelope.Payload,
+		Metadata: canonicalEnvelope.Metadata,
+	}
+
+	_, err = c.provider.EmitEventEnvelope(ctx, envelope)
+	if err != nil {
+		return fmt.Errorf("failed to emit metrics event: %w", err)
+	}
+
+	c.log.Debug("📊 Broadcasted compute metrics",
+		zap.Int("active_workers", metrics.ActiveWorkers),
+		zap.Int("webgpu_enabled", metrics.WebGPUEnabled),
+		zap.Int("wasm_enabled", metrics.WASMEnabled),
+		zap.Uint32("total_memory_mb", metrics.TotalMemoryMB))
+
+	return nil
+}
+
+// startMetricsBroadcaster starts a goroutine that periodically broadcasts compute metrics
+func (c *Coordinator) startMetricsBroadcaster(ctx context.Context) error {
+	const metricsInterval = 30 * time.Second // Broadcast every 30 seconds
+
+	go func() {
+		ticker := time.NewTicker(metricsInterval)
+		defer ticker.Stop()
+
+		// Broadcast initial metrics
+		if err := c.broadcastComputeMetrics(ctx); err != nil {
+			c.log.Error("Failed to broadcast initial metrics", zap.Error(err))
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := c.broadcastComputeMetrics(ctx); err != nil {
+					c.log.Error("Failed to broadcast metrics", zap.Error(err))
+				}
+			}
+		}
+	}()
+
+	return nil
 }
 
 // Start begins the coordinator's event processing loops.
 func (c *Coordinator) Start(ctx context.Context) error {
 	c.log.Info("Starting compute coordinator")
 
+	// Start the metrics broadcaster
+	if err := c.startMetricsBroadcaster(ctx); err != nil {
+		c.log.Error("Failed to start metrics broadcaster", zap.Error(err))
+		return err
+	}
+
+	c.log.Info("Setting up compute coordinator event subscriptions",
+		zap.String("capabilities_event", EventCapabilitiesUpdate),
+		zap.String("dispatch_event", EventComputeRequested))
+
 	// Subscribe to capability updates from workers
 	err := c.provider.SubscribeEvents(ctx, []string{EventCapabilitiesUpdate}, nil, c.handleCapabilityUpdate)
 	if err != nil {
-		c.log.Error("Failed to subscribe to capability updates", zap.Error(err))
-		return err
+		c.log.Error("Failed to subscribe to capability updates",
+			zap.Error(err),
+			zap.String("event", EventCapabilitiesUpdate))
+		return fmt.Errorf("failed to subscribe to capability updates: %w", err)
 	}
+	c.log.Info("Successfully subscribed to capability updates")
 
 	// Subscribe to new compute dispatch requests
 	err = c.provider.SubscribeEvents(ctx, []string{EventComputeRequested}, nil, c.handleDispatchRequest)
 	if err != nil {
-		c.log.Error("Failed to subscribe to dispatch requests", zap.Error(err))
-		return err
+		c.log.Error("Failed to subscribe to dispatch requests",
+			zap.Error(err),
+			zap.String("event", EventComputeRequested))
+		return fmt.Errorf("failed to subscribe to dispatch requests: %w", err)
 	}
+	c.log.Info("Successfully subscribed to dispatch requests")
 
-	c.log.Info("Compute coordinator started and subscribed to events")
+	// Log successful startup with detailed information
+	c.log.Info("Compute coordinator fully initialized",
+		zap.String("capability_event", EventCapabilitiesUpdate),
+		zap.String("dispatch_event", EventComputeRequested))
+
+	// Wait for context cancellation
 	<-ctx.Done()
-	c.log.Info("Compute coordinator shutting down")
-	return nil
+	c.log.Info("Compute coordinator shutting down gracefully")
+	return ctx.Err()
 }
 
 // handleCapabilityUpdate processes incoming capability announcements from workers.
@@ -130,21 +338,46 @@ func (c *Coordinator) handleCapabilityUpdate(ctx context.Context, event *nexusv1
 		return
 	}
 	globalCtx := meta.GetGlobalContext()
-	workerID := globalCtx.GetSource()
+	// Prefer a stable device identifier when available. Older clients may only set
+	// the `source` field (e.g. "wasm", "godot"). Using device_id ensures
+	// routing by the gateway's device registry works correctly.
+	// Prefer a stable device identifier when available. Older clients may only set
+	// the `source` field (e.g. "wasm", "godot"). Prefer device_id, then user_id,
+	// then source as a last resort to avoid raw values like "wasm" becoming worker IDs.
+	workerID := globalCtx.GetDeviceId()
 	if workerID == "" {
-		c.log.Warn("Received capability update without source in metadata")
+		workerID = globalCtx.GetUserId()
+	}
+	if workerID == "" {
+		workerID = globalCtx.GetSource()
+	}
+	if workerID == "" {
+		c.log.Warn("Received capability update without device_id or source in metadata")
 		return
 	}
 
-	c.log.Debug("handling capability update", zap.String("worker_id", workerID))
+	c.log.Info("📡 Processing compute capability update",
+		zap.String("worker_id", workerID),
+		zap.String("device_id", globalCtx.GetDeviceId()),
+		zap.String("user_id", globalCtx.GetUserId()),
+		zap.String("correlation_id", globalCtx.GetCorrelationId()),
+		zap.String("source", globalCtx.GetSource()))
 
 	var caps commonpb.Capability
 	if err := extractPayloadData(event.GetPayload().Data, &caps); err != nil {
-		c.log.Error("Failed to extract capability payload", zap.Error(err), zap.String("worker_id", workerID))
+		c.log.Error("❌ Failed to extract capability payload",
+			zap.Error(err),
+			zap.String("worker_id", workerID),
+			zap.String("payload_size", fmt.Sprintf("%d", len(event.GetPayload().String()))))
 		return
 	}
 
-	// Add a TTL to the capability to handle stale workers
+	c.log.Info("✅ Extracted capability details",
+		zap.String("worker_id", workerID),
+		zap.Bool("webgpu", caps.GetWebgpu()),
+		zap.Bool("wasm", caps.GetWasm()),
+		zap.Bool("simd", caps.GetSimd()),
+		zap.Uint32("memory_mb", caps.GetMemoryMb())) // Add a TTL to the capability to handle stale workers
 	const capabilityTTL = 10 * time.Minute
 	if err := c.capabilities.AddOrUpdate(ctx, workerID, &caps, capabilityTTL); err != nil {
 		c.log.Error("Failed to update capabilities in store", zap.Error(err), zap.String("worker_id", workerID))
@@ -152,38 +385,93 @@ func (c *Coordinator) handleCapabilityUpdate(ctx context.Context, event *nexusv1
 	}
 	c.log.Info("Updated capabilities for worker", zap.String("worker_id", workerID))
 
-	// Emit a success event to acknowledge registration
+	// Create success event payload with additional compute metrics so frontend
+	// can maintain compute-specific state separate from campaign state.
+	// Include CPU cores, memory, boolean abilities and total registered workers.
+	totalWorkers := 0
+	if allWorkers, err := c.capabilities.GetRandomWorkers(ctx, -1); err == nil {
+		totalWorkers = len(allWorkers)
+	} else {
+		c.log.Debug("Failed to fetch total workers for capability success payload", zap.Error(err))
+	}
+
 	successPayloadData := &structpb.Struct{
 		Fields: map[string]*structpb.Value{
-			"worker_id": structpb.NewStringValue(workerID),
-			"status":    structpb.NewStringValue("REGISTERED"),
+			"worker_id":                structpb.NewStringValue(workerID),
+			"status":                   structpb.NewStringValue("REGISTERED"),
+			"cpu_cores":                structpb.NewNumberValue(float64(caps.GetCpuCores())),
+			"memory_mb":                structpb.NewNumberValue(float64(caps.GetMemoryMb())),
+			"wasm":                     structpb.NewBoolValue(caps.GetWasm()),
+			"webgpu":                   structpb.NewBoolValue(caps.GetWebgpu()),
+			"simd":                     structpb.NewBoolValue(caps.GetSimd()),
+			"total_registered_workers": structpb.NewNumberValue(float64(totalWorkers)),
 		},
 	}
 	successPayload := &commonpb.Payload{Data: successPayloadData}
 
-	// The event is targeted back at the worker who sent the update.
-	serviceSpecific := map[string]interface{}{
+	// 1. Send targeted acknowledgment back to the worker
+	targetedServiceSpecific := map[string]interface{}{
 		"routing": map[string]interface{}{
 			"target_worker_id": workerID,
 		},
 	}
 
-	canonicalAck := events.NewCanonicalEventEnvelope(
+	// Targeted acknowledgement should be addressed to the worker itself so routing
+	// uses the worker identifier. Use workerID (device_id or stable id) instead
+	// of the producer "source" field to avoid gateway mapping to guest_* values.
+	targetedAck := events.NewCanonicalEventEnvelope(
 		EventCapabilitiesSuccess,
-		globalCtx.GetSource(),
+		workerID,
 		globalCtx.GetCampaignId(),
 		globalCtx.GetCorrelationId(),
 		successPayload,
-		serviceSpecific,
+		targetedServiceSpecific,
 	)
-	ackEnvelope := &events.EventEnvelope{
+	targetedEnvelope := &events.EventEnvelope{
 		ID:       uuid.New().String(),
-		Type:     canonicalAck.Type,
-		Payload:  canonicalAck.Payload,
-		Metadata: canonicalAck.Metadata,
+		Type:     targetedAck.Type,
+		Payload:  targetedAck.Payload,
+		Metadata: targetedAck.Metadata,
 	}
-	if _, err := c.provider.EmitEventEnvelope(ctx, ackEnvelope); err != nil {
-		c.log.Error("Failed to emit capability success event", zap.Error(err), zap.String("worker_id", workerID))
+
+	// 2. Send broadcast notification for all listeners (without routing)
+	// Use proper user ID for routing instead of source
+	broadcastAck := events.NewCanonicalEventEnvelope(
+		EventCapabilitiesSuccess,
+		globalCtx.GetUserId(),
+		globalCtx.GetCampaignId(),
+		globalCtx.GetCorrelationId(),
+		successPayload,
+		nil, // No routing = broadcast
+	)
+	broadcastEnvelope := &events.EventEnvelope{
+		ID:       uuid.New().String(),
+		Type:     broadcastAck.Type,
+		Payload:  broadcastAck.Payload,
+		Metadata: broadcastAck.Metadata,
+	}
+
+	c.log.Info("📤 Sending capability success acknowledgments",
+		zap.String("worker_id", workerID),
+		zap.String("event_type", EventCapabilitiesSuccess),
+		zap.String("correlation_id", globalCtx.GetCorrelationId()))
+
+	// Emit both events
+	if _, err := c.provider.EmitEventEnvelope(ctx, targetedEnvelope); err != nil {
+		c.log.Error("❌ Failed to emit targeted success event",
+			zap.Error(err),
+			zap.String("worker_id", workerID))
+	} else {
+		c.log.Info("✅ Sent targeted acknowledgment",
+			zap.String("worker_id", workerID))
+	}
+
+	if _, err := c.provider.EmitEventEnvelope(ctx, broadcastEnvelope); err != nil {
+		c.log.Error("❌ Failed to emit broadcast success event",
+			zap.Error(err))
+	} else {
+		c.log.Info("✅ Sent broadcast acknowledgment",
+			zap.String("worker_id", workerID))
 	}
 }
 
@@ -236,9 +524,11 @@ func (c *Coordinator) handleDispatchRequest(ctx context.Context, event *nexusv1.
 	}
 	assignmentPayload := &commonpb.Payload{Data: assignmentStruct}
 
+	// The accepted event should be addressed to the original requester (user id),
+	// not the producer "source" which may be a generic value like "wasm".
 	canonicalAccepted := events.NewCanonicalEventEnvelope(
 		EventComputeAccepted,
-		globalCtx.GetSource(), // Changed from GetClientID()
+		globalCtx.GetUserId(),
 		globalCtx.GetCampaignId(),
 		globalCtx.GetCorrelationId(),
 		assignmentPayload,
@@ -269,9 +559,13 @@ func (c *Coordinator) handleDispatchRequest(ctx context.Context, event *nexusv1.
 		},
 	}
 
+	// The assigned event is sent to the worker but routing happens via the
+	// serviceSpecific.routing.target_worker_id field. For consistency prefer
+	// the original requester user id in the envelope's global context so
+	// downstream consumers see the requester, not the producer source.
 	canonicalAssigned := events.NewCanonicalEventEnvelope(
 		EventComputeAssigned,
-		globalCtx.GetSource(), // Changed from GetClientID()
+		globalCtx.GetUserId(),
 		globalCtx.GetCampaignId(),
 		globalCtx.GetCorrelationId(),
 		assignedPayload,
@@ -405,9 +699,12 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 			},
 		}
 
+		// Use the original requester's user id in the envelope metadata so
+		// downstream consumers can correlate to the requester. Routing to the
+		// worker itself is handled via serviceSpecific.routing.target_worker_id.
 		canonicalAssigned := events.NewCanonicalEventEnvelope(
 			EventComputeAssigned,
-			globalCtx.GetSource(),
+			globalCtx.GetUserId(),
 			globalCtx.GetCampaignId(),
 			globalCtx.GetCorrelationId(),
 			assignedPayload,
@@ -442,9 +739,11 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 	}
 	assignmentPayload := &commonpb.Payload{Data: assignmentStruct}
 
+	// Parent task accepted event should be addressed to the requester user id
+	// rather than the event producer "source".
 	canonicalAccepted := events.NewCanonicalEventEnvelope(
 		EventComputeAccepted,
-		globalCtx.GetSource(),
+		globalCtx.GetUserId(),
 		globalCtx.GetCampaignId(),
 		globalCtx.GetCorrelationId(),
 		assignmentPayload,
@@ -479,9 +778,11 @@ func (c *Coordinator) emitFailureEvent(ctx context.Context, originalEvent *nexus
 	}
 	failurePayload := &commonpb.Payload{Data: failureStruct}
 
+	// Use the original requester user id for failure events so the requester
+	// can be notified correctly (avoid using the generic "source").
 	canonicalEnvelope := events.NewCanonicalEventEnvelope(
 		EventComputeFailed,
-		globalCtx.GetSource(), // Changed from GetClientID()
+		globalCtx.GetUserId(),
 		globalCtx.GetCampaignId(),
 		globalCtx.GetCorrelationId(),
 		failurePayload,
@@ -501,24 +802,35 @@ func (c *Coordinator) emitFailureEvent(ctx context.Context, originalEvent *nexus
 
 // extractPayloadData unmarshals a payload from an event's structpb.Struct into a target proto.Message.
 func extractPayloadData(data *structpb.Struct, target proto.Message) error {
-	// First, marshal the structpb.Struct to a canonical JSON byte slice.
-	jsonBytes, err := protojson.Marshal(data)
+	// Use protojson marshal/unmarshal with explicit options to better handle nested types.
+	mo := protojson.MarshalOptions{
+		UseProtoNames: true,
+	}
+	jsonBytes, err := mo.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal structpb.Struct to JSON: %w", err)
 	}
 
-	// Now, unmarshal the JSON into the target protobuf message.
-	return protojson.Unmarshal(jsonBytes, target)
+	uo := protojson.UnmarshalOptions{
+		AllowPartial:   true,
+		DiscardUnknown: true,
+	}
+	return uo.Unmarshal(jsonBytes, target)
 }
 
 // marshalToStruct converts a proto.Message to a structpb.Struct.
 func (c *Coordinator) marshalToStruct(p proto.Message) (*structpb.Struct, error) {
-	jsonBytes, err := protojson.Marshal(p)
+	// Use explicit protojson options for consistent field naming and nested types.
+	mo := protojson.MarshalOptions{
+		UseProtoNames: true,
+	}
+	jsonBytes, err := mo.Marshal(p)
 	if err != nil {
 		return nil, err
 	}
 	s := &structpb.Struct{}
-	if err := protojson.Unmarshal(jsonBytes, s); err != nil {
+	uo := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}
+	if err := uo.Unmarshal(jsonBytes, s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -662,5 +974,3 @@ func (c *Coordinator) scoreWorker(ctx context.Context, workerCaps, preferred *co
 
 	return score
 }
-
-

@@ -199,11 +199,12 @@ func (c *Cache) Get(ctx context.Context, key, field string, value interface{}) e
 
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
+			// Preserve original redis.Nil so callers can detect cache misses reliably.
 			c.log.Debug("cache miss",
 				zap.String("key", key),
 				zap.String("field", field),
 			)
-			return fmt.Errorf("key not found: %s", key)
+			return redis.Nil
 		}
 		c.log.Error("failed to get value",
 			zap.String("key", key),

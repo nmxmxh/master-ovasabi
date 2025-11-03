@@ -1,4 +1,3 @@
-
 package compute
 
 import (
@@ -20,20 +19,21 @@ const (
 	EventTaskRequested = "compute:task:v1:requested"
 )
 
-
 // Scheduler service for decomposing tasks.
 type Scheduler struct {
-	provider *service.Provider
-	log      *zap.Logger
-	store    Store
+	provider     *service.Provider
+	log          *zap.Logger
+	store        Store
+	eventEmitter events.EventEmitter
 }
 
 // NewScheduler creates a new Scheduler.
-func NewScheduler(provider *service.Provider, log *zap.Logger, store Store) *Scheduler {
+func NewScheduler(provider *service.Provider, log *zap.Logger, store Store, eventEmitter events.EventEmitter) *Scheduler {
 	return &Scheduler{
-		provider: provider,
-		log:      log,
-		store:    store,
+		provider:     provider,
+		log:          log,
+		store:        store,
+		eventEmitter: eventEmitter,
 	}
 }
 
@@ -178,9 +178,12 @@ func (s *Scheduler) handleTaskRequest(ctx context.Context, event *nexusv1.EventR
 		}
 
 		globalCtx := event.GetMetadata().GetGlobalContext()
+		// Address the chunk request to the original requester (user id) so
+		// correlation and routing behave correctly. The worker routing (if any)
+		// is handled elsewhere; do not use generic "source" as the user id.
 		canonicalAssigned := events.NewCanonicalEventEnvelope(
 			EventComputeRequested, // Use the constant from coordinator.go
-			globalCtx.GetSource(),
+			globalCtx.GetUserId(),
 			globalCtx.GetCampaignId(),
 			globalCtx.GetCorrelationId(),
 			assignedPayload,

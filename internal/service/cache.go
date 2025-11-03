@@ -37,6 +37,9 @@ var ServiceCacheConfigs = []CacheConfig{
 	{"default", redis.NamespaceCache, redis.ContextPattern},
 	{"messaging", redis.NamespaceQueue, redis.ContextPattern},
 	{"ai", redis.NamespaceCache, redis.ContextAI},
+	// Compute caches used by the compute coordinator and workers
+	{"compute_capabilities", redis.NamespaceCache, redis.ContextCompute},
+	{"compute_tasks", redis.NamespaceCache, redis.ContextCompute},
 }
 
 // NewRedisProvider initializes the Redis provider and registers all caches for all services in a modular fashion.

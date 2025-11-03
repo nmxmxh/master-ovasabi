@@ -22,14 +22,16 @@ type Aggregator struct {
 	provider *service.Provider
 	log      *zap.Logger
 	store    Store // Use the new Store interface
+	eventEmitter events.EventEmitter
 }
 
 // NewAggregator creates a new Aggregator.
-func NewAggregator(provider *service.Provider, log *zap.Logger, store Store) *Aggregator {
+func NewAggregator(provider *service.Provider, log *zap.Logger, store Store, eventEmitter events.EventEmitter) *Aggregator {
 	return &Aggregator{
 		provider: provider,
 		log:      log,
 		store:    store,
+		eventEmitter: eventEmitter,
 	}
 }
 

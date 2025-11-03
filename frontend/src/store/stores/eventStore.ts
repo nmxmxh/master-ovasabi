@@ -296,6 +296,17 @@ export const useEventStore = create<EventStore>()(
             }
           }
 
+          // Parse metadata if it's a JSON string
+          let parsedMetadata = msg.metadata;
+          if (typeof msg.metadata === 'string') {
+            try {
+              parsedMetadata = JSON.parse(msg.metadata);
+              console.log('[EventStore] Parsed JSON metadata:', parsedMetadata);
+            } catch (error) {
+              console.warn('[EventStore] Failed to parse metadata as JSON:', error);
+            }
+          }
+
           // Extract correlation ID from multiple sources
           let extractedCorrelationId;
 
@@ -331,7 +342,7 @@ export const useEventStore = create<EventStore>()(
           const event: EventEnvelope = {
             type: msg.type,
             payload: parsedPayload,
-            metadata: msg.metadata || {},
+            metadata: parsedMetadata || {},
             correlation_id: extractedCorrelationId,
             timestamp: msg.timestamp || new Date().toISOString(),
             version: msg.version || '1.0.0',
@@ -438,22 +449,30 @@ export const useEventStore = create<EventStore>()(
           }
 
           if (matchedCorrelationId && get().pendingRequests[matchedCorrelationId]) {
-            const pendingRequest = get().pendingRequests[matchedCorrelationId];
-            console.log(
-              '[EventStore] Resolving pending request for correlation ID:',
-              matchedCorrelationId
-            );
-            pendingRequest.resolve(event);
+            const pendingRequest = get().pendingRequests[matchedCorrelationId] as any;
+            const expectedType = pendingRequest.expectedEventType;
 
-            set(
-              state => {
-                const newPendingRequests = { ...state.pendingRequests };
-                delete newPendingRequests[matchedCorrelationId];
-                return { pendingRequests: newPendingRequests };
-              },
-              false,
-              'resolvePendingRequest'
-            );
+            if (event.type === expectedType || (event.type || '').includes('error')) {
+              console.log(
+                '[EventStore] Resolving pending request for correlation ID:',
+                matchedCorrelationId,
+                'with event type:',
+                event.type
+              );
+              pendingRequest.resolve(event);
+
+              set(
+                state => {
+                  const newPendingRequests = { ...state.pendingRequests };
+                  delete newPendingRequests[matchedCorrelationId];
+                  return { pendingRequests: newPendingRequests };
+                },
+                false,
+                'resolvePendingRequest'
+              );
+            } else {
+              // Types don't match; safely ignore without noisy warnings
+            }
           } else {
             // If no exact correlation ID match, try to find a matching pending request by event type and timing
             const pendingKeys = Object.keys(get().pendingRequests);

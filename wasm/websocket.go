@@ -63,9 +63,10 @@ func getWebSocketURL() string {
 	if location.Get("protocol").String() == "https:" {
 		protocol = "wss:"
 	}
-	hostname := location.Get("hostname").String()
-	path := "/ws/" + campaignId + "/" + userId
-	url := protocol + "//" + hostname + path
+    // Use host (hostname:port) to ensure correct port in development
+    host := location.Get("host").String()
+    path := "/ws/" + campaignId + "/" + userId
+    url := protocol + "//" + host + path
 	wasmLog("[WASM] WebSocket URL constructed:", url)
 	return url
 }

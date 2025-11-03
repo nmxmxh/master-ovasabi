@@ -39,6 +39,8 @@ const (
 	ContextTalent            = "talent"            // Talent service related data
 	ContextUser              = "user"              // User service related data
 	ContextWaitlist          = "waitlist"          // Waitlist service related data
+	// Compute service related data (compute coordinator / workers)
+	ContextCompute = "compute"
 
 	// Cross-cutting or domain-specific contexts (retain if used elsewhere).
 	ContextAuth      = "auth"      // Authentication related data

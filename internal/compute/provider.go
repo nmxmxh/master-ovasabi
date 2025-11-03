@@ -1,4 +1,3 @@
-
 package compute
 
 import (
@@ -60,13 +59,13 @@ func Register(
 	}
 
 	// Create coordinator
-	coordinator := NewCoordinator(prov, log, capsStore, taskStore)
+	coordinator := NewCoordinator(prov, log, capsStore, taskStore, eventEmitter)
 
 	// Create scheduler
-	scheduler := NewScheduler(prov, log, taskStore)
+	scheduler := NewScheduler(prov, log, taskStore, eventEmitter)
 
 	// Create aggregator
-	aggregator := NewAggregator(prov, log, taskStore)
+	aggregator := NewAggregator(prov, log, taskStore, eventEmitter)
 
 	// Register the Coordinator with the DI container
 	if err := container.Register((*Coordinator)(nil), func(_ *di.Container) (interface{}, error) {
@@ -93,28 +92,66 @@ func Register(
 	}
 
 	// Start all compute services in the background
-	go func() {
-		if err := coordinator.Start(ctx); err != nil {
-			log.Error("Compute coordinator failed to start", zap.Error(err))
-		}
-	}()
+	type serviceInfo struct {
+		name    string
+		starter func(context.Context) error
+	}
 
-	go func() {
-		if err := scheduler.Start(ctx); err != nil {
-			log.Error("Compute scheduler failed to start", zap.Error(err))
-		}
-	}()
+	// Track services for error reporting
+	services := []serviceInfo{
+		{"coordinator", coordinator.Start},
+		{"scheduler", scheduler.Start},
+		{"aggregator", aggregator.Start},
+	}
 
-	go func() {
-		if err := aggregator.Start(ctx); err != nil {
-			log.Error("Compute aggregator failed to start", zap.Error(err))
+	// Create error channel to collect startup errors
+	errChan := make(chan error, len(services))
+
+	log.Info("Starting compute services...",
+		zap.Int("service_count", len(services)),
+		zap.Strings("services", []string{"coordinator", "scheduler", "aggregator"}))
+
+	// Start each service in its own goroutine
+	for _, svc := range services {
+		svc := svc // capture for goroutine
+		go func() {
+			log.Info("Initializing compute service",
+				zap.String("service", svc.name),
+				zap.String("event_emitter", fmt.Sprintf("%T", eventEmitter)))
+
+			if err := svc.starter(ctx); err != nil && err != context.Canceled {
+				log.Error("Compute service failed to start",
+					zap.String("service", svc.name),
+					zap.Error(err))
+				errChan <- fmt.Errorf("%s failed to start: %w", svc.name, err)
+				return
+			}
+			errChan <- nil
+		}()
+	}
+
+	// Wait for all services to start or fail
+	var startupErrors []error
+	for i := 0; i < len(services); i++ {
+		if err := <-errChan; err != nil {
+			startupErrors = append(startupErrors, err)
 		}
-	}()
+	}
+
+	// Check for any startup failures
+	if len(startupErrors) > 0 {
+		log.Error("One or more compute services failed to start",
+			zap.Errors("errors", startupErrors))
+		return fmt.Errorf("failed to start compute services: %v", startupErrors)
+	}
 
 	taskStoreType := "in-memory"
 	if _, ok := taskStore.(*RedisStore); ok {
 		taskStoreType = "redis"
 	}
-	log.Info("Compute services registered and started", zap.String("task_store", taskStoreType))
+
+	log.Info("All compute services started successfully",
+		zap.String("task_store", taskStoreType),
+		zap.String("capability_store", "redis"))
 	return nil
 }

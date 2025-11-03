@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"strconv"
 	"syscall/js"
 	"time"
 )
@@ -48,10 +49,10 @@ func sendComputeCapabilities() {
 		"payload": map[string]interface{}{
 			"data": capability,
 		},
-		"metadata":       metadata,
-		"timestamp":      time.Now().Format(time.RFC3339),
-		"version":        "1.0.0",
-		"environment":    "production",
+		"metadata":    metadata,
+		"timestamp":   time.Now().Format(time.RFC3339),
+		"version":     "1.0.0",
+		"environment": "production",
 	}
 
 	bytes, err := json.Marshal(envelope)
@@ -59,7 +60,15 @@ func sendComputeCapabilities() {
 		wasmError("[WASM] Failed to marshal capability envelope:", err.Error())
 		return
 	}
+
+	// Log capability announcement with ✅ to ensure visibility
+	wasmLog("[WASM] ✅ Sending compute capabilities:", string(bytes))
+
+	// Send via WebSocket
 	sendWSMessage(bytes)
+
+	wasmLog("[WASM] ✅ Compute capabilities announcement sent via WebSocket")
+	// DOM event will be dispatched when received via WebSocket to ensure single pathway
 }
 
 func detectWASMThreads() bool {
@@ -145,14 +154,27 @@ func getStableDeviceID() string {
 	if cachedDeviceID != "" {
 		return cachedDeviceID
 	}
-	// Try JS global override first
+    // Try JS global override first
 	if js.Global().Get("deviceID").Truthy() {
 		cachedDeviceID = js.Global().Get("deviceID").String()
 		return cachedDeviceID
 	}
+    // Try localStorage persistence
+    if js.Global().Get("localStorage").Truthy() {
+        ls := js.Global().Get("localStorage")
+        if v := ls.Call("getItem", "device_id"); v.Truthy() {
+            cachedDeviceID = v.String()
+            js.Global().Set("deviceID", js.ValueOf(cachedDeviceID))
+            return cachedDeviceID
+        }
+    }
 	// Fallback to generator in wasm main
 	cachedDeviceID = generateDeviceID()
 	js.Global().Set("deviceID", js.ValueOf(cachedDeviceID))
+    // Persist for future sessions
+    if js.Global().Get("localStorage").Truthy() {
+        js.Global().Get("localStorage").Call("setItem", "device_id", cachedDeviceID)
+    }
 	return cachedDeviceID
 }
 
@@ -176,18 +198,26 @@ func getCurrentCampaignID() string {
 }
 
 func getCurrentUserID() string {
-	// The global `userID` is initialized and maintained in `main.go`'s `initUserSession` function.
-	// This is the most reliable source of truth for the user's ID.
+	// First check the global userID which is managed by initUserSession
+	// This is our primary source since it's synced with authentication state
 	if userID != "" {
 		return userID
 	}
 
-	// As a fallback, check the JS global scope (`window.userID`), as it might be set there
-	// by other parts of the application.
+	// Check if there's a user ID stored in the global WASM metadata
+	if metadata := js.Global().Get("__WASM_GLOBAL_METADATA"); metadata.Truthy() {
+		if gc := metadata.Get("global_context"); gc.Truthy() {
+			if mid := gc.Get("user_id"); mid.Truthy() {
+				return mid.String()
+			}
+		}
+	}
+
+	// Then check the JS global scope for a user ID that may have been set by the frontend
 	if jsUserID := js.Global().Get("userID"); jsUserID.Truthy() {
 		return jsUserID.String()
 	}
 
-	// If no user ID is found, return a default value.
-	return "guest_wasm"
+	// As a last resort, generate a unique guest ID (but avoid the literal "guest_wasm")
+	return "guest_" + generateCryptoHash(strconv.FormatInt(time.Now().UnixNano(), 10))
 }
