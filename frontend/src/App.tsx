@@ -454,16 +454,14 @@ function CampaignManagementPage() {
         <button onClick={refreshCampaigns} className="minimal-button" disabled={campaignsLoading}>
           {campaignsLoading ? 'LOADING...' : 'REFRESH'}
         </button>
-        <button onClick={() => useCampaignStore.getState().startRapidUpdates(currentCampaign.id, 1000)} className="minimal-button" disabled={!currentCampaign.id}>
-          Start Rapid Update Test
-        </button>
       </div>
 
       {/* Current Campaign */}
       <div className="minimal-section">
         <div className="minimal-title">CURRENT CAMPAIGN</div>
         <div className="minimal-text">
-          ID: {currentCampaign.id || 'N/A'} | Status: {currentCampaign.status || 'UNKNOWN'} | Rapid Updates: {updateCount}
+          ID: {currentCampaign.id || 'N/A'} | Status: {currentCampaign.status || 'UNKNOWN'} | Rapid
+          Updates: {updateCount}
         </div>
         {currentCampaign.title && (
           <div className="minimal-text">Title: {currentCampaign.title}</div>

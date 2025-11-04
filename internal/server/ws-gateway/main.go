@@ -144,12 +144,11 @@ type SwitchCampaignEvent struct {
 
 // --- Global State ---.
 var (
-	wsClientMap    = newWsClientMap()
-	nexusClient    nexuspb.NexusServiceClient
-	redisClient    *redis.Client
-	gatewayID      string
-	allowedOrigins = getAllowedOrigins() // Keep for CORS checks
-	compressor     = compression.NewCompressor()
+	wsClientMap = newWsClientMap()
+	nexusClient nexuspb.NexusServiceClient
+	redisClient *redis.Client
+	gatewayID   string
+	compressor  = compression.NewCompressor()
 
 	// Security: Connection and rate limiting.
 	connectionLimiter   = make(map[string]int) // IP -> connection count
@@ -1064,48 +1063,6 @@ func processEvent(event *nexuspb.EventResponse) {
 	}
 }
 
-// getDuplicateEventStats returns current duplicate event statistics.
-func getDuplicateEventStats() map[string]int {
-	duplicateEventMutex.RLock()
-	defer duplicateEventMutex.RUnlock()
-
-	stats := make(map[string]int)
-	for eventType, count := range duplicateEventCounts {
-		stats[eventType] = count
-	}
-	return stats
-}
-
-// resetDuplicateEventStats resets the duplicate event counters.
-func resetDuplicateEventStats() {
-	duplicateEventMutex.Lock()
-	defer duplicateEventMutex.Unlock()
-
-	for k := range duplicateEventCounts {
-		duplicateEventCounts[k] = 0
-	}
-}
-
-// isGodotEvent checks if an event is from Godot based on payload and metadata.
-func isGodotEvent(event *nexuspb.EventResponse) bool {
-	// Check metadata for Godot source
-	if event.Metadata != nil && event.Metadata.GlobalContext != nil {
-		if event.Metadata.GlobalContext.Source == "godot" {
-			return true
-		}
-	}
-
-	// Check payload for Godot client type
-	if event.Payload != nil && event.Payload.Data != nil {
-		payloadMap := event.Payload.GetData().AsMap()
-		if clientType, ok := payloadMap["client_type"].(string); ok && clientType == "godot" {
-			return true
-		}
-	}
-
-	return false
-}
-
 // isCampaignSwitchEvent checks if an event type is related to campaign switching.
 func isCampaignSwitchEvent(eventType string) bool {
 	switch eventType {
@@ -1898,34 +1855,6 @@ func handleCampaignSwitchEvent(event *nexuspb.EventResponse) {
 	})
 }
 
-// mapUserIDReverse maps WebSocket client user IDs back to frontend format.
-func mapUserIDReverse(userID string) string {
-	if userID == "" {
-		return ""
-	}
-
-	// Special system identifiers - return as-is
-	if userID == "godot" || userID == "system" || userID == "admin" {
-		return userID
-	}
-
-	// Convert guest_* format back to user_* format for frontend
-	if strings.HasPrefix(userID, "guest_") {
-		return "user_" + strings.TrimPrefix(userID, "guest_")
-	}
-
-	// Already in user format or other - return as-is
-	return userID
-}
-
-// min returns the minimum of two integers.
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // generateCryptoHash generates a 32-character crypto hash for auditability (same as WASM).
 func generateCryptoHash(input string) string {
 	hash := sha256.Sum256([]byte(input))
@@ -2129,11 +2058,6 @@ func sendErrorResponse(client *WSClient, errorType, message string, err error) {
 }
 
 // --- Utility Functions ---
-
-func getAllowedOrigins() []string {
-	// In a real application, this would be configurable.
-	return []string{"*"}
-}
 
 func isCanonicalEventType(eventType string) bool {
 	parts := strings.Split(eventType, ":")

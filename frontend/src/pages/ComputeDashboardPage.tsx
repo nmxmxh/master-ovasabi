@@ -1,6 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { useEventsByType, useEventHistory, useEmitEvent } from '../store/hooks/useEvents';
+import { useEmitEvent } from '../store/hooks/useEvents';
 import { useConnectionStore } from '../store/stores/connectionStore';
+import {
+  useComputeStore,
+  selectWorkers,
+  selectTasks,
+  selectDerivedSystemMetrics
+} from '../store/stores/computeStore';
 
 // Re-using minimal styles from App.tsx for consistency
 const minimalStyles = `
@@ -257,225 +263,41 @@ const minimalStyles = `
   }
 `;
 
-// --- Conceptual API Endpoints ---
-// These functions represent calls to a future API Gateway service.
-// They are placeholders for now.
-
-interface WorkerCapability {
-  id: string;
-  cpuCores: number;
-  memoryMb: number;
-  wasm: boolean;
-  threads: boolean;
-  simd: boolean;
-  webgpu: boolean;
-  gpuBackend?: string;
-  gpuFeatures?: string[];
-  currentLoad?: number; // New: for load awareness
-  status: 'active' | 'inactive' | 'overloaded'; // New: for load awareness
-}
-
-interface ComputeTask {
-  id: string;
-  status: 'pending' | 'assigned' | 'in-progress' | 'completed' | 'failed' | 'cancelled';
-  requirements: any; // Simplified for now
-  assignedWorkerIds?: string[]; // For MapReduce
-  progress?: number; // 0-100
-  result?: any;
-  error?: string;
-}
-
-// Helper to extract worker capabilities from compute events
-const extractWorkerFromEvent = (event: any): WorkerCapability | null => {
-  try {
-    const source = event.metadata?.global_context?.source || event.metadata?.global_context?.device_id;
-    if (!source) return null;
-
-    const payload = event.payload?.data || event.payload;
-    const caps = payload || {};
-
-    return {
-      id: source,
-      cpuCores: caps.cpu_cores || 0,
-      memoryMb: caps.memory_mb || 0,
-      wasm: caps.wasm || false,
-      threads: caps.threads || false,
-      simd: caps.simd || false,
-      webgpu: caps.webgpu || false,
-      gpuBackend: caps.gpu?.backend || undefined,
-      gpuFeatures: caps.gpu?.features || [],
-      status: 'active' as const,
-      currentLoad: 0, // Will be calculated from tasks
-    };
-  } catch (error) {
-    console.error('Failed to extract worker from event:', error);
-    return null;
-  }
-};
-
-// Helper to extract task from compute events
-const extractTaskFromEvent = (event: any): ComputeTask | null => {
-  try {
-    const payload = event.payload?.data || event.payload;
-    if (!payload) return null;
-
-    // Determine status from event type
-    let status = payload.status || 'pending';
-    if (!payload.status) {
-      if (event.type?.includes('success')) status = 'completed';
-      else if (event.type?.includes('failed')) status = 'failed';
-      else if (event.type?.includes('assigned')) status = 'assigned';
-      else if (event.type?.includes('accepted')) status = 'assigned';
-      else if (event.type?.includes('progress')) status = 'in-progress';
-      else if (event.type?.includes('requested')) status = 'pending';
-    }
-
-    // Extract worker ID from different event formats
-    let assignedWorkerIds: string[] | undefined;
-    if (payload.worker_id) {
-      assignedWorkerIds = [payload.worker_id];
-    } else if (payload.workerId) {
-      assignedWorkerIds = [payload.workerId];
-    } else if (Array.isArray(payload.assigned_worker_ids)) {
-      assignedWorkerIds = payload.assigned_worker_ids;
-    } else if (Array.isArray(payload.assignedWorkerIds)) {
-      assignedWorkerIds = payload.assignedWorkerIds;
-    }
-
-    return {
-      id: payload.task_id || payload.taskId || event.id || `task-${Date.now()}`,
-      status: status,
-      requirements: payload.requirements || {},
-      assignedWorkerIds: assignedWorkerIds,
-      progress: payload.pct || payload.progress || payload.percentage || 0,
-      result: payload.outputs || payload.result,
-      error: payload.reason || payload.error,
-    };
-  } catch (error) {
-    console.error('Failed to extract task from event:', error);
-    return null;
-  }
-};
-
 // --- ComputeDashboardPage Component ---
 
 const ComputeDashboardPage: React.FC = () => {
   const emitEvent = useEmitEvent();
   const { connected, wasmReady } = useConnectionStore();
 
-  // Listen to compute capability events
-  const capabilityEvents = useEventsByType('compute:capabilities:v1:update');
-  const capabilitySuccessEvents = useEventsByType('compute:capabilities:v1:success');
-  // Listen to compute metrics broadcast
-  const computeMetricsEvents = useEventsByType('compute:metrics:v1:broadcast');
-  
-  // Listen to compute task events
-  const computeTaskEvents = useEventHistory(undefined, 100).filter(event => 
-    event.type?.startsWith('compute:dispatch:v1:') || 
-    event.type?.startsWith('compute:task:v1:')
-  );
-
-  // Extract workers from capability events
-  const workers = useMemo(() => {
-    const workerMap = new Map<string, WorkerCapability>();
-    
-    // Process capability update events
-    capabilityEvents.forEach(event => {
-      const worker = extractWorkerFromEvent(event);
-      if (worker) {
-        workerMap.set(worker.id, worker);
-      }
-    });
-
-    // Process capability success events (also contain worker info)
-    capabilitySuccessEvents.forEach(event => {
-      const payload = event.payload?.data || event.payload || {};
-      const workerId =
-        payload.worker_id ||
-        payload.workerId ||
-        event.metadata?.global_context?.device_id ||
-        event.metadata?.global_context?.source;
-
-      if (workerId && workerMap.has(workerId)) {
-        const worker = workerMap.get(workerId)!;
-        worker.status = 'active';
-        workerMap.set(workerId, worker);
-      }
-    });
-
-    // Calculate current load based on assigned tasks
-    computeTaskEvents.forEach(event => {
-      const task = extractTaskFromEvent(event);
-      if (task?.assignedWorkerIds) {
-        task.assignedWorkerIds.forEach(workerId => {
-          const worker = workerMap.get(workerId);
-          if (worker) {
-            worker.currentLoad = (worker.currentLoad || 0) + 0.1; // Increment load
-            if (worker.currentLoad > 1) worker.currentLoad = 1;
-            workerMap.set(workerId, worker);
-          }
-        });
-      }
-    });
-
-    return Array.from(workerMap.values());
-  }, [capabilityEvents, capabilitySuccessEvents, computeTaskEvents]);
-
-  // Extract tasks from compute events
-  const tasks = useMemo(() => {
-    const taskMap = new Map<string, ComputeTask>();
-
-    computeTaskEvents.forEach(event => {
-      const task = extractTaskFromEvent(event);
-      if (task) {
-        // Merge task updates (latest event wins for same task ID)
-        const existing = taskMap.get(task.id);
-        if (existing) {
-          taskMap.set(task.id, { ...existing, ...task });
-        } else {
-          taskMap.set(task.id, task);
-        }
-      }
-    });
-
-    return Array.from(taskMap.values()).reverse(); // Most recent first
-  }, [computeTaskEvents]);
+  // --- New state management from computeStore ---
+  const workers = useComputeStore(selectWorkers);
+  const tasks = useComputeStore(selectTasks);
+  const derivedMetrics = useComputeStore(selectDerivedSystemMetrics);
+  const backendMetrics = useComputeStore(state => state.metrics);
 
   const [newTaskRequirements, setNewTaskRequirements] = useState<string>('');
-  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [submissionStatus, setSubmissionStatus] = useState<
+    'idle' | 'submitting' | 'success' | 'error'
+  >('idle');
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   // System health metrics
   const systemMetrics = useMemo(() => {
-    const activeWorkers = workers.filter(w => w.status === 'active').length;
-    const totalTasks = tasks.length;
-    const activeTasks = tasks.filter(t => t.status === 'in-progress' || t.status === 'assigned').length;
-    const completedTasks = tasks.filter(t => t.status === 'completed').length;
-    const failedTasks = tasks.filter(t => t.status === 'failed').length;
-    const avgLoad = workers.length > 0 
-      ? workers.reduce((sum, w) => sum + (w.currentLoad || 0), 0) / workers.length 
-      : 0;
+    const connectionStatus =
+      connected && wasmReady ? 'connected' : connected ? 'connecting' : 'disconnected';
 
-    // Prefer backend metrics if available
-    const latestMetrics = computeMetricsEvents[computeMetricsEvents.length - 1];
-    const backend = latestMetrics?.payload?.data || latestMetrics?.payload;
-
+    // Combine client-derived metrics with backend-provided metrics
     return {
-      activeWorkers: backend?.active_workers ?? activeWorkers,
-      totalWorkers: backend?.total_registered_workers ?? workers.length,
-      totalTasks,
-      activeTasks,
-      completedTasks,
-      failedTasks,
-      avgLoad: Math.round(avgLoad * 100),
-      connectionStatus: connected && wasmReady ? 'connected' : connected ? 'connecting' : 'disconnected',
-      // Additional backend resource metrics
-      cpuCoresTotal: backend?.cpu_cores_total,
-      averageCpuCores: backend?.average_cpu_cores,
-      totalMemoryMb: backend?.total_memory_mb,
-      averageMemoryMb: backend?.average_memory_mb,
-    } as any;
-  }, [workers, tasks, connected, wasmReady, computeMetricsEvents]);
+      ...derivedMetrics,
+      totalWorkers: backendMetrics?.totalWorkers ?? derivedMetrics.totalWorkers,
+      activeWorkers: backendMetrics?.activeWorkers ?? derivedMetrics.activeWorkers,
+      cpuCoresTotal: backendMetrics?.cpuCoresTotal,
+      averageCpuCores: backendMetrics?.averageCpuCores,
+      totalMemoryMb: backendMetrics?.totalMemoryMb,
+      averageMemoryMb: backendMetrics?.averageMemoryMb,
+      connectionStatus
+    };
+  }, [derivedMetrics, backendMetrics, connected, wasmReady]);
 
   const handleTaskSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -485,7 +307,7 @@ const ComputeDashboardPage: React.FC = () => {
     setSubmissionError(null);
     try {
       const requirements = JSON.parse(newTaskRequirements);
-      
+
       // Emit compute dispatch requested event
       emitEvent({
         type: 'compute:dispatch:v1:requested',
@@ -493,15 +315,19 @@ const ComputeDashboardPage: React.FC = () => {
           data: {
             task_id: `task-${Date.now()}-${Math.random().toString(36).substring(7)}`,
             requirements: requirements,
-            inputs: requirements.input_data_uri ? [{
-              uri: requirements.input_data_uri
-            }] : [],
+            inputs: requirements.input_data_uri
+              ? [
+                  {
+                    uri: requirements.input_data_uri
+                  }
+                ]
+              : [],
             module: requirements.module || undefined,
-            params: requirements.params || {},
+            params: requirements.params || {}
           }
         },
         metadata: {
-          global_context: {},
+          global_context: {}
         }
       });
 
@@ -536,46 +362,60 @@ const ComputeDashboardPage: React.FC = () => {
   return (
     <div className="minimal-main">
       <style>{minimalStyles}</style>
-      
+
       {/* System Status Section */}
       <div className="minimal-section">
         <div className="minimal-title">SYSTEM STATUS</div>
-        <div className="minimal-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginTop: '12px' }}>
+        <div
+          className="minimal-grid"
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginTop: '12px' }}
+        >
           <div className="minimal-card">
             <div className="minimal-card-title">Connection</div>
             <div className="minimal-card-meta">
-              <span className={`minimal-status ${systemMetrics.connectionStatus === 'connected' ? 'active' : systemMetrics.connectionStatus === 'connecting' ? 'loading' : 'inactive'}`}>
+              <span
+                className={`minimal-status ${systemMetrics.connectionStatus === 'connected' ? 'active' : systemMetrics.connectionStatus === 'connecting' ? 'loading' : 'inactive'}`}
+              >
                 {systemMetrics.connectionStatus.toUpperCase()}
               </span>
             </div>
             <div className="minimal-card-description">
-              WASM: {wasmReady ? 'READY' : 'NOT READY'}<br />
+              WASM: {wasmReady ? 'READY' : 'NOT READY'}
+              <br />
               WebSocket: {connected ? 'CONNECTED' : 'DISCONNECTED'}
             </div>
           </div>
           <div className="minimal-card">
             <div className="minimal-card-title">Workers</div>
             <div className="minimal-card-description">
-              Active: {systemMetrics.activeWorkers}<br />
-              Total (backend): {systemMetrics.totalWorkers}<br />
+              Active: {systemMetrics.activeWorkers}
+              <br />
+              Total (backend): {systemMetrics.totalWorkers}
+              <br />
               Avg Load: {systemMetrics.avgLoad}%
             </div>
           </div>
           <div className="minimal-card">
             <div className="minimal-card-title">Tasks</div>
             <div className="minimal-card-description">
-              Total: {systemMetrics.totalTasks}<br />
-              Active: {systemMetrics.activeTasks}<br />
-              Completed: {systemMetrics.completedTasks}<br />
+              Total: {systemMetrics.totalTasks}
+              <br />
+              Active: {systemMetrics.activeTasks}
+              <br />
+              Completed: {systemMetrics.completedTasks}
+              <br />
               Failed: {systemMetrics.failedTasks}
             </div>
           </div>
           <div className="minimal-card">
             <div className="minimal-card-title">Resources</div>
             <div className="minimal-card-description">
-              CPU Total (backend): {systemMetrics.cpuCoresTotal ?? '—'}<br />
-              CPU Avg (backend): {systemMetrics.averageCpuCores ?? '—'}<br />
-              Mem Total MB (backend): {systemMetrics.totalMemoryMb ?? '—'}<br />
+              CPU Total (backend): {systemMetrics.cpuCoresTotal ?? '—'}
+              <br />
+              CPU Avg (backend): {systemMetrics.averageCpuCores ?? '—'}
+              <br />
+              Mem Total MB (backend): {systemMetrics.totalMemoryMb ?? '—'}
+              <br />
               Mem Avg MB (backend): {systemMetrics.averageMemoryMb ?? '—'}
             </div>
           </div>
@@ -602,14 +442,22 @@ const ComputeDashboardPage: React.FC = () => {
   "input_data_uri": "s3://my-bucket/large-file.json"
 }`}
             value={newTaskRequirements}
-            onChange={(e) => setNewTaskRequirements(e.target.value)}
+            onChange={e => setNewTaskRequirements(e.target.value)}
             style={{ width: '100%', marginBottom: '8px' }}
           ></textarea>
-          <button type="submit" className="minimal-button" disabled={submissionStatus === 'submitting'}>
+          <button
+            type="submit"
+            className="minimal-button"
+            disabled={submissionStatus === 'submitting'}
+          >
             {submissionStatus === 'submitting' ? 'SUBMITTING...' : 'SUBMIT TASK'}
           </button>
-          {submissionStatus === 'success' && <span style={{ color: '#0f0', marginLeft: '8px' }}>Task submitted successfully!</span>}
-          {submissionStatus === 'error' && <span style={{ color: '#f00', marginLeft: '8px' }}>Error: {submissionError}</span>}
+          {submissionStatus === 'success' && (
+            <span style={{ color: '#0f0', marginLeft: '8px' }}>Task submitted successfully!</span>
+          )}
+          {submissionStatus === 'error' && (
+            <span style={{ color: '#f00', marginLeft: '8px' }}>Error: {submissionError}</span>
+          )}
         </form>
       </div>
 
@@ -617,7 +465,11 @@ const ComputeDashboardPage: React.FC = () => {
       <div className="minimal-section">
         <div className="minimal-title">
           ACTIVE WORKERS ({workers.length})
-          {!connected && <span style={{ color: '#ff0', marginLeft: '8px', fontSize: '10px' }}>⚠️ NOT CONNECTED</span>}
+          {!connected && (
+            <span style={{ color: '#ff0', marginLeft: '8px', fontSize: '10px' }}>
+              ⚠️ NOT CONNECTED
+            </span>
+          )}
         </div>
         {!connected || !wasmReady ? (
           <div className="minimal-text" style={{ color: '#ff0' }}>
@@ -625,18 +477,26 @@ const ComputeDashboardPage: React.FC = () => {
           </div>
         ) : workers.length === 0 ? (
           <div className="minimal-text">
-            No active workers found. Workers will appear here when they announce their capabilities via compute:capabilities:v1:update events.
+            No active workers found. Workers will appear here when they announce their capabilities
+            via compute:capabilities:v1:update events.
           </div>
         ) : (
           <div className="minimal-grid">
             {workers.map(worker => (
-              <div key={worker.id} className={`minimal-card ${worker.status === 'active' ? 'active' : ''}`}>
+              <div
+                key={worker.id}
+                className={`minimal-card ${worker.status === 'active' ? 'active' : ''}`}
+              >
                 <div className="minimal-card-header">
                   <div className="minimal-card-title">Worker ID: {worker.id}</div>
                   <div className="minimal-card-meta">
-                    <span className={`minimal-status ${getStatusClass(worker.status)}`}>{worker.status.toUpperCase()}</span>
+                    <span className={`minimal-status ${getStatusClass(worker.status)}`}>
+                      {worker.status.toUpperCase()}
+                    </span>
                     {worker.currentLoad !== undefined && (
-                      <span className="minimal-card-id">Load: {(worker.currentLoad * 100).toFixed(0)}%</span>
+                      <span className="minimal-card-id">
+                        Load: {(worker.currentLoad * 100).toFixed(0)}%
+                      </span>
                     )}
                   </div>
                 </div>
@@ -646,11 +506,18 @@ const ComputeDashboardPage: React.FC = () => {
                   WASM: {worker.wasm ? 'Yes' : 'No'}, Threads: {worker.threads ? 'Yes' : 'No'}
                   <br />
                   SIMD: {worker.simd ? 'Yes' : 'No'}, WebGPU: {worker.webgpu ? 'Yes' : 'No'}
-                  {worker.gpuBackend && <><br />GPU: {worker.gpuBackend} ({worker.gpuFeatures?.join(', ')})</>}
+                  {worker.gpuBackend && (
+                    <>
+                      <br />
+                      GPU: {worker.gpuBackend} ({worker.gpuFeatures?.join(', ')})
+                    </>
+                  )}
                 </div>
                 <div className="minimal-card-actions">
                   {/* Add worker-specific actions here */}
-                  <button className="minimal-card-button" disabled>View Details</button>
+                  <button className="minimal-card-button" disabled>
+                    View Details
+                  </button>
                 </div>
               </div>
             ))}
@@ -662,11 +529,14 @@ const ComputeDashboardPage: React.FC = () => {
       <div className="minimal-section">
         <div className="minimal-title">
           COMPUTE TASKS ({tasks.length})
-          {tasks.length > 0 && <span style={{ color: '#0f0', marginLeft: '8px', fontSize: '10px' }}>● LIVE</span>}
+          {tasks.length > 0 && (
+            <span style={{ color: '#0f0', marginLeft: '8px', fontSize: '10px' }}>● LIVE</span>
+          )}
         </div>
         {tasks.length === 0 ? (
           <div className="minimal-text">
-            No compute tasks found. Tasks will appear here when compute:dispatch:v1:* events are received.
+            No compute tasks found. Tasks will appear here when compute:dispatch:v1:* events are
+            received.
           </div>
         ) : (
           <div className="minimal-grid">
@@ -675,22 +545,33 @@ const ComputeDashboardPage: React.FC = () => {
                 <div className="minimal-card-header">
                   <div className="minimal-card-title">Task ID: {task.id}</div>
                   <div className="minimal-card-meta">
-                    <span className={`minimal-status ${getStatusClass(task.status)}`}>{task.status.toUpperCase()}</span>
+                    <span className={`minimal-status ${getStatusClass(task.status)}`}>
+                      {task.status.toUpperCase()}
+                    </span>
                     {task.progress !== undefined && (
                       <span className="minimal-card-id">Progress: {task.progress}%</span>
                     )}
                   </div>
                 </div>
                 <div className="minimal-card-description">
-                  Requirements: <pre className="minimal-code">{JSON.stringify(task.requirements, null, 2)}</pre>
+                  Requirements:{' '}
+                  <pre className="minimal-code">{JSON.stringify(task.requirements, null, 2)}</pre>
                   {task.assignedWorkerIds && task.assignedWorkerIds.length > 0 && (
-                    <div className="minimal-text">Assigned to: {task.assignedWorkerIds.join(', ')}</div>
+                    <div className="minimal-text">
+                      Assigned to: {task.assignedWorkerIds.join(', ')}
+                    </div>
                   )}
-                  {task.error && <div className="minimal-text" style={{ color: '#f00' }}>Error: {task.error}</div>}
+                  {task.error && (
+                    <div className="minimal-text" style={{ color: '#f00' }}>
+                      Error: {task.error}
+                    </div>
+                  )}
                 </div>
                 <div className="minimal-card-actions">
                   {/* Add task-specific actions here */}
-                  <button className="minimal-card-button" disabled>View Logs</button>
+                  <button className="minimal-card-button" disabled>
+                    View Logs
+                  </button>
                 </div>
               </div>
             ))}
@@ -702,30 +583,32 @@ const ComputeDashboardPage: React.FC = () => {
       {workers.length > 0 && (
         <div className="minimal-section">
           <div className="minimal-title">NETWORK VISION</div>
-          <div style={{ 
-            position: 'relative', 
-            width: '100%', 
-            height: '400px', 
-            border: '1px solid #333', 
-            background: '#000',
-            overflow: 'hidden'
-          }}>
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: '400px',
+              border: '1px solid #333',
+              background: '#000',
+              overflow: 'hidden'
+            }}
+          >
             <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
               {/* Draw connections between workers and tasks */}
               {tasks.map((task, taskIndex) => {
                 if (!task.assignedWorkerIds || task.assignedWorkerIds.length === 0) return null;
-                return task.assignedWorkerIds.map((workerId) => {
+                return task.assignedWorkerIds.map(workerId => {
                   const worker = workers.find(w => w.id === workerId);
                   if (!worker) return null;
-                  
+
                   const workerIdx = workers.findIndex(w => w.id === workerId);
-                  
+
                   // Calculate positions
                   const workerX = 100 + (workerIdx % 4) * 200;
                   const workerY = 50 + Math.floor(workerIdx / 4) * 150;
                   const taskX = 100 + (taskIndex % 4) * 200;
                   const taskY = 250 + Math.floor(taskIndex / 4) * 150;
-                  
+
                   return (
                     <line
                       key={`${task.id}-${workerId}`}
@@ -733,21 +616,31 @@ const ComputeDashboardPage: React.FC = () => {
                       y1={workerY}
                       x2={taskX}
                       y2={taskY}
-                      stroke={task.status === 'completed' ? '#0f0' : task.status === 'failed' ? '#f00' : '#0ff'}
+                      stroke={
+                        task.status === 'completed'
+                          ? '#0f0'
+                          : task.status === 'failed'
+                            ? '#f00'
+                            : '#0ff'
+                      }
                       strokeWidth="1"
                       opacity="0.3"
                     />
                   );
                 });
               })}
-              
+
               {/* Draw workers as nodes */}
               {workers.map((worker, idx) => {
                 const x = 100 + (idx % 4) * 200;
                 const y = 50 + Math.floor(idx / 4) * 150;
-                const loadColor = worker.currentLoad && worker.currentLoad > 0.8 ? '#ff0' : 
-                                   worker.currentLoad && worker.currentLoad > 0.5 ? '#0ff' : '#0f0';
-                
+                const loadColor =
+                  worker.currentLoad && worker.currentLoad > 0.8
+                    ? '#ff0'
+                    : worker.currentLoad && worker.currentLoad > 0.5
+                      ? '#0ff'
+                      : '#0f0';
+
                 return (
                   <g key={worker.id}>
                     <circle
@@ -769,20 +662,34 @@ const ComputeDashboardPage: React.FC = () => {
                       {worker.id.substring(0, 12)}
                     </text>
                     {worker.webgpu && (
-                      <text x={x} y={y} fill="#000" fontSize="8" textAnchor="middle" fontWeight="bold">GPU</text>
+                      <text
+                        x={x}
+                        y={y}
+                        fill="#000"
+                        fontSize="8"
+                        textAnchor="middle"
+                        fontWeight="bold"
+                      >
+                        GPU
+                      </text>
                     )}
                   </g>
                 );
               })}
-              
+
               {/* Draw tasks as nodes */}
               {tasks.map((task, idx) => {
                 const x = 100 + (idx % 4) * 200;
                 const y = 250 + Math.floor(idx / 4) * 150;
-                const statusColor = task.status === 'completed' ? '#0f0' : 
-                                    task.status === 'failed' ? '#f00' : 
-                                    task.status === 'in-progress' ? '#0ff' : '#ff0';
-                
+                const statusColor =
+                  task.status === 'completed'
+                    ? '#0f0'
+                    : task.status === 'failed'
+                      ? '#f00'
+                      : task.status === 'in-progress'
+                        ? '#0ff'
+                        : '#ff0';
+
                 return (
                   <g key={task.id}>
                     <rect
@@ -819,27 +726,40 @@ const ComputeDashboardPage: React.FC = () => {
                 );
               })}
             </svg>
-            
+
             {/* Legend */}
-            <div style={{
-              position: 'absolute',
-              bottom: '10px',
-              right: '10px',
-              background: '#111',
-              border: '1px solid #333',
-              padding: '8px',
-              fontSize: '10px',
-              fontFamily: 'Monaco, Menlo, Consolas, monospace'
-            }}>
-              <div style={{ marginBottom: '4px' }}><span style={{ color: '#0f0' }}>●</span> Workers (Active)</div>
-              <div style={{ marginBottom: '4px' }}><span style={{ color: '#0ff' }}>●</span> Tasks (In Progress)</div>
-              <div style={{ marginBottom: '4px' }}><span style={{ color: '#0f0' }}>●</span> Tasks (Completed)</div>
-              <div><span style={{ color: '#f00' }}>●</span> Tasks (Failed)</div>
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '10px',
+                right: '10px',
+                background: '#111',
+                border: '1px solid #333',
+                padding: '8px',
+                fontSize: '10px',
+                fontFamily: 'Monaco, Menlo, Consolas, monospace'
+              }}
+            >
+              <div style={{ marginBottom: '4px' }}>
+                <span style={{ color: '#0f0' }}>●</span> Workers (Active)
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <span style={{ color: '#0ff' }}>●</span> Tasks (In Progress)
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <span style={{ color: '#0f0' }}>●</span> Tasks (Completed)
+              </div>
+              <div>
+                <span style={{ color: '#f00' }}>●</span> Tasks (Failed)
+              </div>
             </div>
           </div>
-          <div className="minimal-text" style={{ marginTop: '8px', fontSize: '10px', color: '#888' }}>
-            Network visualization showing connections between workers (circles) and tasks (rectangles). 
-            Lines represent task assignments. Colors indicate status and load.
+          <div
+            className="minimal-text"
+            style={{ marginTop: '8px', fontSize: '10px', color: '#888' }}
+          >
+            Network visualization showing connections between workers (circles) and tasks
+            (rectangles). Lines represent task assignments. Colors indicate status and load.
           </div>
         </div>
       )}

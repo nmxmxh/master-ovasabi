@@ -45,6 +45,7 @@ export const useEventStore = create<EventStore>()(
       queuedMessages: [],
       pendingRequests: {},
       lastMessageTime: null,
+      eventsByType: new Map(),
 
       // WASM readiness state
       isWasmReady: false,

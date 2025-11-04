@@ -309,7 +309,7 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	}
 	c.log.Info("Successfully subscribed to capability updates")
 
-	// Subscribe to new compute dispatch requests
+    // Subscribe to new compute dispatch requests
 	err = c.provider.SubscribeEvents(ctx, []string{EventComputeRequested}, nil, c.handleDispatchRequest)
 	if err != nil {
 		c.log.Error("Failed to subscribe to dispatch requests",
@@ -318,6 +318,16 @@ func (c *Coordinator) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to subscribe to dispatch requests: %w", err)
 	}
 	c.log.Info("Successfully subscribed to dispatch requests")
+
+    // Subscribe to compute progress to track chunk status and enable straggler mitigation
+    err = c.provider.SubscribeEvents(ctx, []string{EventComputeProgress}, nil, c.handleProgressEvent)
+    if err != nil {
+        c.log.Error("Failed to subscribe to progress events",
+            zap.Error(err),
+            zap.String("event", EventComputeProgress))
+        return fmt.Errorf("failed to subscribe to progress events: %w", err)
+    }
+    c.log.Info("Successfully subscribed to progress events")
 
 	// Log successful startup with detailed information
 	c.log.Info("Compute coordinator fully initialized",
@@ -328,6 +338,44 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	<-ctx.Done()
 	c.log.Info("Compute coordinator shutting down gracefully")
 	return ctx.Err()
+}
+// handleProgressEvent updates chunk/task progress based on events from workers.
+func (c *Coordinator) handleProgressEvent(ctx context.Context, event *nexusv1.EventResponse) {
+    globalCtx := event.GetMetadata().GetGlobalContext()
+    if event.GetPayload() == nil || event.GetPayload().GetData() == nil {
+        return
+    }
+    data := event.GetPayload().GetData().AsMap()
+    // Expect task_id and optional percentage/progress fields
+    taskID, _ := data["task_id"].(string)
+    if taskID == "" {
+        taskID, _ = data["taskId"].(string)
+    }
+    if taskID == "" {
+        return
+    }
+    // Update chunk status to in-progress with best-effort progress extraction
+    status := "in-progress"
+    if v, ok := data["pct"].(float64); ok && v >= 100 {
+        status = "completed"
+    }
+    if v, ok := data["progress"].(float64); ok && v >= 100 {
+        status = "completed"
+    }
+    if v, ok := data["percentage"].(float64); ok && v >= 100 {
+        status = "completed"
+    }
+    if err := c.taskStore.UpdateChunk(taskID, &Chunk{ID: taskID, Status: status}); err != nil {
+        c.log.Debug("Progress update: failed to update chunk status",
+            zap.String("task_id", taskID),
+            zap.String("status", status),
+            zap.Error(err))
+    } else {
+        c.log.Debug("Progress update recorded",
+            zap.String("task_id", taskID),
+            zap.String("status", status),
+            zap.String("campaign_id", globalCtx.GetCampaignId()))
+    }
 }
 
 // handleCapabilityUpdate processes incoming capability announcements from workers.
@@ -590,7 +638,7 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 
 	c.log.Info("Handling parallel dispatch request", zap.String("parent_task_id", parentTaskID))
 
-	// 1. Determine chunk count and find suitable workers
+    // 1. Determine chunk count and find suitable workers
 	minReqs := parentEnvelope.GetRequirements().GetMin()
 	if minReqs == nil {
 		c.log.Warn("Parallel task requires minimum requirements", zap.String("parent_task_id", parentTaskID))
@@ -611,12 +659,31 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 		return
 	}
 
-	// Determine actual chunk count
-	requestedMaxChunks := parentEnvelope.GetRequirements().GetParallelism().GetMaxChunks()
-	chunkCount := len(suitableWorkers) // Default: one chunk per suitable worker
-	if requestedMaxChunks > 0 && requestedMaxChunks < uint32(chunkCount) {
-		chunkCount = int(requestedMaxChunks)
-	}
+    // Determine actual chunk count using memory-aware heuristic
+    requestedMaxChunks := parentEnvelope.GetRequirements().GetParallelism().GetMaxChunks()
+    // Estimate available memory across workers to size chunks (target ~512MB per chunk)
+    var totalMemMB uint32
+    for _, wid := range suitableWorkers {
+        if caps, err := c.capabilities.GetCapabilities(ctx, wid); err == nil {
+            totalMemMB += caps.GetMemoryMb()
+        }
+    }
+    targetChunkMB := uint32(512)
+    memBasedChunks := 0
+    if totalMemMB > 0 {
+        memBasedChunks = int(totalMemMB / targetChunkMB)
+    }
+    // Ensure at least one chunk per worker, and at least 1 overall
+    chunkCount := len(suitableWorkers)
+    if memBasedChunks > chunkCount {
+        chunkCount = memBasedChunks
+    }
+    if chunkCount < 1 {
+        chunkCount = 1
+    }
+    if requestedMaxChunks > 0 && uint32(chunkCount) > requestedMaxChunks {
+        chunkCount = int(requestedMaxChunks)
+    }
 
 	c.log.Info("Dispatching parallel task", zap.String("parent_task_id", parentTaskID), zap.Int("chunk_count", chunkCount), zap.Int("suitable_workers", len(suitableWorkers)))
 
@@ -656,7 +723,7 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 		workersForChunks[i], workersForChunks[j] = workersForChunks[j], workersForChunks[i]
 	})
 
-	for i := 0; i < chunkCount; i++ {
+    for i := 0; i < chunkCount; i++ {
 		chunkID := fmt.Sprintf("%s-chunk-%d", parentTaskID, i)
 		workerID := workersForChunks[i]
 
@@ -726,6 +793,63 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 		}
 		c.log.Debug("Dispatched chunk to worker", zap.String("chunk_id", chunkID), zap.String("worker_id", workerID))
 	}
+
+    // Straggler mitigation: after a grace period, speculatively reassign slow chunks
+    go func(parentID string, workers []string) {
+        // Grace period before checking for stragglers
+        time.Sleep(10 * time.Second)
+        // Attempt to reassign any chunk still pending
+        for i := 0; i < chunkCount; i++ {
+            chunkID := fmt.Sprintf("%s-chunk-%d", parentTaskID, i)
+            // Try to mark as speculative; if store rejects, continue
+            _ = c.taskStore.UpdateChunk(parentTaskID, &Chunk{ID: chunkID, Status: "speculative"})
+
+            // Choose an alternate worker (round-robin offset)
+            original := workersForChunks[i%len(workersForChunks)]
+            altIdx := (i + 1) % len(workers)
+            altWorker := workers[altIdx]
+            if altWorker == original && len(workers) > 1 {
+                altIdx = (altIdx + 1) % len(workers)
+                altWorker = workers[altIdx]
+            }
+
+            // Re-create a chunk envelope by cloning parent and setting chunk ID
+            chunkEnvelope := proto.Clone(parentEnvelope).(*commonpb.ComputeEnvelope)
+            chunkEnvelope.TaskId = chunkID
+            assignedStruct, err := c.marshalToStruct(chunkEnvelope)
+            if err != nil {
+                c.log.Debug("Speculative reassign marshal failed", zap.Error(err), zap.String("chunk_id", chunkID))
+                continue
+            }
+            assignedPayload := &commonpb.Payload{Data: assignedStruct}
+
+            serviceSpecific := map[string]interface{}{
+                "routing": map[string]interface{}{
+                    "target_worker_id": altWorker,
+                },
+            }
+            globalCtx := event.GetMetadata().GetGlobalContext()
+            canonicalAssigned := events.NewCanonicalEventEnvelope(
+                EventComputeAssigned,
+                globalCtx.GetUserId(),
+                globalCtx.GetCampaignId(),
+                globalCtx.GetCorrelationId(),
+                assignedPayload,
+                serviceSpecific,
+            )
+            assignedEnvelope := &events.EventEnvelope{
+                ID:       uuid.New().String(),
+                Type:     canonicalAssigned.Type,
+                Payload:  canonicalAssigned.Payload,
+                Metadata: canonicalAssigned.Metadata,
+            }
+            if _, err := c.provider.EmitEventEnvelope(ctx, assignedEnvelope); err != nil {
+                c.log.Debug("Speculative reassign failed", zap.Error(err), zap.String("chunk_id", chunkID))
+            } else {
+                c.log.Info("Speculatively reassigned chunk", zap.String("chunk_id", chunkID), zap.String("worker_id", altWorker))
+            }
+        }
+    }(parentTaskID, suitableWorkers)
 
 	// 4. Emit EventComputeAccepted for Parent Task
 	assignment := &commonpb.ComputeAssignment{
@@ -939,35 +1063,38 @@ func (c *Coordinator) scoreWorker(ctx context.Context, workerCaps, preferred *co
 		return 0 // No preference, no score.
 	}
 
-	score := 0
+    score := 0
 
 	// Score based on resources (higher is better, simple bonus points)
-	if workerCaps.GetCpuCores() > preferred.GetCpuCores() {
-		score++
-	}
-	if workerCaps.GetMemoryMb() > preferred.GetMemoryMb() {
-		score++
-	}
+    // Weight CPU cores and memory more heavily (linear weights)
+    cpuDelta := int(workerCaps.GetCpuCores()) - int(preferred.GetCpuCores())
+    memDelta := int(workerCaps.GetMemoryMb()) - int(preferred.GetMemoryMb())
+    if cpuDelta > 0 {
+        score += 2 * cpuDelta // 2 points per extra core
+    }
+    if memDelta > 0 {
+        score += memDelta / 256 // 1 point per additional 256 MB
+    }
 
 	// Score based on boolean capabilities (match is better)
 	if preferred.GetWasm() && workerCaps.GetWasm() {
-		score += 2
+        score += 3
 	}
 	if preferred.GetThreads() && workerCaps.GetThreads() {
-		score += 2
+        score += 3
 	}
 	if preferred.GetSimd() && workerCaps.GetSimd() {
-		score += 2
+        score += 3
 	}
 	if preferred.GetWebgpu() && workerCaps.GetWebgpu() {
-		score += 5 // WebGPU might be a high-value feature
+        score += 10 // WebGPU is high-value for GPU workloads
 	}
 
 	// Score based on GPU backend match
 	if prefGPU := preferred.GetGpu(); prefGPU != nil {
 		if workerGPU := workerCaps.GetGpu(); workerGPU != nil {
 			if prefGPU.GetBackend() != "" && prefGPU.GetBackend() == workerGPU.GetBackend() {
-				score += 10 // Exact backend match is a strong signal
+                score += 15 // Exact backend match is a very strong signal
 			}
 		}
 	}

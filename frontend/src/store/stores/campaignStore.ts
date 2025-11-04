@@ -78,7 +78,6 @@ interface CampaignStore {
   updateCampaignsFromResponse: (responseData: any) => void;
   createCampaign: (campaign: Partial<Campaign>) => Promise<Campaign>;
   requestCampaignList: () => Promise<void>;
-  startRapidUpdates: (campaignId: string, count: number) => void;
   // Debugging helpers
   getCampaignSwitchFlow: () => {
     currentCampaign?: Campaign;
@@ -99,24 +98,6 @@ export const useCampaignStore = create<CampaignStore>()(
       loading: true,
       error: null,
       updateCount: 0,
-
-      startRapidUpdates: (count: number) => {
-        const dummyUpdates: Partial<Campaign>[] = [
-          { title: 'New Awesome Campaign Title', description: 'This is a new description.' },
-          { status: 'active', features: ['new-feature', 'beta'] },
-          {
-            description: 'An updated description for the campaign.',
-            title: 'Updated Campaign Title'
-          },
-          { status: 'inactive', features: ['new-feature'] }
-        ];
-
-        for (let i = 0; i < count; i++) {
-          const updates = dummyUpdates[i % dummyUpdates.length];
-          get().updateCampaign(updates);
-          set({ updateCount: i + 1 });
-        }
-      },
 
       handleCampaignSwitchRequired: switchEvent => {
         const { new_campaign_id, reason, timestamp } = switchEvent;
