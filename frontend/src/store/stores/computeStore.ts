@@ -96,8 +96,6 @@ interface ComputeStore extends ComputeState {
   handleWorkerUpdate: (event: any) => void;
   handleTaskUpdate: (event: any) => void;
   handleMetricsUpdate: (event: any) => void;
-  initializeWasmListeners: () => void;
-  cleanupWasmListeners: () => void;
 }
 
 const initialState: ComputeState = {
@@ -194,7 +192,7 @@ const metricsUpdateHandler = (state: ComputeState, event: any) => {
 
 export const useComputeStore = create<ComputeStore>()(
   devtools(
-    (set, get) => ({
+    set => ({
       ...initialState,
 
       setUserId: userId => set({ userId }, false, 'setUserId'),
@@ -213,42 +211,6 @@ export const useComputeStore = create<ComputeStore>()(
 
       handleMetricsUpdate: event => {
         set(state => metricsUpdateHandler(state, event), false, 'handleMetricsUpdate');
-      },
-
-      initializeWasmListeners: () => {
-        const { handleWorkerUpdate, handleTaskUpdate, handleMetricsUpdate } = get();
-
-        // Listen for specific custom events dispatched from WASM
-        window.addEventListener('compute:task', handleTaskUpdate);
-        window.addEventListener('compute:capabilities:v1:update', handleWorkerUpdate);
-
-        // Assign a general message handler for other events coming through onWasmMessage
-        (window as any).onWasmMessage = (event: any) => {
-          if (!event || !event.type) {
-            return;
-          }
-
-          const { type } = event;
-
-          if (type.startsWith('compute:task')) {
-            handleTaskUpdate(event);
-          } else if (type.startsWith('compute:dispatch')) {
-            handleTaskUpdate(event);
-          } else if (type.startsWith('compute:capabilities')) {
-            handleWorkerUpdate(event);
-          } else if (type.startsWith('compute:metrics')) {
-            handleMetricsUpdate(event);
-          }
-        };
-      },
-
-      cleanupWasmListeners: () => {
-        const { handleTaskUpdate, handleWorkerUpdate } = get();
-        window.removeEventListener('compute:task', handleTaskUpdate);
-        window.removeEventListener('compute:capabilities:v1:update', handleWorkerUpdate);
-        if ((window as any).onWasmMessage) {
-          (window as any).onWasmMessage = null;
-        }
       }
     }),
     {
@@ -257,13 +219,43 @@ export const useComputeStore = create<ComputeStore>()(
   )
 );
 
+// --- Initialize WASM Listeners once ---
+(() => {
+  const { handleWorkerUpdate, handleTaskUpdate } = useComputeStore.getState();
+
+  // Listen for specific custom events dispatched from WASM
+  window.addEventListener('compute:task', handleTaskUpdate);
+  window.addEventListener('compute:capabilities:v1:update', handleWorkerUpdate);
+
+  // Assign a general message handler for other events coming through onWasmMessage
+  (window as any).onWasmMessage = (event: any) => {
+    if (!event || !event.type) {
+      return;
+    }
+
+    const { type } = event;
+    // Get fresh handlers, in case they are updated (e.g. HMR)
+    const { handleTaskUpdate, handleWorkerUpdate, handleMetricsUpdate } =
+      useComputeStore.getState();
+
+    if (type.startsWith('compute:task')) {
+      handleTaskUpdate(event);
+    } else if (type.startsWith('compute:dispatch')) {
+      handleTaskUpdate(event);
+    } else if (type.startsWith('compute:capabilities')) {
+      handleWorkerUpdate(event);
+    } else if (type.startsWith('compute:metrics')) {
+      handleMetricsUpdate(event);
+    }
+  };
+})();
+
 // --- Selectors ---
 
 export const selectWorkers = (state: ComputeState): ComputeWorker[] =>
   Array.from(state.workers.values());
 
-export const selectTasks = (state: ComputeState): ComputeTask[] =>
-  Array.from(state.tasks.values());
+export const selectTasks = (state: ComputeState): ComputeTask[] => Array.from(state.tasks.values());
 
 export const selectDerivedSystemMetrics = (state: ComputeState) => {
   const workers = selectWorkers(state);

@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo } from 'react';
 import {
   useComputeStore,
   selectWorkers,
@@ -7,14 +7,6 @@ import {
 } from '../store/stores/computeStore';
 
 export const useCompute = () => {
-  // Initialize WASM listeners once.
-  useEffect(() => {
-    useComputeStore.getState().initializeWasmListeners();
-    return () => {
-      useComputeStore.getState().cleanupWasmListeners();
-    };
-  }, []);
-
   const workers = useComputeStore(selectWorkers);
   const tasks = useComputeStore(selectTasks);
   const derivedMetrics = useComputeStore(selectDerivedSystemMetrics);

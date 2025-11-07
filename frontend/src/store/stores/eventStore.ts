@@ -429,14 +429,19 @@ export const useEventStore = create<EventStore>()(
 
           const correlationId = msg.correlation_id || msg.correlationId || event.correlation_id;
           let matchedCorrelationId = correlationId;
-          if (!correlationId || !get().pendingRequests[correlationId]) {
-            // Try to find a matching pending request by event type and timing
+
+          // Attempt to find an exact match by correlation ID first
+          if (correlationId && get().pendingRequests[correlationId]) {
+            matchedCorrelationId = correlationId;
+          } else {
+            // If no exact correlation ID match, try to find a matching pending request by event type and timing
             const pendingKeys = Object.keys(get().pendingRequests);
             const matchingKey = pendingKeys.find(key => {
               const pendingRequest = get().pendingRequests[key];
               const timeDiff = Date.now() - (pendingRequest as any).timestamp;
-              // Match if it's the same event type and within 5 seconds
-              return (pendingRequest as any).eventType === event.type && timeDiff < 5000;
+              // Match if it's the expected event type and within 5 seconds
+              // We use expectedEventType here as it's what the emitter is waiting for
+              return pendingRequest.expectedEventType === event.type && timeDiff < 5000;
             });
 
             if (matchingKey) {
@@ -450,68 +455,31 @@ export const useEventStore = create<EventStore>()(
           }
 
           if (matchedCorrelationId && get().pendingRequests[matchedCorrelationId]) {
-            const pendingRequest = get().pendingRequests[matchedCorrelationId] as any;
-            const expectedType = pendingRequest.expectedEventType;
+            const pendingRequest = get().pendingRequests[matchedCorrelationId];
+            console.log(
+              '[EventStore] Resolving pending request for correlation ID:',
+              matchedCorrelationId,
+              'with event type:',
+              event.type
+            );
+            pendingRequest.resolve(event);
 
-            if (event.type === expectedType || (event.type || '').includes('error')) {
-              console.log(
-                '[EventStore] Resolving pending request for correlation ID:',
-                matchedCorrelationId,
-                'with event type:',
-                event.type
-              );
-              pendingRequest.resolve(event);
-
-              set(
-                state => {
-                  const newPendingRequests = { ...state.pendingRequests };
-                  delete newPendingRequests[matchedCorrelationId];
-                  return { pendingRequests: newPendingRequests };
-                },
-                false,
-                'resolvePendingRequest'
-              );
-            } else {
-              // Types don't match; safely ignore without noisy warnings
-            }
+            set(
+              state => {
+                const newPendingRequests = { ...state.pendingRequests };
+                delete newPendingRequests[matchedCorrelationId];
+                return { pendingRequests: newPendingRequests };
+              },
+              false,
+              'resolvePendingRequest'
+            );
           } else {
-            // If no exact correlation ID match, try to find a matching pending request by event type and timing
-            const pendingKeys = Object.keys(get().pendingRequests);
-            const matchingKey = pendingKeys.find(key => {
-              const pendingRequest = get().pendingRequests[key] as any;
-              const timeDiff = Date.now() - pendingRequest.timestamp;
-              // Match if it's the expected event type and within 5 seconds
-              return pendingRequest.expectedEventType === event.type && timeDiff < 5000;
-            });
-
-            if (matchingKey) {
-              matchedCorrelationId = matchingKey;
-              console.log('[EventStore] Found matching request by type and timing:', {
-                eventType: event.type,
-                matchedKey: matchingKey,
-                timeDiff: Date.now() - (get().pendingRequests[matchingKey] as any).timestamp
-              });
-
-              const pendingRequest = get().pendingRequests[matchedCorrelationId];
-              pendingRequest.resolve(event);
-
-              set(
-                state => {
-                  const newPendingRequests = { ...state.pendingRequests };
-                  delete newPendingRequests[matchedCorrelationId];
-                  return { pendingRequests: newPendingRequests };
-                },
-                false,
-                'resolvePendingRequestByType'
-              );
-            } else {
-              console.log(
-                '[EventStore] No pending request found for correlation ID:',
-                correlationId,
-                'Available pending requests:',
-                Object.keys(get().pendingRequests)
-              );
-            }
+            console.log(
+              '[EventStore] No pending request found for correlation ID:',
+              correlationId,
+              'or matching event type. Available pending requests:',
+              Object.keys(get().pendingRequests)
+            );
           }
         }
       },

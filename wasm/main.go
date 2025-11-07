@@ -160,12 +160,11 @@ var (
 	userID        string
 	ws            js.Value
 	messageMutex  sync.Mutex
-	messageQueue                = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
-	outgoingQueue               = make(chan []byte, 1024)    // Buffered queue for outgoing messages
-	resourcePool                = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
-	computeQueue                = make(chan computeTask, 32)
+	messageQueue  = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
+	outgoingQueue = make(chan []byte, 1024)    // Buffered queue for outgoing messages
+	resourcePool  = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
+	computeQueue  = make(chan computeTask, 32)
 	eventBus      *WASMEventBus = NewWASMEventBus() // Our internal WASM event bus
-
 	// Threading configuration
 	enableThreading       string = "true" // Can be overridden by ldflags
 	maxWorkers            int    = 0      // Will be set based on threading support
@@ -854,12 +853,20 @@ func loadCanonicalEventTypes() {
 		"campaign:state:v1:success",
 		"campaign:state:v1:failed",
 		"campaign:state:v1:completed",
-		// Compute capabilities events
-		"compute:capabilities:v1:update",
 	}
 
 	// Add campaign event types to the canonical event type set
 	for _, eventType := range campaignEventTypes {
+		canonicalEventTypeSet[eventType] = struct{}{}
+	}
+
+	// Compute-related events
+	computeEventTypes := []string{
+		"compute:capabilities:v1:update",
+		"compute:capabilities:v1:success",
+	}
+
+	for _, eventType := range computeEventTypes {
 		canonicalEventTypeSet[eventType] = struct{}{}
 	}
 
