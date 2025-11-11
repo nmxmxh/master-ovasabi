@@ -7,6 +7,11 @@ import {
 import type { EventEnvelope, EventState } from '../types/events';
 import { useMetadataStore } from './metadataStore';
 
+// --- Pub/Sub types ---
+type EventType = string;
+type SubscriberCallback = (event: EventEnvelope) => void;
+type Subscribers = Map<EventType, Set<SubscriberCallback>>;
+
 interface EventStore extends EventState {
   // Actions
   emitEvent: (
@@ -23,6 +28,11 @@ interface EventStore extends EventState {
   getEventsByType: (eventType: string) => EventEnvelope[];
   getLatestEvent: (eventType?: string) => EventEnvelope | undefined;
   getCurrentState: (eventType: string) => string | undefined;
+
+  // Pub/Sub
+  subscribe: (eventType: EventType, callback: SubscriberCallback) => () => void;
+  unsubscribe: (eventType: EventType, callback: SubscriberCallback) => void;
+  subscribers: Subscribers;
 
   // WASM readiness
   isWasmReady: boolean;
@@ -46,12 +56,37 @@ export const useEventStore = create<EventStore>()(
       pendingRequests: {},
       lastMessageTime: null,
       eventsByType: new Map(),
+      subscribers: new Map(),
 
       // WASM readiness state
       isWasmReady: false,
       queuedEvents: [],
 
-      // Actions
+      // --- Pub/Sub Actions ---
+      subscribe: (eventType, callback) => {
+        const subscribers = get().subscribers;
+        if (!subscribers.has(eventType)) {
+          subscribers.set(eventType, new Set());
+        }
+        subscribers.get(eventType)!.add(callback);
+        set({ subscribers: new Map(subscribers) });
+
+        // Return an unsubscribe function
+        return () => get().unsubscribe(eventType, callback);
+      },
+
+      unsubscribe: (eventType, callback) => {
+        const subscribers = get().subscribers;
+        if (subscribers.has(eventType)) {
+          subscribers.get(eventType)!.delete(callback);
+          if (subscribers.get(eventType)!.size === 0) {
+            subscribers.delete(eventType);
+          }
+          set({ subscribers: new Map(subscribers) });
+        }
+      },
+
+      // --- Core Actions ---
       emitEvent: (event, onResponse) => {
         // Check if WASM is ready, if not queue the event
         if (!get().isWasmReady) {
@@ -297,6 +332,29 @@ export const useEventStore = create<EventStore>()(
             }
           }
 
+          // Handle nested payload structure (payload.data contains the actual data)
+          // Backend sends payloads wrapped in {data: {...}}, so we need to unwrap it
+          if (parsedPayload && typeof parsedPayload === 'object') {
+            // Check for nested data structure (common with protobuf serialization)
+            if (parsedPayload.data && typeof parsedPayload.data === 'object') {
+              console.log('[EventStore] Found nested payload.data structure, extracting:', {
+                hasData: !!parsedPayload.data,
+                dataKeys: Object.keys(parsedPayload.data || {}),
+                originalKeys: Object.keys(parsedPayload || {})
+              });
+              parsedPayload = parsedPayload.data;
+            }
+            // Also check if campaigns are directly in payload (for backward compatibility)
+            if (
+              msg.type === 'campaign:list:v1:success' &&
+              !parsedPayload.campaigns &&
+              parsedPayload.data?.campaigns
+            ) {
+              console.log('[EventStore] Campaigns found in payload.data.campaigns, extracting');
+              parsedPayload = parsedPayload.data;
+            }
+          }
+
           // Parse metadata if it's a JSON string
           let parsedMetadata = msg.metadata;
           if (typeof msg.metadata === 'string') {
@@ -357,6 +415,18 @@ export const useEventStore = create<EventStore>()(
             timestamp: event.timestamp
           });
 
+          // --- Notify Subscribers ---
+          const { subscribers } = get();
+          // Notify wildcard subscribers
+          if (subscribers.has('*')) {
+            subscribers.get('*')!.forEach(callback => callback(event));
+          }
+          // Notify event-specific subscribers
+          if (subscribers.has(event.type)) {
+            subscribers.get(event.type)!.forEach(callback => callback(event));
+          }
+          // --- End Notify ---
+
           if (event.type === 'search:search:v1:success') {
             console.log('[EventStore] Creating search success event envelope:', event);
           }
@@ -409,11 +479,40 @@ export const useEventStore = create<EventStore>()(
               }
 
               if (event.type === 'campaign:list:v1:success') {
-                console.log('[EventStore] Adding campaign list success event to store:', event);
-                // Update campaign store with the received campaign list
-                import('./campaignStore').then(({ useCampaignStore }) => {
-                  useCampaignStore.getState().updateCampaignsFromResponse(event.payload);
+                // Ensure campaigns are at the top level of payload
+                let campaignPayload = event.payload;
+                if (campaignPayload && typeof campaignPayload === 'object') {
+                  // If campaigns are nested in data, extract them
+                  if (!campaignPayload.campaigns && campaignPayload.data?.campaigns) {
+                    console.log(
+                      '[EventStore] ⚠️ Campaigns found in payload.data, extracting to top level'
+                    );
+                    campaignPayload = campaignPayload.data;
+                  }
+                }
+
+                console.log('[EventStore] ✅ Adding campaign list success event to store:', {
+                  type: event.type,
+                  correlation_id: event.correlation_id,
+                  payload: campaignPayload,
+                  payloadKeys: campaignPayload ? Object.keys(campaignPayload) : [],
+                  hasCampaigns: !!campaignPayload?.campaigns,
+                  campaignsCount: campaignPayload?.campaigns?.length || 0,
+                  campaignsPreview: campaignPayload?.campaigns?.slice(0, 2) // First 2 for debugging
                 });
+
+                // Update campaign store with the received campaign list
+                import('./campaignStore')
+                  .then(({ useCampaignStore }) => {
+                    console.log(
+                      '[EventStore] ✅ Calling updateCampaignsFromResponse with payload:',
+                      campaignPayload
+                    );
+                    useCampaignStore.getState().updateCampaignsFromResponse(campaignPayload);
+                  })
+                  .catch(err => {
+                    console.error('[EventStore] ❌ Error updating campaign store:', err);
+                  });
               }
               return {
                 events: newEvents,
@@ -433,46 +532,41 @@ export const useEventStore = create<EventStore>()(
           // Attempt to find an exact match by correlation ID first
           if (correlationId && get().pendingRequests[correlationId]) {
             matchedCorrelationId = correlationId;
-          } else {
-            // If no exact correlation ID match, try to find a matching pending request by event type and timing
-            const pendingKeys = Object.keys(get().pendingRequests);
-            const matchingKey = pendingKeys.find(key => {
-              const pendingRequest = get().pendingRequests[key];
-              const timeDiff = Date.now() - (pendingRequest as any).timestamp;
-              // Match if it's the expected event type and within 5 seconds
-              // We use expectedEventType here as it's what the emitter is waiting for
-              return pendingRequest.expectedEventType === event.type && timeDiff < 5000;
-            });
-
-            if (matchingKey) {
-              matchedCorrelationId = matchingKey;
-              console.log('[EventStore] Found matching request by type and timing:', {
-                eventType: event.type,
-                matchedKey: matchingKey,
-                timeDiff: Date.now() - (get().pendingRequests[matchingKey] as any).timestamp
-              });
-            }
           }
 
           if (matchedCorrelationId && get().pendingRequests[matchedCorrelationId]) {
             const pendingRequest = get().pendingRequests[matchedCorrelationId];
-            console.log(
-              '[EventStore] Resolving pending request for correlation ID:',
-              matchedCorrelationId,
-              'with event type:',
-              event.type
-            );
-            pendingRequest.resolve(event);
+            // Ensure the event type matches what this request expects to prevent cross-resolution collisions
+            const expectedType = pendingRequest.expectedEventType;
+            if (expectedType && event.type !== expectedType) {
+              console.warn(
+                '[EventStore] Pending request type mismatch; not resolving.',
+                {
+                  correlationId: matchedCorrelationId,
+                  expectedType,
+                  receivedType: event.type
+                }
+              );
+            } else {
+              console.log(
+                '[EventStore] Resolving pending request for correlation ID:',
+                matchedCorrelationId,
+                'with event type:',
+                event.type
+              );
+              pendingRequest.resolve(event);
+              set(
+                state => {
+                  const newPendingRequests = { ...state.pendingRequests };
+                  delete newPendingRequests[matchedCorrelationId];
+                  return { pendingRequests: newPendingRequests };
+                },
+                false,
+                'resolvePendingRequest'
+              );
+              return;
+            }
 
-            set(
-              state => {
-                const newPendingRequests = { ...state.pendingRequests };
-                delete newPendingRequests[matchedCorrelationId];
-                return { pendingRequests: newPendingRequests };
-              },
-              false,
-              'resolvePendingRequest'
-            );
           } else {
             console.log(
               '[EventStore] No pending request found for correlation ID:',
@@ -534,25 +628,18 @@ export const useEventStore = create<EventStore>()(
 
         // If WASM just became ready, process queued events
         if (ready) {
-          const { queuedEvents } = get();
-          console.log(`[EventStore] WASM ready, processing ${queuedEvents.length} queued events`);
+          const { queuedEvents, emitEvent } = get();
+          if (queuedEvents.length > 0) {
+            console.log(`[EventStore] WASM ready, processing ${queuedEvents.length} queued events`);
+            // Create a copy and clear the queue before processing to avoid infinite loops
+            const eventsToProcess = [...queuedEvents];
+            set({ queuedEvents: [] }, false, 'clearQueuedEvents');
 
-          queuedEvents.forEach(({ event }) => {
-            // Send directly to WASM
-            try {
-              if (typeof window.sendWasmMessage === 'function') {
-                window.sendWasmMessage(event);
-                console.log('[EventStore] Queued event sent to WASM:', event.type, event);
-              } else {
-                console.warn('[EventStore] sendWasmMessage not available for queued event');
-              }
-            } catch (error) {
-              console.error('[EventStore] Failed to send queued event to WASM:', error);
-            }
-          });
-
-          // Clear queued events
-          set({ queuedEvents: [] }, false, 'clearQueuedEvents');
+            // Re-emit events to ensure they are fully processed and formatted
+            eventsToProcess.forEach(({ event, onResponse }) => {
+              emitEvent(event, onResponse);
+            });
+          }
         }
       }
     }),
@@ -561,3 +648,32 @@ export const useEventStore = create<EventStore>()(
     }
   )
 );
+
+// --- Centralized WASM Message Handling ---
+(function initializeWasmListener() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  // Assign the handler from the store to the global window object.
+  // This ensures there is only ONE handler for all incoming WASM messages.
+  (window as any).onWasmMessage = (msg: any) => {
+    useEventStore.getState().handleWasmMessage(msg);
+  };
+
+  // Signal to WASM that the frontend event store is ready to process messages.
+  // This should be done after the store is created, but WASM might not be ready yet.
+  // Retry with exponential backoff until WASM is ready.
+  const trySignal = () => {
+    if (typeof (window as any).setFrontendReady === 'function') {
+      console.log('[EventStore] Signaling to WASM that frontend is ready.');
+      (window as any).setFrontendReady();
+    } else {
+      // Retry after a short delay - WASM might still be initializing
+      setTimeout(trySignal, 100);
+    }
+  };
+
+  // Initial attempt
+  trySignal();
+})();

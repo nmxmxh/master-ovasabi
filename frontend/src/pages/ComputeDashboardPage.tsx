@@ -563,7 +563,8 @@ const ComputeDashboardPage: React.FC = () => {
                   )}
                   {task.error && (
                     <div className="minimal-text" style={{ color: '#f00' }}>
-                      Error: {task.error}
+                      Error:{' '}
+                      {typeof task.error === 'object' ? JSON.stringify(task.error) : task.error}
                     </div>
                   )}
                 </div>

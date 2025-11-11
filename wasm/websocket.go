@@ -63,10 +63,10 @@ func getWebSocketURL() string {
 	if location.Get("protocol").String() == "https:" {
 		protocol = "wss:"
 	}
-    // Use host (hostname:port) to ensure correct port in development
-    host := location.Get("host").String()
-    path := "/ws/" + campaignId + "/" + userId
-    url := protocol + "//" + host + path
+	// Use host (hostname:port) to ensure correct port in development
+	host := location.Get("host").String()
+	path := "/ws/" + campaignId + "/" + userId
+	url := protocol + "//" + host + path
 	wasmLog("[WASM] WebSocket URL constructed:", url)
 	return url
 }
@@ -257,6 +257,18 @@ func configureWebSocketCallbacks() {
 		event := args[0]
 		msg := event.Get("data")
 
+		// Check if the frontend is ready to handle messages. If not, queue them.
+		if js.Global().Get("isFrontendReady").IsUndefined() || !js.Global().Get("isFrontendReady").Bool() {
+			// The event store isn't ready yet. We need to queue this message.
+			// We'll create a simple JS-side queue for this.
+			if js.Global().Get("wasmMessageQueue").IsUndefined() {
+				js.Global().Set("wasmMessageQueue", js.Global().Get("Array").New())
+			}
+			js.Global().Get("wasmMessageQueue").Call("push", msg)
+			wasmLog("[WASM] Frontend not ready, queuing incoming message.")
+			return nil
+		}
+
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -408,7 +420,7 @@ func configureWebSocketCallbacks() {
 			// Default: Handle as string message
 			wasmLog("[WASM] Processing string message (default)")
 			msgStr := msg.String()
-				decompressed := Decompress([]byte(msgStr))
+			decompressed := Decompress([]byte(msgStr))
 			wasmLog("[WASM] Adding string message to queue, size:", len(msgStr), "->", len(decompressed))
 			messageQueue <- wsMessage{dataType: 0, payload: decompressed}
 		}()

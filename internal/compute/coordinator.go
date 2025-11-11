@@ -119,13 +119,13 @@ type ComputeMetrics struct {
 	WebGPUEnabled          int      `json:"webgpu_enabled"`
 	WASMEnabled            int      `json:"wasm_enabled"`
 	SIMDEnabled            int      `json:"simd_enabled"`
-    CpuCoresTotal          uint32   `json:"cpu_cores_total"`
-    AverageCpuCores        uint32   `json:"average_cpu_cores"`
+	CpuCoresTotal          uint32   `json:"cpu_cores_total"`
+	AverageCpuCores        uint32   `json:"average_cpu_cores"`
 	TotalMemoryMB          uint32   `json:"total_memory_mb"`
 	AverageMemoryMB        uint32   `json:"average_memory_mb"`
-    WorkersWithCaps        int      `json:"workers_with_caps"`
-    WorkersMissingCaps     int      `json:"workers_missing_caps"`
-    MissingCapsSample      []string `json:"missing_caps_sample"`
+	WorkersWithCaps        int      `json:"workers_with_caps"`
+	WorkersMissingCaps     int      `json:"workers_missing_caps"`
+	MissingCapsSample      []string `json:"missing_caps_sample"`
 	Timestamp              int64    `json:"timestamp"`
 }
 
@@ -166,16 +166,16 @@ func (c *Coordinator) broadcastComputeMetrics(ctx context.Context) error {
 	metrics.WorkerIDs = allWorkers
 
 	// Calculate memory metrics
-    var totalMemory uint32
-    var totalCpuCores uint32
-    var validWorkers int
-    var missingCaps []string
+	var totalMemory uint32
+	var totalCpuCores uint32
+	var validWorkers int
+	var missingCaps []string
 	for _, workerID := range allWorkers {
 		caps, err := c.capabilities.GetCapabilities(ctx, workerID)
 		if err != nil {
 			// Treat missing capabilities (redis.Nil) as expected for new workers - debug level
-            if errors.Is(err, redis.Nil) {
-                missingCaps = append(missingCaps, workerID)
+			if errors.Is(err, redis.Nil) {
+				missingCaps = append(missingCaps, workerID)
 			} else {
 				c.log.Warn("Failed to get capabilities for worker memory metrics",
 					zap.String("worker_id", workerID),
@@ -183,40 +183,40 @@ func (c *Coordinator) broadcastComputeMetrics(ctx context.Context) error {
 			}
 			continue
 		}
-        totalMemory += caps.GetMemoryMb()
-        totalCpuCores += caps.GetCpuCores()
+		totalMemory += caps.GetMemoryMb()
+		totalCpuCores += caps.GetCpuCores()
 		validWorkers++
 	}
 
 	metrics.TotalMemoryMB = totalMemory
 	if validWorkers > 0 {
 		metrics.AverageMemoryMB = totalMemory / uint32(validWorkers)
-        metrics.CpuCoresTotal = totalCpuCores
-        metrics.AverageCpuCores = totalCpuCores / uint32(validWorkers)
+		metrics.CpuCoresTotal = totalCpuCores
+		metrics.AverageCpuCores = totalCpuCores / uint32(validWorkers)
 	}
-    metrics.WorkersWithCaps = validWorkers
-    metrics.WorkersMissingCaps = len(missingCaps)
-    if len(missingCaps) > 5 {
-        metrics.MissingCapsSample = missingCaps[:5]
-    } else {
-        metrics.MissingCapsSample = missingCaps
-    }
+	metrics.WorkersWithCaps = validWorkers
+	metrics.WorkersMissingCaps = len(missingCaps)
+	if len(missingCaps) > 5 {
+		metrics.MissingCapsSample = missingCaps[:5]
+	} else {
+		metrics.MissingCapsSample = missingCaps
+	}
 
 	// Convert metrics to structpb fields
-    metricsFields := map[string]*structpb.Value{
+	metricsFields := map[string]*structpb.Value{
 		"active_workers":           structpb.NewNumberValue(float64(metrics.ActiveWorkers)),
 		"total_registered_workers": structpb.NewNumberValue(float64(metrics.TotalRegisteredWorkers)),
 		"worker_ids":               structpb.NewListValue(&structpb.ListValue{Values: stringSliceToStructValues(metrics.WorkerIDs)}),
 		"webgpu_enabled":           structpb.NewNumberValue(float64(metrics.WebGPUEnabled)),
 		"wasm_enabled":             structpb.NewNumberValue(float64(metrics.WASMEnabled)),
 		"simd_enabled":             structpb.NewNumberValue(float64(metrics.SIMDEnabled)),
-        "cpu_cores_total":          structpb.NewNumberValue(float64(metrics.CpuCoresTotal)),
-        "average_cpu_cores":        structpb.NewNumberValue(float64(metrics.AverageCpuCores)),
+		"cpu_cores_total":          structpb.NewNumberValue(float64(metrics.CpuCoresTotal)),
+		"average_cpu_cores":        structpb.NewNumberValue(float64(metrics.AverageCpuCores)),
 		"total_memory_mb":          structpb.NewNumberValue(float64(metrics.TotalMemoryMB)),
 		"average_memory_mb":        structpb.NewNumberValue(float64(metrics.AverageMemoryMB)),
-        "workers_with_caps":        structpb.NewNumberValue(float64(metrics.WorkersWithCaps)),
-        "workers_missing_caps":     structpb.NewNumberValue(float64(metrics.WorkersMissingCaps)),
-        "missing_caps_sample":      structpb.NewListValue(&structpb.ListValue{Values: stringSliceToStructValues(metrics.MissingCapsSample)}),
+		"workers_with_caps":        structpb.NewNumberValue(float64(metrics.WorkersWithCaps)),
+		"workers_missing_caps":     structpb.NewNumberValue(float64(metrics.WorkersMissingCaps)),
+		"missing_caps_sample":      structpb.NewListValue(&structpb.ListValue{Values: stringSliceToStructValues(metrics.MissingCapsSample)}),
 		"timestamp":                structpb.NewNumberValue(float64(metrics.Timestamp)),
 	}
 
@@ -259,7 +259,7 @@ func (c *Coordinator) broadcastComputeMetrics(ctx context.Context) error {
 
 // startMetricsBroadcaster starts a goroutine that periodically broadcasts compute metrics
 func (c *Coordinator) startMetricsBroadcaster(ctx context.Context) error {
-	const metricsInterval = 30 * time.Second // Broadcast every 30 seconds
+	const metricsInterval = 10 * time.Minute // Broadcast every 2 minutes
 
 	go func() {
 		ticker := time.NewTicker(metricsInterval)
@@ -309,7 +309,7 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	}
 	c.log.Info("Successfully subscribed to capability updates")
 
-    // Subscribe to new compute dispatch requests
+	// Subscribe to new compute dispatch requests
 	err = c.provider.SubscribeEvents(ctx, []string{EventComputeRequested}, nil, c.handleDispatchRequest)
 	if err != nil {
 		c.log.Error("Failed to subscribe to dispatch requests",
@@ -319,15 +319,15 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	}
 	c.log.Info("Successfully subscribed to dispatch requests")
 
-    // Subscribe to compute progress to track chunk status and enable straggler mitigation
-    err = c.provider.SubscribeEvents(ctx, []string{EventComputeProgress}, nil, c.handleProgressEvent)
-    if err != nil {
-        c.log.Error("Failed to subscribe to progress events",
-            zap.Error(err),
-            zap.String("event", EventComputeProgress))
-        return fmt.Errorf("failed to subscribe to progress events: %w", err)
-    }
-    c.log.Info("Successfully subscribed to progress events")
+	// Subscribe to compute progress to track chunk status and enable straggler mitigation
+	err = c.provider.SubscribeEvents(ctx, []string{EventComputeProgress}, nil, c.handleProgressEvent)
+	if err != nil {
+		c.log.Error("Failed to subscribe to progress events",
+			zap.Error(err),
+			zap.String("event", EventComputeProgress))
+		return fmt.Errorf("failed to subscribe to progress events: %w", err)
+	}
+	c.log.Info("Successfully subscribed to progress events")
 
 	// Log successful startup with detailed information
 	c.log.Info("Compute coordinator fully initialized",
@@ -339,43 +339,44 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	c.log.Info("Compute coordinator shutting down gracefully")
 	return ctx.Err()
 }
+
 // handleProgressEvent updates chunk/task progress based on events from workers.
 func (c *Coordinator) handleProgressEvent(ctx context.Context, event *nexusv1.EventResponse) {
-    globalCtx := event.GetMetadata().GetGlobalContext()
-    if event.GetPayload() == nil || event.GetPayload().GetData() == nil {
-        return
-    }
-    data := event.GetPayload().GetData().AsMap()
-    // Expect task_id and optional percentage/progress fields
-    taskID, _ := data["task_id"].(string)
-    if taskID == "" {
-        taskID, _ = data["taskId"].(string)
-    }
-    if taskID == "" {
-        return
-    }
-    // Update chunk status to in-progress with best-effort progress extraction
-    status := "in-progress"
-    if v, ok := data["pct"].(float64); ok && v >= 100 {
-        status = "completed"
-    }
-    if v, ok := data["progress"].(float64); ok && v >= 100 {
-        status = "completed"
-    }
-    if v, ok := data["percentage"].(float64); ok && v >= 100 {
-        status = "completed"
-    }
-    if err := c.taskStore.UpdateChunk(taskID, &Chunk{ID: taskID, Status: status}); err != nil {
-        c.log.Debug("Progress update: failed to update chunk status",
-            zap.String("task_id", taskID),
-            zap.String("status", status),
-            zap.Error(err))
-    } else {
-        c.log.Debug("Progress update recorded",
-            zap.String("task_id", taskID),
-            zap.String("status", status),
-            zap.String("campaign_id", globalCtx.GetCampaignId()))
-    }
+	globalCtx := event.GetMetadata().GetGlobalContext()
+	if event.GetPayload() == nil || event.GetPayload().GetData() == nil {
+		return
+	}
+	data := event.GetPayload().GetData().AsMap()
+	// Expect task_id and optional percentage/progress fields
+	taskID, _ := data["task_id"].(string)
+	if taskID == "" {
+		taskID, _ = data["taskId"].(string)
+	}
+	if taskID == "" {
+		return
+	}
+	// Update chunk status to in-progress with best-effort progress extraction
+	status := "in-progress"
+	if v, ok := data["pct"].(float64); ok && v >= 100 {
+		status = "completed"
+	}
+	if v, ok := data["progress"].(float64); ok && v >= 100 {
+		status = "completed"
+	}
+	if v, ok := data["percentage"].(float64); ok && v >= 100 {
+		status = "completed"
+	}
+	if err := c.taskStore.UpdateChunk(taskID, &Chunk{ID: taskID, Status: status}); err != nil {
+		c.log.Debug("Progress update: failed to update chunk status",
+			zap.String("task_id", taskID),
+			zap.String("status", status),
+			zap.Error(err))
+	} else {
+		c.log.Debug("Progress update recorded",
+			zap.String("task_id", taskID),
+			zap.String("status", status),
+			zap.String("campaign_id", globalCtx.GetCampaignId()))
+	}
 }
 
 // handleCapabilityUpdate processes incoming capability announcements from workers.
@@ -457,69 +458,50 @@ func (c *Coordinator) handleCapabilityUpdate(ctx context.Context, event *nexusv1
 	}
 	successPayload := &commonpb.Payload{Data: successPayloadData}
 
-	// 1. Send targeted acknowledgment back to the worker
-	targetedServiceSpecific := map[string]interface{}{
-		"routing": map[string]interface{}{
-			"target_worker_id": workerID,
-		},
+	// Send a single broadcast notification for all listeners
+	// The WebSocket gateway will route to the correct client based on user_id
+	// No need for both targeted and broadcast - this was causing duplicate events
+	// Use proper user ID for routing to ensure the gateway can find the client
+	userIDForRouting := globalCtx.GetUserId()
+	if userIDForRouting == "" {
+		// Fallback to workerID if user_id is not available (shouldn't happen in normal flow)
+		userIDForRouting = workerID
+		c.log.Warn("Using workerID for routing because user_id is missing",
+			zap.String("worker_id", workerID))
 	}
 
-	// Targeted acknowledgement should be addressed to the worker itself so routing
-	// uses the worker identifier. Use workerID (device_id or stable id) instead
-	// of the producer "source" field to avoid gateway mapping to guest_* values.
-	targetedAck := events.NewCanonicalEventEnvelope(
+	// Include worker_id in the payload so frontend can identify which worker this is for
+	// But use user_id for routing to ensure WebSocket gateway can deliver it
+	successAck := events.NewCanonicalEventEnvelope(
 		EventCapabilitiesSuccess,
-		workerID,
+		userIDForRouting,
 		globalCtx.GetCampaignId(),
 		globalCtx.GetCorrelationId(),
 		successPayload,
-		targetedServiceSpecific,
+		nil, // No routing = broadcast to user's WebSocket connection
 	)
-	targetedEnvelope := &events.EventEnvelope{
+	successEnvelope := &events.EventEnvelope{
 		ID:       uuid.New().String(),
-		Type:     targetedAck.Type,
-		Payload:  targetedAck.Payload,
-		Metadata: targetedAck.Metadata,
+		Type:     successAck.Type,
+		Payload:  successAck.Payload,
+		Metadata: successAck.Metadata,
 	}
 
-	// 2. Send broadcast notification for all listeners (without routing)
-	// Use proper user ID for routing instead of source
-	broadcastAck := events.NewCanonicalEventEnvelope(
-		EventCapabilitiesSuccess,
-		globalCtx.GetUserId(),
-		globalCtx.GetCampaignId(),
-		globalCtx.GetCorrelationId(),
-		successPayload,
-		nil, // No routing = broadcast
-	)
-	broadcastEnvelope := &events.EventEnvelope{
-		ID:       uuid.New().String(),
-		Type:     broadcastAck.Type,
-		Payload:  broadcastAck.Payload,
-		Metadata: broadcastAck.Metadata,
-	}
-
-	c.log.Info("📤 Sending capability success acknowledgments",
+	c.log.Info("📤 Sending capability success acknowledgment",
 		zap.String("worker_id", workerID),
+		zap.String("user_id", userIDForRouting),
 		zap.String("event_type", EventCapabilitiesSuccess),
 		zap.String("correlation_id", globalCtx.GetCorrelationId()))
 
-	// Emit both events
-	if _, err := c.provider.EmitEventEnvelope(ctx, targetedEnvelope); err != nil {
-		c.log.Error("❌ Failed to emit targeted success event",
+	// Emit single event (no duplicates)
+	if _, err := c.provider.EmitEventEnvelope(ctx, successEnvelope); err != nil {
+		c.log.Error("❌ Failed to emit capability success event",
 			zap.Error(err),
 			zap.String("worker_id", workerID))
 	} else {
-		c.log.Info("✅ Sent targeted acknowledgment",
-			zap.String("worker_id", workerID))
-	}
-
-	if _, err := c.provider.EmitEventEnvelope(ctx, broadcastEnvelope); err != nil {
-		c.log.Error("❌ Failed to emit broadcast success event",
-			zap.Error(err))
-	} else {
-		c.log.Info("✅ Sent broadcast acknowledgment",
-			zap.String("worker_id", workerID))
+		c.log.Info("✅ Sent capability success acknowledgment",
+			zap.String("worker_id", workerID),
+			zap.String("user_id", userIDForRouting))
 	}
 }
 
@@ -638,7 +620,7 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 
 	c.log.Info("Handling parallel dispatch request", zap.String("parent_task_id", parentTaskID))
 
-    // 1. Determine chunk count and find suitable workers
+	// 1. Determine chunk count and find suitable workers
 	minReqs := parentEnvelope.GetRequirements().GetMin()
 	if minReqs == nil {
 		c.log.Warn("Parallel task requires minimum requirements", zap.String("parent_task_id", parentTaskID))
@@ -659,31 +641,31 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 		return
 	}
 
-    // Determine actual chunk count using memory-aware heuristic
-    requestedMaxChunks := parentEnvelope.GetRequirements().GetParallelism().GetMaxChunks()
-    // Estimate available memory across workers to size chunks (target ~512MB per chunk)
-    var totalMemMB uint32
-    for _, wid := range suitableWorkers {
-        if caps, err := c.capabilities.GetCapabilities(ctx, wid); err == nil {
-            totalMemMB += caps.GetMemoryMb()
-        }
-    }
-    targetChunkMB := uint32(512)
-    memBasedChunks := 0
-    if totalMemMB > 0 {
-        memBasedChunks = int(totalMemMB / targetChunkMB)
-    }
-    // Ensure at least one chunk per worker, and at least 1 overall
-    chunkCount := len(suitableWorkers)
-    if memBasedChunks > chunkCount {
-        chunkCount = memBasedChunks
-    }
-    if chunkCount < 1 {
-        chunkCount = 1
-    }
-    if requestedMaxChunks > 0 && uint32(chunkCount) > requestedMaxChunks {
-        chunkCount = int(requestedMaxChunks)
-    }
+	// Determine actual chunk count using memory-aware heuristic
+	requestedMaxChunks := parentEnvelope.GetRequirements().GetParallelism().GetMaxChunks()
+	// Estimate available memory across workers to size chunks (target ~512MB per chunk)
+	var totalMemMB uint32
+	for _, wid := range suitableWorkers {
+		if caps, err := c.capabilities.GetCapabilities(ctx, wid); err == nil {
+			totalMemMB += caps.GetMemoryMb()
+		}
+	}
+	targetChunkMB := uint32(512)
+	memBasedChunks := 0
+	if totalMemMB > 0 {
+		memBasedChunks = int(totalMemMB / targetChunkMB)
+	}
+	// Ensure at least one chunk per worker, and at least 1 overall
+	chunkCount := len(suitableWorkers)
+	if memBasedChunks > chunkCount {
+		chunkCount = memBasedChunks
+	}
+	if chunkCount < 1 {
+		chunkCount = 1
+	}
+	if requestedMaxChunks > 0 && uint32(chunkCount) > requestedMaxChunks {
+		chunkCount = int(requestedMaxChunks)
+	}
 
 	c.log.Info("Dispatching parallel task", zap.String("parent_task_id", parentTaskID), zap.Int("chunk_count", chunkCount), zap.Int("suitable_workers", len(suitableWorkers)))
 
@@ -723,7 +705,7 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 		workersForChunks[i], workersForChunks[j] = workersForChunks[j], workersForChunks[i]
 	})
 
-    for i := 0; i < chunkCount; i++ {
+	for i := 0; i < chunkCount; i++ {
 		chunkID := fmt.Sprintf("%s-chunk-%d", parentTaskID, i)
 		workerID := workersForChunks[i]
 
@@ -794,62 +776,62 @@ func (c *Coordinator) handleParallelDispatchRequest(ctx context.Context, event *
 		c.log.Debug("Dispatched chunk to worker", zap.String("chunk_id", chunkID), zap.String("worker_id", workerID))
 	}
 
-    // Straggler mitigation: after a grace period, speculatively reassign slow chunks
-    go func(parentID string, workers []string) {
-        // Grace period before checking for stragglers
-        time.Sleep(10 * time.Second)
-        // Attempt to reassign any chunk still pending
-        for i := 0; i < chunkCount; i++ {
-            chunkID := fmt.Sprintf("%s-chunk-%d", parentTaskID, i)
-            // Try to mark as speculative; if store rejects, continue
-            _ = c.taskStore.UpdateChunk(parentTaskID, &Chunk{ID: chunkID, Status: "speculative"})
+	// Straggler mitigation: after a grace period, speculatively reassign slow chunks
+	go func(parentID string, workers []string) {
+		// Grace period before checking for stragglers
+		time.Sleep(10 * time.Second)
+		// Attempt to reassign any chunk still pending
+		for i := 0; i < chunkCount; i++ {
+			chunkID := fmt.Sprintf("%s-chunk-%d", parentTaskID, i)
+			// Try to mark as speculative; if store rejects, continue
+			_ = c.taskStore.UpdateChunk(parentTaskID, &Chunk{ID: chunkID, Status: "speculative"})
 
-            // Choose an alternate worker (round-robin offset)
-            original := workersForChunks[i%len(workersForChunks)]
-            altIdx := (i + 1) % len(workers)
-            altWorker := workers[altIdx]
-            if altWorker == original && len(workers) > 1 {
-                altIdx = (altIdx + 1) % len(workers)
-                altWorker = workers[altIdx]
-            }
+			// Choose an alternate worker (round-robin offset)
+			original := workersForChunks[i%len(workersForChunks)]
+			altIdx := (i + 1) % len(workers)
+			altWorker := workers[altIdx]
+			if altWorker == original && len(workers) > 1 {
+				altIdx = (altIdx + 1) % len(workers)
+				altWorker = workers[altIdx]
+			}
 
-            // Re-create a chunk envelope by cloning parent and setting chunk ID
-            chunkEnvelope := proto.Clone(parentEnvelope).(*commonpb.ComputeEnvelope)
-            chunkEnvelope.TaskId = chunkID
-            assignedStruct, err := c.marshalToStruct(chunkEnvelope)
-            if err != nil {
-                c.log.Debug("Speculative reassign marshal failed", zap.Error(err), zap.String("chunk_id", chunkID))
-                continue
-            }
-            assignedPayload := &commonpb.Payload{Data: assignedStruct}
+			// Re-create a chunk envelope by cloning parent and setting chunk ID
+			chunkEnvelope := proto.Clone(parentEnvelope).(*commonpb.ComputeEnvelope)
+			chunkEnvelope.TaskId = chunkID
+			assignedStruct, err := c.marshalToStruct(chunkEnvelope)
+			if err != nil {
+				c.log.Debug("Speculative reassign marshal failed", zap.Error(err), zap.String("chunk_id", chunkID))
+				continue
+			}
+			assignedPayload := &commonpb.Payload{Data: assignedStruct}
 
-            serviceSpecific := map[string]interface{}{
-                "routing": map[string]interface{}{
-                    "target_worker_id": altWorker,
-                },
-            }
-            globalCtx := event.GetMetadata().GetGlobalContext()
-            canonicalAssigned := events.NewCanonicalEventEnvelope(
-                EventComputeAssigned,
-                globalCtx.GetUserId(),
-                globalCtx.GetCampaignId(),
-                globalCtx.GetCorrelationId(),
-                assignedPayload,
-                serviceSpecific,
-            )
-            assignedEnvelope := &events.EventEnvelope{
-                ID:       uuid.New().String(),
-                Type:     canonicalAssigned.Type,
-                Payload:  canonicalAssigned.Payload,
-                Metadata: canonicalAssigned.Metadata,
-            }
-            if _, err := c.provider.EmitEventEnvelope(ctx, assignedEnvelope); err != nil {
-                c.log.Debug("Speculative reassign failed", zap.Error(err), zap.String("chunk_id", chunkID))
-            } else {
-                c.log.Info("Speculatively reassigned chunk", zap.String("chunk_id", chunkID), zap.String("worker_id", altWorker))
-            }
-        }
-    }(parentTaskID, suitableWorkers)
+			serviceSpecific := map[string]interface{}{
+				"routing": map[string]interface{}{
+					"target_worker_id": altWorker,
+				},
+			}
+			globalCtx := event.GetMetadata().GetGlobalContext()
+			canonicalAssigned := events.NewCanonicalEventEnvelope(
+				EventComputeAssigned,
+				globalCtx.GetUserId(),
+				globalCtx.GetCampaignId(),
+				globalCtx.GetCorrelationId(),
+				assignedPayload,
+				serviceSpecific,
+			)
+			assignedEnvelope := &events.EventEnvelope{
+				ID:       uuid.New().String(),
+				Type:     canonicalAssigned.Type,
+				Payload:  canonicalAssigned.Payload,
+				Metadata: canonicalAssigned.Metadata,
+			}
+			if _, err := c.provider.EmitEventEnvelope(ctx, assignedEnvelope); err != nil {
+				c.log.Debug("Speculative reassign failed", zap.Error(err), zap.String("chunk_id", chunkID))
+			} else {
+				c.log.Info("Speculatively reassigned chunk", zap.String("chunk_id", chunkID), zap.String("worker_id", altWorker))
+			}
+		}
+	}(parentTaskID, suitableWorkers)
 
 	// 4. Emit EventComputeAccepted for Parent Task
 	assignment := &commonpb.ComputeAssignment{
@@ -1063,38 +1045,38 @@ func (c *Coordinator) scoreWorker(ctx context.Context, workerCaps, preferred *co
 		return 0 // No preference, no score.
 	}
 
-    score := 0
+	score := 0
 
 	// Score based on resources (higher is better, simple bonus points)
-    // Weight CPU cores and memory more heavily (linear weights)
-    cpuDelta := int(workerCaps.GetCpuCores()) - int(preferred.GetCpuCores())
-    memDelta := int(workerCaps.GetMemoryMb()) - int(preferred.GetMemoryMb())
-    if cpuDelta > 0 {
-        score += 2 * cpuDelta // 2 points per extra core
-    }
-    if memDelta > 0 {
-        score += memDelta / 256 // 1 point per additional 256 MB
-    }
+	// Weight CPU cores and memory more heavily (linear weights)
+	cpuDelta := int(workerCaps.GetCpuCores()) - int(preferred.GetCpuCores())
+	memDelta := int(workerCaps.GetMemoryMb()) - int(preferred.GetMemoryMb())
+	if cpuDelta > 0 {
+		score += 2 * cpuDelta // 2 points per extra core
+	}
+	if memDelta > 0 {
+		score += memDelta / 256 // 1 point per additional 256 MB
+	}
 
 	// Score based on boolean capabilities (match is better)
 	if preferred.GetWasm() && workerCaps.GetWasm() {
-        score += 3
+		score += 3
 	}
 	if preferred.GetThreads() && workerCaps.GetThreads() {
-        score += 3
+		score += 3
 	}
 	if preferred.GetSimd() && workerCaps.GetSimd() {
-        score += 3
+		score += 3
 	}
 	if preferred.GetWebgpu() && workerCaps.GetWebgpu() {
-        score += 10 // WebGPU is high-value for GPU workloads
+		score += 10 // WebGPU is high-value for GPU workloads
 	}
 
 	// Score based on GPU backend match
 	if prefGPU := preferred.GetGpu(); prefGPU != nil {
 		if workerGPU := workerCaps.GetGpu(); workerGPU != nil {
 			if prefGPU.GetBackend() != "" && prefGPU.GetBackend() == workerGPU.GetBackend() {
-                score += 15 // Exact backend match is a very strong signal
+				score += 15 // Exact backend match is a very strong signal
 			}
 		}
 	}

@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
 
@@ -357,7 +358,7 @@ func main() {
 	// Setup logging using central logger
 	logCfg := logger.Config{
 		Environment: os.Getenv("LOG_ENV"),
-		LogLevel:    os.Getenv("LOG_LEVEL"),
+		LogLevel:    "info", // Hardcode to info to reduce verbosity
 		ServiceName: "ws-gateway",
 	}
 	var err error
@@ -444,31 +445,23 @@ func main() {
 	// Pre-populate all canonical :success event types before starting Nexus subscriber
 	prepopulateCanonicalSuccessEventTypes("config/service_registration.json", log)
 
-	// Load optional whitelist of explicit request event types from environment variable.
-	// Format: WS_GATEWAY_REQUEST_WHITELIST="service:action:v1:requested,other:action:v1:request"
-	if wl := os.Getenv("WS_GATEWAY_REQUEST_WHITELIST"); wl != "" {
-		parts := strings.Split(wl, ",")
-		for _, p := range parts {
-			t := strings.TrimSpace(p)
-			if t == "" {
-				continue
-			}
-			requestEventWhitelist[t] = struct{}{}
-			log.Info("Added event type to request whitelist", zap.String("event_type", t))
-		}
-	}
-
 	// Ensure compute capability announcement events are included so the gateway
 	// subscribes to them and can forward worker capability updates to frontend UIs.
-	AddRelevantEventType("compute:capabilities:v1:update")
 	AddRelevantEventType("compute:capabilities:v1:success")
+	AddRelevantEventType("compute:capabilities:v1:update")
 	// Forward periodic compute system metrics to connected frontends
 	AddRelevantEventType("compute:metrics:v1:broadcast")
 
 	// Connect to the Nexus gRPC server
 	// In production, use TLS credentials.
-	// Use grpc.NewClient (wrapper) instead of grpc.Dial which is deprecated in our codebase
-	conn, err := grpc.NewClient(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Increased keepalive interval to prevent "too_many_pings" errors
+	// gRPC servers have limits on ping frequency to prevent abuse
+	var keepaliveParams = keepalive.ClientParameters{
+		Time:                30 * time.Second, // send pings every 30 seconds (reduced from 10s to prevent too_many_pings)
+		Timeout:             5 * time.Second,  // wait 5 seconds for ping ack (increased from 1s)
+		PermitWithoutStream: true,             // send pings even without active streams
+	}
+	conn, err := grpc.Dial(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(keepaliveParams))
 	if err != nil {
 		log.Error("could not connect to Nexus", zap.Error(err))
 		os.Exit(1)
@@ -691,14 +684,14 @@ func processEvent(event *nexuspb.EventResponse) {
 			}
 			payloadBytes, err := json.Marshal(wsEvent)
 			if err == nil {
-				delivered := sendWithBackpressure(entry.client, payloadBytes)
-				if delivered {
+				select {
+				case entry.client.send <- payloadBytes:
 					log.Info("[REQ/RESP] Forwarded response to client",
 						zap.String("eventID", eventID),
 						zap.String("eventType", eventType),
 						zap.String("user_id", entry.client.userID),
 						zap.Int("payload_size", len(payloadBytes)))
-				} else {
+				default:
 					log.Warn("[REQ/RESP] WebSocket send buffer full", zap.String("user_id", entry.client.userID), zap.String("event_type", eventType))
 				}
 			} else {
@@ -795,15 +788,14 @@ func processEvent(event *nexuspb.EventResponse) {
 				log.Error("Failed to marshal compute assignment for client", zap.Error(err), zap.String("event_type", event.EventType))
 				return
 			}
-			// Use backpressure-aware send: try to send, drop oldest if necessary
-			delivered := sendWithBackpressure(targetClient, payloadBytes)
-			if delivered {
+			select {
+			case targetClient.send <- payloadBytes:
 				metrics.IncComputeAssigned()
 				log.Info("[COMPUTE] Forwarded assigned task to device",
 					zap.String("device_id", targetID),
 					zap.String("user_id", targetClient.userID),
 					zap.String("campaign_id", targetClient.campaignID))
-			} else {
+			default:
 				metrics.IncAssignmentFailures()
 				log.Error("[COMPUTE] Dropped assignment: target client buffer full",
 					zap.String("device_id", targetID),
@@ -824,11 +816,11 @@ func processEvent(event *nexuspb.EventResponse) {
 		service, action, version, state := parts[0], parts[1], parts[2], parts[3]
 		if service != "" && action != "" && strings.HasPrefix(version, "v") && len(version) > 1 {
 			// Only forward response events, not request events
-			allowedStates := map[string]struct{}{"started": {}, "success": {}, "failed": {}, "completed": {}}
+			allowedStates := map[string]struct{}{"started": {}, "success": {}, "failed": {}, "completed": {}, "broadcast": {}}
 			if _, ok := allowedStates[state]; ok {
 				isCanonical = true
-			} else if state == "requested" {
-				log.Warn("[WS-GATEWAY] FILTERING OUT REQUESTED EVENT - should not forward to frontend",
+			} else if state == "requested" || state == "update" {
+				log.Warn("[WS-GATEWAY] FILTERING OUT CLIENT-INITIATED EVENT - should not be broadcast back to frontend",
 					zap.String("event_type", event.EventType),
 					zap.String("event_id", event.EventId),
 					zap.Any("payload", event.Payload))
@@ -837,6 +829,50 @@ func processEvent(event *nexuspb.EventResponse) {
 		}
 	}
 	if isCanonical {
+		// Handle broadcast events first, as they have different routing rules.
+		state := parts[3]
+		if state == "broadcast" {
+			_, campaignID, _ := getBroadcastScope(event)
+			wsCampaignID := mapCampaignID(campaignID)
+			payloadMap := event.Payload.GetData().AsMap()
+			payloadMap["source"] = "nexus"
+
+			var metadataMap map[string]interface{}
+			if event.Metadata != nil {
+				metadataMap = metadata.ProtoToMap(event.Metadata)
+			}
+
+			// Broadcasts do not have a specific correlation ID for a single client.
+			wsEvent := WebSocketEvent{
+				Type:          event.EventType,
+				Payload:       payloadMap,
+				CorrelationID: "",
+				Metadata:      metadataMap,
+				Timestamp:     time.Now().UTC().Format(time.RFC3339),
+				Version:       "1.0.0",
+				Environment:   "development",
+				Source:        "backend",
+			}
+			payloadBytes, err := json.Marshal(wsEvent)
+			if err != nil {
+				log.Error("Failed to marshal broadcast event", zap.Error(err), zap.String("event_type", event.EventType))
+				return
+			}
+
+			if wsCampaignID == "system" {
+				log.Info("[CANONICAL_EVENT] Broadcasting system-scope event to all clients",
+					zap.String("event_type", event.EventType),
+					zap.String("ws_campaign_id", wsCampaignID))
+				broadcastSystem(payloadBytes)
+			} else {
+				log.Info("[CANONICAL_EVENT] Broadcasting campaign-scope event",
+					zap.String("event_type", event.EventType),
+					zap.String("ws_campaign_id", wsCampaignID))
+				broadcastCampaign(wsCampaignID, payloadBytes)
+			}
+			return
+		}
+
 		userID, campaignID, _ := getBroadcastScope(event)
 		payloadMap := event.Payload.GetData().AsMap()
 		payloadMap["source"] = "nexus"
@@ -901,6 +937,15 @@ func processEvent(event *nexuspb.EventResponse) {
 			return
 		}
 
+		// System-level broadcast events that follow canonical format but are for everyone.
+		if wsCampaignID == "system" {
+			log.Info("[CANONICAL_EVENT] Broadcasting system-scope event to all clients",
+				zap.String("event_type", event.EventType),
+				zap.String("ws_campaign_id", wsCampaignID))
+			broadcastSystem(payloadBytes)
+			return
+		}
+
 		log.Info("[CANONICAL_EVENT] Forwarding event",
 			zap.String("event_type", event.EventType),
 			zap.String("ws_user_id", wsUserID),
@@ -912,13 +957,13 @@ func processEvent(event *nexuspb.EventResponse) {
 			// Match both campaign and user ID
 			if uid == wsUserID && cid == wsCampaignID {
 				go func(client *WSClient, payloadBytes []byte, uid, cid string) {
-					delivered := sendWithBackpressure(client, payloadBytes)
-					if delivered {
+					select {
+					case client.send <- payloadBytes:
 						log.Info("[CANONICAL_EVENT] Forwarded event to client",
 							zap.String("user_id", uid),
 							zap.String("campaign_id", cid),
 							zap.String("event_type", event.EventType))
-					} else {
+					case <-time.After(100 * time.Millisecond):
 						log.Error("[CANONICAL_EVENT] Dropped event: WebSocket send buffer full (non-blocking)",
 							zap.String("user_id", uid),
 							zap.String("campaign_id", cid),
@@ -944,14 +989,14 @@ func processEvent(event *nexuspb.EventResponse) {
 					// Security validation: ensure user is switching TO this campaign
 					if isUserSwitchingToCampaign(client, wsCampaignID, event) {
 						go func(client *WSClient, payloadBytes []byte, uid, cid string) {
-							delivered := sendWithBackpressure(client, payloadBytes)
-							if delivered {
+							select {
+							case client.send <- payloadBytes:
 								log.Info("[CANONICAL_EVENT] Forwarded campaign switch event via user fallback",
 									zap.String("user_id", uid),
 									zap.String("current_campaign_id", cid),
 									zap.String("target_campaign_id", wsCampaignID),
 									zap.String("event_type", event.EventType))
-							} else {
+							case <-time.After(100 * time.Millisecond):
 								log.Error("[CANONICAL_EVENT] Dropped campaign switch event: WebSocket send buffer full",
 									zap.String("user_id", uid),
 									zap.String("current_campaign_id", cid),
@@ -1128,19 +1173,6 @@ func isGodotRequestEvent(eventType string) bool {
 	return false
 }
 
-// isRequestEvent returns true if the event type should be treated as a request/response
-// pair. It checks the standard ":request" / ":requested" suffixes and an optional
-// whitelist populated from environment configuration.
-func isRequestEvent(eventType string) bool {
-	if strings.HasSuffix(eventType, ":request") || strings.HasSuffix(eventType, ":requested") {
-		return true
-	}
-	if _, ok := requestEventWhitelist[eventType]; ok {
-		return true
-	}
-	return false
-}
-
 // getClientIP extracts the real client IP from request headers.
 func getClientIP(r *http.Request) string {
 	// Check X-Forwarded-For header first (for proxies/load balancers)
@@ -1275,7 +1307,7 @@ func wsCampaignUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	client := &WSClient{
 		conn:       conn,
-		send:       make(chan []byte, 512), // 512 message buffer to limit memory; backpressure/drop-oldest policy in place
+		send:       make(chan []byte, 2048), // 2048 message buffer for high-frequency GPU compute streaming
 		campaignID: campaignID,
 		userID:     userID,
 		done:       make(chan struct{}),
@@ -1470,23 +1502,13 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 			c.correlationID = correlationID
 		}
 
-		// Only store pending requests for events that are true requests. We detect this by:
-		// 1) suffix-based convention (":request" or ":requested") OR
-		// 2) explicit whitelist configured via WS_GATEWAY_REQUEST_WHITELIST.
-		// If an event is a request but has no correlation ID, we warn and do not store.
-		isReq := isRequestEvent(envelope.Type)
-		if isReq {
-			if correlationID == "" {
-				log.Warn("Request-type event missing correlation ID; not storing pending request", zap.String("event_type", envelope.Type))
-			} else {
-				expectedSuccessType := extractExpectedSuccessType(envelope.Type)
-				pendingRequests.Store(correlationID, pendingRequestEntry{
-					expectedEventType: expectedSuccessType,
-					client:            c,
-				})
-			}
-		} else {
-			log.Debug("Skipping pendingRequests.Store for non-request event", zap.String("event_type", envelope.Type))
+		// Only store pending requests for non-Godot events or specific event types
+		if !isGodotRequestEvent(envelope.Type) {
+			expectedSuccessType := extractExpectedSuccessType(envelope.Type)
+			pendingRequests.Store(correlationID, pendingRequestEntry{
+				expectedEventType: expectedSuccessType,
+				client:            c,
+			})
 		}
 
 		// Register both request and expected response event types as relevant
@@ -1537,21 +1559,17 @@ func (c *WSClient) writePump() {
 			log.Info("writePump received done signal, exiting", zap.String("campaign", c.campaignID), zap.String("user", c.userID))
 			return
 		case message, ok := <-c.send:
-			// Backpressure detection: Check if send buffer is getting full (use dynamic thresholds)
-			cap := cap(c.send)
-			highWater := int(float64(cap) * 0.75)
-			lowWater := int(float64(cap) * 0.25)
-			if len(c.send) > highWater {
-				c.sendBufferFull = true
-				c.lastBackpressureTime = time.Now()
+			// Backpressure detection: Check if send buffer is getting full
+			if len(c.send) > 1500 { // 75% of buffer capacity
 				log.Warn("Send buffer approaching capacity, potential slow client",
 					zap.String("user_id", c.userID),
 					zap.Int("buffer_usage", len(c.send)),
-					zap.Int("buffer_capacity", cap))
-			} else if c.sendBufferFull && len(c.send) < lowWater {
+					zap.Int("buffer_capacity", cap(c.send)))
+			} else if c.sendBufferFull && len(c.send) < 500 { // 25% of buffer capacity
 				c.sendBufferFull = false
 				log.Info("Send buffer recovered from backpressure",
 					zap.String("user_id", c.userID),
+					zap.Int("buffer_usage", len(c.send)),
 					zap.Duration("backpressure_duration", time.Since(c.lastBackpressureTime)))
 			}
 
@@ -1671,6 +1689,7 @@ func mapCampaignID(campaignID string) string {
 
 // mapUserID maps various user ID formats to WebSocket client user IDs
 // Now simplified since WASM provides consistent guest_* format.
+// It also correctly handles system identifiers.
 func mapUserID(userID string) string {
 	if userID == "" {
 		return ""
@@ -1678,7 +1697,7 @@ func mapUserID(userID string) string {
 
 	// Special system identifiers - return as-is
 	if userID == "godot" || userID == "system" || userID == "admin" {
-		return userID
+		return userID // No "guest_" prefix for these
 	}
 
 	// Already in guest format - return as-is (WASM provides this)
@@ -1689,6 +1708,11 @@ func mapUserID(userID string) string {
 	// Frontend user_* format - convert to guest_* format (legacy support)
 	if strings.HasPrefix(userID, "user_") {
 		return "guest_" + strings.TrimPrefix(userID, "user_")
+	}
+
+	// Handle other system-like identifiers (e.g., "compute-coordinator")
+	if strings.Contains(userID, "-coordinator") || strings.HasSuffix(userID, "-service") {
+		return userID
 	}
 
 	// For any other format, convert to guest format (fallback)
@@ -1757,11 +1781,12 @@ func handleCampaignStateEvent(event *nexuspb.EventResponse) {
 
 				eventBytes, err := json.Marshal(switchEvent)
 				if err == nil {
-					if sendWithBackpressure(client, eventBytes) {
+					select {
+					case client.send <- eventBytes:
 						log.Info("[WS-GATEWAY] Sent campaign switch notification to client",
 							zap.String("user_id", userID),
 							zap.String("old_campaign", cid))
-					} else {
+					default:
 						log.Warn("[WS-GATEWAY] Failed to send campaign switch notification - channel full",
 							zap.String("user_id", userID),
 							zap.String("old_campaign", cid))
@@ -1840,11 +1865,12 @@ func handleCampaignSwitchEvent(event *nexuspb.EventResponse) {
 
 			eventBytes, err := json.Marshal(switchEvent)
 			if err == nil {
-				if sendWithBackpressure(client, eventBytes) {
+				select {
+				case client.send <- eventBytes:
 					log.Info("[WS-GATEWAY] Sent campaign switch completion notification to client",
 						zap.String("user_id", userID),
 						zap.String("old_campaign", cid))
-				} else {
+				default:
 					log.Warn("[WS-GATEWAY] Failed to send campaign switch notification - channel full",
 						zap.String("user_id", userID),
 						zap.String("old_campaign", cid))
@@ -1960,7 +1986,9 @@ func getBroadcastScope(event *nexuspb.EventResponse) (userID, campaignID string,
 func broadcastSystem(payload []byte) {
 	log.Debug("System broadcast received", zap.String("payload", string(payload)))
 	wsClientMap.Range(func(_, _ string, client *WSClient) bool {
-		if !sendWithBackpressure(client, payload) {
+		select {
+		case client.send <- payload:
+		default:
 			log.Warn("Dropped frame for system broadcast client", zap.String("campaign", client.campaignID), zap.String("user", client.userID))
 		}
 		return true
@@ -1970,7 +1998,9 @@ func broadcastSystem(payload []byte) {
 func broadcastCampaign(campaignID string, payload []byte) {
 	wsClientMap.Range(func(cid, _ string, client *WSClient) bool {
 		if cid == campaignID {
-			if !sendWithBackpressure(client, payload) {
+			select {
+			case client.send <- payload:
+			default:
 				log.Warn("Dropped frame for campaign broadcast client", zap.String("campaign", client.campaignID), zap.String("user", client.userID))
 			}
 		}
@@ -1981,7 +2011,9 @@ func broadcastCampaign(campaignID string, payload []byte) {
 func broadcastUser(userID string, payload []byte) {
 	wsClientMap.Range(func(_, uid string, client *WSClient) bool {
 		if uid == userID {
-			if !sendWithBackpressure(client, payload) {
+			select {
+			case client.send <- payload:
+			default:
 				log.Warn("Dropped frame for user broadcast client", zap.String("campaign", client.campaignID), zap.String("user", client.userID))
 			}
 			// A user should only be connected once, so we can stop.
@@ -1989,31 +2021,6 @@ func broadcastUser(userID string, payload []byte) {
 		}
 		return true
 	})
-}
-
-// sendWithBackpressure attempts to send a message to a client's send channel.
-// If the channel is full it will drop the oldest message to make room and retry once.
-func sendWithBackpressure(client *WSClient, payload []byte) bool {
-	if client == nil {
-		return false
-	}
-	select {
-	case client.send <- payload:
-		return true
-	default:
-	}
-	// Drop oldest message (non-blocking) to make room
-	select {
-	case <-client.send:
-	default:
-	}
-	// Try again
-	select {
-	case client.send <- payload:
-		return true
-	default:
-		return false
-	}
 }
 
 // --- Canonical Event Type Routing ---
@@ -2050,9 +2057,10 @@ func sendErrorResponse(client *WSClient, errorType, message string, err error) {
 		return
 	}
 
-	if sendWithBackpressure(client, payloadBytes) {
+	select {
+	case client.send <- payloadBytes:
 		log.Info("Sent error response to client", zap.String("error_type", errorType), zap.String("user_id", client.userID))
-	} else {
+	default:
 		log.Warn("Failed to send error response: WebSocket send buffer full", zap.String("user_id", client.userID))
 	}
 }

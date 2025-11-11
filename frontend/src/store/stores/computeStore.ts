@@ -1,21 +1,37 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { ComputeWorker, ComputeTask, ComputeMetrics } from '../types/compute';
+import { useEventStore } from './eventStore';
 
 // --- Helper functions to extract data from events ---
 
 const extractWorkerFromEvent = (event: any): ComputeWorker | null => {
   try {
     console.log('extractWorkerFromEvent: Incoming event', event);
-    const source =
-      event.metadata?.global_context?.source || event.metadata?.global_context?.device_id;
-    if (!source) {
-      console.log('extractWorkerFromEvent: No source found, returning null');
-      return null;
-    }
 
+    // Check both snake_case (global_context) and camelCase (globalContext) for compatibility
+    const globalCtx = event.metadata?.global_context || event.metadata?.globalContext;
     const payload = event.payload?.data || event.payload;
     const caps = payload || {};
+
+    // Prioritize worker_id from payload, then fall back to metadata sources
+    const source =
+      caps.worker_id ||
+      caps.workerId ||
+      globalCtx?.source ||
+      globalCtx?.device_id ||
+      globalCtx?.deviceId;
+
+    if (!source) {
+      console.log('extractWorkerFromEvent: No source found, returning null', {
+        hasMetadata: !!event.metadata,
+        hasGlobalContext: !!event.metadata?.global_context,
+        hasGlobalContextCamel: !!event.metadata?.globalContext,
+        metadataKeys: event.metadata ? Object.keys(event.metadata) : [],
+        globalCtxKeys: globalCtx ? Object.keys(globalCtx) : []
+      });
+      return null;
+    }
 
     return {
       id: source,
@@ -219,35 +235,26 @@ export const useComputeStore = create<ComputeStore>()(
   )
 );
 
-// --- Initialize WASM Listeners once ---
+// --- Subscribe to centralized event store ---
 (() => {
-  const { handleWorkerUpdate, handleTaskUpdate } = useComputeStore.getState();
+  const { subscribe } = useEventStore.getState();
 
-  // Listen for specific custom events dispatched from WASM
-  window.addEventListener('compute:task', handleTaskUpdate);
-  window.addEventListener('compute:capabilities:v1:update', handleWorkerUpdate);
-
-  // Assign a general message handler for other events coming through onWasmMessage
-  (window as any).onWasmMessage = (event: any) => {
-    if (!event || !event.type) {
-      return;
-    }
-
+  // Subscribe to all events and filter for compute-related ones.
+  // This is more efficient than multiple subscriptions if we have many event types.
+  subscribe('*', event => {
     const { type } = event;
-    // Get fresh handlers, in case they are updated (e.g. HMR)
+    // Get fresh handlers from the store in case of HMR
     const { handleTaskUpdate, handleWorkerUpdate, handleMetricsUpdate } =
       useComputeStore.getState();
 
-    if (type.startsWith('compute:task')) {
-      handleTaskUpdate(event);
-    } else if (type.startsWith('compute:dispatch')) {
+    if (type.startsWith('compute:task') || type.startsWith('compute:dispatch')) {
       handleTaskUpdate(event);
     } else if (type.startsWith('compute:capabilities')) {
       handleWorkerUpdate(event);
     } else if (type.startsWith('compute:metrics')) {
       handleMetricsUpdate(event);
     }
-  };
+  });
 })();
 
 // --- Selectors ---

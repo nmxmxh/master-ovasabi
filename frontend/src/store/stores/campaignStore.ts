@@ -225,6 +225,10 @@ export const useCampaignStore = create<CampaignStore>()(
                 ? updatedCampaign
                 : state.currentCampaign
           }));
+          // Sync with metadata store if this is the current campaign
+          if (get().currentCampaign?.id === updatedCampaign.id) {
+            useMetadataStore.getState().syncWithCampaignState(updatedCampaign);
+          }
         } else {
           // if campaign is not in the list, add it
           set(state => ({
@@ -234,7 +238,19 @@ export const useCampaignStore = create<CampaignStore>()(
       },
 
       updateCampaignsFromResponse: responseData => {
+        console.log('[CampaignStore] updateCampaignsFromResponse called with:', {
+          responseData,
+          hasCampaigns: !!responseData?.campaigns,
+          hasDataCampaigns: !!responseData?.data?.campaigns,
+          campaignsLength: responseData?.campaigns?.length || responseData?.data?.campaigns?.length || 0
+        });
+        
         const campaigns = responseData?.campaigns || responseData?.data?.campaigns || [];
+        console.log('[CampaignStore] Extracted campaigns:', {
+          count: campaigns.length,
+          campaigns: campaigns.slice(0, 3) // Log first 3 for debugging
+        });
+        
         if (campaigns.length > 0) {
           set(
             state => {
@@ -242,11 +258,29 @@ export const useCampaignStore = create<CampaignStore>()(
               campaigns.forEach((c: Campaign) =>
                 existingCampaigns.set(c.id, { ...existingCampaigns.get(c.id), ...c })
               );
-              return { campaigns: Array.from(existingCampaigns.values()) };
+              const updatedCampaigns = Array.from(existingCampaigns.values());
+              console.log('[CampaignStore] Updated campaigns in store:', {
+                previousCount: state.campaigns.length,
+                newCount: updatedCampaigns.length,
+                campaignIds: updatedCampaigns.map(c => c.id)
+              });
+
+              // Sync current campaign with metadata store
+              const currentCampaignId = state.currentCampaign?.id;
+              if (currentCampaignId) {
+                const updatedCurrent = updatedCampaigns.find(c => c.id === currentCampaignId);
+                if (updatedCurrent) {
+                  useMetadataStore.getState().syncWithCampaignState(updatedCurrent);
+                }
+              }
+              
+              return { campaigns: updatedCampaigns };
             },
             false,
             'updateCampaignsFromResponse'
           );
+        } else {
+          console.warn('[CampaignStore] No campaigns found in response data:', responseData);
         }
       },
 
@@ -333,3 +367,38 @@ export const useCampaignStore = create<CampaignStore>()(
     }
   )
 );
+
+// --- Subscribe to centralized event store ---
+(() => {
+  const { subscribe } = useEventStore.getState();
+
+  subscribe('*', event => {
+    const { type, payload } = event;
+    const {
+      handleCampaignSwitchRequired,
+      handleCampaignSwitchCompleted,
+      updateCampaignFromResponse,
+      updateCampaignsFromResponse
+    } = useCampaignStore.getState();
+
+    switch (type) {
+      case 'campaign:switch:v1:required':
+        handleCampaignSwitchRequired(payload);
+        break;
+      case 'campaign:switch:v1:completed':
+        handleCampaignSwitchCompleted(payload);
+        break;
+      case 'campaign:state:v1:success':
+        updateCampaignFromResponse(payload);
+        break;
+      case 'campaign:list:v1:success':
+        updateCampaignsFromResponse(payload);
+        break;
+      case 'campaign:create_campaign:v1:success':
+        // Assuming the payload for create is a single campaign
+        updateCampaignFromResponse(payload.campaign || payload);
+        break;
+      // Add other campaign-related event handlers here
+    }
+  });
+})();

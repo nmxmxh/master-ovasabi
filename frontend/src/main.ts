@@ -148,15 +148,29 @@ async function loadGoWasm(wasmUrl: string) {
 // Guard to prevent multiple WASM initializations
 let wasmInitializationStarted = false;
 let wasmInitializationComplete = false;
+let wasmInitCallCount = 0; // Track how many times initialization is attempted
 
 // Wait for service worker to signal readiness before starting WASM/compute-worker
 function startWasmAndComputeWorker() {
+  wasmInitCallCount++;
+  const callStack = new Error().stack?.split('\n').slice(1, 4).join(' -> ') || 'unknown';
+  
   // Prevent multiple initializations
   if (wasmInitializationStarted || wasmInitializationComplete) {
-    console.log('[WASM-LOADER] WASM initialization already started or complete, skipping...');
+    console.log('[WASM-LOADER] ⚠️ WASM initialization already started or complete, skipping...', {
+      callCount: wasmInitCallCount,
+      started: wasmInitializationStarted,
+      complete: wasmInitializationComplete,
+      calledFrom: callStack
+    });
     return;
   }
 
+  console.log('[WASM-LOADER] 🚀 Starting WASM initialization...', {
+    callCount: wasmInitCallCount,
+    calledFrom: callStack,
+    timestamp: new Date().toISOString()
+  });
   wasmInitializationStarted = true;
   // Starting WASM and compute worker
   (async () => {
@@ -261,21 +275,37 @@ function registerServiceWorker() {
 // Register service worker
 registerServiceWorker();
 
+let wasmStartAttemptCount = 0; // Track attempts
 function attemptWasmStart() {
+  wasmStartAttemptCount++;
+  const callStack = new Error().stack?.split('\n').slice(1, 4).join(' -> ') || 'unknown';
+  
   if (wasmStartAttempted || wasmInitializationInProgress) {
-    console.log('[WASM-LOADER] WASM start already attempted or in progress, skipping');
+    console.log('[WASM-LOADER] ⚠️ WASM start already attempted or in progress, skipping', {
+      attemptCount: wasmStartAttemptCount,
+      attempted: wasmStartAttempted,
+      inProgress: wasmInitializationInProgress,
+      calledFrom: callStack
+    });
     return;
   }
 
   // Additional check: if WASM is already ready, don't start again
   if (typeof window !== 'undefined' && (window as any).wasmReady) {
-    console.log('[WASM-LOADER] WASM already ready, skipping initialization');
+    console.log('[WASM-LOADER] ✅ WASM already ready, skipping initialization', {
+      attemptCount: wasmStartAttemptCount,
+      calledFrom: callStack
+    });
     return;
   }
 
+  console.log('[WASM-LOADER] 🚀 Starting WASM initialization attempt...', {
+    attemptCount: wasmStartAttemptCount,
+    calledFrom: callStack,
+    timestamp: new Date().toISOString()
+  });
   wasmStartAttempted = true;
   wasmInitializationInProgress = true;
-  console.log('[WASM-LOADER] Starting WASM initialization...');
 
   try {
     startWasmAndComputeWorker();
@@ -464,10 +494,9 @@ window.addEventListener('wasmReady', () => {
 
   // Removed verbose WASM polling logs
 
+  let wasmReadyLogged = false; // Guard to prevent repeated logs
   const pollWasmFunctions = () => {
     const wasmFunctions = checkWasmFunctions();
-
-    // Removed verbose WASM polling logs
 
     updateStoreWithWasmFunctions(wasmFunctions);
     attempts++;
@@ -483,8 +512,24 @@ window.addEventListener('wasmReady', () => {
 
     if (coreFunctionsReady || attempts >= maxAttempts) {
       clearInterval(timer);
-      // Only log completion
-      console.log('✅ WASM functions ready:', coreFunctionsReady);
+      // Only log once when WASM becomes ready
+      if (!wasmReadyLogged) {
+        console.log('[WASM-POLLER] ✅ WASM functions ready:', {
+          ready: coreFunctionsReady,
+          attempts,
+          functions: Object.keys(coreFunctions).filter(k => coreFunctions[k as keyof typeof coreFunctions]),
+          timestamp: new Date().toISOString(),
+          stackTrace: new Error().stack?.split('\n').slice(0, 3).join('\n')
+        });
+        wasmReadyLogged = true;
+      }
+    } else if (attempts % 20 === 0) {
+      // Log progress every 20 attempts to avoid spam (only if not ready)
+      console.log('[WASM-POLLER] Still waiting for WASM functions...', {
+        attempts,
+        ready: coreFunctionsReady,
+        missing: Object.keys(coreFunctions).filter(k => !coreFunctions[k as keyof typeof coreFunctions])
+      });
     }
   };
   // Delay polling to allow WASM exports to attach

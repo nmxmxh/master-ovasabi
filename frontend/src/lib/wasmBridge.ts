@@ -1,6 +1,11 @@
 // JS/WASM bridge for using the WASM WebSocket client as a single source of truth for all real-time communication.
 // This module handles proper type conversion at the Frontend↔WASM boundary.
 
+// Pre-emptively load the event store to mitigate race conditions during initial message handling.
+import('../store/stores/eventStore').catch(err => {
+  console.error('[WASM-Bridge] Critical: Pre-emptive load of eventStore failed:', err);
+});
+
 import type { EventEnvelope } from '../store/types/events';
 
 // Type for messages sent/received via WASM bridge

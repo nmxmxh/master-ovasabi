@@ -160,15 +160,16 @@ var (
 	userID        string
 	ws            js.Value
 	messageMutex  sync.Mutex
-	messageQueue  = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
-	outgoingQueue = make(chan []byte, 1024)    // Buffered queue for outgoing messages
-	resourcePool  = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
-	computeQueue  = make(chan computeTask, 32)
+	messageQueue                = make(chan wsMessage, 1024) // Buffered queue for high-frequency messages
+	outgoingQueue               = make(chan []byte, 1024)    // Buffered queue for outgoing messages
+	resourcePool                = sync.Pool{New: func() interface{} { return make([]byte, 0, 1024) }}
+	computeQueue                = make(chan computeTask, 32)
 	eventBus      *WASMEventBus = NewWASMEventBus() // Our internal WASM event bus
 	// Threading configuration
 	enableThreading       string = "true" // Can be overridden by ldflags
 	maxWorkers            int    = 0      // Will be set based on threading support
 	wsReconnectInProgress bool            // Prevents redundant reconnection attempts
+	processedEvents       sync.Map        // Track processed events by correlation_id to prevent duplicates
 )
 
 func notifyFrontendReady() {
@@ -380,9 +381,9 @@ func processTransformComputeTask(task ComputeTask) {
 }
 
 func processMessages() {
-	// wasmError("[WASM] processMessages goroutine started")
+	wasmError("[WASM] ✅ processMessages goroutine started")
 	for msg := range messageQueue {
-		// wasmError("[WASM] Processing message from queue, dataType:", msg.dataType, "payload size:", len(msg.payload))
+		wasmError("[WASM] 📨 Processing message from queue, dataType:", msg.dataType, "payload size:", len(msg.payload))
 
 		var event EventEnvelope
 		var err error
@@ -390,11 +391,11 @@ func processMessages() {
 		// Handle based on message type
 		if msg.dataType == 1 {
 			// Binary message (compressed) - payload is already decompressed
-			// wasmError("[WASM] Processing binary message (already decompressed)")
+			wasmError("[WASM] Processing binary message (already decompressed)")
 			err = json.Unmarshal(msg.payload, &event)
 		} else {
 			// Text message (uncompressed) - payload is already decompressed
-			// wasmError("[WASM] Processing text message (already decompressed)")
+			wasmError("[WASM] Processing text message (already decompressed)")
 			err = json.Unmarshal(msg.payload, &event)
 		}
 
@@ -421,21 +422,46 @@ func processMessages() {
 			continue
 		}
 
-		// wasmError("[WASM] Successfully parsed event:", event.Type, "correlation_id:", event.CorrelationID)
-
 		// Log the event type we received
-		wasmLog("[WASM] ✅ Received event:", event.Type)
+		wasmError("[WASM] ✅ Successfully parsed event:", event.Type, "correlation_id:", event.CorrelationID)
 
+		// Deduplicate events by correlation_id to prevent processing the same event multiple times
+		// Use atomic check-and-set to prevent race conditions
+		eventKey := event.Type + ":" + event.CorrelationID
+		if event.CorrelationID != "" {
+			// Use LoadOrStore atomically - if it returns true, the event was already processed
+			if _, loaded := processedEvents.LoadOrStore(eventKey, time.Now()); loaded {
+				wasmError("[WASM] ⚠️ Duplicate event detected, skipping:", event.Type, "correlation_id:", event.CorrelationID)
+				continue
+			}
+			// Clean up old entries periodically (keep last 1000 events)
+			// This is done asynchronously to avoid blocking
+			go func() {
+				// Simple cleanup: if map gets too large, clear it (this is a best-effort cleanup)
+				count := 0
+				processedEvents.Range(func(key, value interface{}) bool {
+					count++
+					return count < 1000 // Stop after checking 1000 entries
+				})
+				if count >= 1000 {
+					// Clear old entries (keep recent ones by recreating map)
+					processedEvents = sync.Map{}
+				}
+			}()
+		}
+
+		// Check if this event type has a registered handler
 		if handler := eventBus.GetHandler(event.Type); handler != nil {
-			wasmLog("[WASM] ✅ Found registered handler for:", event.Type)
+			wasmError("[WASM] ✅ Found registered handler for:", event.Type)
+			// Handler will forward to frontend if needed
 			go handler(event)
 		} else {
 			// Handle error events specially
 			if strings.HasPrefix(event.Type, "error:") {
-				wasmLog("[WASM] ✅ Processing error event:", event.Type)
+				wasmError("[WASM] ✅ Processing error event:", event.Type)
 				handleErrorEvent(event)
 			} else if event.Type == "compute:capabilities:v1:update" {
-				wasmLog("[WASM] ✅ Processing compute capabilities update")
+				wasmError("[WASM] ✅ Processing compute capabilities update")
 				// Forward to frontend via CustomEvent
 				dispatchEvent := js.Global().Get("CustomEvent").New(
 					event.Type,
@@ -447,7 +473,7 @@ func processMessages() {
 				js.Global().Get("window").Call("dispatchEvent", dispatchEvent)
 			} else {
 				// Use generic handler for unhandled events
-				wasmLog("[WASM] ✅ Using generic handler for:", event.Type)
+				wasmError("[WASM] ✅ Using generic handler for:", event.Type)
 				go genericEventHandler(event)
 			}
 		}
@@ -994,26 +1020,123 @@ func genericEventHandler(event EventEnvelope) {
 	}
 
 	// Forward all other events to frontend via onWasmMessage
-	if onMsgHandler := js.Global().Get("onWasmMessage"); onMsgHandler.Type() == js.TypeFunction {
+	// Check both js.Global() and window for the handler (browser compatibility)
+	var onMsgHandler js.Value
+	onMsgHandler = js.Global().Get("onWasmMessage")
+	if onMsgHandler.Type() != js.TypeFunction {
+		// Try window object as fallback
+		window := js.Global().Get("window")
+		if !window.IsUndefined() && !window.IsNull() {
+			onMsgHandler = window.Get("onWasmMessage")
+		}
+	}
+	
+	if onMsgHandler.Type() == js.TypeFunction {
+		var payloadGo interface{}
+		if err := json.Unmarshal(event.Payload, &payloadGo); err != nil {
+			wasmError("[WASM] Failed to unmarshal payload for JS forwarding:", err)
+			previewLen := len(event.Payload)
+			if previewLen > 200 {
+				previewLen = 200
+			}
+			if previewLen > 0 {
+				wasmError("[WASM] Payload bytes (first", previewLen, "):", string(event.Payload[:previewLen]))
+			}
+			payloadGo = map[string]interface{}{} // Fallback to empty map
+		}
+
+		var metadataGo interface{}
+		if err := json.Unmarshal(event.Metadata, &metadataGo); err != nil {
+			wasmError("[WASM] Failed to unmarshal metadata for JS forwarding:", err)
+			// Ensure metadata has global_context structure for frontend compatibility
+			metadataGo = map[string]interface{}{
+				"global_context": map[string]interface{}{
+					"source":         "wasm",
+					"correlation_id": event.CorrelationID,
+				},
+			}
+		} else {
+			// Ensure metadata has global_context even if it exists but is missing fields
+			// Handle both camelCase (globalContext) and snake_case (global_context) from protobuf JSON
+			if metadataMap, ok := metadataGo.(map[string]interface{}); ok {
+				// Check for both camelCase and snake_case versions
+				var globalCtx map[string]interface{}
+				var hasGlobalCtx bool
+				
+				// Try snake_case first (preferred)
+				if gc, ok := metadataMap["global_context"].(map[string]interface{}); ok {
+					globalCtx = gc
+					hasGlobalCtx = true
+				} else if gc, ok := metadataMap["globalContext"].(map[string]interface{}); ok {
+					// Convert camelCase to snake_case for consistency
+					globalCtx = gc
+					hasGlobalCtx = true
+					// Normalize to snake_case
+					metadataMap["global_context"] = globalCtx
+					delete(metadataMap, "globalContext")
+				}
+				
+				if hasGlobalCtx {
+					// Ensure source and device_id are present (handle both naming conventions)
+					if _, hasSource := globalCtx["source"]; !hasSource {
+						globalCtx["source"] = "wasm"
+					}
+					if _, hasDeviceID := globalCtx["device_id"]; !hasDeviceID {
+						// Try camelCase version
+						if deviceID, ok := globalCtx["deviceId"].(string); ok && deviceID != "" {
+							globalCtx["device_id"] = deviceID
+						} else {
+							globalCtx["device_id"] = getStableDeviceID()
+						}
+					}
+				} else {
+					// Create global_context if missing
+					metadataMap["global_context"] = map[string]interface{}{
+						"source":         "wasm",
+						"device_id":      getStableDeviceID(),
+						"correlation_id": event.CorrelationID,
+					}
+				}
+			}
+		}
+
 		jsEvent := js.ValueOf(map[string]interface{}{
 			"type":           event.Type,
-			"payload":        string(event.Payload),
-			"metadata":       string(event.Metadata),
+			"payload":        goValueToJSValue(payloadGo),
+			"metadata":       goValueToJSValue(metadataGo),
 			"correlation_id": event.CorrelationID,
 			"timestamp":      time.Now().Format(time.RFC3339),
 			"version":        "1.0.0",
 			"environment":    "development",
 			"source":         "wasm",
 		})
-		wasmLog("[WASM] Forwarding event to frontend:", event.Type)
+		wasmError("[WASM] ✅ Forwarding event to frontend:", event.Type, "correlation_id:", event.CorrelationID)
 		payloadPreview := string(event.Payload)
 		if len(payloadPreview) > 100 {
 			payloadPreview = payloadPreview[:100] + "..."
 		}
-		wasmLog("[WASM] Event payload preview:", payloadPreview)
+		wasmError("[WASM] Event payload preview:", payloadPreview)
+		
+		// Safely invoke the handler with panic recovery to prevent crashes
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					wasmError("[WASM] ❌ Panic in onWasmMessage handler:", r)
+					wasmError("[WASM] Event that caused panic:", event.Type, "correlation_id:", event.CorrelationID)
+				}
+			}()
 		onMsgHandler.Invoke(jsEvent)
+		}()
+		wasmError("[WASM] ✅ Event forwarded successfully to frontend")
 	} else {
-		wasmLog("[WASM] onWasmMessage handler not available for event:", event.Type)
+		wasmError("[WASM] ❌ onWasmMessage handler not available for event:", event.Type)
+		wasmError("[WASM] Handler check - js.Global().Get('onWasmMessage'):", js.Global().Get("onWasmMessage").Type().String())
+		window := js.Global().Get("window")
+		if !window.IsUndefined() && !window.IsNull() {
+			wasmError("[WASM] Handler check - window.onWasmMessage:", window.Get("onWasmMessage").Type().String())
+		} else {
+			wasmError("[WASM] window object is undefined or null")
+		}
 	}
 }
 
@@ -1126,6 +1249,85 @@ func jsGenerateCorrelationID(this js.Value, args []js.Value) interface{} {
 	return generateCorrelationID()
 }
 
+// setFrontendReady is called by the frontend to signal that it's ready to process messages.
+func setFrontendReady(this js.Value, args []js.Value) interface{} {
+	wasmLog("[WASM] Frontend is now ready to process messages.")
+	js.Global().Set("isFrontendReady", js.ValueOf(true))
+
+	// Process any queued messages
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				wasmError("[WASM] Panic in setFrontendReady message processing:", r)
+			}
+		}()
+		
+		queue := js.Global().Get("wasmMessageQueue")
+		if !queue.IsUndefined() && queue.Length() > 0 {
+			wasmError("[WASM] Processing", queue.Length(), "queued messages.")
+			// Create a copy and clear the queue to avoid race conditions
+			messagesToProcess := queue.Call("splice", 0, queue.Length())
+
+			// Process each queued message directly by adding to the Go messageQueue
+			// This avoids the ValueOf conversion issue and uses the same path as normal messages
+			for i := 0; i < messagesToProcess.Length(); i++ {
+				msg := messagesToProcess.Index(i)
+				
+				// Process the message the same way the onmessage handler does
+				go func(msgData js.Value) {
+					defer func() {
+						if r := recover(); r != nil {
+							wasmError("[WASM] Panic processing queued message:", r)
+						}
+					}()
+					
+					// Determine message type and process accordingly
+					jsMsgType := msgData.Type().String()
+					
+					if jsMsgType == "string" {
+						msgStr := msgData.String()
+						decompressed := Decompress([]byte(msgStr))
+						messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+					} else if jsMsgType == "object" {
+						// Check if it's an ArrayBuffer
+						if msgData.InstanceOf(js.Global().Get("ArrayBuffer")) {
+							byteLength := msgData.Get("byteLength")
+							if !byteLength.IsNull() && !byteLength.IsUndefined() && byteLength.Int() > 0 && byteLength.Int() < 1000000 {
+								buf := make([]byte, byteLength.Int())
+								uint8Array := js.Global().Get("Uint8Array").New(msgData)
+								js.CopyBytesToGo(buf, uint8Array)
+								decompressed := Decompress(buf)
+								messageQueue <- wsMessage{dataType: 1, payload: decompressed}
+							}
+						} else if msgData.InstanceOf(js.Global().Get("Uint8Array")) || msgData.InstanceOf(js.Global().Get("Uint8ClampedArray")) {
+							length := msgData.Get("length")
+							if !length.IsNull() && !length.IsUndefined() && length.Int() > 0 && length.Int() < 1000000 {
+								buf := make([]byte, length.Int())
+								js.CopyBytesToGo(buf, msgData)
+								decompressed := Decompress(buf)
+								messageQueue <- wsMessage{dataType: 1, payload: decompressed}
+							}
+						} else {
+							// Fallback: try to convert to string
+							msgStr := msgData.String()
+							decompressed := Decompress([]byte(msgStr))
+							messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+						}
+					} else {
+						// Fallback: convert to string
+						msgStr := msgData.String()
+						decompressed := Decompress([]byte(msgStr))
+						messageQueue <- wsMessage{dataType: 0, payload: decompressed}
+					}
+				}(msg)
+			}
+			wasmError("[WASM] Finished processing queued messages.")
+		}
+	}()
+
+	return nil
+}
+
 func main() {
 	wasmLog("[WASM][EXPORTS] Attaching WASM exports to js.Global()...")
 	global := js.Global()
@@ -1168,6 +1370,7 @@ func main() {
 				{"generateDeviceID", js.FuncOf(jsGenerateDeviceID)},
 				{"generateCampaignID", js.FuncOf(jsGenerateCampaignID)},
 				{"generateCorrelationID", js.FuncOf(jsGenerateCorrelationID)},
+				{"setFrontendReady", js.FuncOf(setFrontendReady)},
 				{"submitGPUTask", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 					if len(args) < 2 || !args[0].InstanceOf(js.Global().Get("Function")) || !args[1].InstanceOf(js.Global().Get("Function")) {
 						return nil
@@ -1219,8 +1422,13 @@ func main() {
 			// Build export summary for debugging
 			// Create metadata object with actual function references
 			metadata := js.Global().Get("Object").New()
+			window := js.Global().Get("window")
 			for _, exp := range exports {
 				js.Global().Set(exp.name, exp.fn)
+				// Also set on window object for browser compatibility
+				if !window.IsUndefined() && !window.IsNull() {
+					window.Set(exp.name, exp.fn)
+				}
 				metadata.Set(exp.name, exp.fn) // Store actual function, not type string
 			}
 			// Set additional metadata

@@ -1,17 +1,22 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { Metadata } from '../types';
-import { merge, cloneDeep } from 'lodash';
+import { merge, cloneDeep, debounce } from 'lodash';
 import {
   generateDeviceID,
   generateSessionID,
   generateCorrelationIDSync
 } from '../../utils/wasmIdExtractor';
+import { useEventStore } from './eventStore';
+
+const DEBOUNCE_TIME = 300; // milliseconds
+
 // import { stateManager, type UserState } from '../../utils/stateManager';
 
 interface MetadataStore {
   metadata: Metadata;
   userId: string; // Store userId as a state property instead of getter
+  isInitialized: boolean; // New flag to track initialization status
 
   // Actions
   setMetadata: (meta: Partial<Metadata>) => void;
@@ -21,6 +26,8 @@ interface MetadataStore {
   initializeMetadata: () => Promise<void>; // Initialize metadata with WASM IDs
   updateCampaignMetadata: (campaignData: any) => void; // Update campaign-specific metadata
   syncWithCampaignState: (campaignState: any) => void; // Sync with campaign state changes
+  syncMetadataWithWasm: () => void;
+  debouncedSyncMetadataWithWasm: () => void;
 
   // Getters
   get campaignId(): string | number;
@@ -302,6 +309,7 @@ export const useMetadataStore = create<MetadataStore>()(
         correlation_id: `corr_${Date.now()}`
       },
       userId: 'loading', // Initial loading state
+      isInitialized: false, // Initialize the flag to false
 
       // Actions
       setMetadata: newMeta => {
@@ -314,6 +322,7 @@ export const useMetadataStore = create<MetadataStore>()(
           false,
           'setMetadata'
         );
+        get().debouncedSyncMetadataWithWasm();
       },
 
       updateMetadata: updater => {
@@ -324,7 +333,22 @@ export const useMetadataStore = create<MetadataStore>()(
           false,
           'updateMetadata'
         );
+        get().debouncedSyncMetadataWithWasm();
       },
+
+      syncMetadataWithWasm: () => {
+        const { metadata } = get();
+        useEventStore.getState().emitEvent({
+          type: 'metadata:update:v1:requested',
+          payload: { metadata },
+          metadata
+        });
+      },
+
+      // Debounced version of syncMetadataWithWasm
+      debouncedSyncMetadataWithWasm: debounce(() => {
+        get().syncMetadataWithWasm();
+      }, DEBOUNCE_TIME),
 
       // Initialize user ID from WASM
       initializeUserId: async () => {
@@ -351,6 +375,7 @@ export const useMetadataStore = create<MetadataStore>()(
             false,
             'updateUserIdInMetadata'
           );
+          get().debouncedSyncMetadataWithWasm();
         } catch (error) {
           console.warn('[MetadataStore] Failed to initialize userId from WASM:', error);
           // Use fallback IDs if WASM is not available
@@ -382,15 +407,23 @@ export const useMetadataStore = create<MetadataStore>()(
             false,
             'updateFallbackMetadata'
           );
+          get().debouncedSyncMetadataWithWasm();
         }
       },
 
       // Initialize metadata with WASM-generated IDs
       initializeMetadata: async () => {
+        const { isInitialized } = get();
+        if (isInitialized) {
+          console.log('[MetadataStore] Metadata already initialized. Skipping.');
+          return;
+        }
+
         try {
           const metadata = await createInitialMetadata();
-          set({ metadata }, false, 'initializeMetadata');
+          set({ metadata, isInitialized: true }, false, 'initializeMetadata');
           console.log('[MetadataStore] Metadata initialized with WASM IDs:', metadata);
+          get().debouncedSyncMetadataWithWasm();
         } catch (error) {
           console.warn('[MetadataStore] Failed to initialize metadata with WASM IDs:', error);
           // Keep the loading state if WASM is not available
@@ -427,6 +460,8 @@ export const useMetadataStore = create<MetadataStore>()(
           'updateCampaignMetadata'
         );
 
+        get().debouncedSyncMetadataWithWasm();
+
         const newCampaign = get().metadata.campaign;
         console.log('[MetadataStore] ✅ Campaign metadata updated successfully:', {
           previous: {
@@ -453,7 +488,7 @@ export const useMetadataStore = create<MetadataStore>()(
           timestamp: new Date().toISOString()
         });
 
-        if (campaignState && campaignState.id) {
+        if (campaignState && campaignState.campaign_id) {
           const previousState = get().metadata.campaign;
 
           set(
@@ -462,7 +497,7 @@ export const useMetadataStore = create<MetadataStore>()(
                 ...state.metadata,
                 campaign: {
                   ...state.metadata.campaign,
-                  id: campaignState.id,
+                  id: campaignState.campaign_id,
                   slug: campaignState.slug || state.metadata.campaign.slug,
                   title: campaignState.title || state.metadata.campaign.name,
                   status: campaignState.status || state.metadata.campaign.status,
@@ -475,6 +510,8 @@ export const useMetadataStore = create<MetadataStore>()(
             false,
             'syncWithCampaignState'
           );
+
+          get().debouncedSyncMetadataWithWasm();
 
           const newState = get().metadata.campaign;
           console.log('[MetadataStore] ✅ Campaign state synced successfully:', {
@@ -522,6 +559,7 @@ export const useMetadataStore = create<MetadataStore>()(
           false,
           'handleUserIDChange'
         );
+        get().debouncedSyncMetadataWithWasm();
         console.log('[MetadataStore] User ID updated from WASM:', newUserId);
       },
 
