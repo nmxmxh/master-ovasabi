@@ -14,6 +14,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/media-streaming .
 FROM alpine:3.19
 WORKDIR /media-streaming
 COPY --from=builder /app/media-streaming /media-streaming/
-# Copy curl from the builder stage for health checks
-COPY --from=builder /usr/bin/curl /usr/bin/curl
+# Install curl for health checks
+RUN apk add --no-cache curl
 CMD ["/media-streaming/media-streaming"]

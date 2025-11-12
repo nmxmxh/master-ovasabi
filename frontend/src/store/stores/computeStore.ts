@@ -5,57 +5,68 @@ import { useEventStore } from './eventStore';
 
 // --- Helper functions to extract data from events ---
 
+const getEventPayload = (event: any) => {
+  // Support multiple shapes: CustomEvent(detail), { payload: { data } }, or direct payload
+  const fromDetail = event?.detail;
+  const fromPayloadData = event?.payload?.data;
+  const fromPayload = event?.payload;
+  return fromDetail ?? fromPayloadData ?? fromPayload ?? event ?? null;
+};
+
+const getGlobalContext = (event: any) => {
+  return event?.metadata?.global_context || event?.metadata?.globalContext || {};
+};
+
+const normalizeBoolean = (value: any): boolean => {
+  return value === true || value === 'true';
+};
+
+const mapStatusToWorkerStatus = (type: string, payloadStatus?: string): ComputeWorker['status'] => {
+  const t = type || '';
+  const s = (payloadStatus || '').toUpperCase();
+  if (s === 'REGISTERED' || s === 'ACTIVE') return 'active';
+  if (s === 'INACTIVE') return 'inactive';
+  if (s === 'OVERLOADED') return 'overloaded';
+  if (t.includes('success') || t.includes('update')) return 'active';
+  return 'inactive';
+};
+
 const extractWorkerFromEvent = (event: any): ComputeWorker | null => {
   try {
-    console.log('extractWorkerFromEvent: Incoming event', event);
-
-    // Check both snake_case (global_context) and camelCase (globalContext) for compatibility
-    const globalCtx = event.metadata?.global_context || event.metadata?.globalContext;
-    const payload = event.payload?.data || event.payload;
-    const caps = payload || {};
-
-    // Prioritize worker_id from payload, then fall back to metadata sources
-    const source =
-      caps.worker_id ||
-      caps.workerId ||
-      globalCtx?.source ||
+    const payload = getEventPayload(event) || {};
+    const globalCtx = getGlobalContext(event);
+    const src =
+      payload.worker_id ||
+      payload.workerId ||
       globalCtx?.device_id ||
-      globalCtx?.deviceId;
+      globalCtx?.deviceId ||
+      globalCtx?.source;
+    if (!src) return null;
 
-    if (!source) {
-      console.log('extractWorkerFromEvent: No source found, returning null', {
-        hasMetadata: !!event.metadata,
-        hasGlobalContext: !!event.metadata?.global_context,
-        hasGlobalContextCamel: !!event.metadata?.globalContext,
-        metadataKeys: event.metadata ? Object.keys(event.metadata) : [],
-        globalCtxKeys: globalCtx ? Object.keys(globalCtx) : []
-      });
-      return null;
-    }
+    const gpu = payload.gpu || {};
+    const status = mapStatusToWorkerStatus(event?.type ?? '', payload.status);
 
     return {
-      id: source,
-      cpuCores: caps.cpu_cores || 0,
-      memoryMb: caps.memory_mb || 0,
-      wasm: caps.wasm || false,
-      threads: caps.threads || false,
-      simd: caps.simd || false,
-      webgpu: caps.webgpu || false,
-      gpuBackend: caps.gpu?.backend || undefined,
-      gpuFeatures: caps.gpu?.features || [],
-      status: 'active' as const,
-      currentLoad: 0
+      id: String(src),
+      cpuCores: Number(payload.cpu_cores ?? payload.cpuCores ?? 0),
+      memoryMb: Number(payload.memory_mb ?? payload.memoryMb ?? 0),
+      wasm: normalizeBoolean(payload.wasm),
+      threads: normalizeBoolean(payload.threads),
+      simd: normalizeBoolean(payload.simd),
+      webgpu: normalizeBoolean(payload.webgpu),
+      gpuBackend: gpu.backend || undefined,
+      gpuFeatures: Array.isArray(gpu.features) ? gpu.features : [],
+      status,
+      currentLoad: typeof payload.current_load === 'number' ? payload.current_load : payload.currentLoad ?? 0
     };
-  } catch (error) {
-    console.error('Failed to extract worker from event:', error);
+  } catch {
     return null;
   }
 };
 
 const extractTaskFromEvent = (event: any): ComputeTask | null => {
   try {
-    // For CustomEvent, the data is in event.detail
-    const payload = event.detail || event.payload?.data || event.payload;
+    const payload = getEventPayload(event);
     if (!payload) return null;
 
     let status: ComputeTask['status'] = payload.status || 'pending';
@@ -188,7 +199,7 @@ const taskUpdateHandler = (state: ComputeState, event: any) => {
 };
 
 const metricsUpdateHandler = (state: ComputeState, event: any) => {
-  const payload = event.payload?.data || event.payload;
+  const payload = getEventPayload(event);
   if (payload) {
     const currentMetrics = state.metrics;
     // Shallow compare payload with current metrics to avoid unnecessary updates

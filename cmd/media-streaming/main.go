@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/grpc/keepalive"
 )
 
 // Server encapsulates all the state and dependencies for the media-streaming service.
@@ -83,7 +84,16 @@ func connectNexus() (*NexusClient, error) {
 	if addr == "" {
 		addr = "localhost:50052"
 	}
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	keepaliveParams := keepalive.ClientParameters{
+		Time:                2 * time.Minute,
+		Timeout:             10 * time.Second,
+		PermitWithoutStream: false,
+	}
+	conn, err := grpc.Dial(
+		addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(keepaliveParams),
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -22,10 +22,10 @@ export const useCompute = () => {
       ...derivedMetrics,
       totalWorkers: backendMetrics?.totalWorkers ?? derivedMetrics.totalWorkers,
       activeWorkers: backendMetrics?.activeWorkers ?? derivedMetrics.activeWorkers,
-      cpuCoresTotal: backendMetrics?.cpuCoresTotal,
-      averageCpuCores: backendMetrics?.averageCpuCores,
-      totalMemoryMb: backendMetrics?.totalMemoryMb,
-      averageMemoryMb: backendMetrics?.averageMemoryMb
+      cpuCoresTotal: backendMetrics?.cpuCoresTotal ?? undefined,
+      averageCpuCores: backendMetrics?.averageCpuCores ?? undefined,
+      totalMemoryMb: backendMetrics?.totalMemoryMb ?? undefined,
+      averageMemoryMb: backendMetrics?.averageMemoryMb ?? undefined
     }),
     [backendMetrics, derivedMetrics]
   );

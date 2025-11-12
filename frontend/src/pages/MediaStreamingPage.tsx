@@ -2,11 +2,17 @@ import React, { useEffect, useCallback, useState } from 'react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import ParticleRenderer from '../components/ParticleRenderer';
 import * as THREE from 'three';
-import { useConnectionStore } from '../store';
+import { useMediaStreaming } from '../hooks/useMediaStreaming';
 
 const MediaStreamingPage: React.FC = () => {
   const [particles, setParticles] = useState<Float32Array | null>(null);
-  const { peerId, url } = useConnectionStore(state => state.mediaStreaming);
+  const { mediaStreaming, connect, disconnect, connectToCampaign } = useMediaStreaming({
+    campaignId: '0',
+    contextId: 'webgpu-particles',
+    onState: state => {
+      console.log('[MediaStreamingPage] Media streaming state:', state);
+    }
+  });
 
   const handleDataMessage = useCallback((data: string) => {
     try {
@@ -50,26 +56,50 @@ const MediaStreamingPage: React.FC = () => {
 
   const handleConnect = () => {
     console.log('[MediaStreamingPage] Attempting to connect...');
+    connect();
+    connectToCampaign();
     start();
   };
 
   const handleDisconnect = () => {
     console.log('[MediaStreamingPage] Attempting to disconnect...');
     stop();
+    disconnect();
   };
+
+  useEffect(() => {
+    if (mediaStreaming.connected && !connected && !connecting) {
+      start();
+    }
+    if (!mediaStreaming.connected && connected) {
+      stop();
+    }
+  }, [connected, connecting, mediaStreaming.connected, start, stop]);
 
   return (
     <div className="minimal-section">
       <h1 className="minimal-title">Media Streaming Demo</h1>
       <div className="minimal-text">
+        <p>
+          Control Link:{' '}
+          {mediaStreaming.connected ? 'Connected' : mediaStreaming.connecting ? 'Connecting...' : 'Disconnected'}
+        </p>
         <p>Status: {connected ? 'Connected' : connecting ? 'Connecting...' : 'Disconnected'}</p>
-        <p>Peer ID: {peerId || 'N/A'}</p>
-        <p>URL: {url || 'N/A'}</p>
+        <p>Peer ID: {mediaStreaming.peerId || 'N/A'}</p>
+        <p>URL: {mediaStreaming.url || 'N/A'}</p>
       </div>
-      <button onClick={handleConnect} className="minimal-button" disabled={connected || connecting}>
+      <button
+        onClick={handleConnect}
+        className="minimal-button"
+        disabled={mediaStreaming.connected && (connected || connecting)}
+      >
         Connect
       </button>
-      <button onClick={handleDisconnect} className="minimal-button" disabled={!connected}>
+      <button
+        onClick={handleDisconnect}
+        className="minimal-button"
+        disabled={!mediaStreaming.connected && !connected}
+      >
         Disconnect
       </button>
 

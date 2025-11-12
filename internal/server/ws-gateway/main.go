@@ -454,14 +454,30 @@ func main() {
 
 	// Connect to the Nexus gRPC server
 	// In production, use TLS credentials.
-	// Increased keepalive interval to prevent "too_many_pings" errors
-	// gRPC servers have limits on ping frequency to prevent abuse
-	var keepaliveParams = keepalive.ClientParameters{
-		Time:                30 * time.Second, // send pings every 30 seconds (reduced from 10s to prevent too_many_pings)
-		Timeout:             5 * time.Second,  // wait 5 seconds for ping ack (increased from 1s)
-		PermitWithoutStream: true,             // send pings even without active streams
+	// Conservative keepalive configuration to avoid Nexus GOAWAY (ENHANCE_YOUR_CALM)
+	// - Long intervals (2m) aligned with server defaults
+	// - Only ping while an active stream exists
+	keepaliveParams := keepalive.ClientParameters{
+		Time:                2 * time.Minute,
+		Timeout:             10 * time.Second,
+		PermitWithoutStream: false,
 	}
-	conn, err := grpc.Dial(nexusAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(keepaliveParams))
+
+	if err := waitForServiceResolution(ctx, nexusAddr, 45*time.Second); err != nil {
+		log.Error("could not resolve Nexus gRPC host", zap.String("address", nexusAddr), zap.Error(err))
+		os.Exit(1)
+	}
+
+	dialCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	conn, err := grpc.DialContext(
+		dialCtx,
+		nexusAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(keepaliveParams),
+		grpc.WithBlock(),
+	)
 	if err != nil {
 		log.Error("could not connect to Nexus", zap.Error(err))
 		os.Exit(1)
@@ -608,10 +624,11 @@ func processEvent(event *nexuspb.EventResponse) {
 	// Match by correlation ID from metadata (primary method)
 	var entry pendingRequestEntry
 	var found bool
+	var correlationID string
 
 	// First try: extract correlation ID from metadata
 	if event.Metadata != nil && event.Metadata.GlobalContext != nil {
-		correlationID := event.Metadata.GlobalContext.CorrelationId
+		correlationID = event.Metadata.GlobalContext.CorrelationId
 		if correlationID != "" {
 			if entry, found = pendingRequests.LoadAndDelete(correlationID); found {
 				log.Debug("[WS-GATEWAY] Matched by metadata correlation ID", zap.String("correlation_id", correlationID), zap.String("event_id", eventID))
@@ -622,7 +639,8 @@ func processEvent(event *nexuspb.EventResponse) {
 	// Second try: extract correlation ID from payload
 	if !found && event.Payload != nil && event.Payload.Data != nil {
 		payloadMap := event.Payload.GetData().AsMap()
-		if correlationID, ok := payloadMap["correlationId"].(string); ok && correlationID != "" {
+		if corrID, ok := payloadMap["correlationId"].(string); ok && corrID != "" {
+			correlationID = corrID
 			if entry, found = pendingRequests.LoadAndDelete(correlationID); found {
 				log.Debug("[WS-GATEWAY] Matched by payload correlation ID", zap.String("correlation_id", correlationID), zap.String("event_id", eventID))
 			}
@@ -630,11 +648,10 @@ func processEvent(event *nexuspb.EventResponse) {
 	}
 
 	// Third try: extract correlation ID from event ID (legacy support)
-	// Event ID format: "campaign_list:userID:correlationID" or similar
 	if !found {
 		parts := strings.Split(eventID, ":")
 		if len(parts) >= 3 {
-			correlationID := parts[len(parts)-1] // Last part is usually correlation ID
+			correlationID = parts[len(parts)-1] // Last part is usually correlation ID
 			if entry, found = pendingRequests.LoadAndDelete(correlationID); found {
 				log.Debug("[WS-GATEWAY] Matched by event ID correlation ID", zap.String("correlation_id", correlationID), zap.String("event_id", eventID))
 			}
@@ -643,7 +660,8 @@ func processEvent(event *nexuspb.EventResponse) {
 
 	// Fourth try: match by event ID directly (fallback)
 	if !found {
-		if entry, found = pendingRequests.LoadAndDelete(eventID); found {
+		correlationID = eventID
+		if entry, found = pendingRequests.LoadAndDelete(correlationID); found {
 			log.Debug("[WS-GATEWAY] Matched by event ID", zap.String("event_id", eventID))
 		}
 	}
@@ -652,19 +670,6 @@ func processEvent(event *nexuspb.EventResponse) {
 		if eventType == entry.expectedEventType {
 			payloadMap := event.Payload.GetData().AsMap()
 			payloadMap["source"] = "nexus"
-
-			// Use the stored correlation ID from the client first, then fallback to extraction
-			correlationID := entry.client.correlationID
-			if correlationID == "" {
-				// Fallback: extract correlation ID from event ID or metadata
-				parts := strings.Split(eventID, ":")
-				if len(parts) >= 3 {
-					correlationID = parts[len(parts)-1] // Last part is usually correlation ID
-				}
-				if correlationID == "" && event.Metadata != nil && event.Metadata.GlobalContext != nil {
-					correlationID = event.Metadata.GlobalContext.CorrelationId
-				}
-			}
 
 			// Convert metadata to a proper JSON-serializable structure
 			var metadataMap map[string]interface{}
@@ -1052,7 +1057,6 @@ func processEvent(event *nexuspb.EventResponse) {
 	}
 
 	// Extract correlation ID from event metadata or payload
-	correlationID := ""
 	if event.Metadata != nil && event.Metadata.GlobalContext != nil {
 		correlationID = event.Metadata.GlobalContext.CorrelationId
 	}
@@ -1639,8 +1643,17 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 				log.Info("Subscribing to all Nexus events (no filter set)")
 			}
 			if err != nil {
-				log.Error("Failed to subscribe to Nexus events", zap.Error(err))
-				time.Sleep(backoff.NextInterval())
+				delay := backoff.NextInterval()
+				if isTooManyPingsError(err) {
+					delay = maxDuration(delay, time.Minute)
+					log.Warn("Nexus throttled keepalive pings; backing off before resubscribing",
+						zap.Error(err),
+						zap.Duration("backoff", delay),
+					)
+				} else {
+					log.Error("Failed to subscribe to Nexus events", zap.Error(err), zap.Duration("backoff", delay))
+				}
+				time.Sleep(delay)
 				continue
 			}
 			log.Info("Successfully subscribed to Nexus event stream (all success types)")
@@ -1654,6 +1667,14 @@ func nexusSubscriber(ctx context.Context, client nexuspb.NexusServiceClient) {
 					} else {
 						log.Error("Error receiving event from Nexus", zap.Error(err))
 					}
+					delay := backoff.NextInterval()
+					if isTooManyPingsError(err) {
+						delay = maxDuration(delay, time.Minute)
+						log.Warn("Received GOAWAY (too_many_pings); pausing before reconnect",
+							zap.Duration("backoff", delay),
+						)
+					}
+					time.Sleep(delay)
 					break
 				}
 
@@ -1717,6 +1738,20 @@ func mapUserID(userID string) string {
 
 	// For any other format, convert to guest format (fallback)
 	return "guest_" + userID
+}
+
+func isTooManyPingsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "too_many_pings")
+}
+
+func maxDuration(a, b time.Duration) time.Duration {
+	if a >= b {
+		return a
+	}
+	return b
 }
 
 // handleCampaignStateEvent processes campaign state events and manages WebSocket connections.
@@ -2108,4 +2143,67 @@ func (b *ExponentialBackoff) NextInterval() time.Duration {
 
 func (b *ExponentialBackoff) Reset() {
 	b.attempts = 0
+}
+
+func waitForServiceResolution(ctx context.Context, rawAddr string, timeout time.Duration) error {
+	if rawAddr == "" {
+		return errors.New("empty address provided for service resolution")
+	}
+
+	if strings.HasPrefix(rawAddr, "unix://") {
+		return nil
+	}
+
+	host := rawAddr
+	if h, _, err := net.SplitHostPort(rawAddr); err == nil {
+		host = h
+	} else if addrErr, ok := err.(*net.AddrError); ok && strings.Contains(addrErr.Err, "missing port") {
+		host = rawAddr
+	} else if err != nil {
+		return fmt.Errorf("parsing gRPC address %q: %w", rawAddr, err)
+	}
+
+	deadline := time.Now().Add(timeout)
+	backoff := NewExponentialBackoff(500*time.Millisecond, 5*time.Second, 1.8, 0.2)
+
+	for {
+		if ctx.Err() != nil {
+			return fmt.Errorf("context cancelled while resolving host %s: %w", host, ctx.Err())
+		}
+
+		lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		_, err := net.DefaultResolver.LookupHost(lookupCtx, host)
+		cancel()
+
+		if err == nil {
+			log.Info("Successfully resolved Nexus host", zap.String("host", host))
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout resolving host %s: %w", host, err)
+		}
+
+		delay := backoff.NextInterval()
+		remaining := time.Until(deadline)
+		if delay > remaining {
+			delay = remaining
+		}
+
+		log.Warn("DNS lookup for Nexus host failed, retrying",
+			zap.String("host", host),
+			zap.Duration("backoff", delay),
+			zap.Error(err),
+		)
+
+		if delay <= 0 {
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while resolving host %s: %w", host, ctx.Err())
+		case <-time.After(delay):
+		}
+	}
 }

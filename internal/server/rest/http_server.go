@@ -48,6 +48,15 @@ func StartHTTPServer(log *gozap.Logger, container *di.Container, httpAddr string
 	// Register the NexusOpsHandler for /api/nexus
 	mux.Handle("/api/nexus_ops", handlers.NewNexusOpsHandler(container, log))
 
+	// Health check endpoint
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte("ok")); err != nil {
+			log.Warn("Failed to write healthz response", gozap.Error(err))
+		}
+	})
+
 	// --- INJECT METAVERSION MIDDLEWARE HERE ---
 	// In production, pass evaluator from main server setup.
 	// For now, use a default evaluator with no flags for demonstration.

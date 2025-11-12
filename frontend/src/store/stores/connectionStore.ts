@@ -17,6 +17,8 @@ interface ConnectionStore extends ConnectionState {
   mediaStreaming: MediaStreamingState;
   setMediaStreamingState: (state: Partial<MediaStreamingState>) => void;
   clearMediaStreamingState: () => void;
+  connectMediaStreaming: (campaignId?: string, contextId?: string) => void;
+  disconnectMediaStreaming: () => void;
 }
 
 // Removed verbose logging - only critical events are logged
@@ -203,6 +205,65 @@ export const useConnectionStore = create<ConnectionStore>()(
           false,
           'clearMediaStreamingState'
         );
+      },
+
+      connectMediaStreaming: (campaignId?: string, contextId?: string) => {
+        const now = new Date().toISOString();
+        const mediaAPI =
+          typeof window !== 'undefined' ? (window as any).mediaStreaming : undefined;
+        if (!mediaAPI || typeof mediaAPI.connect !== 'function') {
+          console.warn('[ConnectionStore] mediaStreaming.connect() not available');
+          set(
+            (state: ConnectionStore) => ({
+              mediaStreaming: {
+                ...state.mediaStreaming,
+                connecting: false
+              }
+            }),
+            false,
+            'connectMediaStreamingUnavailable'
+          );
+          return;
+        }
+        set(
+          (state: ConnectionStore) => ({
+            mediaStreaming: {
+              ...state.mediaStreaming,
+              connecting: true,
+              connected: false,
+              campaignId: campaignId ?? state.mediaStreaming.campaignId,
+              contextId: contextId ?? state.mediaStreaming.contextId,
+              lastConnectAttempt: now,
+              error: undefined
+            }
+          }),
+          false,
+          'connectMediaStreaming'
+        );
+        mediaAPI.connect();
+      },
+
+      disconnectMediaStreaming: () => {
+        const mediaAPI =
+          typeof window !== 'undefined' ? (window as any).mediaStreaming : undefined;
+        set(
+          (state: ConnectionStore) => ({
+            mediaStreaming: {
+              ...state.mediaStreaming,
+              connecting: false,
+              connected: false,
+              peerId: '',
+              url: ''
+            }
+          }),
+          false,
+          'disconnectMediaStreaming'
+        );
+        if (!mediaAPI || typeof mediaAPI.shutdown !== 'function') {
+          console.warn('[ConnectionStore] mediaStreaming.shutdown() not available');
+          return;
+        }
+        mediaAPI.shutdown();
       }
     }),
     {

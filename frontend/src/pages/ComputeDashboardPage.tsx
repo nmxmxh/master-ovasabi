@@ -306,7 +306,12 @@ const ComputeDashboardPage: React.FC = () => {
     setSubmissionStatus('submitting');
     setSubmissionError(null);
     try {
-      const requirements = JSON.parse(newTaskRequirements);
+      let requirements: any;
+      try {
+        requirements = JSON.parse(newTaskRequirements);
+      } catch (err: any) {
+        throw new Error(err?.message || 'Invalid JSON');
+      }
 
       // Emit compute dispatch requested event
       emitEvent({

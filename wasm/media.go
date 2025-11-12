@@ -98,11 +98,16 @@ func (msc *MediaStreamingClient) Connect() {
 	}
 	msc.connecting = true
 	msc.mu.Unlock()
+	msc.emitState("connecting")
 
 	// --- Backend availability check ---
-	if !js.Global().Get("isBackendAvailable").Truthy() || js.Global().Get("isBackendAvailable").IsUndefined() {
-		wasmLog("[MEDIA-STREAMING] Backend not available, skipping media streaming WebSocket connection.")
+	// Connect by default. Only skip if flag exists and is explicitly false.
+	backendFlag := js.Global().Get("isBackendAvailable")
+	if backendFlag.Type() != js.TypeUndefined && !backendFlag.Truthy() {
+		wasmLog("[MEDIA-STREAMING] Backend availability flag is false, skipping connection.")
+		msc.mu.Lock()
 		msc.connecting = false
+		msc.mu.Unlock()
 		msc.emitState("failed")
 		return
 	}
@@ -226,8 +231,6 @@ func (msc *MediaStreamingClient) emitState(state string) {
 // ConnectToCampaign connects to a specific campaign context
 func (msc *MediaStreamingClient) ConnectToCampaign(campaignID, contextID, peerID string) {
 	msc.mu.Lock()
-	defer msc.mu.Unlock()
-
 	// Disconnect existing connection if any
 	if msc.connected && !msc.ws.IsNull() {
 		msc.ws.Call("close")
@@ -257,7 +260,11 @@ func (msc *MediaStreamingClient) ConnectToCampaign(campaignID, contextID, peerID
 
 	msc.url = baseURL + "?campaign=" + campaignID + "&context=" + contextID + "&peer=" + peerID
 	msc.peerID = peerID
+	msc.connecting = true
 	wasmLog("[MEDIA-STREAMING] Updated URL for campaign:", msc.url)
+	msc.mu.Unlock()
+
+	msc.emitState("connecting")
 
 	// Start new connection
 	go msc.Connect()

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useConnectionStore } from '../store/stores/connectionStore';
 
 /**
@@ -19,7 +19,15 @@ export function useMediaStreaming({
   onMessage,
   onState
 }: UseMediaStreamingOptions = {}) {
-  const { mediaStreaming, setMediaStreamingState, wasmReady } = useConnectionStore();
+  const {
+    mediaStreaming,
+    setMediaStreamingState,
+    clearMediaStreamingState,
+    connectMediaStreaming,
+    disconnectMediaStreaming,
+    wasmReady
+  } = useConnectionStore();
+  const lastCampaignKeyRef = useRef<string | null>(null);
 
   const handleReady = useCallback(() => {
     if (typeof window !== 'undefined' && window.mediaStreaming) {
@@ -34,7 +42,7 @@ export function useMediaStreaming({
                 connected: true,
                 connecting: false,
                 peerId: window.mediaStreaming!.getPeerID(),
-                url: window.mediaStreaming!.getURL(),
+                url: window.mediaStreaming!.getURL()
               });
               break;
             case 'disconnected':
@@ -62,11 +70,21 @@ export function useMediaStreaming({
     }
   }, [handleReady]);
 
+  const connect = useCallback(() => {
+    connectMediaStreaming(campaignId, contextId);
+  }, [campaignId, contextId, connectMediaStreaming]);
+
+  const disconnect = useCallback(() => {
+    disconnectMediaStreaming();
+    clearMediaStreamingState();
+  }, [clearMediaStreamingState, disconnectMediaStreaming]);
+
   const connectToCampaign = useCallback(() => {
-    const peerId = typeof window !== 'undefined' && (window as any).userID ? (window as any).userID : undefined;
+    const peerId =
+      typeof window !== 'undefined' && (window as any).userID ? (window as any).userID : undefined;
     if (!peerId) {
-        console.error("Peer ID not found on window.userID");
-        return;
+      console.error('Peer ID not found on window.userID');
+      return;
     }
     if (
       wasmReady &&
@@ -81,9 +99,42 @@ export function useMediaStreaming({
     }
   }, [campaignId, contextId, wasmReady]);
 
+  useEffect(() => {
+    if (!wasmReady) {
+      return;
+    }
+    const mediaAPI =
+      typeof window !== 'undefined' ? (window as any).mediaStreaming : undefined;
+    if (!mediaAPI || typeof mediaAPI.connect !== 'function') {
+      return;
+    }
+    if (!mediaStreaming.connected && !mediaStreaming.connecting) {
+      connect();
+    }
+  }, [connect, mediaStreaming.connected, mediaStreaming.connecting, wasmReady]);
+
+  useEffect(() => {
+    if (!wasmReady || !mediaStreaming.connected) {
+      return;
+    }
+    const mediaAPI =
+      typeof window !== 'undefined' ? (window as any).mediaStreaming : undefined;
+    if (!mediaAPI || typeof mediaAPI.connectToCampaign !== 'function') {
+      return;
+    }
+    const campaignKey = `${campaignId}:${contextId}`;
+    if (lastCampaignKeyRef.current === campaignKey) {
+      return;
+    }
+    connectToCampaign();
+    lastCampaignKeyRef.current = campaignKey;
+  }, [campaignId, contextId, connectToCampaign, mediaStreaming.connected, wasmReady]);
+
   return {
     mediaStreaming,
+    connect,
+    disconnect,
     connectToCampaign,
-    isReady: mediaStreaming.connected,
+    isReady: mediaStreaming.connected && wasmReady
   };
 }
