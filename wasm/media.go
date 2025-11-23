@@ -57,12 +57,13 @@ func getMediaStreamingURL() string {
 	// For development, detect if we're on Vite dev server and use media-streaming port
 	var baseURL string
 	if strings.Contains(host, "5173") || strings.Contains(host, "3000") || strings.Contains(host, "localhost") {
-		// Development environment - use media-streaming service port
+		// Development environment
 		baseURL = protocol + "//localhost:8085/ws"
 	} else {
-		// Production - use same host but media streaming endpoint
+		// Production
 		baseURL = protocol + "//" + host + "/media/ws"
 	}
+
 
 	// Auto-connect to campaign with required parameters
 	campaignID := "0"               // Default campaign
@@ -189,22 +190,39 @@ func (msc *MediaStreamingClient) Connect() {
 	}))
 
 	ws.Set("onerror", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		wasmLog("[MEDIA-STREAMING] WebSocket error")
+		wasmLog("[MEDIA-STREAMING] WebSocket error", args)
 		return nil
 	}))
 
 	ws.Set("onmessage", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		evt := args[0]
-		var data js.Value
-		if evt.Get("data").InstanceOf(js.Global().Get("ArrayBuffer")) {
-			// Binary data
-			data = evt.Get("data")
-		} else {
-			// Text message
-			data = evt.Get("data")
+		raw := evt.Get("data")
+		// If binary → try to decompress; otherwise forward as-is
+		if raw.InstanceOf(js.Global().Get("ArrayBuffer")) {
+			byteLength := raw.Get("byteLength")
+			if byteLength.Truthy() {
+				// Copy ArrayBuffer -> Go []byte
+				buf := make([]byte, byteLength.Int())
+				js.CopyBytesToGo(buf, js.Global().Get("Uint8Array").New(raw))
+				decompressed := Decompress(buf)
+				if len(decompressed) != len(buf) {
+					wasmLog("[MEDIA-STREAMING] Decompressed incoming binary payload", "compressed=", len(buf), "bytes", "decompressed=", len(decompressed), "bytes")
+				} else {
+					wasmLog("[MEDIA-STREAMING] Incoming binary payload (no compression header), size:", len(buf), "bytes")
+				}
+				// Create Uint8Array for JS callback
+				out := js.Global().Get("Uint8Array").New(len(decompressed))
+				js.CopyBytesToJS(out, decompressed)
+				if msc.onMessage.Truthy() {
+					// Pass Uint8Array back to JS
+					msc.onMessage.Invoke(out)
+				}
+				return nil
+			}
 		}
+		// Text path: forward directly
 		if msc.onMessage.Truthy() {
-			msc.onMessage.Invoke(data)
+			msc.onMessage.Invoke(raw)
 		}
 		return nil
 	}))
@@ -218,6 +236,36 @@ func (msc *MediaStreamingClient) Send(msg js.Value) {
 		wasmLog("[MEDIA-STREAMING] Not connected, cannot send")
 		return
 	}
+	// If it's a string, compress it and send as binary
+	if msg.Type() == js.TypeString {
+		str := msg.String()
+		bytes := []byte(str)
+		comp := Compress(bytes)
+		if len(comp) != len(bytes) {
+			wasmLog("[MEDIA-STREAMING] Compressing outgoing text payload", "original=", len(bytes), "bytes", "compressed=", len(comp), "bytes")
+		}
+		out := js.Global().Get("Uint8Array").New(len(comp))
+		js.CopyBytesToJS(out, comp)
+		msc.ws.Call("send", out)
+		return
+	}
+	// If it's an ArrayBuffer or typed array, attempt light compression only for ArrayBuffer
+	if msg.InstanceOf(js.Global().Get("ArrayBuffer")) {
+		buf := make([]byte, msg.Get("byteLength").Int())
+		js.CopyBytesToGo(buf, js.Global().Get("Uint8Array").New(msg))
+		comp := Compress(buf)
+		if len(comp) != len(buf) {
+			wasmLog("[MEDIA-STREAMING] Compressing outgoing binary payload", "original=", len(buf), "bytes", "compressed=", len(comp), "bytes")
+			out := js.Global().Get("Uint8Array").New(len(comp))
+			js.CopyBytesToJS(out, comp)
+			msc.ws.Call("send", out)
+			return
+		}
+		// No benefit; send original
+		msc.ws.Call("send", msg)
+		return
+	}
+	// Typed arrays (Uint8Array etc.): send as-is
 	msc.ws.Call("send", msg)
 }
 

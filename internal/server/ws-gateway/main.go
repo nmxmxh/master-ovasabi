@@ -1498,6 +1498,35 @@ func (c *WSClient) readPumpWithContext(ctx context.Context, wsCancel context.Can
 			continue
 		}
 
+		// --- Security: SAS verification acknowledgment from client ---
+		if envelope.Type == "security:sas:v1:verified" {
+			// device_id may be present in payload or metadata.global_context
+			deviceID := ""
+			if envelope.Metadata != nil && envelope.Metadata.GetGlobalContext() != nil {
+				deviceID = envelope.Metadata.GetGlobalContext().GetDeviceId()
+			}
+			if deviceID == "" {
+				if m := envelope.Payload.GetData().AsMap(); m != nil {
+					if d, ok := m["device_id"].(string); ok {
+						deviceID = d
+					}
+				}
+			}
+			if deviceID != "" {
+				computeDeviceRegistry.MarkSecurityVerified(deviceID, true)
+				log.Info("[SECURITY] SAS verification acknowledged",
+					zap.String("user_id", c.userID),
+					zap.String("campaign_id", c.campaignID),
+					zap.String("device_id", deviceID))
+			} else {
+				log.Warn("[SECURITY] SAS verification missing device_id",
+					zap.String("user_id", c.userID),
+					zap.String("campaign_id", c.campaignID))
+			}
+			// Do not forward to Nexus
+			continue
+		}
+
 		// Extract routing information from validated metadata
 		correlationID := envelope.Metadata.GetGlobalContext().GetCorrelationId()
 

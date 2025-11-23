@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -18,15 +19,18 @@ import (
 	"github.com/gorilla/websocket"
 	commonpb "github.com/nmxmxh/master-ovasabi/api/protos/common/v1"
 	nexusv1 "github.com/nmxmxh/master-ovasabi/api/protos/nexus/v1"
+	"github.com/nmxmxh/master-ovasabi/pkg/compression"
 	"github.com/nmxmxh/master-ovasabi/pkg/graceful"
 	loggerpkg "github.com/nmxmxh/master-ovasabi/pkg/logger"
+	"github.com/nmxmxh/master-ovasabi/pkg/redis"
 	"github.com/pion/webrtc/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Server encapsulates all the state and dependencies for the media-streaming service.
@@ -36,6 +40,8 @@ type Server struct {
 	upgrader    websocket.Upgrader
 	rooms       map[string]*Room
 	roomsMu     sync.RWMutex
+	redisClient *redis.Client
+	policyManager *policyManager
 }
 
 type Message struct {
@@ -51,6 +57,7 @@ type Peer struct {
 	ID             string
 	Conn           *websocket.Conn
 	PeerConnection *webrtc.PeerConnection
+	dataChannel    *webrtc.DataChannel
 	Room           *Room
 	Send           chan Message
 	Cancel         context.CancelFunc
@@ -61,12 +68,21 @@ type Peer struct {
 }
 
 type Room struct {
+	ID              string
 	CampaignID      string
 	ContextID       string
 	Peers           map[string]*Peer
 	State           map[string]interface{}
 	PointerPosition map[string]interface{}
 	mu              sync.RWMutex
+	policy          RoomPolicy
+	pm              *policyManager
+}
+
+type RoomPolicy struct {
+	ParticlesScale float64
+	Version        int64
+	UpdatedAt      time.Time
 }
 
 // NexusClient wraps the gRPC client and connection.
@@ -74,6 +90,159 @@ type NexusClient struct {
 	Client nexusv1.NexusServiceClient
 	Conn   *grpc.ClientConn
 }
+
+// policyManager manages room policies, like ParticlesScale.
+type policyManager struct {
+	redisClient *redis.Client
+	logger      *zap.Logger
+}
+
+// newPolicyManager creates a new policyManager.
+func newPolicyManager(redisClient *redis.Client, logger *zap.Logger) *policyManager {
+	return &policyManager{
+		redisClient: redisClient,
+		logger:      logger,
+	}
+}
+
+func (pm *policyManager) start(ctx context.Context, s *Server) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			pm.adjustPolicies(ctx, s)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (pm *policyManager) adjustPolicies(ctx context.Context, s *Server) {
+	s.roomsMu.RLock()
+	defer s.roomsMu.RUnlock()
+
+	for roomID, room := range s.rooms {
+		if room.ContextID != "webgpu-particles" {
+			continue
+		}
+
+		lastDropKey := "media-streaming:room:" + roomID + ":last_drop_timestamp"
+		lastDropTimestampStr, err := pm.redisClient.Get(ctx, lastDropKey).Result()
+		if err != nil && err.Error() != "redis: nil" {
+			pm.logger.Error("Failed to get last drop timestamp from Redis", zap.Error(err))
+			continue
+		}
+
+		if lastDropTimestampStr != "" {
+			lastDropTimestamp, _ := strconv.ParseInt(lastDropTimestampStr, 10, 64)
+			if time.Since(time.Unix(lastDropTimestamp, 0)) < 10*time.Second {
+				// Still recent drops, don't increase scale
+				continue
+			}
+		}
+
+		// No recent drops, gradually increase scale
+		scaleKey := "media-streaming:room:" + roomID + ":particles_scale"
+		newScale, err := pm.redisClient.AdjustFloatClamped(ctx, scaleKey, 0.05, 0.2, 1.0)
+		if err != nil {
+			pm.logger.Error("Failed to adjust particle scale in Redis", zap.Error(err))
+			continue
+		}
+
+		room.mu.Lock()
+		if newScale > room.policy.ParticlesScale {
+			room.policy.ParticlesScale = newScale
+			room.policy.Version++
+			room.policy.UpdatedAt = time.Now()
+			room.mu.Unlock()
+
+			// Broadcast policy update
+			control := Message{
+				Type: "control:policy:update",
+				Data: map[string]interface{}{
+					"action":          "upshift",
+					"reason":          "congestion_cleared",
+					"particles_scale": room.policy.ParticlesScale,
+					"version":         room.policy.Version,
+					"ts":              time.Now().UTC().Format(time.RFC3339),
+				},
+				Metadata: &commonpb.Metadata{
+					ServiceSpecific: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							"policy_hints": structpb.NewStructValue(&structpb.Struct{
+								Fields: map[string]*structpb.Value{
+									"simulcast_enabled": structpb.NewBoolValue(false), // placeholder
+									"svc_enabled":       structpb.NewBoolValue(false), // placeholder
+								},
+							}),
+						},
+					},
+				},
+				CampaignID: room.CampaignID,
+				ContextID:  room.ContextID,
+			}
+			room.broadcastMessage(control, nil)
+		} else {
+			room.mu.Unlock()
+		}
+	}
+}
+
+func (pm *policyManager) recordDrop(ctx context.Context, room *Room) {
+	lastDropKey := "media-streaming:room:" + room.ID + ":last_drop_timestamp"
+	err := pm.redisClient.Set(ctx, lastDropKey, time.Now().Unix(), 15*time.Second).Err()
+	if err != nil {
+		pm.logger.Error("Failed to set last drop timestamp in Redis", zap.Error(err))
+	}
+
+	scaleKey := "media-streaming:room:" + room.ID + ":particles_scale"
+	newScale, err := pm.redisClient.AdjustFloatClamped(ctx, scaleKey, -0.05, 0.2, 1.0)
+	if err != nil {
+		pm.logger.Error("Failed to adjust particle scale in Redis", zap.Error(err))
+		return
+	}
+
+	room.mu.Lock()
+	if newScale < room.policy.ParticlesScale {
+		room.policy.ParticlesScale = newScale
+		room.policy.Version++
+		room.policy.UpdatedAt = time.Now()
+		room.mu.Unlock()
+
+		// Broadcast policy update
+		control := Message{
+			Type: "control:policy:update",
+			Data: map[string]interface{}{
+				"action":          "downshift",
+				"reason":          "backpressure",
+				"particles_scale": room.policy.ParticlesScale,
+				"version":         room.policy.Version,
+				"ts":              time.Now().UTC().Format(time.RFC3339),
+			},
+			Metadata: &commonpb.Metadata{
+				ServiceSpecific: &structpb.Struct{
+					Fields: map[string]*structpb.Value{
+						"policy_hints": structpb.NewStructValue(&structpb.Struct{
+							Fields: map[string]*structpb.Value{
+								"simulcast_enabled": structpb.NewBoolValue(false), // placeholder
+								"svc_enabled":       structpb.NewBoolValue(false), // placeholder
+							},
+						}),
+					},
+				},
+			},
+			CampaignID: room.CampaignID,
+			ContextID:  room.ContextID,
+		}
+		room.broadcastMessage(control, nil)
+	} else {
+		room.mu.Unlock()
+	}
+}
+
+
 
 // Add a global variable for the Nexus client.
 var nexusCampaignID int64
@@ -85,9 +254,11 @@ func connectNexus() (*NexusClient, error) {
 		addr = "localhost:50052"
 	}
 	keepaliveParams := keepalive.ClientParameters{
-		Time:                2 * time.Minute,
-		Timeout:             10 * time.Second,
-		PermitWithoutStream: false,
+		// The server may close the connection with an ENHANCE_YOUR_CALM GOAWAY frame
+		// if pings are too frequent. We increase the interval to avoid this.
+		Time:                10 * time.Minute,
+		Timeout:             20 * time.Second,
+		PermitWithoutStream: true,
 	}
 	conn, err := grpc.Dial(
 		addr,
@@ -118,12 +289,15 @@ func (nc *NexusClient) emitEvent(ctx context.Context, eventType, entityID string
 }
 
 // NewServer creates a new Server instance.
-func NewServer(logger *zap.Logger, nexusClient *NexusClient) *Server {
+func NewServer(logger *zap.Logger, nexusClient *NexusClient, redisClient *redis.Client) *Server {
+	pm := newPolicyManager(redisClient, logger)
 	return &Server{
-		logger:      logger,
-		nexusClient: nexusClient,
-		upgrader:    websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
-		rooms:       make(map[string]*Room),
+		logger:        logger,
+		nexusClient:   nexusClient,
+		upgrader:      websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
+		rooms:         make(map[string]*Room),
+		redisClient:   redisClient,
+		policyManager: pm,
 	}
 }
 
@@ -134,13 +308,26 @@ func (s *Server) getOrCreateRoom(campaignID, contextID string) *Room {
 	room, ok := s.rooms[key]
 	if !ok {
 		room = &Room{
+			ID:              key,
 			CampaignID:      campaignID,
 			ContextID:       contextID,
 			Peers:           make(map[string]*Peer),
 			State:           make(map[string]interface{}),
 			PointerPosition: make(map[string]interface{}),
+			policy: RoomPolicy{
+				ParticlesScale: 1.0,
+				Version:        1,
+				UpdatedAt:      time.Now(),
+			},
+			pm:         s.policyManager,
 		}
 		s.rooms[key] = room
+
+		// Initialize particles_scale in Redis
+		scaleKey := "media-streaming:room:" + key + ":particles_scale"
+		if err := s.redisClient.Set(context.Background(), scaleKey, 1.0, 0).Err(); err != nil {
+			s.logger.Error("Failed to initialize particle scale in Redis", zap.Error(err))
+		}
 
 		// If this is the webgpu-particles room, start streaming particle data.
 		if contextID == "webgpu-particles" {
@@ -166,13 +353,21 @@ func (s *Server) streamParticleData(room *Room) {
 			room.mu.RUnlock()
 			continue
 		}
+		scale := room.policy.ParticlesScale
+		if scale < 0.2 {
+			scale = 0.2
+		}
+		if scale > 1.0 {
+			scale = 1.0
+		}
+		activeCount := int(float64(particleCount) * scale)
 		pointerX, xOk := room.PointerPosition["x"].(float64)
 		pointerY, yOk := room.PointerPosition["y"].(float64)
 		room.mu.RUnlock()
 
 		// Simple particle animation
 		t := float32(time.Now().UnixNano()) / 1e9
-		for i := 0; i < particleCount; i++ {
+		for i := 0; i < activeCount; i++ {
 			ix := i * 3
 			iy := i*3 + 1
 			iz := i*3 + 2
@@ -204,7 +399,8 @@ func (s *Server) streamParticleData(room *Room) {
 			CampaignID: room.CampaignID,
 			ContextID:  room.ContextID,
 		}
-		room.broadcastMessage(msg, nil)
+		// Backpressure-aware non-blocking broadcast: skip frame if peers congested
+		room.broadcastMessageNonBlocking(msg, nil)
 	}
 }
 
@@ -322,7 +518,60 @@ func (r *Room) broadcastMessage(msg Message, sender *Peer) {
 			if sender != nil {
 				peerMsg.PeerID = sender.ID
 			}
+
+			// Mirror control messages over data channel if available
+			if strings.HasPrefix(msg.Type, "control:") && peer.dataChannel != nil && peer.dataChannel.ReadyState() == webrtc.DataChannelStateOpen {
+				msgBytes, err := json.Marshal(peerMsg)
+				if err == nil {
+					if err := peer.dataChannel.Send(msgBytes); err != nil {
+						peer.logger.Error("Failed to send control message over data channel", zap.Error(err))
+					}
+				}
+			}
+
 			peer.Send <- peerMsg
+		}
+	}
+}
+
+// broadcastMessageNonBlocking attempts to enqueue messages without blocking.
+// If a peer's send buffer is near capacity and the message is low priority (e.g., particle_data),
+// it will drop for that peer to protect latency.
+func (r *Room) broadcastMessageNonBlocking(msg Message, sender *Peer) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	lowPriority := msg.Type == "particle_data"
+	for _, peer := range r.Peers {
+		if peer == sender {
+			continue
+		}
+		peerMsg := msg
+		if sender != nil {
+			peerMsg.PeerID = sender.ID
+		}
+		// If low priority and buffer is high, drop
+		if lowPriority && len(peer.Send) > cap(peer.Send)*3/4 {
+			if peer.logger != nil {
+				peer.logger.Debug("Dropping low-priority message due to backpressure",
+					zap.String("peerID", peer.ID),
+					zap.Int("buffer_usage", len(peer.Send)),
+					zap.Int("buffer_capacity", cap(peer.Send)))
+			}
+			// Record drops and adapt room policy periodically
+			r.pm.recordDrop(context.Background(), r)
+			continue
+		}
+		select {
+		case peer.Send <- peerMsg:
+		default:
+			// As a last resort, drop to avoid blocking
+			if peer.logger != nil {
+				peer.logger.Debug("Dropped message due to full buffer",
+					zap.String("peerID", peer.ID),
+					zap.String("type", msg.Type))
+			}
+			// Record drops and adapt room policy periodically
+			r.pm.recordDrop(context.Background(), r)
 		}
 	}
 }
@@ -398,7 +647,7 @@ func (p *Peer) readPump(ctx context.Context) {
 		}
 		switch msg.Type {
 		case "sdp-offer":
-			pc, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+			pc, err := webrtc.NewPeerConnection(buildWebRTCConfigFromEnv())
 			if err != nil {
 				p.logger.Error("Failed to create PeerConnection", zap.Error(err), zap.String("peerID", p.ID))
 				continue // Don't return, try to process next message
@@ -440,6 +689,8 @@ func (p *Peer) readPump(ctx context.Context) {
 				}
 			}
 			pc.OnDataChannel(func(dc *webrtc.DataChannel) {
+				p.logger.Info("Data channel created", zap.String("label", dc.Label()))
+				p.dataChannel = dc
 				dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 					p.onDataChannelMessage(ctx, msg.Data)
 				})
@@ -489,7 +740,14 @@ func (p *Peer) writePump() {
 			continue
 		}
 
-		if err := p.Conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
+		// Always compress signaling payloads.
+		msgBytes = compression.Compress(msgBytes)
+		messageType := websocket.TextMessage
+		if compression.IsCompressed(msgBytes) {
+			messageType = websocket.BinaryMessage
+		}
+
+		if err := p.Conn.WriteMessage(messageType, msgBytes); err != nil {
 			p.logger.Debug("Failed to write WebSocket message", zap.Error(err), zap.String("peerID", p.ID))
 			// If writing fails, the connection might be broken, so stop trying to send.
 			return
@@ -527,6 +785,25 @@ func main() {
 
 	logger.Info("Media Streaming Service starting up...")
 
+	// Initialize Redis client
+	redisCfg := redis.Config{
+		Host: os.Getenv("REDIS_HOST"),
+		Port: os.Getenv("REDIS_PORT"),
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB: 0, // or from env
+	}
+	if redisCfg.Host == "" {
+		redisCfg.Host = "localhost"
+	}
+	if redisCfg.Port == "" {
+		redisCfg.Port = "6379"
+	}
+	redisClient, err := redis.NewClient(redisCfg, logger)
+	if err != nil {
+		logger.Fatal("Failed to connect to Redis", zap.Error(err))
+	}
+	defer redisClient.Close()
+
 	// Connect to Nexus first, as it's a critical dependency
 	nexusClient, err := connectNexus()
 	if err != nil {
@@ -538,25 +815,45 @@ func main() {
 	defer nexusClient.Conn.Close()
 
 	// Create the main server instance
-	server := NewServer(logger, nexusClient)
+	server := NewServer(logger, nexusClient, redisClient)
 
-	// Register handlers
-	http.HandleFunc("/ws", server.handleWebSocket)    // Correctly registers the method
-	http.HandleFunc("/healthz", server.handleHealthz) // Correctly registers the method
+		// Create a main application context that can be cancelled on shutdown.
 
-	httpServer := &http.Server{
-		Addr:              ":8085",
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			server.logger.Fatal("HTTP server ListenAndServe failed", zap.Error(err))
+		appCtx, cancelApp := context.WithCancel(context.Background())
+
+		defer cancelApp()
+
+	
+
+		go server.policyManager.start(appCtx, server)
+
+	
+
+		// Register handlers
+
+		http.HandleFunc("/ws", server.handleWebSocket)    // Correctly registers the method
+
+		http.HandleFunc("/healthz", server.handleHealthz) // Correctly registers the method
+
+	
+
+		httpServer := &http.Server{
+
+			Addr:              ":8085",
+
+			ReadHeaderTimeout: 5 * time.Second,
+
 		}
-	}()
 
-	// Create a main application context that can be cancelled on shutdown.
-	appCtx, cancelApp := context.WithCancel(context.Background())
-	defer cancelApp()
+		go func(){
+
+			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+
+				server.logger.Fatal("HTTP server ListenAndServe failed", zap.Error(err))
+
+			}
+
+		}()
 
 	meta := &commonpb.Metadata{}
 	campaignID := int64(0)
@@ -579,6 +876,51 @@ func main() {
 		server.logger.Error("HTTP server shutdown failed", zap.Error(err))
 	}
 	server.logger.Info("Media Streaming Service stopped.")
+}
+
+// buildWebRTCConfigFromEnv constructs ICE configuration using env vars:
+// STUN_SERVERS (comma-separated), TURN_URLS (comma-separated), TURN_USERNAME, TURN_PASSWORD.
+// Falls back to a public STUN if none provided.
+func buildWebRTCConfigFromEnv() webrtc.Configuration {
+	var iceServers []webrtc.ICEServer
+	stuns := strings.Split(strings.TrimSpace(os.Getenv("STUN_SERVERS")), ",")
+	addedAny := false
+	for _, s := range stuns {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		iceServers = append(iceServers, webrtc.ICEServer{URLs: []string{s}})
+		addedAny = true
+	}
+	turns := strings.Split(strings.TrimSpace(os.Getenv("TURN_URLS")), ",")
+	turnUser := os.Getenv("TURN_USERNAME")
+	turnPass := os.Getenv("TURN_PASSWORD")
+	for _, t := range turns {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		iceServers = append(iceServers, webrtc.ICEServer{
+			URLs:       []string{t},
+			Username:   turnUser,
+			Credential: turnPass,
+		})
+		addedAny = true
+	}
+	if !addedAny {
+		iceServers = append(iceServers, webrtc.ICEServer{
+			URLs: []string{"stun:stun.l.google.com:19302"},
+		})
+	}
+	return webrtc.Configuration{
+		ICEServers:           iceServers,
+		ICETransportPolicy:   webrtc.ICETransportPolicyAll,
+		BundlePolicy:         webrtc.BundlePolicyBalanced,
+		RTCPMuxPolicy:        webrtc.RTCPMuxPolicyRequire,
+		SDPSemantics:         webrtc.SDPSemanticsUnifiedPlanWithFallback,
+		ICECandidatePoolSize: 2,
+	}
 }
 
 // handleWebSocket is a method of the Server struct that handles WebSocket connections.
